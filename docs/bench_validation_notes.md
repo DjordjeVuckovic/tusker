@@ -67,7 +67,7 @@ keys are free-form labels — verified working.
    `articles`; embeddings live in `article_embeddings vector(1024)` (Qwen3) per
    `db/migrations/004_*`, currently **empty (0 rows)** while `articles` has
    105,375. The pgvector templates must JOIN `article_embeddings` at 1024 dims,
-   and embeddings must be generated (`ingest embeddings`, `scripts/embed_qwen3.ipynb`)
+   and embeddings must be generated (`datapipe load embeddings`, `scripts/embed_qwen3.ipynb`)
    before pooling returns anything. The ES `articles` index also needs a
    `dense_vector` `embedding` field + reindex. (Ingestion handled separately.)
 

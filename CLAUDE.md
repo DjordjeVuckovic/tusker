@@ -33,9 +33,10 @@ This project is part of a master thesis research that explores PostgreSQL's comp
 The project follows a layered architecture pattern:
 
 - **cmd/**: Entry points for different operations
-  - `ingest/`: Unified data-loading CLI with two subcommands:
-    - `ingest articles`: Imports News datasets into the database (optional inline embedding generation via Ollama, `EMBEDDING_SOURCE=online`)
-    - `ingest embeddings`: Loads precomputed embeddings (Parquet from Colab) from an S3-compatible store into `article_embeddings` (`EMBEDDING_SOURCE=file`) — see [docs/embeddings.md](docs/embeddings.md)
+  - `datapipe/`: Unified data-pipeline CLI with three stages:
+    - `datapipe preprocess`: Cleans and maps a raw dataset into a canonical JSONL file
+    - `datapipe load articles`: Imports News datasets into the database (optional inline embedding generation via Ollama, `EMBEDDING_SOURCE=online`)
+    - `datapipe load embeddings`: Loads precomputed embeddings (Parquet from Colab) from an S3-compatible store into `article_embeddings` (`EMBEDDING_SOURCE=file`) — see [docs/embeddings.md](docs/embeddings.md)
   - `news_api/`: HTTP API server for search functionality
   - `schemagen/`: Schema generation utilities
   - `bench/`: IR benchmark CLI — see [docs/bench.md](docs/bench.md)
@@ -201,10 +202,10 @@ docker-compose up -d
 ### Building and Running
 ```bash
 # Build specific command
-go build -o bin/ingest ./cmd/ingest
+go build -o bin/datapipe ./cmd/datapipe
 
-# Run with environment variables (subcommands: articles, embeddings)
-go run ./cmd/ingest articles
+# Run with environment variables (stages: preprocess, load articles, load embeddings)
+go run ./cmd/datapipe load articles
 
 # Build other commands
 go build -o bin/schemagen ./cmd/schemagen
