@@ -7,8 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/signal"
-	"syscall"
+	"strconv"
 	"time"
 
 	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
@@ -16,28 +15,75 @@ import (
 	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
 	"github.com/DjordjeVuckovic/news-hunter/internal/storage/factory"
 	"github.com/DjordjeVuckovic/news-hunter/internal/storage/objectstore"
+	"github.com/DjordjeVuckovic/news-hunter/pkg/config/env"
 	"github.com/google/uuid"
+	"github.com/spf13/cobra"
 )
 
-const expectedDim = 1024
+const (
+	expectedDim      = 1024
+	defaultBatchSize = 5_000
+)
 
-func main() {
-	cfg, err := NewAppConfig().Load()
-	if err != nil {
-		slog.Error("failed to load configuration", "error", err)
-		os.Exit(1)
-	}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
-	if err := run(ctx, cfg); err != nil {
-		slog.Error("embedding ingest failed", "error", err)
-		os.Exit(1)
+func newEmbeddingsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "embeddings",
+		Short: "Load precomputed embeddings from a file or object store",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cfg, err := loadEmbeddingsConfig()
+			if err != nil {
+				return err
+			}
+			return runEmbeddings(cmd.Context(), cfg)
+		},
 	}
 }
 
-func run(ctx context.Context, cfg *EmbedIngestConfig) error {
+type EmbeddingsConfig struct {
+	factory.StorageConfig
+	Embedding embedding.Config
+	BatchSize int
+}
+
+func loadEmbeddingsConfig() (*EmbeddingsConfig, error) {
+	if err := env.LoadDotEnv(os.Getenv("ENV"), "cmd/ingest/embeddings.env"); err != nil {
+		slog.Info("Skipping .env environment variables...", "error", err)
+	}
+
+	storageCfg, err := factory.LoadEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	embedCfg, err := embedding.LoadConfigFromEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	if embedCfg.Source != embedding.SourceFile {
+		return nil, fmt.Errorf("ingest embeddings requires EMBEDDING_SOURCE=file, got %q", embedCfg.Source)
+	}
+
+	store := embedCfg.ObjectStore
+	if store.LocalPath == "" && (store.Bucket == "" || store.Key == "") {
+		return nil, fmt.Errorf("set EMBEDDING_FILE_PATH or EMBEDDING_S3_BUCKET + EMBEDDING_S3_KEY")
+	}
+
+	batchSize := defaultBatchSize
+	if v := os.Getenv("EMBEDDING_BATCH_SIZE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			batchSize = n
+		}
+	}
+
+	return &EmbeddingsConfig{
+		StorageConfig: *storageCfg,
+		Embedding:     *embedCfg,
+		BatchSize:     batchSize,
+	}, nil
+}
+
+func runEmbeddings(ctx context.Context, cfg *EmbeddingsConfig) error {
 	start := time.Now()
 
 	path, cleanup, err := resolveFile(ctx, cfg.Embedding.ObjectStore)
@@ -88,7 +134,7 @@ func run(ctx context.Context, cfg *EmbedIngestConfig) error {
 		return err
 	}
 
-	processed, badIDs, badDim, err := ingest(ctx, reader, indexer, model, cfg.BatchSize)
+	processed, badIDs, badDim, err := ingestEmbeddings(ctx, reader, indexer, model, cfg.BatchSize)
 	if err != nil {
 		return err
 	}
@@ -106,7 +152,7 @@ func run(ctx context.Context, cfg *EmbedIngestConfig) error {
 	return nil
 }
 
-func ingest(
+func ingestEmbeddings(
 	ctx context.Context,
 	reader *embedfile.Reader,
 	indexer storage.EmbedIndexer,

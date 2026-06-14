@@ -49,12 +49,12 @@ migrate-down-tiger:
 migrate-up-all: migrate-up migrate-up-parade migrate-up-tiger
 
 # Build all commands
-build-all: build-ds-ingest build-news-api build-schemagen build-bench
+build-all: build-ingest build-news-api build-schemagen build-bench
 
-build-ds-ingest:
-	@echo "Building ds_ds-ingest..."
+build-ingest:
+	@echo "Building ingest..."
 	@mkdir -p $(BIN_DIR)
-	@go build -o $(BIN_DIR)/ds-ingest $(CMD_DIR)/ds_ingest
+	@go build -o $(BIN_DIR)/ingest $(CMD_DIR)/ingest
 
 build-news-api:
 	@echo "Building news-api..."
@@ -129,15 +129,20 @@ run-schemagen: build-schemagen
 	@echo "Running schema generator..."
 	@./$(BIN_DIR)/schemagen -output=api
 
-# Run data ds-ingest with default config
-run-ds-ingest-pg: build-ds-ingest
-	@echo "Running data ds-ingest..."
-	@ENV_PATHS="cmd/ds_ingest/.env,cmd/ds_ingest/pg.env" ./$(BIN_DIR)/ds-ingest
+# Ingest a dataset into the articles store (Postgres)
+run-ingest-articles-pg: build-ingest
+	@echo "Running articles ingest (pg)..."
+	@ENV_PATHS="cmd/ingest/articles.env,cmd/ingest/pg.env" ./$(BIN_DIR)/ingest articles
 
-# Run data ds-ingest with default config
-run-ds-ingest-es: build-ds-ingest
-	@echo "Running data ds-ingest..."
-	@ENV_PATHS="cmd/ds_ingest/.env,cmd/ds_ingest/es.env" ./$(BIN_DIR)/ds-ingest
+# Ingest a dataset into the articles store (Elasticsearch)
+run-ingest-articles-es: build-ingest
+	@echo "Running articles ingest (es)..."
+	@ENV_PATHS="cmd/ingest/articles.env,cmd/ingest/es.env" ./$(BIN_DIR)/ingest articles
+
+# Load precomputed embeddings into the article_embeddings store
+run-ingest-embeddings: build-ingest
+	@echo "Running embeddings ingest..."
+	@ENV_PATHS="cmd/ingest/embeddings.env" ./$(BIN_DIR)/ingest embeddings
 
 run-api: build-news-api
 	@echo "Running news search service..."
