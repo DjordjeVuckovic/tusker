@@ -78,9 +78,14 @@ func poolTrack(cmd *cobra.Command, f poolFlags, tr *trackctx.Track) error {
 		QueryParallelism: runner.QueryParallelismUnlimited,
 	}
 
+	printSpecWarnings(cmd.OutOrStdout(), bs)
+
 	vectorStore, err := buildQueryVectorStore(cmd.Context(), bs)
 	if err != nil {
 		return fmt.Errorf("build vector store: %w", err)
+	}
+	if err := requireEmbedder(bs, vectorStore); err != nil {
+		return err
 	}
 	runCfg.VectorStore = vectorStore
 

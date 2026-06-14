@@ -81,6 +81,13 @@ func validate(s *BenchSpec) error {
 	if s.ID == "" {
 		return fmt.Errorf("spec is missing required field: id")
 	}
+	if !s.Kind.Valid() {
+		return fmt.Errorf("spec has invalid kind %q (want one of: fts, structured, fuzzy, semantic, hybrid)", s.Kind)
+	}
+	if s.Kind == "" {
+		s.Warnings = append(s.Warnings,
+			"spec has no kind — set one of fts|structured|fuzzy|semantic|hybrid to enable paradigm preconditions")
+	}
 	if len(s.Jobs) == 0 {
 		return fmt.Errorf("spec has no jobs")
 	}

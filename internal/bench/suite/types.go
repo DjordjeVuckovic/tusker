@@ -80,9 +80,22 @@ func (eq *EngineQuery) Resolve(registry *TemplateRegistry, suiteDir string, extr
 		if err != nil {
 			return nil, fmt.Errorf("read query file %q: %w", eq.File, err)
 		}
-		return &ResolvedQuery{Query: substituteExtra(string(data), extra)}, nil
+		return resolveInline(string(data), extra)
 	}
-	return &ResolvedQuery{Query: substituteExtra(eq.Query, extra)}, nil
+	return resolveInline(eq.Query, extra)
+}
+
+// resolveInline substitutes extra into an inline/file query and rejects any
+// {{...}} left unresolved. Without this, an un-injected placeholder (e.g.
+// {{precomputed}} when no embedder ran) ships verbatim to the engine — ES then
+// parses the literal "{" as an object and returns a cryptic START_OBJECT 400.
+// Templates already fail loudly via Render; this gives inline queries parity.
+func resolveInline(s string, extra TemplateParams) (*ResolvedQuery, error) {
+	s = substituteExtra(s, extra)
+	if missing := findMissingPlaceholders(s); len(missing) > 0 {
+		return nil, fmt.Errorf("query has unresolved placeholders: %v", missing)
+	}
+	return &ResolvedQuery{Query: s}, nil
 }
 
 // mergeParams overlays extra onto base without mutating either.

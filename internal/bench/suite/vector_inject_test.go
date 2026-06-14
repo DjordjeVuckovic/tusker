@@ -70,3 +70,19 @@ func TestResolveEngineQuery_InjectsInlineVector(t *testing.T) {
 		t.Errorf("expected injected JSON array, got %q", resolved.Query)
 	}
 }
+
+func TestResolveEngineQuery_UnresolvedInlinePlaceholderErrors(t *testing.T) {
+	q := Query{Engines: map[string]EngineQuery{
+		"es": {Query: `{"knn":{"field":"embedding","query_vector": {{precomputed}}}}`},
+	}}
+
+	// No extra params: {{precomputed}} stays unresolved and must error instead of
+	// shipping a literal "{" to the engine.
+	_, err := q.ResolveEngineQuery("es", nil, "", nil)
+	if err == nil {
+		t.Fatal("expected error for unresolved inline placeholder, got nil")
+	}
+	if !strings.Contains(err.Error(), "precomputed") {
+		t.Errorf("error should name the missing placeholder, got %q", err.Error())
+	}
+}

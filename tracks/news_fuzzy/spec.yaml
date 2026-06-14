@@ -1,5 +1,6 @@
 schema_version: 1
 id: news_fuzzy
+kind: fuzzy
 description: "Fuzzy / approximate search: pg_trgm similarity & pg_levenshtein vs ParadeDB and Elasticsearch token-level fuzziness"
 
 defaults:

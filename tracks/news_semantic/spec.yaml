@@ -1,5 +1,6 @@
 schema_version: 1
 id: news_semantic
+kind: semantic
 description: "Semantic / vector search: pgvector HNSW vs Elasticsearch dense_vector kNN"
 
 defaults:

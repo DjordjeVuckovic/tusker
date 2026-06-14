@@ -50,6 +50,24 @@ func buildQueryVectorStore(ctx context.Context, bs *spec.BenchSpec) (storage.Vec
 	})
 }
 
+// requireEmbedder fails when the track's kind needs a live query embedder but
+// none was built (EMBEDDING_BASE_URL unset or no postgres engine). This turns
+// what used to be N per-query "missing precomputed" warnings into one clear,
+// up-front error for semantic/hybrid tracks.
+func requireEmbedder(bs *spec.BenchSpec, store storage.VectorStore) error {
+	if !bs.Kind.RequiresEmbedder() || store != nil {
+		return nil
+	}
+	return fmt.Errorf("kind %q requires an embedder: set EMBEDDING_BASE_URL and ensure a postgres engine is configured", bs.Kind)
+}
+
+// printSpecWarnings emits load-time advisories (e.g. kind omitted) once.
+func printSpecWarnings(w io.Writer, bs *spec.BenchSpec) {
+	for _, msg := range bs.Warnings {
+		printWarn(w, msg)
+	}
+}
+
 func parseKList(raw string) ([]int, error) {
 	parts := strings.Split(raw, ",")
 	out := make([]int, 0, len(parts))

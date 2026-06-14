@@ -24,6 +24,18 @@ tracks/<name>/
 One track, multiple judgment strategies living side by side.  
 Switch strategies with `--judgments <name>` on `bench run` — no YAML editing required.
 
+### Track kind
+
+`spec.yaml` may declare the IR paradigm via `kind: fts | structured | fuzzy | semantic | hybrid`.
+It is primarily a taxonomy/provenance label (one per track); requirements are *derived*
+from it rather than declared separately. `kind` is **optional**, but omitting it emits a
+load-time warning.
+
+`semantic` and `hybrid` derive `RequiresEmbedder = true`: their queries carry the reserved
+`{{precomputed}}` vector placeholder, so `validate`/`pool`/`run` need a live query embedder
+(`EMBEDDING_BASE_URL` + a postgres engine). Without one, **`bench validate` fails up front**
+for these kinds instead of stubbing a fake vector and reporting a misleading OK.
+
 ## Pipeline
 
 ```
@@ -88,6 +100,8 @@ Scaffolds `tracks/<name>/` with `spec.yaml`, `suite.yaml`, `trec/`, `reports/`, 
 ### `bench validate [<name>]`
 
 Dry-runs every query through every engine using the engine's native validation endpoint (PostgreSQL `EXPLAIN`, Elasticsearch `_validate/query`). Reports per-query pass/fail with colored status — no data is stored.
+
+For `semantic`/`hybrid` kinds it first requires an embedder (fails fast if `EMBEDDING_BASE_URL` is unset) and embeds each query for real, so dimension mismatches surface here. It also warns when the declared `kind` and actual `{{precomputed}}` usage disagree.
 
 ### `bench pool [<name>] [--depth N]`
 

@@ -116,9 +116,14 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		runCfg.KValues = bs.Metrics.KValues
 	}
 
+	printSpecWarnings(cmd.OutOrStdout(), bs)
+
 	vectorStore, err := buildQueryVectorStore(cmd.Context(), bs)
 	if err != nil {
 		return fmt.Errorf("build vector store: %w", err)
+	}
+	if err := requireEmbedder(bs, vectorStore); err != nil {
+		return err
 	}
 	runCfg.VectorStore = vectorStore
 

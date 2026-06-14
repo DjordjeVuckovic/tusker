@@ -1,5 +1,6 @@
 schema_version: 1
 id: news_hybrid
+kind: hybrid
 description: "Hybrid search: RRF fusion of BM25 + vector vs Elasticsearch hybrid"
 
 defaults:

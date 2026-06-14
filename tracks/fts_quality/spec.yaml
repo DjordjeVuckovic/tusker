@@ -1,5 +1,6 @@
 schema_version: 1
 id: fts_quality
+kind: fts
 description: "FTS quality across PG sequential, PG GIN, ParadeDB, TigerData pg_textsearch, and Elasticsearch"
 
 defaults:

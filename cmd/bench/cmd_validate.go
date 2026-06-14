@@ -11,6 +11,7 @@ import (
 	"github.com/DjordjeVuckovic/news-hunter/internal/bench/spec"
 	"github.com/DjordjeVuckovic/news-hunter/internal/bench/suite"
 	"github.com/DjordjeVuckovic/news-hunter/internal/bench/trackctx"
+	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -70,6 +71,18 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 	if err != nil {
 		return fmt.Errorf("load spec: %w", err)
 	}
+	printSpecWarnings(cmd.OutOrStdout(), bs)
+
+	// A semantic/hybrid track without an embedder can never resolve its vector
+	// queries; fail here rather than letting every row stub a fake vector and
+	// report a misleading OK.
+	vectorStore, err := buildQueryVectorStore(cmd.Context(), bs)
+	if err != nil {
+		return fmt.Errorf("build vector store: %w", err)
+	}
+	if err := requireEmbedder(bs, vectorStore); err != nil {
+		return err
+	}
 
 	executors, cleanup, err := createExecutors(cmd.Context(), bs)
 	if err != nil {
@@ -104,7 +117,7 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 				seen[key] = struct{}{}
 
 				row := validateRow{queryID: q.ID, engine: engName}
-				row = validateOne(cmd.Context(), row, q, engName, ls, executors[engName])
+				row = validateOne(cmd.Context(), row, q, engName, ls, executors[engName], vectorStore)
 				rows = append(rows, row)
 				if row.status != "OK" && row.status != "SKIP" {
 					failures++
@@ -116,6 +129,8 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 			}
 		}
 	}
+
+	warnKindDrift(cmd.OutOrStdout(), bs, suites)
 
 	printValidateRows(cmd.OutOrStdout(), rows)
 	fmt.Fprintln(cmd.OutOrStdout())
@@ -129,13 +144,25 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 	return nil
 }
 
-func validateOne(ctx context.Context, row validateRow, q suite.Query, engName string, ls *suite.LoadedSuite, exec engine.Executor) validateRow {
-	// validate is structural and has no embedder: inject a placeholder vector so
-	// vector queries parse (PG '[…]'::vector cast / ES knn JSON array). The real
-	// embedding is computed at pool/run time.
+func validateOne(ctx context.Context, row validateRow, q suite.Query, engName string, ls *suite.LoadedSuite, exec engine.Executor, store storage.VectorStore) validateRow {
 	var extra suite.TemplateParams
 	if q.NeedsQueryVector() {
-		extra = suite.TemplateParams{suite.ReservedQueryVectorParam: "[0]"}
+		if store != nil {
+			// Embed the real query so dimensionality (a 1-dim stub vs VECTOR(1024))
+			// is exercised here, not deferred to pool/run.
+			vec, err := store.QueryVector(ctx, q.Description)
+			if err != nil {
+				row.status = "EMBED_ERR"
+				row.detail = truncate(err.Error(), 120)
+				return row
+			}
+			extra = suite.TemplateParams{suite.ReservedQueryVectorParam: suite.FormatVector(vec)}
+		} else {
+			// No embedder, and the kind doesn't require one — stub a placeholder so
+			// the query parses, but say so rather than report a bare OK.
+			extra = suite.TemplateParams{suite.ReservedQueryVectorParam: "[0]"}
+			row.detail = "stubbed vector"
+		}
 	}
 	resolved, err := q.ResolveEngineQuery(engName, ls.Registry, ls.Dir, extra)
 	if err != nil {
@@ -161,6 +188,29 @@ func validateOne(ctx context.Context, row validateRow, q suite.Query, engName st
 	}
 	row.status = "OK"
 	return row
+}
+
+// warnKindDrift cross-checks the declared kind against observed query usage so
+// the two sources of truth can't silently diverge: a semantic/hybrid kind whose
+// queries never reference {{precomputed}}, or vector-bearing queries under a
+// non-vector kind. Advisory only — it never fails the run.
+func warnKindDrift(w io.Writer, bs *spec.BenchSpec, suites map[string]*suite.LoadedSuite) {
+	anyNeedsVector := false
+	for _, ls := range suites {
+		for i := range ls.Suite.Queries {
+			if ls.Suite.Queries[i].NeedsQueryVector() {
+				anyNeedsVector = true
+			}
+		}
+	}
+	switch {
+	case bs.Kind.RequiresEmbedder() && !anyNeedsVector:
+		printWarn(w, fmt.Sprintf("kind %q expects vector queries, but none reference {{%s}}",
+			bs.Kind, suite.ReservedQueryVectorParam))
+	case bs.Kind != "" && !bs.Kind.RequiresEmbedder() && anyNeedsVector:
+		printWarn(w, fmt.Sprintf("queries reference {{%s}} but kind %q is not semantic/hybrid",
+			suite.ReservedQueryVectorParam, bs.Kind))
+	}
 }
 
 func printValidateRows(w io.Writer, rows []validateRow) {
