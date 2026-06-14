@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newArticlesCmd() *cobra.Command {
+func newLoadArticlesCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "articles",
 		Short: "Map and index a news dataset into the articles store",
@@ -44,7 +44,7 @@ type ArticlesConfig struct {
 }
 
 func loadArticlesConfig() (*ArticlesConfig, error) {
-	if err := env.LoadDotEnv(os.Getenv("ENV"), "cmd/ingest/articles.env"); err != nil {
+	if err := env.LoadDotEnv(os.Getenv("ENV"), "cmd/datapipe/articles.env"); err != nil {
 		slog.Info("Skipping .env environment variables...", "error", err)
 	}
 
@@ -54,7 +54,7 @@ func loadArticlesConfig() (*ArticlesConfig, error) {
 	}
 
 	// Mapping is enabled by default. Set MAPPING_ENABLED=false to ingest an
-	// already-canonical dataset (produced by cmd/preprocessor) via the direct mapper.
+	// already-canonical dataset (produced by datapipe preprocess) via the direct mapper.
 	mappingEnabled := os.Getenv("MAPPING_ENABLED") != "false"
 
 	mappingPath := os.Getenv("MAPPING_CONFIG_PATH")
@@ -127,7 +127,7 @@ func runArticles(ctx context.Context, cfg *ArticlesConfig) error {
 }
 
 // newMapper selects the record-to-Article mapper. When mapping is disabled the
-// dataset is assumed to already be canonical (produced by cmd/preprocessor), so
+// dataset is assumed to already be canonical (produced by datapipe preprocess), so
 // the direct mapper is used and no YAML config is required.
 func newMapper(cfg *ArticlesConfig) (reader.Mapper, error) {
 	if !cfg.MappingEnabled {

@@ -7,7 +7,7 @@ import (
 )
 
 // ToCanonicalRecord flattens an Article into the canonical flat record written
-// by the preprocessor and read back by ArticleDirectMapper. The keys are the
+// by datapipe preprocess and read back by ArticleDirectMapper. The keys are the
 // contract between the two — keep them in sync with ArticleDirectMapper.Map.
 func ToCanonicalRecord(a document.Article) map[string]string {
 	rec := map[string]string{

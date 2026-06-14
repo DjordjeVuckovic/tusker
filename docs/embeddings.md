@@ -5,8 +5,8 @@ ways to produce them, selected by `EMBEDDING_SOURCE`:
 
 | `EMBEDDING_SOURCE` | How | Where |
 |--------------------|-----|-------|
-| `online` (default) | Generated inline during ingestion via Ollama | `ingest articles` (gated by `EMBEDDING_ENABLED=true`) |
-| `file`             | Precomputed offline, loaded from an object store | `ingest embeddings` |
+| `online` (default) | Generated inline during ingestion via Ollama | `datapipe load articles` (gated by `EMBEDDING_ENABLED=true`) |
+| `file`             | Precomputed offline, loaded from an object store | `datapipe load embeddings` |
 | `none`             | No embeddings | — |
 
 The `file` path exists because embedding generation is a one-time, GPU-bound job
@@ -18,7 +18,7 @@ best delegated to Colab. See `scripts/embed_qwen3.ipynb`.
 Colab (Qwen3-Embedding-0.6B, last-token pool, L2-norm)
   → gl_news_embeddings.parquet
   → upload to S3-compatible store
-  → ingest embeddings  → article_embeddings
+  → datapipe load embeddings  → article_embeddings
 ```
 
 **Order matters:** articles must already be ingested first —
@@ -47,8 +47,8 @@ always agree on `model_name`. Override with `EMBEDDING_MODEL` if needed.
 ### Running
 
 ```bash
-cp cmd/ingest/embeddings.env.example cmd/ingest/embeddings.env   # then edit
-go run ./cmd/ingest embeddings
+cp cmd/datapipe/embeddings.env.example cmd/datapipe/embeddings.env   # then edit
+go run ./cmd/datapipe load embeddings
 ```
 
 Re-runnable: each batch is COPYed into a temp staging table, then upserted

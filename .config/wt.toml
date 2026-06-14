@@ -11,7 +11,7 @@ exclude = [
 
 [[post-start]]
 deps = "go mod download"
-copy-env = "for f in cmd/ingest/articles.env cmd/ingest/embeddings.env cmd/ingest/pg.env cmd/ingest/es.env cmd/news_api/.env cmd/news_api/pg.env cmd/news_api/es.env; do cp {{ primary_worktree_path }}/$f {{ worktree_path }}/$f 2>/dev/null || true; done"
+copy-env = "for f in cmd/datapipe/preprocess.env cmd/datapipe/articles.env cmd/datapipe/embeddings.env cmd/datapipe/pg.env cmd/datapipe/es.env cmd/news_api/.env cmd/news_api/pg.env cmd/news_api/es.env; do cp {{ primary_worktree_path }}/$f {{ worktree_path }}/$f 2>/dev/null || true; done"
 copy-claude = "cp -R {{ primary_worktree_path }}/.claude/. {{ worktree_path }}/.claude/ 2>/dev/null || true"
 
 [[pre-merge]]

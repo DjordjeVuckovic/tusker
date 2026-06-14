@@ -49,12 +49,12 @@ migrate-down-tiger:
 migrate-up-all: migrate-up migrate-up-parade migrate-up-tiger
 
 # Build all commands
-build-all: build-ingest build-news-api build-schemagen build-bench
+build-all: build-datapipe build-news-api build-schemagen build-bench
 
-build-ingest:
-	@echo "Building ingest..."
+build-datapipe:
+	@echo "Building datapipe..."
 	@mkdir -p $(BIN_DIR)
-	@go build -o $(BIN_DIR)/ingest $(CMD_DIR)/ingest
+	@go build -o $(BIN_DIR)/datapipe $(CMD_DIR)/datapipe
 
 build-news-api:
 	@echo "Building news-api..."
@@ -65,11 +65,6 @@ build-schemagen:
 	@echo "Building schema generator..."
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/schemagen $(CMD_DIR)/schemagen
-
-build-preprocessor:
-	@echo "Building preprocessor..."
-	@mkdir -p $(BIN_DIR)
-	@go build -o $(BIN_DIR)/preprocessor $(CMD_DIR)/preprocessor
 
 # Generate schemas from Go structs
 schema-gen: build-schemagen
@@ -129,20 +124,25 @@ run-schemagen: build-schemagen
 	@echo "Running schema generator..."
 	@./$(BIN_DIR)/schemagen -output=api
 
-# Ingest a dataset into the articles store (Postgres)
-run-ingest-articles-pg: build-ingest
-	@echo "Running articles ingest (pg)..."
-	@ENV_PATHS="cmd/ingest/articles.env,cmd/ingest/pg.env" ./$(BIN_DIR)/ingest articles
+# Preprocess a raw dataset into canonical JSONL
+run-datapipe-preprocess: build-datapipe
+	@echo "Running datapipe preprocess..."
+	@ENV_PATHS="cmd/datapipe/preprocess.env" ./$(BIN_DIR)/datapipe preprocess
 
-# Ingest a dataset into the articles store (Elasticsearch)
-run-ingest-articles-es: build-ingest
-	@echo "Running articles ingest (es)..."
-	@ENV_PATHS="cmd/ingest/articles.env,cmd/ingest/es.env" ./$(BIN_DIR)/ingest articles
+# Load a dataset into the articles store (Postgres)
+run-datapipe-articles-pg: build-datapipe
+	@echo "Running datapipe load articles (pg)..."
+	@ENV_PATHS="cmd/datapipe/articles.env,cmd/datapipe/pg.env" ./$(BIN_DIR)/datapipe load articles
+
+# Load a dataset into the articles store (Elasticsearch)
+run-datapipe-articles-es: build-datapipe
+	@echo "Running datapipe load articles (es)..."
+	@ENV_PATHS="cmd/datapipe/articles.env,cmd/datapipe/es.env" ./$(BIN_DIR)/datapipe load articles
 
 # Load precomputed embeddings into the article_embeddings store
-run-ingest-embeddings: build-ingest
-	@echo "Running embeddings ingest..."
-	@ENV_PATHS="cmd/ingest/embeddings.env" ./$(BIN_DIR)/ingest embeddings
+run-datapipe-embeddings: build-datapipe
+	@echo "Running datapipe load embeddings..."
+	@ENV_PATHS="cmd/datapipe/embeddings.env" ./$(BIN_DIR)/datapipe load embeddings
 
 run-api: build-news-api
 	@echo "Running news search service..."
@@ -155,10 +155,6 @@ run-api-pg: build-news-api
 run-api-es: build-news-api
 	@echo "Running news search service..."
 	@ENV_PATHS="cmd/news_api/.env,cmd/news_api/es.env" ./$(BIN_DIR)/news-api
-
-run-preprocessor: build-preprocessor
-	@echo "Running preprocessor..."
-	@ENV_PATHS="cmd/preprocessor/.env" ./$(BIN_DIR)/preprocessor
 
 # Benchmark commands
 build-bench:

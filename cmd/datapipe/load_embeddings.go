@@ -25,7 +25,7 @@ const (
 	defaultBatchSize = 5_000
 )
 
-func newEmbeddingsCmd() *cobra.Command {
+func newLoadEmbeddingsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "embeddings",
 		Short: "Load precomputed embeddings from a file or object store",
@@ -46,7 +46,7 @@ type EmbeddingsConfig struct {
 }
 
 func loadEmbeddingsConfig() (*EmbeddingsConfig, error) {
-	if err := env.LoadDotEnv(os.Getenv("ENV"), "cmd/ingest/embeddings.env"); err != nil {
+	if err := env.LoadDotEnv(os.Getenv("ENV"), "cmd/datapipe/embeddings.env"); err != nil {
 		slog.Info("Skipping .env environment variables...", "error", err)
 	}
 
@@ -61,7 +61,7 @@ func loadEmbeddingsConfig() (*EmbeddingsConfig, error) {
 	}
 
 	if embedCfg.Source != embedding.SourceFile {
-		return nil, fmt.Errorf("ingest embeddings requires EMBEDDING_SOURCE=file, got %q", embedCfg.Source)
+		return nil, fmt.Errorf("load embeddings requires EMBEDDING_SOURCE=file, got %q", embedCfg.Source)
 	}
 
 	store := embedCfg.ObjectStore

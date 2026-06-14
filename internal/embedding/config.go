@@ -12,7 +12,7 @@ type Source string
 const (
 	// SourceOnline generates embeddings inline during ingestion via Ollama.
 	SourceOnline Source = "online"
-	// SourceFile loads precomputed embeddings from an object store (ingest embeddings).
+	// SourceFile loads precomputed embeddings from an object store (datapipe load embeddings).
 	SourceFile Source = "file"
 	// SourceNone disables embeddings entirely.
 	SourceNone Source = "none"
