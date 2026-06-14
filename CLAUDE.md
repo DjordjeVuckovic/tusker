@@ -33,8 +33,9 @@ This project is part of a master thesis research that explores PostgreSQL's comp
 The project follows a layered architecture pattern:
 
 - **cmd/**: Entry points for different operations
-  - `ds_ingest/`: Imports News datasets into the database (optional inline embedding generation via Ollama, `EMBEDDING_SOURCE=online`)
-  - `embed_ingest/`: Loads precomputed embeddings (Parquet from Colab) from an S3-compatible store into `article_embeddings` (`EMBEDDING_SOURCE=file`) — see [docs/embeddings.md](docs/embeddings.md)
+  - `ingest/`: Unified data-loading CLI with two subcommands:
+    - `ingest articles`: Imports News datasets into the database (optional inline embedding generation via Ollama, `EMBEDDING_SOURCE=online`)
+    - `ingest embeddings`: Loads precomputed embeddings (Parquet from Colab) from an S3-compatible store into `article_embeddings` (`EMBEDDING_SOURCE=file`) — see [docs/embeddings.md](docs/embeddings.md)
   - `news_api/`: HTTP API server for search functionality
   - `schemagen/`: Schema generation utilities
   - `bench/`: IR benchmark CLI — see [docs/bench.md](docs/bench.md)
@@ -200,10 +201,10 @@ docker-compose up -d
 ### Building and Running
 ```bash
 # Build specific command
-go build -o bin/data-import ./cmd/ds_ingest
+go build -o bin/ingest ./cmd/ingest
 
-# Run with environment variables
-go run ./cmd/ds_ingest
+# Run with environment variables (subcommands: articles, embeddings)
+go run ./cmd/ingest articles
 
 # Build other commands
 go build -o bin/schemagen ./cmd/schemagen
