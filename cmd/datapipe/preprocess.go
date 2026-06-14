@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,9 +12,10 @@ import (
 
 	"github.com/DjordjeVuckovic/news-hunter/internal/ingest/reader"
 	"github.com/DjordjeVuckovic/news-hunter/pkg/config/env"
+	"github.com/spf13/cobra"
 )
 
-type preprocessorConfig struct {
+type preprocessConfig struct {
 	InputPath   string
 	OutputDir   string
 	MappingPath string
@@ -33,36 +33,47 @@ type PreprocessReport struct {
 	Timestamp         time.Time `json:"timestamp"`
 }
 
-func parseFlags() preprocessorConfig {
-	var cfg preprocessorConfig
-	flag.StringVar(&cfg.InputPath, "input", os.Getenv("INPUT_PATH"), "Path to the input CSV file")
-	flag.StringVar(&cfg.OutputDir, "output", os.Getenv("OUTPUT_PATH"), "Output directory for canonical dataset")
-	flag.StringVar(&cfg.MappingPath, "mapping", os.Getenv("MAPPING_CONFIG_PATH"), "Path to the YAML field-mapping config")
-	flag.IntVar(&cfg.Workers, "workers", 16, "Number of parallel workers")
-	flag.BoolVar(&cfg.WriteReport, "report", false, "Write validation report")
-	flag.Parse()
-	return cfg
-}
-
-func main() {
-	_ = env.LoadDotEnv(os.Getenv("ENV"), "cmd/preprocessor/.env")
-
-	cfg := parseFlags()
-	if cfg.InputPath == "" || cfg.OutputDir == "" || cfg.MappingPath == "" {
-		flag.Usage()
-		os.Exit(1)
+func newPreprocessCmd() *cobra.Command {
+	var cfg preprocessConfig
+	cmd := &cobra.Command{
+		Use:   "preprocess",
+		Short: "Clean and map a raw dataset into a canonical JSONL file",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			applyPreprocessEnvDefaults(&cfg)
+			if cfg.InputPath == "" || cfg.OutputDir == "" || cfg.MappingPath == "" {
+				return fmt.Errorf("--input, --output and --mapping are required")
+			}
+			return runPreprocess(cmd.Context(), cfg)
+		},
 	}
 
-	ctx := context.Background()
-	if err := runPreprocessor(ctx, cfg); err != nil {
-		slog.Error("preprocessing failed", "error", err)
-		os.Exit(1)
-	}
-
-	slog.Info("preprocessing completed successfully")
+	f := cmd.Flags()
+	f.StringVar(&cfg.InputPath, "input", "", "Path to the input CSV file")
+	f.StringVar(&cfg.OutputDir, "output", "", "Output directory for canonical dataset")
+	f.StringVar(&cfg.MappingPath, "mapping", "", "Path to the YAML field-mapping config")
+	f.IntVar(&cfg.Workers, "workers", 16, "Number of parallel workers")
+	f.BoolVar(&cfg.WriteReport, "report", false, "Write validation report")
+	return cmd
 }
 
-func runPreprocessor(ctx context.Context, cfg preprocessorConfig) error {
+// applyPreprocessEnvDefaults fills unset flags from the environment, preserving
+// the original flag-default-from-env behaviour (INPUT_PATH/OUTPUT_PATH/MAPPING_CONFIG_PATH).
+func applyPreprocessEnvDefaults(cfg *preprocessConfig) {
+	if err := env.LoadDotEnv(os.Getenv("ENV"), "cmd/datapipe/preprocess.env"); err != nil {
+		slog.Info("Skipping .env environment variables...", "error", err)
+	}
+	if cfg.InputPath == "" {
+		cfg.InputPath = os.Getenv("INPUT_PATH")
+	}
+	if cfg.OutputDir == "" {
+		cfg.OutputDir = os.Getenv("OUTPUT_PATH")
+	}
+	if cfg.MappingPath == "" {
+		cfg.MappingPath = os.Getenv("MAPPING_CONFIG_PATH")
+	}
+}
+
+func runPreprocess(ctx context.Context, cfg preprocessConfig) error {
 	start := time.Now()
 
 	if err := os.MkdirAll(cfg.OutputDir, 0755); err != nil {
@@ -152,7 +163,6 @@ func runPreprocessor(ctx context.Context, cfg preprocessorConfig) error {
 	}
 
 	logSummary(report)
-
 	return nil
 }
 
