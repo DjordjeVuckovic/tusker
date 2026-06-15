@@ -4,20 +4,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/ingest"
 	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
 	"github.com/spf13/cobra"
 )
 
+const flushBatchSize = 1000
+
 type preprocessConfig struct {
 	InputPath   string
-	OutputDir   string
+	OutputPath  string
 	MappingPath string
 	Workers     int
 	WriteReport bool
@@ -37,10 +42,10 @@ func newPreprocessCmd() *cobra.Command {
 	var cfg preprocessConfig
 	cmd := &cobra.Command{
 		Use:   "preprocess",
-		Short: "Clean and map a raw dataset into a canonical JSONL file",
+		Short: "Clean and map a raw dataset into a canonical file",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			applyPreprocessEnvDefaults(&cfg)
-			if cfg.InputPath == "" || cfg.OutputDir == "" || cfg.MappingPath == "" {
+			if cfg.InputPath == "" || cfg.OutputPath == "" || cfg.MappingPath == "" {
 				return fmt.Errorf("--input, --output and --mapping are required")
 			}
 			return runPreprocess(cmd.Context(), cfg)
@@ -49,7 +54,7 @@ func newPreprocessCmd() *cobra.Command {
 
 	f := cmd.Flags()
 	f.StringVar(&cfg.InputPath, "input", "", "Path to the input CSV file")
-	f.StringVar(&cfg.OutputDir, "output", "", "Output directory for canonical dataset")
+	f.StringVar(&cfg.OutputPath, "output", "", "Output file for canonical dataset")
 	f.StringVar(&cfg.MappingPath, "mapping", "", "Path to the YAML field-mapping config")
 	f.IntVar(&cfg.Workers, "workers", 16, "Number of parallel workers")
 	f.BoolVar(&cfg.WriteReport, "report", false, "Write validation report")
@@ -57,7 +62,7 @@ func newPreprocessCmd() *cobra.Command {
 }
 
 // applyPreprocessEnvDefaults fills unset flags from the environment, preserving
-// the original flag-default-from-env behaviour (INPUT_PATH/OUTPUT_PATH/MAPPING_CONFIG_PATH).
+// optionally load from env (INPUT_PATH/OUTPUT_PATH/MAPPING_CONFIG_PATH).
 func applyPreprocessEnvDefaults(cfg *preprocessConfig) {
 	if err := env.LoadDotEnv(os.Getenv("ENV"), "cmd/datapipe/preprocess.env"); err != nil {
 		slog.Info("Skipping .env environment variables...", "error", err)
@@ -65,24 +70,28 @@ func applyPreprocessEnvDefaults(cfg *preprocessConfig) {
 	if cfg.InputPath == "" {
 		cfg.InputPath = os.Getenv("INPUT_PATH")
 	}
-	if cfg.OutputDir == "" {
-		cfg.OutputDir = os.Getenv("OUTPUT_PATH")
+	if cfg.OutputPath == "" {
+		cfg.OutputPath = os.Getenv("OUTPUT_PATH")
 	}
 	if cfg.MappingPath == "" {
 		cfg.MappingPath = os.Getenv("MAPPING_CONFIG_PATH")
 	}
 }
 
-func runPreprocess(ctx context.Context, cfg preprocessConfig) error {
+func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 	start := time.Now()
 
-	if err := os.MkdirAll(cfg.OutputDir, 0755); err != nil {
+	inputExt := filepath.Ext(cfg.InputPath)
+	if inputExt != ".csv" {
+		return fmt.Errorf("input file must be .csv")
+	}
+	inputBasename := strings.TrimSuffix(filepath.Base(cfg.InputPath), inputExt)
+
+	outputPath := cfg.OutputPath
+	outDir, outFilename := filepath.Split(cfg.OutputPath)
+	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-
-	inputBasename := strings.TrimSuffix(filepath.Base(cfg.InputPath), filepath.Ext(cfg.InputPath))
-	outputFilename := fmt.Sprintf("%s_canonical.jsonl", inputBasename)
-	outputPath := filepath.Join(cfg.OutputDir, outputFilename)
 
 	mappingFile, err := os.Open(cfg.MappingPath)
 	if err != nil {
@@ -118,7 +127,7 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) error {
 
 	report := &PreprocessReport{
 		Timestamp:  time.Now(),
-		OutputFile: outputFilename,
+		OutputFile: outFilename,
 	}
 
 	csvReader := reader.NewCSVReader(dataFile)
@@ -127,7 +136,27 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) error {
 		return fmt.Errorf("failed to create parallel reader: %w", err)
 	}
 
-	encoder := json.NewEncoder(outFile)
+	writer, err := NewOutWriter(outFile, filepath.Ext(cfg.OutputPath))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := writer.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close writer: %w", cerr)
+		}
+	}()
+
+	arBuff := make([]document.CanonicalArticle, 0, flushBatchSize)
+	flush := func() error {
+		if len(arBuff) == 0 {
+			return nil
+		}
+		if err := writer.Write(arBuff); err != nil {
+			return err
+		}
+		arBuff = arBuff[:0]
+		return nil
+	}
 
 	for result := range resultsChan {
 		report.TotalRecords++
@@ -147,23 +176,40 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) error {
 			report.InvalidURLs++
 		}
 
-		if err := encoder.Encode(reader.ToCanonicalRecord(article)); err != nil {
-			return fmt.Errorf("failed to write record: %w", err)
-		}
-
+		arBuff = append(arBuff, article.ToCanonical())
 		report.ProcessedRecords++
+
+		if len(arBuff) >= flushBatchSize {
+			if err := flush(); err != nil {
+				return fmt.Errorf("failed to write batch: %w", err)
+			}
+		}
+	}
+	if err := flush(); err != nil {
+		return fmt.Errorf("failed to write final batch: %w", err)
 	}
 
 	report.ProcessingTime = time.Since(start).Seconds()
 
 	if cfg.WriteReport {
-		if err := writeReport(cfg.OutputDir, inputBasename, report); err != nil {
+		if err := writeReport(cfg.OutputPath, inputBasename, report); err != nil {
 			return fmt.Errorf("failed to write report: %w", err)
 		}
 	}
 
 	logSummary(report)
 	return nil
+}
+
+func NewOutWriter(w io.Writer, ext string) (ingest.CanonicalWriter, error) {
+	switch ext {
+	case ".jsonl":
+		return ingest.NewJsonlCanonicalWriter(w), nil
+	case ".parquet":
+		return ingest.NewParquetCanonicalWriter(w), nil
+	default:
+		return nil, fmt.Errorf("unknown output format: %s", ext)
+	}
 }
 
 func writeReport(outputDir, basename string, report *PreprocessReport) error {
