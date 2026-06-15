@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/token"
+	"github.com/DjordjeVuckovic/tusker/internal/token"
 )
 
 type BooleanParser struct {

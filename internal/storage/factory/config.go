@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/es"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/pg"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 )
 
 type StorageConfig struct {

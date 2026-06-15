@@ -1,8 +1,8 @@
-# News Hunter Search API Documentation
+# Tusker Search API Documentation
 
 ## Overview
 
-The News Hunter API provides comprehensive search capabilities across multiple paradigms:
+The Tusker API provides comprehensive search capabilities across multiple paradigms:
 - **Simple Search**: Google-like query string search
 - **Structured Search**: Elasticsearch-style structured queries
 - **Field-Level Control**: Match specific fields with custom weights

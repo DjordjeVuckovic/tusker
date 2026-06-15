@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 )
 
 const defaultBatchSize = 1_000

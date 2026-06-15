@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/document"
-	"github.com/DjordjeVuckovic/news-hunter/pkg/apis/datamapping"
-	"github.com/DjordjeVuckovic/news-hunter/pkg/utils"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
+	"github.com/DjordjeVuckovic/tusker/pkg/utils"
 	"github.com/google/uuid"
 )
 

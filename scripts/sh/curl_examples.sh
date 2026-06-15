@@ -1,11 +1,11 @@
 #!/bin/bash
-# News Hunter API - Example Requests
+# Tusker API - Example Requests
 # Usage: chmod +x curl_examples.sh && ./curl_examples.sh
 
 API_BASE="http://localhost:8080"
 
 echo "================================================"
-echo "News Hunter Search API Examples"
+echo "Tusker Search API Examples"
 echo "================================================"
 
 # ============================================================================

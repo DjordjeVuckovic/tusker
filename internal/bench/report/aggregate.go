@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/meta"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/metrics"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/runner"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/spec"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/version"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/version"
 )
 
 type GenerateOptions struct {

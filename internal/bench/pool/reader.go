@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/version"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/version"
 	"gopkg.in/yaml.v3"
 )
 

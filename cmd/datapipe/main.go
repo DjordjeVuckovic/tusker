@@ -12,7 +12,7 @@ import (
 
 const (
 	cliName  = "datapipe"
-	cliShort = "News-hunter data pipeline: preprocess, load articles, load embeddings"
+	cliShort = "Tusker data pipeline: preprocess, load articles, load embeddings"
 	cliLong  = `datapipe moves news data through the ingestion pipeline into the configured
 storage backend (Postgres or Elasticsearch).
 

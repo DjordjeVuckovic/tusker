@@ -3,7 +3,7 @@ package es
 import (
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorsimilarity"
 	"github.com/google/uuid"

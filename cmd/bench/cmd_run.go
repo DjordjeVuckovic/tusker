@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/judgment"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/meta"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/report"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/runner"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/spec"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/trackctx"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/report"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
 	"github.com/spf13/cobra"
 )
 

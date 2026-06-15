@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/api/dto"
-	"github.com/DjordjeVuckovic/news-hunter/internal/apperr"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
-	dquery "github.com/DjordjeVuckovic/news-hunter/internal/types/query"
-	"github.com/DjordjeVuckovic/news-hunter/pkg/pagination"
+	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
+	"github.com/DjordjeVuckovic/tusker/internal/apperr"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
+	"github.com/DjordjeVuckovic/tusker/pkg/pagination"
 	"github.com/labstack/echo/v4"
 )
 

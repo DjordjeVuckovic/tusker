@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/judgment"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +19,7 @@ const (
 	cliName  = "bench"
 	cliShort = "Search engine quality + latency benchmark"
 	cliLong  = `bench evaluates full-text, vector, and hybrid search queries against multiple
-engines (Postgres, ParadeDB, Elasticsearch, the news-hunter API), produces
+engines (Postgres, ParadeDB, Elasticsearch, the tusker API), produces
 IR-quality metrics (NDCG, MAP, MRR, Bpref, P/R/F1) and latency statistics.
 
 Typical pipeline (pass the track name as a positional arg):

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/apperr"
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/operator"
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/query"
+	"github.com/DjordjeVuckovic/tusker/internal/apperr"
+	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
+	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 )
 
 // SearchRequest represents the base search request with unified structure

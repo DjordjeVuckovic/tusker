@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/pg"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	"github.com/google/uuid"
 )
 

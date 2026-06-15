@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/api/dto"
+	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
 	"github.com/jackc/pgx/v5"
 )
 

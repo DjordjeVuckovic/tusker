@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/operator"
+	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 )
 
 // Kind QueryType represents the search paradigm to use

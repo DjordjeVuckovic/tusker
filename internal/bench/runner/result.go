@@ -1,7 +1,7 @@
 package runner
 
 import (
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/metrics"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
 	"github.com/google/uuid"
 )
 

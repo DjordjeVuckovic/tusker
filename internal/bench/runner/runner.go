@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/engine"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/metrics"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/spec"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/suite"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/google/uuid"
 )
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/judgment"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

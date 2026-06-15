@@ -7,15 +7,9 @@ import (
 	"strings"
 )
 
-// LexicalStrategy is a deterministic baseline judge. It tokenises the query
+// LexicalStrategy is a deterministic baseline judge. It tokenizes the query
 // description, then counts how many distinct query tokens appear in the
-// document's title, description, and content. The hit ratio is mapped to a
-// grade 0-3. It's not a substitute for human or LLM judgment, but it gives a
-// reproducible, no-network baseline against which LLM grades can be compared.
-//
-// It is the simplest of the algorithmic judge family (lexical / bm25 / vector
-// / hybrid) — lexical because matching is purely on surface tokens, with no
-// IDF weighting or semantic embedding.
+// document's title, description, and content.
 type LexicalStrategy struct{}
 
 func NewLexicalStrategy() *LexicalStrategy { return &LexicalStrategy{} }

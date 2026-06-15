@@ -75,7 +75,7 @@ func NewGenerator() *Generator {
 		IncludeExamples:     true,
 		StrictValidation:    true,
 		UseDefinitions:      true,
-		BaseURI:             "https://schemas.newshunter.io",
+		BaseURI:             "https://schemas.tusker.io",
 		SkipSchemaReference: false,
 	})
 }
@@ -441,11 +441,11 @@ func (g *Generator) getTypeComment(t reflect.Type) string {
 }
 
 func (g *Generator) parseSchemaAnnotations(t reflect.Type, schema *JSONSchema) {
-	// Parse annotations like +schema:root=true, +schema:group=newshunter.io
+	// Parse annotations like +schema:root=true, +schema:group=tusker.io
 	// In a real implementation, this would parse the source file comments
 	// For now, we'll set some defaults
 	schema.Title = t.Name()
-	schema.ID = fmt.Sprintf("https://schemas.newshunter.io/%s", strings.ToLower(t.Name()))
+	schema.ID = fmt.Sprintf("https://schemas.tusker.io/%s", strings.ToLower(t.Name()))
 }
 
 // GenerateJSONSchema generates a JSON schema as a JSON string

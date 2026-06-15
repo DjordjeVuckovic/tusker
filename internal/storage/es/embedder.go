@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esutil"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"

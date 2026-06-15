@@ -3,8 +3,8 @@ package storage
 import (
 	"context"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
 )
 

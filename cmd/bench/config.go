@@ -7,12 +7,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/engine"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/spec"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/trackctx"
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/factory"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
 )
 
 func createExecutors(ctx context.Context, bs *spec.BenchSpec) (map[string]engine.Executor, func(), error) {

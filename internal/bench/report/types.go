@@ -4,8 +4,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/meta"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/runner"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 )
 
 // Report is the root artifact produced by bench run. It has exactly two

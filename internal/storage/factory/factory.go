@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/es"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/in_mem"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/pg"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/pg/native"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/in_mem"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/pg/native"
 )
 
 // TODO: accept pool as param and reuse it across indexer and searcher when using PG, to avoid creating multiple pools

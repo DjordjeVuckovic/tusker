@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/trackctx"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
 	"github.com/spf13/cobra"
 )
 

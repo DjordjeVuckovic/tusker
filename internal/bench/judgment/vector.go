@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/google/uuid"
 )
 

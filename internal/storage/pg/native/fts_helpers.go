@@ -6,8 +6,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/operator"
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/query"
+	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
+	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 )
 
 // Field to PostgreSQL weight label mapping

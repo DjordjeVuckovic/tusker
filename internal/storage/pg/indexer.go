@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/spec"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

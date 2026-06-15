@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DjordjeVuckovic/news-hunter/pkg/apis/datamapping"
-	"github.com/DjordjeVuckovic/news-hunter/pkg/schema"
+	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
+	"github.com/DjordjeVuckovic/tusker/pkg/schema"
 )
 
 func main() {
@@ -16,7 +16,7 @@ func main() {
 		outputDir       = flag.String("output", "api", "Output directory for generated schemas")
 		strictMode      = flag.Bool("strict", true, "Enable strict validation mode")
 		includeExamples = flag.Bool("examples", true, "Include example configurations")
-		baseURI         = flag.String("base-uri", "https://schemas.newshunter.io", "Base URI for schema IDs")
+		baseURI         = flag.String("base-uri", "https://schemas.tusker.io", "Base URI for schema IDs")
 		verbose         = flag.Bool("verbose", false, "Enable verbose logging")
 	)
 	flag.Parse()

@@ -1,4 +1,4 @@
-module github.com/DjordjeVuckovic/news-hunter
+module github.com/DjordjeVuckovic/tusker
 
 go 1.25.0
 

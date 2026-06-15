@@ -1,8 +1,8 @@
 schema_version: 1
 meta:
-    run_id: 2026-06-09T23-17-48-pool-a22502
+    run_id: 2026-06-10T08-55-05-pool-ead336
     tool: bench/1.0.0
-    generated_at: 2026-06-09T23:17:48.970417Z
+    generated_at: 2026-06-10T08:55:05.577274Z
     spec_id: news_fuzzy
     pool_depth: 50
     engines:
@@ -15,9 +15,6 @@ queries:
     - query_id: fuzzy-climat-chanje
       query_desc: Misspelled 'climate change' → tests trigram tolerance
       docs:
-        - doc_id: 9e5bb735-e06e-4fee-a64b-c201ddf708c3
-          sources:
-            - pg-trgm
         - doc_id: e552628c-8ff2-4624-b56e-98ae285eae74
           sources:
             - pg-levenshtein
@@ -25,15 +22,14 @@ queries:
         - doc_id: a73286bd-10a6-4d89-93b4-ba944f9fd445
           sources:
             - pg-levenshtein
-            - paradedb
         - doc_id: fd1b597f-b2ed-4d95-ae00-19038ffc1a83
           sources:
             - pg-levenshtein
             - elasticsearch
-        - doc_id: 756a4473-38a8-4a13-b353-fc2fb8e6b18a
+        - doc_id: db9549df-c8ea-4afb-be1a-d86f6b104f93
           sources:
             - pg-levenshtein
-        - doc_id: db9549df-c8ea-4afb-be1a-d86f6b104f93
+        - doc_id: 756a4473-38a8-4a13-b353-fc2fb8e6b18a
           sources:
             - pg-levenshtein
         - doc_id: 13bcb635-b033-45de-be6c-576a5480b713
@@ -56,27 +52,24 @@ queries:
         - doc_id: a290c820-1c7a-440e-8b3f-14a426cd1d0d
           sources:
             - pg-levenshtein
-            - paradedb
         - doc_id: ae1441c8-fca0-4615-91b2-9e8f5d03995a
           sources:
             - pg-levenshtein
-            - paradedb
             - elasticsearch
+        - doc_id: 551c2825-7e25-4bf7-b7bf-593be7469d7e
+          sources:
+            - pg-levenshtein
         - doc_id: 733c4b0c-0dd1-4fbb-9768-f226be917634
           sources:
             - pg-levenshtein
-        - doc_id: 85eb2580-78bd-4fb6-8785-38e371203c28
-          sources:
-            - pg-levenshtein
             - paradedb
-        - doc_id: 551c2825-7e25-4bf7-b7bf-593be7469d7e
+        - doc_id: 85eb2580-78bd-4fb6-8785-38e371203c28
           sources:
             - pg-levenshtein
             - paradedb
         - doc_id: 580bbabe-ef16-47d3-a07b-da2fed449947
           sources:
             - pg-levenshtein
-            - paradedb
         - doc_id: ca800f74-f744-48cd-ac32-f3fbaf26d22e
           sources:
             - pg-levenshtein
@@ -88,7 +81,6 @@ queries:
         - doc_id: bb03e9e8-6929-46af-b757-4e44ba14bc37
           sources:
             - pg-levenshtein
-            - paradedb
             - elasticsearch
         - doc_id: 680d425c-34fb-469e-acb9-7bc8f9621562
           sources:
@@ -97,7 +89,6 @@ queries:
         - doc_id: b877b7f5-631c-4754-8323-1fb7cd59d4a4
           sources:
             - pg-levenshtein
-            - paradedb
         - doc_id: 80579434-e82d-4210-a3c0-9aa3594e4d23
           sources:
             - pg-levenshtein
@@ -109,22 +100,20 @@ queries:
         - doc_id: 2c2e91eb-4ad4-4332-b286-59db8084b3b7
           sources:
             - pg-levenshtein
-            - paradedb
         - doc_id: 081ea153-e754-4ea7-8e71-63be4562b037
           sources:
             - pg-levenshtein
         - doc_id: fdbf37e4-725d-4d5b-ae49-04c56a668c9c
           sources:
             - pg-levenshtein
-            - paradedb
             - elasticsearch
         - doc_id: 1e57047f-9e4b-46ef-80fd-51930f323bc4
           sources:
             - pg-levenshtein
-            - paradedb
         - doc_id: 9b909edc-6103-45eb-ace6-e8658918a351
           sources:
             - pg-levenshtein
+            - paradedb
         - doc_id: 481f2f3c-e634-4676-856e-9834ee748e55
           sources:
             - pg-levenshtein
@@ -139,10 +128,10 @@ queries:
             - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: eb3c7154-2435-47e1-8606-61cd4725dc5f
+        - doc_id: 13d41fa1-eb39-407e-90c1-cd47a6727d59
           sources:
             - pg-levenshtein
-        - doc_id: 13d41fa1-eb39-407e-90c1-cd47a6727d59
+        - doc_id: eb3c7154-2435-47e1-8606-61cd4725dc5f
           sources:
             - pg-levenshtein
             - paradedb
@@ -167,20 +156,21 @@ queries:
         - doc_id: d953cd7f-0384-49ac-8188-c0cb7133eb70
           sources:
             - pg-levenshtein
-        - doc_id: 89648610-d9d3-4bf3-874c-a1ab9efaefd0
-          sources:
-            - pg-levenshtein
             - paradedb
-        - doc_id: 1f1efa20-4484-4162-8aaf-a6d7ab607b2b
+        - doc_id: 89648610-d9d3-4bf3-874c-a1ab9efaefd0
           sources:
             - pg-levenshtein
             - paradedb
         - doc_id: 73922193-03e2-4ff6-b888-8fe4ab7eed16
           sources:
             - pg-levenshtein
+        - doc_id: 1f1efa20-4484-4162-8aaf-a6d7ab607b2b
+          sources:
+            - pg-levenshtein
         - doc_id: e9c222b6-cd04-4fed-9a42-877fa4631edb
           sources:
             - pg-levenshtein
+            - paradedb
         - doc_id: afe2e2db-d168-44f2-bdba-ab1a935b7dca
           sources:
             - pg-levenshtein
@@ -206,77 +196,70 @@ queries:
         - doc_id: f23e4567-6b1b-4127-b2ca-e9e632ffe707
           sources:
             - paradedb
-        - doc_id: 9b3e7a76-e698-4e07-aea3-5dca1f0bbc58
-          sources:
-            - paradedb
         - doc_id: 1259a3f4-48c9-47cd-b9e6-7c1ef86e6017
           sources:
             - paradedb
             - elasticsearch
-        - doc_id: 089c001c-7d5a-4b4d-897b-3528ab923e04
+        - doc_id: 9b3e7a76-e698-4e07-aea3-5dca1f0bbc58
+          sources:
+            - paradedb
+        - doc_id: ef2faea0-d51e-4869-b1bf-55e3cd7d8597
+          sources:
+            - paradedb
+        - doc_id: 23aad5d8-940f-4043-a62f-f82167629e02
+          sources:
+            - paradedb
+        - doc_id: 81d26d57-e05f-4f96-acff-1d5fb9045323
+          sources:
+            - paradedb
+        - doc_id: 0b2f84a5-5bf7-4fb9-b1a5-a54745254bc6
+          sources:
+            - paradedb
+        - doc_id: 92753bbe-6785-42ae-82b8-3bfa64302079
+          sources:
+            - paradedb
+        - doc_id: fd638d4e-fb9f-4d44-bf82-25fdf820663d
+          sources:
+            - paradedb
+        - doc_id: 399474ac-294a-4e34-a84f-7f873e1eea75
+          sources:
+            - paradedb
+        - doc_id: c4776596-1873-412b-8f32-414c88c8659d
+          sources:
+            - paradedb
+        - doc_id: df082627-2aea-443f-bdb2-e1758120fc7f
+          sources:
+            - paradedb
+        - doc_id: 2d1a7079-abe7-4aac-9e6d-2afe77f44bad
+          sources:
+            - paradedb
+        - doc_id: 6d1ad373-8d8d-4ba0-93b1-bea16149c79c
+          sources:
+            - paradedb
+        - doc_id: 3169788f-72be-48dd-9d4f-56c273fc0b96
+          sources:
+            - paradedb
+        - doc_id: fcfb561b-b1a5-40a6-acfd-ab374c246da3
           sources:
             - paradedb
             - elasticsearch
-        - doc_id: 04df398c-5dee-49e2-bbff-f937293ed03f
+        - doc_id: 109da2d4-b85a-4b97-a48f-ef5a014350f6
           sources:
             - paradedb
             - elasticsearch
-        - doc_id: 62244d03-5fb0-4425-afb1-1bc378f1f6e5
+        - doc_id: 2e6f3dcb-735f-469e-84dd-87663de5d5a8
           sources:
             - paradedb
-        - doc_id: 800eb125-9705-4c43-9f79-a64d696c7d74
+        - doc_id: 1d1fb0fd-6614-4dce-a044-b2a29a107631
           sources:
             - paradedb
-        - doc_id: f9248c8f-ff17-455e-ab26-b5d3c00ba349
+        - doc_id: 9e6438c5-a11e-4bd2-ac3e-700da1a4cb74
           sources:
             - paradedb
-        - doc_id: 2ed76be1-9381-4ee3-92ed-bc8e56d37891
+        - doc_id: a24d8b81-77a2-4495-a8d9-94f3f2fd3775
           sources:
             - paradedb
-        - doc_id: 8707dc2e-360b-4ca8-82eb-d1b1da9bb8f3
-          sources:
-            - paradedb
-        - doc_id: de4ade24-4e2b-46cd-a1be-579bf56ec3cc
-          sources:
-            - paradedb
-        - doc_id: 7964c6f7-f53c-49c4-a699-ef54a36a5840
-          sources:
-            - paradedb
-        - doc_id: 9455d64d-99ad-4bc9-a7c6-fd41010e51ad
-          sources:
-            - paradedb
-        - doc_id: 66b5c6e9-ac1c-4a5f-9a9d-3f964c19129f
-          sources:
-            - paradedb
-        - doc_id: 3a56146d-33a6-4ab9-91d7-bf5352305f9d
-          sources:
-            - paradedb
-        - doc_id: c7c6820c-b6d7-4ad9-9ae0-d0bc2467fc06
-          sources:
-            - paradedb
-        - doc_id: db6e056f-9f2c-441f-815a-28a2eb762c31
-          sources:
-            - paradedb
-        - doc_id: 7a63c62d-1dfb-4f38-87e0-10b6295f08ef
-          sources:
-            - paradedb
-        - doc_id: e7a2516f-5958-42b8-a408-21f9b5dc9aa8
-          sources:
-            - paradedb
-        - doc_id: 2149dce2-d08f-4eb7-b3ad-aa2a8ffb8f52
-          sources:
-            - paradedb
-        - doc_id: a71bba53-6ab8-439b-a18d-d4de3d3cdd7c
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 249ec437-9c41-46b7-a662-a7c1f2df64e0
-          sources:
-            - paradedb
-        - doc_id: d3f2ca59-1a1b-4397-a07d-2a1a2a9b9d38
-          sources:
-            - paradedb
-        - doc_id: 8b83651d-2a50-4a42-abd3-cf5e0821949e
+        - doc_id: d58c225f-d93a-4738-96e0-c6ec7d76295b
           sources:
             - paradedb
         - doc_id: 2504d24b-18d2-4a1a-95b6-10432080e199
@@ -288,12 +271,41 @@ queries:
         - doc_id: 8422edb6-2a33-4f82-a51a-f3bf051c0cd2
           sources:
             - paradedb
-        - doc_id: 8c330193-85d8-4308-a193-1e1ed9f037cc
+        - doc_id: 5e0745e9-ce31-41b9-90a1-765c6765f596
           sources:
             - paradedb
-        - doc_id: 38721bf6-c9d4-46e3-b17d-50d372c999a2
+        - doc_id: dc2512fe-0eaf-4d08-871d-847ae15e0716
           sources:
             - paradedb
+        - doc_id: 50e68ba7-9c95-4988-bd91-352190e2f895
+          sources:
+            - paradedb
+        - doc_id: 60afe9c8-ea91-4223-910d-a512b2ef8773
+          sources:
+            - paradedb
+        - doc_id: d31b1692-1f57-4199-837f-846a5c4c3ad3
+          sources:
+            - paradedb
+            - elasticsearch
+        - doc_id: 62b308dd-1ad6-42bc-a52d-f4eb67cf6ffe
+          sources:
+            - paradedb
+        - doc_id: 6757f386-16a5-428c-b8c7-65989feb743f
+          sources:
+            - paradedb
+        - doc_id: 4bf69ef5-2200-4ee4-be40-a1f2526d6c5e
+          sources:
+            - paradedb
+        - doc_id: 98b4d7d4-f082-4850-8be3-61cf03cc3f66
+          sources:
+            - paradedb
+        - doc_id: 6eb5a8eb-8c60-4966-a086-49144bb16dd9
+          sources:
+            - paradedb
+        - doc_id: 86aecb63-b3dc-4634-aa30-973fc1146cbe
+          sources:
+            - paradedb
+            - elasticsearch
         - doc_id: 598ec47e-a4ac-42de-bd92-93cbabc10204
           sources:
             - elasticsearch
@@ -321,9 +333,6 @@ queries:
         - doc_id: 4bea0f3a-1151-41dd-b691-2c07f86c98ea
           sources:
             - elasticsearch
-        - doc_id: 109da2d4-b85a-4b97-a48f-ef5a014350f6
-          sources:
-            - elasticsearch
         - doc_id: 9050a548-d279-4733-9d3a-8ae11acf575d
           sources:
             - elasticsearch
@@ -342,19 +351,19 @@ queries:
         - doc_id: c556a9d3-c9f6-4ed1-b421-93200a160cea
           sources:
             - elasticsearch
+        - doc_id: a71bba53-6ab8-439b-a18d-d4de3d3cdd7c
+          sources:
+            - elasticsearch
         - doc_id: 227eb0c9-e45b-45d6-878a-3a0c3e1fa4f9
           sources:
             - elasticsearch
-        - doc_id: d31b1692-1f57-4199-837f-846a5c4c3ad3
-          sources:
-            - elasticsearch
-        - doc_id: 86aecb63-b3dc-4634-aa30-973fc1146cbe
+        - doc_id: 04df398c-5dee-49e2-bbff-f937293ed03f
           sources:
             - elasticsearch
         - doc_id: b2b8388d-bba4-4330-b74e-796160e0a154
           sources:
             - elasticsearch
-        - doc_id: fcfb561b-b1a5-40a6-acfd-ab374c246da3
+        - doc_id: 089c001c-7d5a-4b4d-897b-3528ab923e04
           sources:
             - elasticsearch
         - doc_id: 42a15a53-5f15-443c-9871-a682c7165e99
@@ -396,6 +405,9 @@ queries:
         - doc_id: 993da389-52c9-4619-853f-b7b822fbd0e3
           sources:
             - elasticsearch
+        - doc_id: 9e5bb735-e06e-4fee-a64b-c201ddf708c3
+          sources:
+            - pg-trgm
     - query_id: fuzzy-electon-results
       query_desc: Misspelled 'election results' → tests trigram tolerance
       docs:
@@ -439,15 +451,6 @@ queries:
             - paradedb
             - elasticsearch
             - pg-levenshtein
-        - doc_id: 31f051e7-71d3-4bdb-b7b0-e9dce4cb69e2
-          sources:
-            - paradedb
-        - doc_id: 8b0aaf9b-058a-404d-ba77-c09d2895be2e
-          sources:
-            - paradedb
-        - doc_id: 0f36e4ff-5b82-40d0-be99-8223ea6c6ad0
-          sources:
-            - paradedb
         - doc_id: 402736a0-5553-4705-9532-b507b49ec83c
           sources:
             - paradedb
@@ -458,6 +461,15 @@ queries:
             - elasticsearch
             - pg-levenshtein
         - doc_id: 46e38dae-4e2c-4373-8959-1b16b08f28d3
+          sources:
+            - paradedb
+        - doc_id: 31f051e7-71d3-4bdb-b7b0-e9dce4cb69e2
+          sources:
+            - paradedb
+        - doc_id: 8b0aaf9b-058a-404d-ba77-c09d2895be2e
+          sources:
+            - paradedb
+        - doc_id: 0f36e4ff-5b82-40d0-be99-8223ea6c6ad0
           sources:
             - paradedb
         - doc_id: dae3f00f-a1e6-4e2e-b38f-4421067e4441
@@ -495,12 +507,12 @@ queries:
             - paradedb
             - elasticsearch
             - pg-levenshtein
-        - doc_id: 6d628405-200e-4d7b-b94c-56e784cb4900
+        - doc_id: 68b5eb50-bbc7-4d14-bfce-f9b83e874e24
           sources:
             - paradedb
             - elasticsearch
             - pg-levenshtein
-        - doc_id: 68b5eb50-bbc7-4d14-bfce-f9b83e874e24
+        - doc_id: 6d628405-200e-4d7b-b94c-56e784cb4900
           sources:
             - paradedb
             - elasticsearch
@@ -749,202 +761,79 @@ queries:
     - query_id: fuzzy-coronavrus-pandmic
       query_desc: Misspelled 'coronavirus pandemic'
       docs:
-        - doc_id: c3e500a1-d44b-4d8a-9cd3-d4dda22e852a
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 953e91cd-981f-4e35-9807-eefa2553fb7a
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
         - doc_id: 7d39fb9f-3dab-4e20-9b0f-87374f8d4f80
           sources:
+            - elasticsearch
             - pg-levenshtein
-            - elasticsearch
-        - doc_id: cbbd7635-0e09-4e98-8a33-2a7861bba6ce
-          sources:
-            - paradedb
-            - elasticsearch
         - doc_id: 312cc010-59f4-4dbe-abfb-765f834b379b
           sources:
-            - paradedb
             - elasticsearch
+            - paradedb
         - doc_id: 18ec3fdd-93ca-41dd-b056-8737e4599be5
           sources:
-            - paradedb
             - elasticsearch
+            - paradedb
         - doc_id: b44d47df-a628-46cc-bf1b-5e761be4170d
           sources:
-            - paradedb
             - elasticsearch
-        - doc_id: 23697585-307d-42f2-b847-014a2006dc5c
-          sources:
             - paradedb
-            - elasticsearch
-        - doc_id: ad697b51-6e55-44c8-920a-d6b0394c7316
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: ddd1c4e8-bec4-4817-b98a-00089fbec6e3
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 764191c0-5495-4253-9311-e717cb2f2abf
-          sources:
-            - paradedb
-        - doc_id: e212a709-297e-4d73-ab92-55c2d8cab0dc
-          sources:
-            - paradedb
-        - doc_id: 06629e0c-d580-42bb-8f85-2a0b3ce9553b
-          sources:
-            - paradedb
-        - doc_id: ac2a7ed7-5472-4fdb-bc8a-d47dc512d9f6
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 5fe09e97-3d51-4ec5-8221-8ef7c87f4b5d
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: fbc162fe-74f4-4e35-b787-0cf3c0ba5770
-          sources:
-            - paradedb
-        - doc_id: 4353d870-909f-417b-a283-e2a3b8479381
-          sources:
-            - paradedb
-        - doc_id: 2dd006d3-5d27-4da6-8e68-385f341d37a9
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: e1142e77-fe79-4f69-a9d0-31b8afe45089
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 92f47cdb-d9c8-4bc7-984e-d65651251721
-          sources:
-            - paradedb
-        - doc_id: ab62d625-8afe-4b05-90ba-174ca5ef7fb1
-          sources:
-            - paradedb
-        - doc_id: c9f85639-8338-40d8-b0bc-2f1ba56ff9b4
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 711ed12b-2935-4976-a615-015655a98d13
-          sources:
-            - paradedb
-        - doc_id: ec0f2b7c-6f08-4903-8969-f2bfc86fceec
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 08d33c0a-4d90-4576-97b6-bb27163f71c4
-          sources:
-            - paradedb
-        - doc_id: 2561af2d-fb36-492a-a4a1-c00ee51c4263
-          sources:
-            - paradedb
-        - doc_id: 64cd3bd3-aee5-41c1-bf83-289316f0d05e
-          sources:
-            - paradedb
-        - doc_id: 89da57e2-31b7-4a52-b6d7-a9d166559e7d
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 0db1e497-560c-4ddd-8139-cf40ba29d718
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 1a0a9576-b33f-48e6-9760-68f80f3235c5
-          sources:
-            - paradedb
-        - doc_id: c3fd176d-0360-45c9-a4a6-a5ebc3f9960a
-          sources:
-            - paradedb
-        - doc_id: a56d3a03-2c17-4497-be1d-9eb66c93e8e5
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: dfd150ac-b06c-4d96-9ccd-111ef5861437
-          sources:
-            - paradedb
-        - doc_id: 0eca07d2-1d62-4a92-9514-1bb1242836d9
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 16ef2f68-7b8c-4c17-af2c-f9d84f05c70b
-          sources:
-            - paradedb
-        - doc_id: 53c79f00-e999-49d0-83c6-f87a7b817f88
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: c3ac2be3-f38a-4552-828e-801bec3e9823
-          sources:
-            - paradedb
-        - doc_id: cab49038-955d-4d42-b203-79395313626b
-          sources:
-            - paradedb
-        - doc_id: 1abf6bc4-c100-48a6-8f01-b95d7189f9c2
-          sources:
-            - paradedb
-        - doc_id: e1505b3a-4e91-46d0-b6c0-2d0ad4f77d18
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: b57225e6-1ddf-4736-bb7f-db7f3ce2ee26
-          sources:
-            - paradedb
-        - doc_id: 71988457-9dba-4f8e-9986-50d9d75ef7b5
-          sources:
-            - paradedb
-        - doc_id: c5c5dcdb-45f9-4a2f-b251-31875de189f1
-          sources:
-            - paradedb
-        - doc_id: 8418e776-48e2-44ac-8f3d-0826437000f2
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: e4bc429b-84d6-4e4c-aaba-1a75941cd8cf
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 61df8188-ada8-4fe0-bb25-5733be954937
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: f4964893-dcb3-4359-8f01-bf35131cce2b
-          sources:
-            - paradedb
-        - doc_id: c919e77f-36d8-4ae1-85e7-77ef546ebae9
-          sources:
-            - paradedb
-        - doc_id: dc151625-424b-4325-8fb3-534e42ba0d42
-          sources:
-            - paradedb
-        - doc_id: 14b7140a-77c0-4fdd-b9b5-d9d43eb30e6d
-          sources:
-            - paradedb
-        - doc_id: 75dec837-1ea8-49da-a907-df62df40e61b
-          sources:
-            - paradedb
-            - elasticsearch
         - doc_id: 076f8c5b-a8c1-48ce-bedb-5840db85d193
           sources:
             - elasticsearch
+        - doc_id: 23697585-307d-42f2-b847-014a2006dc5c
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: f69312d9-7754-47d6-8fd1-353c928313e4
           sources:
             - elasticsearch
         - doc_id: 07577b4b-c63b-44e1-85ca-04ac3973c0df
           sources:
             - elasticsearch
+        - doc_id: ad697b51-6e55-44c8-920a-d6b0394c7316
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: ddd1c4e8-bec4-4817-b98a-00089fbec6e3
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: c3e500a1-d44b-4d8a-9cd3-d4dda22e852a
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 953e91cd-981f-4e35-9807-eefa2553fb7a
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
         - doc_id: 27296b8b-b6c9-492b-b8be-7b1409b95078
           sources:
             - elasticsearch
+        - doc_id: cbbd7635-0e09-4e98-8a33-2a7861bba6ce
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: 5f98a0fd-341c-4cc5-afd2-10e36a32b2de
           sources:
             - elasticsearch
+        - doc_id: 5fe09e97-3d51-4ec5-8221-8ef7c87f4b5d
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 53c79f00-e999-49d0-83c6-f87a7b817f88
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 61df8188-ada8-4fe0-bb25-5733be954937
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: c9f85639-8338-40d8-b0bc-2f1ba56ff9b4
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: 42a852c2-f2f4-45b7-803b-5c9d6093ad2f
           sources:
             - elasticsearch
@@ -957,30 +846,66 @@ queries:
         - doc_id: 066250dc-27f7-40e7-8ea2-528f34d13b76
           sources:
             - elasticsearch
+        - doc_id: 2dd006d3-5d27-4da6-8e68-385f341d37a9
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: ef3c4e69-96bf-402a-ab49-06686c480cec
           sources:
             - elasticsearch
         - doc_id: 2fd55fc4-aa6b-41f5-8d2e-e96ffd84f039
           sources:
             - elasticsearch
+        - doc_id: ec0f2b7c-6f08-4903-8969-f2bfc86fceec
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 8418e776-48e2-44ac-8f3d-0826437000f2
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: 16fdc293-ea5a-4152-a45e-5583ac2bd55a
           sources:
             - elasticsearch
+        - doc_id: ac2a7ed7-5472-4fdb-bc8a-d47dc512d9f6
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: 7bc5a557-67d6-4983-9b6f-3c24460260c1
           sources:
             - elasticsearch
         - doc_id: 67089d24-2fcc-4d9f-9462-82d53da68ae3
           sources:
             - elasticsearch
+        - doc_id: 75dec837-1ea8-49da-a907-df62df40e61b
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: 0d0ed3fb-2bcb-460b-8f71-cbf4255eb765
           sources:
             - elasticsearch
         - doc_id: 76bbb025-a332-4935-89bc-b22cf1a0b94d
           sources:
             - elasticsearch
+        - doc_id: e1505b3a-4e91-46d0-b6c0-2d0ad4f77d18
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 0eca07d2-1d62-4a92-9514-1bb1242836d9
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: 34e93ff7-a4c9-4e4f-a8c3-bbe7f3b81cb2
           sources:
             - elasticsearch
+        - doc_id: e4bc429b-84d6-4e4c-aaba-1a75941cd8cf
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 0db1e497-560c-4ddd-8139-cf40ba29d718
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: 199d0801-c5fb-4fcd-aff4-bf38f1eded44
           sources:
             - elasticsearch
@@ -990,6 +915,10 @@ queries:
         - doc_id: cb496ac3-a6d2-47a2-9b91-f2bf0f2184db
           sources:
             - elasticsearch
+        - doc_id: e1142e77-fe79-4f69-a9d0-31b8afe45089
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: 400c9a12-e1ac-4db0-9b9f-e4aba3509a9b
           sources:
             - elasticsearch
@@ -999,278 +928,113 @@ queries:
         - doc_id: 04ee2d59-0f9d-4ad8-8364-7590473682d6
           sources:
             - elasticsearch
+        - doc_id: a56d3a03-2c17-4497-be1d-9eb66c93e8e5
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: e01a6781-5299-4393-ac73-9e1563466f46
           sources:
             - elasticsearch
+        - doc_id: 89da57e2-31b7-4a52-b6d7-a9d166559e7d
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 764191c0-5495-4253-9311-e717cb2f2abf
+          sources:
+            - paradedb
+        - doc_id: e212a709-297e-4d73-ab92-55c2d8cab0dc
+          sources:
+            - paradedb
+        - doc_id: 06629e0c-d580-42bb-8f85-2a0b3ce9553b
+          sources:
+            - paradedb
+        - doc_id: c3ac2be3-f38a-4552-828e-801bec3e9823
+          sources:
+            - paradedb
+        - doc_id: cab49038-955d-4d42-b203-79395313626b
+          sources:
+            - paradedb
+        - doc_id: 1abf6bc4-c100-48a6-8f01-b95d7189f9c2
+          sources:
+            - paradedb
+        - doc_id: b57225e6-1ddf-4736-bb7f-db7f3ce2ee26
+          sources:
+            - paradedb
+        - doc_id: 71988457-9dba-4f8e-9986-50d9d75ef7b5
+          sources:
+            - paradedb
+        - doc_id: c5c5dcdb-45f9-4a2f-b251-31875de189f1
+          sources:
+            - paradedb
+        - doc_id: 1a0a9576-b33f-48e6-9760-68f80f3235c5
+          sources:
+            - paradedb
+        - doc_id: c3fd176d-0360-45c9-a4a6-a5ebc3f9960a
+          sources:
+            - paradedb
+        - doc_id: fbc162fe-74f4-4e35-b787-0cf3c0ba5770
+          sources:
+            - paradedb
+        - doc_id: 4353d870-909f-417b-a283-e2a3b8479381
+          sources:
+            - paradedb
+        - doc_id: 92f47cdb-d9c8-4bc7-984e-d65651251721
+          sources:
+            - paradedb
+        - doc_id: ab62d625-8afe-4b05-90ba-174ca5ef7fb1
+          sources:
+            - paradedb
+        - doc_id: 711ed12b-2935-4976-a615-015655a98d13
+          sources:
+            - paradedb
+        - doc_id: f4964893-dcb3-4359-8f01-bf35131cce2b
+          sources:
+            - paradedb
+        - doc_id: 16ef2f68-7b8c-4c17-af2c-f9d84f05c70b
+          sources:
+            - paradedb
+        - doc_id: dfd150ac-b06c-4d96-9ccd-111ef5861437
+          sources:
+            - paradedb
+        - doc_id: 08d33c0a-4d90-4576-97b6-bb27163f71c4
+          sources:
+            - paradedb
+        - doc_id: 2561af2d-fb36-492a-a4a1-c00ee51c4263
+          sources:
+            - paradedb
+        - doc_id: 64cd3bd3-aee5-41c1-bf83-289316f0d05e
+          sources:
+            - paradedb
+        - doc_id: c919e77f-36d8-4ae1-85e7-77ef546ebae9
+          sources:
+            - paradedb
+        - doc_id: dc151625-424b-4325-8fb3-534e42ba0d42
+          sources:
+            - paradedb
+        - doc_id: 14b7140a-77c0-4fdd-b9b5-d9d43eb30e6d
+          sources:
+            - paradedb
     - query_id: fuzzy-artifical-inteligence
       query_desc: Misspelled 'artificial intelligence'
       docs:
-        - doc_id: 3e97df01-faa0-4512-bc4a-e61315c7c921
+        - doc_id: 5e3db6e1-eaf8-4fdf-b9c7-8aef4a68d08f
           sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 93d46dc1-b01a-4090-aec7-7615af8b184a
-          sources:
-            - pg-levenshtein
-            - paradedb
             - elasticsearch
-        - doc_id: 8bb81979-57f8-4af3-b638-d6b72a118425
+        - doc_id: 785fc032-86c6-4b04-9f90-1755f7cccae8
           sources:
-            - pg-levenshtein
             - elasticsearch
-        - doc_id: 996abf5f-3702-4967-80d5-9702f9161f13
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: fd4fd51b-d16a-4f6d-9396-48ae4b1b94e0
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: d7fcddf2-a2eb-4325-b179-dea0bbd18b79
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 943f7ccd-77f7-4dcb-9dc0-d178a98756c8
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 1f1f67c5-b3f5-4f00-be58-f3c5090b9484
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-            - pg-trgm
-        - doc_id: 31b36f22-f8bf-45f4-af83-8746a1c5836f
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 44509b8a-0cbb-440f-a97e-13d22362535d
-          sources:
-            - pg-levenshtein
-            - elasticsearch
-            - pg-trgm
-        - doc_id: f952c6d1-e43f-4945-8ec8-5b2b5b739584
-          sources:
-            - pg-levenshtein
-        - doc_id: fb700303-5618-4e13-bf1f-ae25b40826e8
-          sources:
-            - pg-levenshtein
-        - doc_id: d1060f56-273d-4ed6-bfc3-b6f89b1a11ae
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: d21d2498-5137-4400-8613-692e30ade8c4
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 504fb77b-5e6b-4b5e-9785-eaa084892dda
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 085b1596-adc6-4e0c-a867-4606c4baac83
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 642782b1-5ff3-4524-ab9a-a1fc06685217
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 74701d27-1e75-418a-a388-62588fdbc223
-          sources:
-            - pg-levenshtein
-        - doc_id: 7801352f-e4b8-4fd8-998e-3aedc8077e45
-          sources:
             - pg-levenshtein
             - paradedb
         - doc_id: 0b94e392-b710-4985-af6c-bb7ffaea80e3
           sources:
-            - pg-levenshtein
             - elasticsearch
-        - doc_id: 2e9a8c2f-b8b9-487d-8fe6-d58c7b3a9f3f
-          sources:
             - pg-levenshtein
             - paradedb
-            - elasticsearch
-        - doc_id: 73d62d87-92d5-4849-a3aa-7c1f698257cf
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 63d67711-cb3e-42de-8be5-6c025b44f9ef
-          sources:
-            - pg-levenshtein
-        - doc_id: 446c5724-a92c-4c80-a659-a82cc2d053e5
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 9dee6de8-fb3e-4bba-953b-21a213ad4869
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: ecfb9aa2-c30e-486b-b6b1-7ca895885913
-          sources:
-            - pg-levenshtein
-        - doc_id: c08b563a-df24-447a-b8b9-ae90bb4a07d3
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: dcb457dd-fdbf-4411-9203-f32f870ef41d
-          sources:
-            - pg-levenshtein
-        - doc_id: 80acbb86-28f6-4229-968c-53ffebd15375
-          sources:
-            - pg-levenshtein
-        - doc_id: 7168ae9c-9809-42b3-b6b4-8fd30049bd85
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: f51a7926-b425-4d1b-b030-7a6bc8f8225d
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: d4ab5a51-3b53-415d-bd9b-1bdebedfa072
-          sources:
-            - pg-levenshtein
-            - pg-trgm
-        - doc_id: 41455d4a-d692-4e7d-bb9e-6620c44d12af
-          sources:
-            - pg-levenshtein
-            - elasticsearch
-        - doc_id: bff3efda-6807-4ec7-8ca0-e19e698a786d
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 132cacf6-3af8-48f5-9af3-8284a696aee3
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 0927b98f-e5ea-4902-9ae1-7eb76f3b3e69
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-            - pg-trgm
-        - doc_id: b5cf2834-fe5e-4f49-b441-b336ebe1b685
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: b131f812-76f9-4574-b4de-c21addea79c5
-          sources:
-            - pg-levenshtein
-        - doc_id: 073bdea1-9fac-4329-85af-ff6f37ab23e3
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: db2f11c2-7c9a-43df-81fd-ad462e23dc3d
-          sources:
-            - pg-levenshtein
-        - doc_id: 102ff137-b9e6-48b7-aeec-5e63ba404728
-          sources:
-            - pg-levenshtein
-        - doc_id: 2ce7301b-0022-4e0f-aaf1-78462dda3a86
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 32afce1f-2ae8-4c13-9049-0e91140778c6
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 3b9b52be-77b6-4336-bc60-19ad1d432064
-          sources:
-            - pg-levenshtein
-            - elasticsearch
-            - pg-trgm
-        - doc_id: d42cba70-6c54-448d-ab6b-b309301d20ba
-          sources:
-            - pg-levenshtein
-        - doc_id: 8ded839c-4349-4726-bfdb-0b0e8d52a698
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: e0fa2f02-f666-4946-a14e-748226925299
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 0aa75d78-af76-44bb-bff5-cd726faf29ec
-          sources:
-            - pg-levenshtein
-        - doc_id: b0358638-0a34-433c-850b-8c7617bcbf11
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 785fc032-86c6-4b04-9f90-1755f7cccae8
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 42640e03-9dfe-4f74-a87e-a8792028f1a3
-          sources:
-            - paradedb
-        - doc_id: 131902fd-21c4-400e-a698-64e8951c7fa3
-          sources:
-            - paradedb
-        - doc_id: 5979c182-b0c0-4b76-bcdc-b5d6ebace251
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 668d5d51-7b06-4109-954b-1e01ad35c7ff
-          sources:
-            - paradedb
-        - doc_id: 76ee833b-0230-4af7-bc2d-2812cd0805e3
-          sources:
-            - paradedb
-        - doc_id: 3020f8f6-118d-4161-b999-45adc90e1a47
-          sources:
-            - paradedb
-        - doc_id: 7fad00c1-e3c6-4c2e-b80e-fa99d515878d
-          sources:
-            - paradedb
-        - doc_id: 108d37ca-4f33-441d-a510-0266b5dfa13a
-          sources:
-            - paradedb
-        - doc_id: 1abc7dc5-5b4f-43bb-b1ba-5f0ab1b9866e
-          sources:
-            - paradedb
-        - doc_id: 21b9fad3-e6b0-4c8f-9535-ed9af10b2a04
-          sources:
-            - paradedb
-        - doc_id: c3c4b7eb-40f3-485b-bbd8-6398a72f5d51
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: a189fc3f-65f8-40e4-85a6-c87a1d47f300
-          sources:
-            - paradedb
-        - doc_id: 47a238bc-dbe7-47d9-b0a6-9916152edd80
-          sources:
-            - paradedb
-        - doc_id: 45c739aa-1b19-44e3-880b-b65e72e2a816
-          sources:
-            - paradedb
-        - doc_id: e6d17b45-60c7-443a-8c45-9f048f7c8e09
-          sources:
-            - paradedb
-        - doc_id: 75eb952e-5c6f-4abf-9d2d-a81efb7112b6
-          sources:
-            - paradedb
-        - doc_id: dba9502f-86bb-4921-ad53-5e8d7f159928
-          sources:
-            - paradedb
-        - doc_id: 2744e247-5a87-4bd7-92e7-f897afa7c9d3
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 5e3db6e1-eaf8-4fdf-b9c7-8aef4a68d08f
+        - doc_id: 8bb81979-57f8-4af3-b638-d6b72a118425
           sources:
             - elasticsearch
+            - pg-levenshtein
+            - paradedb
         - doc_id: 9af1e844-d525-4da5-86c0-93713285aaac
           sources:
             - elasticsearch
@@ -1287,12 +1051,23 @@ queries:
         - doc_id: 5a9248eb-09a7-4e15-b8ad-1f3a67cab95b
           sources:
             - elasticsearch
+        - doc_id: 8ded839c-4349-4726-bfdb-0b0e8d52a698
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
         - doc_id: dd437646-052e-48a4-8f77-7044625074b1
           sources:
             - elasticsearch
         - doc_id: 3007e7a0-fcd9-4fdd-ab65-846ad6aced5c
           sources:
             - elasticsearch
+            - pg-levenshtein
+        - doc_id: 996abf5f-3702-4967-80d5-9702f9161f13
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
         - doc_id: 4cbfd44e-e380-46a1-939f-8316a40d0565
           sources:
             - elasticsearch
@@ -1303,12 +1078,27 @@ queries:
         - doc_id: 876a99da-be27-4d4a-bc7b-ceec9ccb6504
           sources:
             - elasticsearch
+        - doc_id: 93d46dc1-b01a-4090-aec7-7615af8b184a
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 2ce7301b-0022-4e0f-aaf1-78462dda3a86
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
         - doc_id: e05a6c1c-7060-4b83-a889-a00a7b74fe63
           sources:
             - elasticsearch
         - doc_id: d0ff1725-174c-4a95-8745-6c3ee839dddd
           sources:
             - elasticsearch
+        - doc_id: 3b9b52be-77b6-4336-bc60-19ad1d432064
+          sources:
+            - elasticsearch
+            - pg-trgm
+            - pg-levenshtein
         - doc_id: 93e41e46-912b-46cf-aaba-df677c348187
           sources:
             - elasticsearch
@@ -1319,6 +1109,11 @@ queries:
           sources:
             - elasticsearch
             - pg-trgm
+        - doc_id: 2e9a8c2f-b8b9-487d-8fe6-d58c7b3a9f3f
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
         - doc_id: 8ed88250-8e8d-4380-b96d-9ec422e2373c
           sources:
             - elasticsearch
@@ -1328,31 +1123,93 @@ queries:
         - doc_id: d296838d-0772-4bc8-b56e-3a6e7c8b95f6
           sources:
             - elasticsearch
+        - doc_id: 1f1f67c5-b3f5-4f00-be58-f3c5090b9484
+          sources:
+            - elasticsearch
+            - pg-trgm
+            - pg-levenshtein
+            - paradedb
         - doc_id: 49c93586-eb5f-496e-a503-7d3415997e86
           sources:
             - elasticsearch
+        - doc_id: fd4fd51b-d16a-4f6d-9396-48ae4b1b94e0
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 5979c182-b0c0-4b76-bcdc-b5d6ebace251
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: c3c4b7eb-40f3-485b-bbd8-6398a72f5d51
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: ed5b45cb-3e4a-4356-900f-652150995d98
           sources:
             - elasticsearch
         - doc_id: 8e91ff95-1404-4f62-b46c-36d00fc9cb5e
           sources:
             - elasticsearch
+        - doc_id: 073bdea1-9fac-4329-85af-ff6f37ab23e3
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: d7fcddf2-a2eb-4325-b179-dea0bbd18b79
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 943f7ccd-77f7-4dcb-9dc0-d178a98756c8
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 44509b8a-0cbb-440f-a97e-13d22362535d
+          sources:
+            - elasticsearch
+            - pg-trgm
+            - pg-levenshtein
+            - paradedb
         - doc_id: 2deb1625-af22-43d5-b4e0-2f0faaa018a8
           sources:
             - elasticsearch
         - doc_id: 4814623c-b331-4c5f-94ed-8c38214d0179
           sources:
             - elasticsearch
+        - doc_id: 504fb77b-5e6b-4b5e-9785-eaa084892dda
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
         - doc_id: 4ed0bdc1-9ac3-419b-9147-e06407b536e5
           sources:
             - elasticsearch
             - pg-trgm
+        - doc_id: 0927b98f-e5ea-4902-9ae1-7eb76f3b3e69
+          sources:
+            - elasticsearch
+            - pg-trgm
+            - pg-levenshtein
         - doc_id: 2c9c8854-6023-4b2f-bcf1-df63d3f2cfde
           sources:
             - elasticsearch
+        - doc_id: 2744e247-5a87-4bd7-92e7-f897afa7c9d3
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: 8b51e877-764c-458f-a2b6-96bda26572a5
           sources:
             - elasticsearch
+        - doc_id: 41455d4a-d692-4e7d-bb9e-6620c44d12af
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: e0fa2f02-f666-4946-a14e-748226925299
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
         - doc_id: a3531eaa-79d1-47da-a41c-0b4a2dd60746
           sources:
             - elasticsearch
@@ -1363,6 +1220,10 @@ queries:
         - doc_id: 0c12eda7-5d78-4569-b94f-336e7f6af368
           sources:
             - pg-trgm
+        - doc_id: d4ab5a51-3b53-415d-bd9b-1bdebedfa072
+          sources:
+            - pg-trgm
+            - pg-levenshtein
         - doc_id: 370413a8-aa16-448a-b020-eda317da4312
           sources:
             - pg-trgm
@@ -1378,13 +1239,13 @@ queries:
         - doc_id: 70ddafc1-b925-4563-aa10-aeec5e4ebddb
           sources:
             - pg-trgm
+        - doc_id: 04e7bc72-b9de-4722-8ca6-57f0e13e0d72
+          sources:
+            - pg-trgm
         - doc_id: 95e0f460-d678-491d-bb70-66d3046d5e87
           sources:
             - pg-trgm
         - doc_id: 95989484-96e0-4b53-b0c1-be1b144fe830
-          sources:
-            - pg-trgm
-        - doc_id: 04e7bc72-b9de-4722-8ca6-57f0e13e0d72
           sources:
             - pg-trgm
         - doc_id: 81b5cfd7-c772-4b75-b1c1-ae094cd9f107
@@ -1396,10 +1257,10 @@ queries:
         - doc_id: 2376a7af-82d2-4519-8ada-aa9c93fe38d4
           sources:
             - pg-trgm
-        - doc_id: 4c9fb1ab-5fad-4699-8de7-dc1d32f7fcc0
+        - doc_id: b1873a1f-0f3a-411a-bf1c-edc6e78108d5
           sources:
             - pg-trgm
-        - doc_id: b1873a1f-0f3a-411a-bf1c-edc6e78108d5
+        - doc_id: 4c9fb1ab-5fad-4699-8de7-dc1d32f7fcc0
           sources:
             - pg-trgm
         - doc_id: d354f65b-790a-443d-8143-c7b13570cfb2
@@ -1417,10 +1278,10 @@ queries:
         - doc_id: 6ecff2fa-1426-43ac-9837-d60fbdcf1a97
           sources:
             - pg-trgm
-        - doc_id: 3b4d2185-1ea5-44fc-9f09-7fc65c725b62
+        - doc_id: 21aecbca-9d6b-4ca8-a0e8-3d927e9d0127
           sources:
             - pg-trgm
-        - doc_id: 21aecbca-9d6b-4ca8-a0e8-3d927e9d0127
+        - doc_id: 3b4d2185-1ea5-44fc-9f09-7fc65c725b62
           sources:
             - pg-trgm
         - doc_id: 8676cb5c-dd5f-4cc7-a702-bd4175d38f5d
@@ -1429,231 +1290,275 @@ queries:
         - doc_id: adf4c632-1369-477a-958f-00e17b38a0e7
           sources:
             - pg-trgm
+        - doc_id: 3e97df01-faa0-4512-bc4a-e61315c7c921
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 31b36f22-f8bf-45f4-af83-8746a1c5836f
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: f952c6d1-e43f-4945-8ec8-5b2b5b739584
+          sources:
+            - pg-levenshtein
+        - doc_id: fb700303-5618-4e13-bf1f-ae25b40826e8
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: d21d2498-5137-4400-8613-692e30ade8c4
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: d1060f56-273d-4ed6-bfc3-b6f89b1a11ae
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 085b1596-adc6-4e0c-a867-4606c4baac83
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 642782b1-5ff3-4524-ab9a-a1fc06685217
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 74701d27-1e75-418a-a388-62588fdbc223
+          sources:
+            - pg-levenshtein
+        - doc_id: 7801352f-e4b8-4fd8-998e-3aedc8077e45
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 63d67711-cb3e-42de-8be5-6c025b44f9ef
+          sources:
+            - pg-levenshtein
+        - doc_id: 73d62d87-92d5-4849-a3aa-7c1f698257cf
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 446c5724-a92c-4c80-a659-a82cc2d053e5
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: c08b563a-df24-447a-b8b9-ae90bb4a07d3
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 9dee6de8-fb3e-4bba-953b-21a213ad4869
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: ecfb9aa2-c30e-486b-b6b1-7ca895885913
+          sources:
+            - pg-levenshtein
+        - doc_id: dcb457dd-fdbf-4411-9203-f32f870ef41d
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 7168ae9c-9809-42b3-b6b4-8fd30049bd85
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 80acbb86-28f6-4229-968c-53ffebd15375
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: f51a7926-b425-4d1b-b030-7a6bc8f8225d
+          sources:
+            - pg-levenshtein
+        - doc_id: 132cacf6-3af8-48f5-9af3-8284a696aee3
+          sources:
+            - pg-levenshtein
+        - doc_id: bff3efda-6807-4ec7-8ca0-e19e698a786d
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: b5cf2834-fe5e-4f49-b441-b336ebe1b685
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: b131f812-76f9-4574-b4de-c21addea79c5
+          sources:
+            - pg-levenshtein
+        - doc_id: 102ff137-b9e6-48b7-aeec-5e63ba404728
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: db2f11c2-7c9a-43df-81fd-ad462e23dc3d
+          sources:
+            - pg-levenshtein
+        - doc_id: 32afce1f-2ae8-4c13-9049-0e91140778c6
+          sources:
+            - pg-levenshtein
+        - doc_id: 0aa75d78-af76-44bb-bff5-cd726faf29ec
+          sources:
+            - pg-levenshtein
+        - doc_id: d42cba70-6c54-448d-ab6b-b309301d20ba
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 42640e03-9dfe-4f74-a87e-a8792028f1a3
+          sources:
+            - paradedb
+        - doc_id: 131902fd-21c4-400e-a698-64e8951c7fa3
+          sources:
+            - paradedb
+        - doc_id: 668d5d51-7b06-4109-954b-1e01ad35c7ff
+          sources:
+            - paradedb
+        - doc_id: 3020f8f6-118d-4161-b999-45adc90e1a47
+          sources:
+            - paradedb
+        - doc_id: a04349e6-3cb2-477b-ac2a-577d60da5c88
+          sources:
+            - paradedb
+        - doc_id: 8cea57c7-68ee-475b-bada-0c99d46a0f76
+          sources:
+            - paradedb
+        - doc_id: 2e6ee309-5e35-46cc-8633-27f411da3237
+          sources:
+            - paradedb
+        - doc_id: b0358638-0a34-433c-850b-8c7617bcbf11
+          sources:
+            - paradedb
+        - doc_id: 21b9fad3-e6b0-4c8f-9535-ed9af10b2a04
+          sources:
+            - paradedb
+        - doc_id: a189fc3f-65f8-40e4-85a6-c87a1d47f300
+          sources:
+            - paradedb
+        - doc_id: 47a238bc-dbe7-47d9-b0a6-9916152edd80
+          sources:
+            - paradedb
+        - doc_id: 45c739aa-1b19-44e3-880b-b65e72e2a816
+          sources:
+            - paradedb
+        - doc_id: e6d17b45-60c7-443a-8c45-9f048f7c8e09
+          sources:
+            - paradedb
     - query_id: fuzzy-renewble-enrgy
       query_desc: Misspelled 'renewable energy'
       docs:
         - doc_id: 7600428a-08ca-4dd0-9873-b8b261124614
           sources:
-            - pg-levenshtein
             - paradedb
             - elasticsearch
+            - pg-levenshtein
         - doc_id: daf287c1-76cf-44b8-bb50-4f76454129cf
           sources:
-            - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: c8f904fd-0d4d-4641-8457-c994a3988326
-          sources:
             - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: f30b8a5d-8453-4a05-9fd5-4f95fd8b8f79
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: cb5ac2cd-d9b6-4528-9119-b2247e823790
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 47eb3281-a122-42f1-835b-683b8e0ce5f9
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: ded151bf-5f54-48c2-b911-e451120782bc
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: c94b43ce-9f9a-4be6-9108-10d60c960f07
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 377ba9c8-fca7-4329-8ac9-b96c620f95f5
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 278e162f-db49-42d5-9834-de358b23387f
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
         - doc_id: 5c4ee1c1-9156-4a8c-b552-78634d7a0529
           sources:
-            - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: 9a3c2327-9d73-4ae4-9fa0-b2e4cd0b8a8a
-          sources:
             - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: fcb43e00-5ba7-4a53-990b-529ad4808ef5
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
         - doc_id: 8a2c7dac-7501-49c5-b69d-cb7bc9611a18
           sources:
-            - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: d36cf526-ee47-4a7d-8b40-e9ff6822bd1b
+            - pg-levenshtein
+        - doc_id: 47eb3281-a122-42f1-835b-683b8e0ce5f9
           sources:
-            - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: 611c54b9-0925-433d-b6ba-f63efbbc6625
+            - pg-levenshtein
+        - doc_id: c94b43ce-9f9a-4be6-9108-10d60c960f07
           sources:
-            - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: 0ed0f419-1dd1-4209-ad4e-f1b3180b49ca
-          sources:
             - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: d4d0634f-898b-42bf-8b40-290a9c9d1518
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 9ed7df9d-38a0-40c1-a225-3f4dbc6fe4dc
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 92ac2dde-3e82-4a57-b6fb-becdb3672726
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
         - doc_id: 49a411db-dd6e-43f6-932a-ea4e53fbe537
           sources:
-            - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: cb601f17-c96c-4d17-b9b7-2cd0a90cf607
-          sources:
             - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 81137879-1e46-4283-9338-d671797350d3
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 7406fdb8-60d9-42e8-a3db-d8c07e3df28b
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
         - doc_id: b6705a48-1683-44e4-a90b-32a1f17b745f
           sources:
-            - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: 2351f148-b0aa-40a5-b751-efedd4f2b2e4
-          sources:
             - pg-levenshtein
-            - paradedb
-        - doc_id: f5b5cfec-c993-4a43-b479-c2708f11b8cb
+        - doc_id: 92ac2dde-3e82-4a57-b6fb-becdb3672726
           sources:
-            - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: e0b22887-c839-45e9-b902-e54504b0d118
-          sources:
             - pg-levenshtein
-            - paradedb
-        - doc_id: 7cc3eace-2589-4583-8ce8-01d323ce2585
+        - doc_id: ded151bf-5f54-48c2-b911-e451120782bc
           sources:
-            - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: 743bc7d6-66be-4ee9-a51f-451edd108017
-          sources:
             - pg-levenshtein
+        - doc_id: 7406fdb8-60d9-42e8-a3db-d8c07e3df28b
+          sources:
             - paradedb
             - elasticsearch
-        - doc_id: 50466b6d-7fc2-4ebb-9e79-7cb545d3aa5a
-          sources:
             - pg-levenshtein
+        - doc_id: f30b8a5d-8453-4a05-9fd5-4f95fd8b8f79
+          sources:
+            - paradedb
+            - pg-levenshtein
+        - doc_id: 9ed7df9d-38a0-40c1-a225-3f4dbc6fe4dc
+          sources:
             - paradedb
             - elasticsearch
-        - doc_id: b0c6ee3b-a75d-4cdd-adfa-1cf4dc57a297
-          sources:
             - pg-levenshtein
+        - doc_id: d36cf526-ee47-4a7d-8b40-e9ff6822bd1b
+          sources:
             - paradedb
             - elasticsearch
-        - doc_id: 3b4dce8a-d30f-4e15-a186-b2b4ba585502
-          sources:
             - pg-levenshtein
-        - doc_id: 8b7e0da3-9919-4116-b515-207d7c0573e4
+        - doc_id: d4d0634f-898b-42bf-8b40-290a9c9d1518
           sources:
-            - pg-levenshtein
-        - doc_id: 13cd9987-9be4-44e7-9f99-70da59367f42
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 5cb1a8a8-62ef-495d-a6bf-564289051830
-          sources:
-            - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: 3743ab30-cafd-4e4f-8b5f-8c9664e19bcb
-          sources:
             - pg-levenshtein
+        - doc_id: 9a3c2327-9d73-4ae4-9fa0-b2e4cd0b8a8a
+          sources:
             - paradedb
             - elasticsearch
-        - doc_id: b4e1b768-e3d6-43e6-b6a8-5d20e916687f
-          sources:
             - pg-levenshtein
-        - doc_id: 7cd11fb0-3c51-480c-b8d2-12b5564f9af6
+        - doc_id: c8f904fd-0d4d-4641-8457-c994a3988326
           sources:
-            - pg-levenshtein
-        - doc_id: 30f17de3-90ea-4a7d-92f5-c88033344af7
-          sources:
-            - pg-levenshtein
+            - paradedb
             - elasticsearch
-        - doc_id: c565831f-6972-49f3-98d1-8a13cc345b92
-          sources:
             - pg-levenshtein
+        - doc_id: 0ed0f419-1dd1-4209-ad4e-f1b3180b49ca
+          sources:
+            - paradedb
             - elasticsearch
-        - doc_id: 27628de9-0d6d-4e2d-8384-059e887d532a
-          sources:
             - pg-levenshtein
+        - doc_id: 81137879-1e46-4283-9338-d671797350d3
+          sources:
+            - paradedb
             - elasticsearch
-        - doc_id: 3ec3bfa4-fa8a-4583-abec-8faad0505fa6
-          sources:
             - pg-levenshtein
+        - doc_id: cb601f17-c96c-4d17-b9b7-2cd0a90cf607
+          sources:
+            - paradedb
             - elasticsearch
-        - doc_id: c4d180eb-32e8-42fd-a4d9-ee7bf1e5b9b3
-          sources:
             - pg-levenshtein
+        - doc_id: 611c54b9-0925-433d-b6ba-f63efbbc6625
+          sources:
+            - paradedb
             - elasticsearch
-        - doc_id: 9d7a12f5-4a4a-42bf-99e4-5054522648b2
-          sources:
             - pg-levenshtein
+        - doc_id: 377ba9c8-fca7-4329-8ac9-b96c620f95f5
+          sources:
+            - paradedb
             - elasticsearch
-        - doc_id: f34b95ef-0714-472a-b7c9-fc04100afbe3
-          sources:
             - pg-levenshtein
-        - doc_id: 6644268f-3771-4da7-b3a3-96732481b902
+        - doc_id: cb5ac2cd-d9b6-4528-9119-b2247e823790
           sources:
-            - pg-levenshtein
+            - paradedb
             - elasticsearch
-        - doc_id: 523ba42b-8f26-4662-945c-32483f136255
-          sources:
             - pg-levenshtein
-        - doc_id: 78dd96b8-1e19-4641-bafb-56705423054b
+        - doc_id: 7659f968-4813-481e-a96c-4518e1ec83af
           sources:
-            - pg-levenshtein
-        - doc_id: b76bc97c-2dd9-4a6c-9021-982ec23eec3f
+            - paradedb
+        - doc_id: fcb43e00-5ba7-4a53-990b-529ad4808ef5
           sources:
+            - paradedb
+            - elasticsearch
             - pg-levenshtein
         - doc_id: 7d20a1e7-d2a8-42a3-83ef-64b6da673192
           sources:
@@ -1661,17 +1566,85 @@ queries:
         - doc_id: b0075a7d-1f0a-4c25-b5a9-10f9224e2d8b
           sources:
             - paradedb
-        - doc_id: 7659f968-4813-481e-a96c-4518e1ec83af
+        - doc_id: 2351f148-b0aa-40a5-b751-efedd4f2b2e4
           sources:
             - paradedb
+            - pg-levenshtein
+        - doc_id: b0c6ee3b-a75d-4cdd-adfa-1cf4dc57a297
+          sources:
+            - paradedb
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: 7cc3eace-2589-4583-8ce8-01d323ce2585
+          sources:
+            - paradedb
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: 5cb1a8a8-62ef-495d-a6bf-564289051830
+          sources:
+            - paradedb
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: 3743ab30-cafd-4e4f-8b5f-8c9664e19bcb
+          sources:
+            - paradedb
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: e0b22887-c839-45e9-b902-e54504b0d118
+          sources:
+            - paradedb
+            - pg-levenshtein
+        - doc_id: 50466b6d-7fc2-4ebb-9e79-7cb545d3aa5a
+          sources:
+            - paradedb
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: 278e162f-db49-42d5-9834-de358b23387f
+          sources:
+            - paradedb
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: 743bc7d6-66be-4ee9-a51f-451edd108017
+          sources:
+            - paradedb
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: f5b5cfec-c993-4a43-b479-c2708f11b8cb
+          sources:
+            - paradedb
+            - elasticsearch
+            - pg-levenshtein
         - doc_id: f667f613-57f4-4141-bf5f-985626caae5f
           sources:
             - paradedb
             - elasticsearch
-        - doc_id: 666d259f-e39f-46c4-85f5-2405fed4645c
+        - doc_id: e32b2c95-9d8a-47fc-a676-a3ece1fc8b04
           sources:
             - paradedb
-        - doc_id: e32b2c95-9d8a-47fc-a676-a3ece1fc8b04
+        - doc_id: f275bbec-33c1-48b3-bce1-14c3d28fde6d
+          sources:
+            - paradedb
+        - doc_id: b4e1b768-e3d6-43e6-b6a8-5d20e916687f
+          sources:
+            - paradedb
+            - pg-levenshtein
+        - doc_id: 9569fc1e-1d63-459f-88a2-8de4cad43e2c
+          sources:
+            - paradedb
+        - doc_id: 13cd9987-9be4-44e7-9f99-70da59367f42
+          sources:
+            - paradedb
+            - pg-levenshtein
+        - doc_id: 0ebc1c38-7f99-4ddd-a987-67ff54f06e8d
+          sources:
+            - paradedb
+        - doc_id: a6b76f63-f3bb-4577-ba07-2de7e3bc218c
+          sources:
+            - paradedb
+        - doc_id: 2ed91a42-6748-4f92-9f11-184cb6326dea
+          sources:
+            - paradedb
+        - doc_id: 666d259f-e39f-46c4-85f5-2405fed4645c
           sources:
             - paradedb
         - doc_id: 3928409d-57a1-4448-bbfe-fdc4986ddefe
@@ -1682,27 +1655,25 @@ queries:
           sources:
             - paradedb
             - elasticsearch
-        - doc_id: 9569fc1e-1d63-459f-88a2-8de4cad43e2c
-          sources:
-            - paradedb
-        - doc_id: 0ebc1c38-7f99-4ddd-a987-67ff54f06e8d
-          sources:
-            - paradedb
         - doc_id: dbae27d1-dc6f-47c6-aa05-a96442a4cff8
           sources:
             - paradedb
-        - doc_id: 8d8d44cd-ab43-45fc-8b4a-e5200c2adaed
+        - doc_id: 30f17de3-90ea-4a7d-92f5-c88033344af7
           sources:
-            - paradedb
-        - doc_id: d0ca5329-60b7-44c4-8509-2739b04a6e2c
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: 9d7a12f5-4a4a-42bf-99e4-5054522648b2
           sources:
-            - paradedb
-        - doc_id: f275bbec-33c1-48b3-bce1-14c3d28fde6d
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: 6644268f-3771-4da7-b3a3-96732481b902
           sources:
-            - paradedb
-        - doc_id: 06e6aac0-3be4-4994-bc94-f45d084ac457
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: 3ec3bfa4-fa8a-4583-abec-8faad0505fa6
           sources:
-            - paradedb
+            - elasticsearch
+            - pg-levenshtein
         - doc_id: caa97ef2-8819-45e4-9956-796a474c37e6
           sources:
             - elasticsearch
@@ -1712,9 +1683,17 @@ queries:
         - doc_id: 1d1d0f1b-f289-492f-ad42-991524bb5c2c
           sources:
             - elasticsearch
+        - doc_id: c4d180eb-32e8-42fd-a4d9-ee7bf1e5b9b3
+          sources:
+            - elasticsearch
+            - pg-levenshtein
         - doc_id: 62694782-1d8f-490f-8322-a5f2317df65b
           sources:
             - elasticsearch
+        - doc_id: 27628de9-0d6d-4e2d-8384-059e887d532a
+          sources:
+            - elasticsearch
+            - pg-levenshtein
         - doc_id: b1c2cbcd-5477-4690-8394-06d16750936f
           sources:
             - elasticsearch
@@ -1730,6 +1709,31 @@ queries:
         - doc_id: 5a1d683a-eb3c-4820-a85c-4f710010d657
           sources:
             - elasticsearch
+        - doc_id: c565831f-6972-49f3-98d1-8a13cc345b92
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+        - doc_id: 3b4dce8a-d30f-4e15-a186-b2b4ba585502
+          sources:
+            - pg-levenshtein
+        - doc_id: 8b7e0da3-9919-4116-b515-207d7c0573e4
+          sources:
+            - pg-levenshtein
+        - doc_id: 7cd11fb0-3c51-480c-b8d2-12b5564f9af6
+          sources:
+            - pg-levenshtein
+        - doc_id: f34b95ef-0714-472a-b7c9-fc04100afbe3
+          sources:
+            - pg-levenshtein
+        - doc_id: 523ba42b-8f26-4662-945c-32483f136255
+          sources:
+            - pg-levenshtein
+        - doc_id: 78dd96b8-1e19-4641-bafb-56705423054b
+          sources:
+            - pg-levenshtein
+        - doc_id: fdcf3804-2797-4583-b5ec-7d12559af7df
+          sources:
+            - pg-levenshtein
     - query_id: fuzzy-goverment-shudown
       query_desc: Misspelled 'government shutdown'
       docs:
@@ -1828,97 +1832,100 @@ queries:
             - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: b6bcc1bf-ad83-4e6e-879a-77846dfd0eda
+        - doc_id: cf979def-f683-40c2-be91-d5889928b55d
           sources:
             - pg-levenshtein
-        - doc_id: fa7a3a21-f411-4a85-8dd5-dc0756bd845f
+        - doc_id: b4e95c3c-8eed-4d1a-a118-fdce60eed036
           sources:
             - pg-levenshtein
-        - doc_id: cf9306ba-5305-4232-bfd3-d6ac538885a0
+            - paradedb
+        - doc_id: 0ed70804-ebcf-483f-8ced-a30c6be08c21
           sources:
             - pg-levenshtein
-        - doc_id: d1c0682d-4899-4255-a9ff-b67f7861faae
+        - doc_id: 560fb048-10a5-4114-a1f5-213a95db9477
           sources:
             - pg-levenshtein
-        - doc_id: 98f121f4-0768-49e9-ba20-53734880e925
+        - doc_id: 07830470-a6bc-4bc1-af36-ead01c5208e2
           sources:
             - pg-levenshtein
-        - doc_id: 3006dab6-5259-48e9-90eb-a3957b25ad89
+        - doc_id: 57300ac3-6746-41dd-8097-89bafa24090a
           sources:
             - pg-levenshtein
-        - doc_id: a7b13845-9025-4d66-a8d5-befc714269a7
+        - doc_id: 379b4645-4e25-4468-b33c-74d341f3372d
           sources:
             - pg-levenshtein
-        - doc_id: df89ff34-b872-4abe-a0bf-b716c5b37693
+        - doc_id: 41383924-320e-4ff6-94d3-944acf0f3889
           sources:
             - pg-levenshtein
-        - doc_id: 2f57ecc0-9894-45b4-985c-4aa591249631
+        - doc_id: 02d9d14b-e9f9-4a36-b3b8-a790d6487fdc
           sources:
             - pg-levenshtein
-        - doc_id: abf26737-c9c8-4811-91e6-17affaeb43b0
+        - doc_id: 3c5eb0b0-0e4e-4fa6-85c7-5fb47c93343c
           sources:
             - pg-levenshtein
-        - doc_id: 49063031-ed69-4722-b337-236298a5c00d
+        - doc_id: febac506-b916-4e2a-b1a6-b06652ac7bfc
           sources:
             - pg-levenshtein
-        - doc_id: 4406f1ae-16ed-449a-92d9-a893063190c3
+        - doc_id: 1ae9572b-5b60-4fd6-8771-7c0ac4321871
           sources:
             - pg-levenshtein
-        - doc_id: 028785c6-3178-499e-8f99-0cd9685b8e8a
+        - doc_id: 2d5d8e87-4f58-4e27-9c6d-8f2a123abcb2
           sources:
             - pg-levenshtein
-        - doc_id: 93bcdfd3-74c3-4f08-8f1f-a1eb44f5a55a
+            - paradedb
+        - doc_id: 5aadd8a3-8c7f-4f26-9d37-6628d0f019b1
           sources:
             - pg-levenshtein
-        - doc_id: c1b17a2c-4ca5-4443-b4f7-d237075e4c6b
+            - paradedb
+        - doc_id: 5150a514-b846-44c0-8a44-c2b596c0a63a
           sources:
             - pg-levenshtein
-        - doc_id: 4d569eb8-90a5-495d-93f3-491d707a36f7
+        - doc_id: 3ee202f0-262c-40ee-a731-c58f2afa97f3
           sources:
             - pg-levenshtein
-        - doc_id: 02cbd6e2-1d00-49d4-9506-be19b8d4480f
+        - doc_id: 839646ed-4515-4951-953e-1c1d1ac28833
           sources:
             - pg-levenshtein
-        - doc_id: be35244b-d444-4a54-9d2f-91868db2a39c
+        - doc_id: 942cc397-372e-4727-91f1-f86b6903638f
           sources:
             - pg-levenshtein
-        - doc_id: 56b33693-afbd-4dfc-8c27-1972f6112f24
+        - doc_id: 6523cc98-ce6c-4c4d-b355-e33b7c5302c0
           sources:
             - pg-levenshtein
-        - doc_id: ad54f77e-7643-4773-8786-1055e8e5d2a4
+        - doc_id: 7a69b3a8-9e07-486b-bf6e-224216c6caef
           sources:
             - pg-levenshtein
-        - doc_id: 9c17f91b-a7e6-45eb-a752-4eb941d762b5
+        - doc_id: 6f40274b-488b-42d1-8492-2b7b3c1b5e2a
           sources:
             - pg-levenshtein
-        - doc_id: 1500d368-ece3-4b94-afeb-efb94522bfa9
+        - doc_id: 17f90fa3-0f46-4acd-8093-90e5fce88352
           sources:
             - pg-levenshtein
-        - doc_id: 63fb6e90-a8fb-4f5d-b1e0-745f6c7f007b
+        - doc_id: e606c672-f6a9-43f1-919d-1035c026daf7
           sources:
             - pg-levenshtein
-        - doc_id: 4a8df841-b641-4ed5-828d-a3f9ddf661eb
+        - doc_id: b69a7d38-9bf1-42d7-ab60-dd9979e5c9fc
           sources:
             - pg-levenshtein
-        - doc_id: a39180f0-99f3-45ba-b9a0-f670b59d08ee
+        - doc_id: 85402847-f797-475d-9415-2d36213baadb
           sources:
             - pg-levenshtein
-        - doc_id: 92dac4c4-a1ba-404d-87fa-53e05a47506d
+        - doc_id: 74e53d0d-def8-45e6-951f-24140788da4a
           sources:
             - pg-levenshtein
-        - doc_id: fc2e0c91-672c-4c16-ae7a-9a69a3101f69
+        - doc_id: 79da7a6c-4d66-4cb0-bff5-b780dbdd47fb
           sources:
             - pg-levenshtein
-        - doc_id: a8f84bd7-2d76-4f26-83b8-d947f74a400a
+        - doc_id: fb3121de-ab9d-4cbf-8599-ab712d5f5af3
           sources:
             - pg-levenshtein
-        - doc_id: 75a6d051-f0e2-4870-8d3d-32b0a3b6def3
+        - doc_id: c871cf67-3015-4448-9720-c0aebb181b14
           sources:
             - pg-levenshtein
-        - doc_id: d4c13599-221d-46c6-9fdd-71403a88b5b3
+        - doc_id: 2d7251fe-09a3-4517-9898-c1d77d692961
           sources:
             - pg-levenshtein
-        - doc_id: e3b0fc99-d57c-4e9f-b06b-5829c2cce7c9
+        - doc_id: efc679ca-4e29-43d4-a44d-bb89f2194f83
           sources:
             - pg-levenshtein
         - doc_id: 56ebc622-1003-406d-b249-7a5198acd89e
@@ -1981,16 +1988,7 @@ queries:
         - doc_id: bb383422-1ccd-48b3-a4de-a940f009a3fc
           sources:
             - paradedb
-        - doc_id: 5aadd8a3-8c7f-4f26-9d37-6628d0f019b1
-          sources:
-            - paradedb
         - doc_id: 1286775d-92f7-4eca-877d-08ac70c1956e
-          sources:
-            - paradedb
-        - doc_id: 2d5d8e87-4f58-4e27-9c6d-8f2a123abcb2
-          sources:
-            - paradedb
-        - doc_id: b4e95c3c-8eed-4d1a-a118-fdce60eed036
           sources:
             - paradedb
         - doc_id: 00efbc23-613f-4401-a079-3aa3f997d9d3
@@ -2126,7 +2124,6 @@ queries:
         - doc_id: c48e5af6-a744-40de-903c-f5713cf791f2
           sources:
             - pg-levenshtein
-            - paradedb
             - elasticsearch
         - doc_id: d1402104-2831-4fb2-aa50-788b14b2b8b3
           sources:
@@ -2135,11 +2132,8 @@ queries:
         - doc_id: 4f7ddb74-cd08-49cb-b0e8-3895cc7598cb
           sources:
             - pg-levenshtein
-        - doc_id: b691c715-4b9a-434c-b961-f041af3cd2f7
-          sources:
-            - pg-levenshtein
             - paradedb
-        - doc_id: 5ab9c8a0-71b4-4381-92d8-f6d828520d15
+        - doc_id: b691c715-4b9a-434c-b961-f041af3cd2f7
           sources:
             - pg-levenshtein
             - paradedb
@@ -2148,6 +2142,9 @@ queries:
             - pg-levenshtein
             - paradedb
             - elasticsearch
+        - doc_id: 5ab9c8a0-71b4-4381-92d8-f6d828520d15
+          sources:
+            - pg-levenshtein
         - doc_id: c099e65b-1dbf-4427-8d95-47c2ea623804
           sources:
             - pg-levenshtein
@@ -2173,11 +2170,16 @@ queries:
         - doc_id: cd4eb4d1-38d5-43dd-a0ed-4e9dcf16cd54
           sources:
             - pg-levenshtein
+            - paradedb
             - elasticsearch
         - doc_id: df9a2fbd-fbfd-4751-aa63-f5c036b8110c
           sources:
             - pg-levenshtein
             - paradedb
+        - doc_id: 9d6bdb25-e187-4b13-90a5-cf572a30893d
+          sources:
+            - pg-levenshtein
+            - elasticsearch
         - doc_id: 17be966c-294c-4d41-ac27-f148c350ea89
           sources:
             - pg-levenshtein
@@ -2186,14 +2188,9 @@ queries:
           sources:
             - pg-levenshtein
             - elasticsearch
-        - doc_id: 9d6bdb25-e187-4b13-90a5-cf572a30893d
-          sources:
-            - pg-levenshtein
-            - elasticsearch
         - doc_id: ad4e952b-2c82-425f-9571-81df3b30284d
           sources:
             - pg-levenshtein
-            - paradedb
         - doc_id: d1d13e60-6b9d-4157-ac64-db1ed58f3b52
           sources:
             - pg-levenshtein
@@ -2242,7 +2239,6 @@ queries:
         - doc_id: f587f9f0-3c2a-46cf-a987-65d0c370edad
           sources:
             - pg-levenshtein
-            - paradedb
         - doc_id: 2970ef0a-8a24-438f-b39f-5666b37625dc
           sources:
             - pg-levenshtein
@@ -2261,11 +2257,11 @@ queries:
             - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: fcfdd1ee-058a-4700-b80b-3e18fa5655e5
+        - doc_id: 616922b3-0426-4f16-8a5c-33ba15841b03
           sources:
             - pg-levenshtein
             - paradedb
-        - doc_id: 616922b3-0426-4f16-8a5c-33ba15841b03
+        - doc_id: fcfdd1ee-058a-4700-b80b-3e18fa5655e5
           sources:
             - pg-levenshtein
             - paradedb
@@ -2281,6 +2277,7 @@ queries:
         - doc_id: c0d66879-bac6-493f-b435-afb21c50494f
           sources:
             - pg-levenshtein
+            - paradedb
         - doc_id: 27337df9-0445-4e2e-afb7-24e84caa920f
           sources:
             - pg-levenshtein
@@ -2291,6 +2288,7 @@ queries:
         - doc_id: 1949e5bf-d83c-4ea1-a629-c28e3ecd2b47
           sources:
             - pg-levenshtein
+            - paradedb
         - doc_id: 8ffbdb2c-8761-4337-b39d-a92bbbb7c019
           sources:
             - pg-levenshtein
@@ -2349,7 +2347,7 @@ queries:
           sources:
             - paradedb
             - elasticsearch
-        - doc_id: 550106c1-6013-40dd-a268-110384e071d8
+        - doc_id: e9735d60-c9c1-4131-b30d-8d376001495f
           sources:
             - paradedb
             - elasticsearch
@@ -2392,10 +2390,10 @@ queries:
         - doc_id: f2ddd5c2-ed73-43b1-845e-48aa6c0f43fd
           sources:
             - elasticsearch
-        - doc_id: 7fb297d8-2c6e-49a5-b2f0-55db520a3725
+        - doc_id: 550106c1-6013-40dd-a268-110384e071d8
           sources:
             - elasticsearch
-        - doc_id: e9735d60-c9c1-4131-b30d-8d376001495f
+        - doc_id: 7fb297d8-2c6e-49a5-b2f0-55db520a3725
           sources:
             - elasticsearch
         - doc_id: 6285ce59-1651-49fa-a684-d19346d2da07
@@ -2419,163 +2417,6 @@ queries:
     - query_id: fuzzy-stockmarket-cras
       query_desc: Misspelled 'stock market crash'
       docs:
-        - doc_id: c0333127-ab15-460e-bb9f-a54a86afa338
-          sources:
-            - pg-trgm
-        - doc_id: e7184d41-86a5-4a24-ab04-7119ca0e24d5
-          sources:
-            - pg-trgm
-        - doc_id: ac0a00f0-a3b9-41db-ad15-959761325e03
-          sources:
-            - pg-trgm
-            - pg-levenshtein
-        - doc_id: 05f15380-22e8-4583-b98a-de244fc8939d
-          sources:
-            - pg-levenshtein
-        - doc_id: 237f2a28-8e2f-4ad6-a8d1-08e6b01f98c0
-          sources:
-            - pg-levenshtein
-        - doc_id: f6e2ecb1-92e2-4a53-b579-4fa03989fa5e
-          sources:
-            - pg-levenshtein
-        - doc_id: 837b9683-bdcf-4d55-846b-5ca057f4293f
-          sources:
-            - pg-levenshtein
-        - doc_id: 8c43ad27-433c-43a3-8ca7-805a5d856c1c
-          sources:
-            - pg-levenshtein
-        - doc_id: 86c49da7-82b1-4a82-933a-f5b83c881f4f
-          sources:
-            - pg-levenshtein
-        - doc_id: cb5fd065-a225-4113-952b-b09888623c0d
-          sources:
-            - pg-levenshtein
-        - doc_id: 21d9c5dc-2e45-4ab0-8f1f-152c0a8f76ea
-          sources:
-            - pg-levenshtein
-        - doc_id: 7d2a3e4e-7b11-4acf-90ae-6f6dabbaf663
-          sources:
-            - pg-levenshtein
-        - doc_id: 40c1c8c9-e413-427c-8c62-9aa764b4ee55
-          sources:
-            - pg-levenshtein
-        - doc_id: 5d891d5d-a753-4f01-813b-d518cb1008f2
-          sources:
-            - pg-levenshtein
-        - doc_id: 9792a5ef-3d61-4742-989f-f04a29ad1ce3
-          sources:
-            - pg-levenshtein
-        - doc_id: db2b62b5-befa-4f91-80f9-81309f76974b
-          sources:
-            - pg-levenshtein
-        - doc_id: a8d7072a-3aa7-4ae4-b2ce-1bcde0825e0a
-          sources:
-            - pg-levenshtein
-        - doc_id: 212f9551-b7b3-4959-9818-4f771809d5a1
-          sources:
-            - pg-levenshtein
-        - doc_id: b7ba88e1-520a-4a30-a2cc-6216b87ae789
-          sources:
-            - pg-levenshtein
-        - doc_id: 8f3015f3-4cf9-418c-839a-926440b89d25
-          sources:
-            - pg-levenshtein
-        - doc_id: bc1975f6-7a1d-4d0d-9807-beb96a0b4d03
-          sources:
-            - pg-levenshtein
-        - doc_id: 70d81b2a-eec6-4d91-8a42-5e80cde521be
-          sources:
-            - pg-levenshtein
-        - doc_id: 1a35dc0c-6dfe-4788-8eb9-11e66a06b274
-          sources:
-            - pg-levenshtein
-        - doc_id: c3b24655-73fa-4f99-9a7c-ca11a09df057
-          sources:
-            - pg-levenshtein
-        - doc_id: 9a1c524d-3ad1-49e8-9557-2d828c86898c
-          sources:
-            - pg-levenshtein
-        - doc_id: 9faa1428-cbfb-4dae-906c-6f89731e2b6d
-          sources:
-            - pg-levenshtein
-        - doc_id: 5aa24bcb-9e88-47a5-a48a-8ad7a209aa7a
-          sources:
-            - pg-levenshtein
-        - doc_id: f33218d2-4c4b-4f60-8e6e-387d90ee1d5f
-          sources:
-            - pg-levenshtein
-        - doc_id: c9a6bbbc-6054-44b6-82ab-fff099226517
-          sources:
-            - pg-levenshtein
-        - doc_id: 7be65feb-d1e3-40d2-b670-b746fa8c1b18
-          sources:
-            - pg-levenshtein
-        - doc_id: b6e97b0a-162a-46e4-b59e-8c342948a693
-          sources:
-            - pg-levenshtein
-        - doc_id: 4b9f781b-11c4-4daa-b466-951947a6f631
-          sources:
-            - pg-levenshtein
-        - doc_id: 08b7a701-5e45-4346-aa97-5805facca40f
-          sources:
-            - pg-levenshtein
-        - doc_id: bfaaeb59-4096-4c05-82de-de676e15d972
-          sources:
-            - pg-levenshtein
-        - doc_id: 539558fb-26ec-42c3-94d4-e63a22688cc1
-          sources:
-            - pg-levenshtein
-        - doc_id: bd801f60-40b8-4ebc-9ab9-0e727d7d4b0e
-          sources:
-            - pg-levenshtein
-        - doc_id: c5392a5e-e9b1-4033-bc78-202d4c7aaa30
-          sources:
-            - pg-levenshtein
-        - doc_id: 7f5b6eaf-4074-49ab-b1e6-e98302579c39
-          sources:
-            - pg-levenshtein
-        - doc_id: c01b1610-0796-42bf-ba70-a34932c78412
-          sources:
-            - pg-levenshtein
-        - doc_id: de8a57c2-4e02-4ed3-9da6-376ef5b71389
-          sources:
-            - pg-levenshtein
-        - doc_id: 7598cb06-3e43-4cc7-ae19-be4eae38fd1e
-          sources:
-            - pg-levenshtein
-        - doc_id: 13330573-3351-4ac2-b3aa-1053e37d8aab
-          sources:
-            - pg-levenshtein
-        - doc_id: 8b47c6fa-fbab-4ac5-99a8-f49abac387cb
-          sources:
-            - pg-levenshtein
-        - doc_id: ae2a929f-c50f-469c-8f20-79536f2e1ac1
-          sources:
-            - pg-levenshtein
-        - doc_id: d088dae5-40b8-4701-b480-533e94003487
-          sources:
-            - pg-levenshtein
-        - doc_id: 6a72c0ec-fb51-4c0b-94a9-936d83554028
-          sources:
-            - pg-levenshtein
-        - doc_id: 4ed7d7fe-7342-4f6b-b605-17d8bd7e380d
-          sources:
-            - pg-levenshtein
-        - doc_id: c1ac1b3c-517e-44b4-b955-0925314adb4f
-          sources:
-            - pg-levenshtein
-        - doc_id: 61ffa5e9-f967-4935-8432-a3bfb25246c1
-          sources:
-            - pg-levenshtein
-        - doc_id: aeb9080c-f9bd-4681-8a73-7998c12434dd
-          sources:
-            - pg-levenshtein
-        - doc_id: 2e6dcd95-a20e-41ae-8653-f02cfe9af667
-          sources:
-            - pg-levenshtein
-        - doc_id: e85b9e83-cdbf-42ee-8bf1-2e14ebb94036
-          sources:
-            - pg-levenshtein
         - doc_id: 91258183-cbd7-4be4-8f0d-9a6262eac2d0
           sources:
             - paradedb
@@ -2599,13 +2440,13 @@ queries:
         - doc_id: 45482a70-518b-4442-81d2-8f4e21628b9c
           sources:
             - paradedb
-        - doc_id: f57f2d36-b4d4-4279-aa1a-53904a57ef5a
-          sources:
-            - paradedb
         - doc_id: aace9296-f107-4459-8011-479a9ab50324
           sources:
             - paradedb
             - elasticsearch
+        - doc_id: f57f2d36-b4d4-4279-aa1a-53904a57ef5a
+          sources:
+            - paradedb
         - doc_id: 9b3c5649-5096-4c1c-80ef-c8ebe7bcb214
           sources:
             - paradedb
@@ -2636,6 +2477,9 @@ queries:
         - doc_id: 6ffb38ea-101c-48d8-8605-6c4fe66e21c3
           sources:
             - paradedb
+        - doc_id: 0a96e126-5498-4235-bc34-334edfd5a8a1
+          sources:
+            - paradedb
         - doc_id: 13c44c9d-2595-465f-b209-5b5161204012
           sources:
             - paradedb
@@ -2651,13 +2495,10 @@ queries:
         - doc_id: 5a32ffa5-d449-45d5-b568-06ae93551115
           sources:
             - paradedb
-        - doc_id: 0a96e126-5498-4235-bc34-334edfd5a8a1
-          sources:
-            - paradedb
         - doc_id: b4f94bd7-4a81-4608-abdd-89d38a2af6f2
           sources:
             - paradedb
-        - doc_id: e7b3fadb-b1fc-4090-a3b5-8a45af49448f
+        - doc_id: c3ac2139-e80d-4f5f-b671-f753f85b6824
           sources:
             - paradedb
         - doc_id: ea59513c-4cfa-4c6b-a0d1-38038dda2e47
@@ -2672,6 +2513,9 @@ queries:
         - doc_id: 07af4ed7-21ae-4d09-896d-1863bd1f6091
           sources:
             - paradedb
+        - doc_id: e7b3fadb-b1fc-4090-a3b5-8a45af49448f
+          sources:
+            - paradedb
         - doc_id: e47e3aa3-8279-48a0-9b16-4bebded4c286
           sources:
             - paradedb
@@ -2679,9 +2523,6 @@ queries:
           sources:
             - paradedb
         - doc_id: 2e80dd81-59a4-457b-b927-40e5cc997856
-          sources:
-            - paradedb
-        - doc_id: c3ac2139-e80d-4f5f-b671-f753f85b6824
           sources:
             - paradedb
         - doc_id: 8589d40a-8ec7-4a8f-8ca4-17a2c2e46086
@@ -2697,9 +2538,6 @@ queries:
           sources:
             - paradedb
         - doc_id: 08ab5757-4743-42f7-862b-7924d75f845b
-          sources:
-            - paradedb
-        - doc_id: 72b85a51-13f6-439d-bccd-e97e02297524
           sources:
             - paradedb
         - doc_id: 29031853-8d71-4eb0-a508-744f21a2856d
@@ -2727,6 +2565,9 @@ queries:
           sources:
             - paradedb
         - doc_id: 136080bd-ef47-4af1-a9f8-234cc6cab987
+          sources:
+            - paradedb
+        - doc_id: 56372bba-a1e5-476f-82ed-5b4fe04575c0
           sources:
             - paradedb
         - doc_id: 8335abc2-944c-485b-83c4-5449e5ccab65
@@ -2870,320 +2711,237 @@ queries:
         - doc_id: 9a5dad19-3b2e-467e-84a5-7aafda8b15f6
           sources:
             - elasticsearch
+        - doc_id: c0333127-ab15-460e-bb9f-a54a86afa338
+          sources:
+            - pg-trgm
+        - doc_id: e7184d41-86a5-4a24-ab04-7119ca0e24d5
+          sources:
+            - pg-trgm
+        - doc_id: ac0a00f0-a3b9-41db-ad15-959761325e03
+          sources:
+            - pg-trgm
+            - pg-levenshtein
+        - doc_id: 05f15380-22e8-4583-b98a-de244fc8939d
+          sources:
+            - pg-levenshtein
+        - doc_id: 237f2a28-8e2f-4ad6-a8d1-08e6b01f98c0
+          sources:
+            - pg-levenshtein
+        - doc_id: 622902d7-ccd3-4cd2-b321-a4a394e36ace
+          sources:
+            - pg-levenshtein
+        - doc_id: cb5fd065-a225-4113-952b-b09888623c0d
+          sources:
+            - pg-levenshtein
+        - doc_id: 75404050-92a8-489b-86a1-b3e013058b5a
+          sources:
+            - pg-levenshtein
+        - doc_id: b465f364-ffeb-404e-9290-3d845924845d
+          sources:
+            - pg-levenshtein
+        - doc_id: 86c49da7-82b1-4a82-933a-f5b83c881f4f
+          sources:
+            - pg-levenshtein
+        - doc_id: f3b3a8d8-8a6e-40c1-bb94-5b92fbee38db
+          sources:
+            - pg-levenshtein
+        - doc_id: 21d9c5dc-2e45-4ab0-8f1f-152c0a8f76ea
+          sources:
+            - pg-levenshtein
+        - doc_id: 8f3015f3-4cf9-418c-839a-926440b89d25
+          sources:
+            - pg-levenshtein
+        - doc_id: ae2a929f-c50f-469c-8f20-79536f2e1ac1
+          sources:
+            - pg-levenshtein
+        - doc_id: 539558fb-26ec-42c3-94d4-e63a22688cc1
+          sources:
+            - pg-levenshtein
+        - doc_id: 9faa1428-cbfb-4dae-906c-6f89731e2b6d
+          sources:
+            - pg-levenshtein
+        - doc_id: 7d2a3e4e-7b11-4acf-90ae-6f6dabbaf663
+          sources:
+            - pg-levenshtein
+        - doc_id: c3b24655-73fa-4f99-9a7c-ca11a09df057
+          sources:
+            - pg-levenshtein
+        - doc_id: 837b9683-bdcf-4d55-846b-5ca057f4293f
+          sources:
+            - pg-levenshtein
+        - doc_id: 24766834-cead-4c8c-a587-7946a71901a5
+          sources:
+            - pg-levenshtein
+        - doc_id: a8d7072a-3aa7-4ae4-b2ce-1bcde0825e0a
+          sources:
+            - pg-levenshtein
+        - doc_id: 5d891d5d-a753-4f01-813b-d518cb1008f2
+          sources:
+            - pg-levenshtein
+        - doc_id: 8c43ad27-433c-43a3-8ca7-805a5d856c1c
+          sources:
+            - pg-levenshtein
+        - doc_id: b7ba88e1-520a-4a30-a2cc-6216b87ae789
+          sources:
+            - pg-levenshtein
+        - doc_id: 2e6dcd95-a20e-41ae-8653-f02cfe9af667
+          sources:
+            - pg-levenshtein
+        - doc_id: d088dae5-40b8-4701-b480-533e94003487
+          sources:
+            - pg-levenshtein
+        - doc_id: bc1975f6-7a1d-4d0d-9807-beb96a0b4d03
+          sources:
+            - pg-levenshtein
+        - doc_id: aeb9080c-f9bd-4681-8a73-7998c12434dd
+          sources:
+            - pg-levenshtein
+        - doc_id: db2b62b5-befa-4f91-80f9-81309f76974b
+          sources:
+            - pg-levenshtein
+        - doc_id: 9a1c524d-3ad1-49e8-9557-2d828c86898c
+          sources:
+            - pg-levenshtein
+        - doc_id: c5392a5e-e9b1-4033-bc78-202d4c7aaa30
+          sources:
+            - pg-levenshtein
+        - doc_id: de8a57c2-4e02-4ed3-9da6-376ef5b71389
+          sources:
+            - pg-levenshtein
+        - doc_id: 1a35dc0c-6dfe-4788-8eb9-11e66a06b274
+          sources:
+            - pg-levenshtein
+        - doc_id: f6e2ecb1-92e2-4a53-b579-4fa03989fa5e
+          sources:
+            - pg-levenshtein
+        - doc_id: 4ed7d7fe-7342-4f6b-b605-17d8bd7e380d
+          sources:
+            - pg-levenshtein
+        - doc_id: 6a72c0ec-fb51-4c0b-94a9-936d83554028
+          sources:
+            - pg-levenshtein
+        - doc_id: c1ac1b3c-517e-44b4-b955-0925314adb4f
+          sources:
+            - pg-levenshtein
+        - doc_id: 212f9551-b7b3-4959-9818-4f771809d5a1
+          sources:
+            - pg-levenshtein
+        - doc_id: e85b9e83-cdbf-42ee-8bf1-2e14ebb94036
+          sources:
+            - pg-levenshtein
+        - doc_id: 40c1c8c9-e413-427c-8c62-9aa764b4ee55
+          sources:
+            - pg-levenshtein
+        - doc_id: 61ffa5e9-f967-4935-8432-a3bfb25246c1
+          sources:
+            - pg-levenshtein
+        - doc_id: 8b47c6fa-fbab-4ac5-99a8-f49abac387cb
+          sources:
+            - pg-levenshtein
+        - doc_id: 5aa24bcb-9e88-47a5-a48a-8ad7a209aa7a
+          sources:
+            - pg-levenshtein
+        - doc_id: f33218d2-4c4b-4f60-8e6e-387d90ee1d5f
+          sources:
+            - pg-levenshtein
+        - doc_id: c9a6bbbc-6054-44b6-82ab-fff099226517
+          sources:
+            - pg-levenshtein
+        - doc_id: 7be65feb-d1e3-40d2-b670-b746fa8c1b18
+          sources:
+            - pg-levenshtein
+        - doc_id: b6e97b0a-162a-46e4-b59e-8c342948a693
+          sources:
+            - pg-levenshtein
+        - doc_id: 70d81b2a-eec6-4d91-8a42-5e80cde521be
+          sources:
+            - pg-levenshtein
+        - doc_id: 9792a5ef-3d61-4742-989f-f04a29ad1ce3
+          sources:
+            - pg-levenshtein
+        - doc_id: bfaaeb59-4096-4c05-82de-de676e15d972
+          sources:
+            - pg-levenshtein
+        - doc_id: 4b9f781b-11c4-4daa-b466-951947a6f631
+          sources:
+            - pg-levenshtein
+        - doc_id: 54c7f640-cf5b-4aaf-a1bd-469ae6e9c85b
+          sources:
+            - pg-levenshtein
     - query_id: fuzzy-vacine-effectivness
       query_desc: Misspelled 'vaccine effectiveness'
       docs:
-        - doc_id: 10ebb173-f081-465d-ab99-f940c94dc44e
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 1da599a2-e598-4a90-bb42-48167e59d83b
-          sources:
-            - pg-levenshtein
-        - doc_id: 47046510-0b70-4d9f-bec1-1b37dcf46998
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 3907d0e6-67f4-4c2c-9491-91dc0e138ef9
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 2565f06c-48ce-4086-956d-403eb88f8a26
-          sources:
-            - pg-levenshtein
-        - doc_id: 932a565b-7efb-495f-a6c7-e638bab246dc
-          sources:
-            - pg-levenshtein
-        - doc_id: 571117bd-a57c-48b4-9921-7e9f6ce8db2d
-          sources:
-            - pg-levenshtein
-        - doc_id: 0274ae26-897d-46e4-8393-882b12217bad
-          sources:
-            - pg-levenshtein
-        - doc_id: 7dd87cb9-d2e3-40cb-b379-32e96335b261
-          sources:
-            - pg-levenshtein
-        - doc_id: 2cb2cdf2-99f8-4de1-8585-29520239a641
-          sources:
-            - pg-levenshtein
-        - doc_id: 34dda4ed-3a4d-4c2f-93d6-b23ef6c8285c
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: d807f8aa-ee8a-468d-8fdd-871ede95bad4
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 806817c3-8ab9-4928-8d9c-34aab7fba341
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 87502ac3-ff06-4b45-adb4-6fb81399c425
-          sources:
-            - pg-levenshtein
-        - doc_id: 639f3373-f563-40d4-bf08-c11ca74bd88b
-          sources:
-            - pg-levenshtein
-        - doc_id: bd1a0e09-1350-45cd-ab02-869c652c6d0e
-          sources:
-            - pg-levenshtein
-        - doc_id: a3c4e23c-9db0-4534-a116-78df2723af9e
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 2f0138db-786d-4296-b85b-bdd9f1efa523
-          sources:
-            - pg-levenshtein
-        - doc_id: 75457734-35c1-428f-a8c3-5b03a57ca73c
-          sources:
-            - pg-levenshtein
-        - doc_id: bc44fa9f-a13b-4a2c-99b1-0ee7b32467f2
-          sources:
-            - pg-levenshtein
-        - doc_id: 17699c3d-5000-4bfc-a4fc-f141dff95c94
-          sources:
-            - pg-levenshtein
-        - doc_id: 713fd35e-0a27-4df6-abba-0f648c1f7fb0
-          sources:
-            - pg-levenshtein
-        - doc_id: 87ab41af-375f-4c42-8b54-2fcf29900b47
-          sources:
-            - pg-levenshtein
-        - doc_id: 61906f9a-f252-452b-8c2a-f5d1e7f49062
-          sources:
-            - pg-levenshtein
-        - doc_id: 8cc5137d-8246-455e-acf7-fef43e9a1792
-          sources:
-            - pg-levenshtein
-        - doc_id: 6e0f2bca-9ebf-4163-9e60-af1fe0948593
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 7817eaef-46dd-4f49-998d-a429c9501690
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: 4a58b0ce-240a-4ca2-9b29-fa2a7e31ee62
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 381be107-bde8-4e2a-b637-de71fb162d48
-          sources:
-            - pg-levenshtein
-        - doc_id: b2a5e3d3-174d-4eda-8dd5-3019df9659e8
-          sources:
-            - pg-levenshtein
-        - doc_id: 5279f5db-2a5e-4f55-9986-53455fbc3574
-          sources:
-            - pg-levenshtein
-        - doc_id: b1926424-d098-4073-b336-f7a4d60db0ef
-          sources:
-            - pg-levenshtein
-        - doc_id: c8dc68a7-ebd4-4c6b-ab52-cb32f72d3506
-          sources:
-            - pg-levenshtein
-            - paradedb
-            - elasticsearch
-        - doc_id: f076fc71-1879-4360-91a6-34a1c14c788c
-          sources:
-            - pg-levenshtein
-        - doc_id: c226ba24-6650-4440-a0f8-81948447735d
-          sources:
-            - pg-levenshtein
-            - elasticsearch
-        - doc_id: 3d0f75d3-826c-4011-b62e-16f33148c77c
-          sources:
-            - pg-levenshtein
-        - doc_id: cf9bf36e-6d80-4a5b-ba10-a66e281aaec2
-          sources:
-            - pg-levenshtein
-        - doc_id: d15c7d3d-d462-4a91-b90a-c5db5e4127f6
-          sources:
-            - pg-levenshtein
-        - doc_id: 584ba44d-0473-4638-a349-90516eb4e536
-          sources:
-            - pg-levenshtein
-        - doc_id: b593c46d-11df-4f5e-81ba-08e487912708
-          sources:
-            - pg-levenshtein
-        - doc_id: 4ffd0a3e-0efa-4a1a-a089-0b86f60a95c6
-          sources:
-            - pg-levenshtein
-        - doc_id: 096a9d77-84af-49bf-a0d1-d5f0bdfacde2
-          sources:
-            - pg-levenshtein
-        - doc_id: a06ede99-e1d0-4c14-8d64-f60544924730
-          sources:
-            - pg-levenshtein
-        - doc_id: a552ab81-bbdc-4841-81a1-4f1135fdb3a6
-          sources:
-            - pg-levenshtein
-        - doc_id: 21740dab-4bd7-40b9-b710-8159849a05f3
-          sources:
-            - pg-levenshtein
-        - doc_id: bfafe458-a40d-4776-a85e-3e02659e301f
-          sources:
-            - pg-levenshtein
-        - doc_id: 2663219e-1243-408d-aff4-9cbdcaca4427
-          sources:
-            - pg-levenshtein
-        - doc_id: ce2b9d67-4ac1-4926-8407-6ad29408645b
-          sources:
-            - pg-levenshtein
-        - doc_id: e6c763b5-0535-4f80-bd2e-334f28143ebd
-          sources:
-            - pg-levenshtein
-        - doc_id: df4f6f9a-d775-4a6d-902c-70b3da1477ce
-          sources:
-            - pg-levenshtein
-        - doc_id: b1cc1246-6161-4ca7-9e23-ad1a1c751bc6
-          sources:
-            - paradedb
-        - doc_id: 4c5aeca5-f259-4940-92cd-114bc45d889c
-          sources:
-            - paradedb
-        - doc_id: d58062dc-00a1-4cde-b429-2e7a024b568c
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: e6dec0cb-7a0a-45a9-96f1-f53f32afe73b
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: f441b98a-af24-4e14-9664-88ea2200fb82
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 4dcf6d2d-8470-4d19-9872-2fdaf88f2d01
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 44a3b579-3bdd-4d74-b175-3d88c6b83e87
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 8bf1ae0c-fe92-4998-9fb8-511f2c06da11
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 32792ba1-dc4f-4cd3-807d-40ef4308a3ee
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: c7e6b4e2-0e13-40c3-9f82-a158506b4d3a
-          sources:
-            - paradedb
-        - doc_id: 70e2882b-afff-4723-bd51-a24a4c33cb92
-          sources:
-            - paradedb
-        - doc_id: da9ac977-79af-494a-811d-49291d0cc0bb
-          sources:
-            - paradedb
-        - doc_id: 34d6e38c-2d60-40bd-9986-c13b2444dddd
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: efd91fb9-f6fd-4a2e-a96c-e3d2110e1930
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 8d38323d-eeb5-4c42-b8fa-dda2d880a0cd
-          sources:
-            - paradedb
         - doc_id: edc0f29e-50c5-4533-b579-7932a0e296bf
           sources:
-            - paradedb
             - elasticsearch
-        - doc_id: ddeeb6a1-b041-43cd-b3b5-25d620fb281e
+        - doc_id: 10ebb173-f081-465d-ab99-f940c94dc44e
           sources:
-            - paradedb
-        - doc_id: 1f0b032e-ce60-4664-9fab-964e7015defa
-          sources:
-            - paradedb
             - elasticsearch
-        - doc_id: cdb39932-5caf-4550-aa78-baf4876d3303
-          sources:
+            - pg-levenshtein
             - paradedb
-        - doc_id: ffe54c68-f8ab-498a-b7f8-e4f5224e45cb
+        - doc_id: 44a3b579-3bdd-4d74-b175-3d88c6b83e87
           sources:
-            - paradedb
-        - doc_id: 911a2f79-f5a2-4181-b9a5-4613fbf94587
-          sources:
-            - paradedb
-        - doc_id: 9f0f5f27-41fd-4c4c-83e0-14cb7963e078
-          sources:
-            - paradedb
-        - doc_id: cc859a10-706c-479d-a285-ad980ef93d23
-          sources:
-            - paradedb
-        - doc_id: 2f15d713-6cf3-449d-af99-b51df4726635
-          sources:
-            - paradedb
             - elasticsearch
-        - doc_id: 44e10f27-a7c2-465b-a8b2-281561bbdf8d
-          sources:
-            - paradedb
-        - doc_id: 42191ffc-33a2-4f70-9c81-1865855e4c5d
-          sources:
-            - paradedb
-        - doc_id: f52c42d5-cc0e-42ef-ac13-324f46d23b73
-          sources:
-            - paradedb
-        - doc_id: 2b7cc0cc-18ce-40e6-a415-61489c55d29e
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 75c98412-0d9c-4324-b957-616196945c2d
-          sources:
-            - paradedb
-        - doc_id: d6be0667-74f7-44a3-a7d0-49f1c8d818ba
-          sources:
-            - paradedb
-        - doc_id: 0332e7fb-7fb3-428d-b3ae-98c958574058
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 72cc98a3-6dbb-461e-a478-8445c12c75cc
-          sources:
-            - paradedb
-        - doc_id: bb3ce0b2-bf51-4c36-b072-2f77fd69235d
-          sources:
-            - paradedb
-        - doc_id: 5c7f68ab-9ff0-4e20-8e6a-fba3efcf7da2
-          sources:
-            - paradedb
-        - doc_id: 469e0d51-c419-4ae8-bbc6-7237cd9a31b2
-          sources:
-            - paradedb
-        - doc_id: 56788ede-5831-4b20-87c7-b73c71afc703
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 8a58bbb2-4315-4fa6-8cbb-872094c43358
-          sources:
-            - paradedb
-        - doc_id: 30b52065-22fc-44c2-999e-8806eeed29f9
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 1653baa7-3df1-4279-bb6b-ffc89192d529
-          sources:
             - paradedb
         - doc_id: 8ebfd17c-0b83-426d-97d6-1622a8a0700c
           sources:
             - elasticsearch
+        - doc_id: 806817c3-8ab9-4928-8d9c-34aab7fba341
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
         - doc_id: 62c6ff25-6407-4c2a-a2b5-936c7bca6810
           sources:
             - elasticsearch
         - doc_id: 9d9447ae-20ac-4c82-8d89-c95ce3aa9249
           sources:
             - elasticsearch
+        - doc_id: 32792ba1-dc4f-4cd3-807d-40ef4308a3ee
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 30b52065-22fc-44c2-999e-8806eeed29f9
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: d807f8aa-ee8a-468d-8fdd-871ede95bad4
+          sources:
+            - elasticsearch
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 34d6e38c-2d60-40bd-9986-c13b2444dddd
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 4dcf6d2d-8470-4d19-9872-2fdaf88f2d01
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: e0a4a1ab-be2e-4ec0-a247-8f303efbf1fe
+          sources:
+            - elasticsearch
+        - doc_id: a3c4e23c-9db0-4534-a116-78df2723af9e
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: c8dc68a7-ebd4-4c6b-ab52-cb32f72d3506
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 2f15d713-6cf3-449d-af99-b51df4726635
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: efd91fb9-f6fd-4a2e-a96c-e3d2110e1930
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: d58062dc-00a1-4cde-b429-2e7a024b568c
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: c226ba24-6650-4440-a0f8-81948447735d
           sources:
             - elasticsearch
         - doc_id: a1242452-5380-4e81-8863-4221b4c4061c
@@ -3192,18 +2950,31 @@ queries:
         - doc_id: 1a0b0cbe-0ff2-40ee-afd6-28c7b6edf66a
           sources:
             - elasticsearch
+            - paradedb
         - doc_id: 85a31cf4-9635-4c32-a0df-5f3fb2889a95
+          sources:
+            - elasticsearch
+        - doc_id: 56788ede-5831-4b20-87c7-b73c71afc703
           sources:
             - elasticsearch
         - doc_id: 99e13260-b51e-4a75-abb1-86fdf6551c3f
           sources:
             - elasticsearch
+            - paradedb
         - doc_id: d4c25192-1056-40fa-8545-c184805d8201
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 7817eaef-46dd-4f49-998d-a429c9501690
           sources:
             - elasticsearch
         - doc_id: 30532a80-77ad-4c94-b6fb-b803cba677a1
           sources:
             - elasticsearch
+        - doc_id: 8bf1ae0c-fe92-4998-9fb8-511f2c06da11
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: b0d5fe1f-9f3b-4f66-b19c-8b3813d5ce8e
           sources:
             - elasticsearch
@@ -3219,18 +2990,29 @@ queries:
         - doc_id: 634ca2c8-a940-4b62-b098-669f5ff1d07e
           sources:
             - elasticsearch
+            - paradedb
         - doc_id: fc03652f-5ebf-45fe-9661-1f4bf2530c5e
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 2b7cc0cc-18ce-40e6-a415-61489c55d29e
           sources:
             - elasticsearch
         - doc_id: b07e73c2-225b-4e1d-b2cf-41a243850682
           sources:
             - elasticsearch
+            - paradedb
         - doc_id: 1d6924b6-99ca-4eb9-aae4-750316a4995d
           sources:
             - elasticsearch
+            - paradedb
         - doc_id: 8e9de72d-a5dc-4f19-82af-0628ddd5edfc
           sources:
             - elasticsearch
+        - doc_id: e6dec0cb-7a0a-45a9-96f1-f53f32afe73b
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: dfed2040-85e2-4d42-86c9-5bea01c67d0c
           sources:
             - elasticsearch
@@ -3240,13 +3022,26 @@ queries:
         - doc_id: d2210677-46ed-41ca-9036-bd268e478416
           sources:
             - elasticsearch
+        - doc_id: 1f0b032e-ce60-4664-9fab-964e7015defa
+          sources:
+            - elasticsearch
+            - paradedb
         - doc_id: f3419774-ba78-4aab-a877-89fe0e12218c
           sources:
             - elasticsearch
+            - paradedb
         - doc_id: 613f0981-7d6e-4acc-9a66-8916f21bf89d
           sources:
             - elasticsearch
+            - paradedb
         - doc_id: 82950a70-9dd6-4933-9ccd-72232d2ba5de
+          sources:
+            - elasticsearch
+        - doc_id: f441b98a-af24-4e14-9664-88ea2200fb82
+          sources:
+            - elasticsearch
+            - paradedb
+        - doc_id: 0332e7fb-7fb3-428d-b3ae-98c958574058
           sources:
             - elasticsearch
         - doc_id: a3ea9a1d-3ab1-4df4-9658-605af7b533a8
@@ -3255,6 +3050,215 @@ queries:
         - doc_id: 02069cef-4237-4764-9618-2dc672500fa4
           sources:
             - elasticsearch
+        - doc_id: 1da599a2-e598-4a90-bb42-48167e59d83b
+          sources:
+            - pg-levenshtein
+        - doc_id: 47046510-0b70-4d9f-bec1-1b37dcf46998
+          sources:
+            - pg-levenshtein
+        - doc_id: 3907d0e6-67f4-4c2c-9491-91dc0e138ef9
+          sources:
+            - pg-levenshtein
+        - doc_id: 2565f06c-48ce-4086-956d-403eb88f8a26
+          sources:
+            - pg-levenshtein
+        - doc_id: 932a565b-7efb-495f-a6c7-e638bab246dc
+          sources:
+            - pg-levenshtein
+        - doc_id: 571117bd-a57c-48b4-9921-7e9f6ce8db2d
+          sources:
+            - pg-levenshtein
+        - doc_id: 0274ae26-897d-46e4-8393-882b12217bad
+          sources:
+            - pg-levenshtein
+        - doc_id: 7dd87cb9-d2e3-40cb-b379-32e96335b261
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 2cb2cdf2-99f8-4de1-8585-29520239a641
+          sources:
+            - pg-levenshtein
+        - doc_id: 34dda4ed-3a4d-4c2f-93d6-b23ef6c8285c
+          sources:
+            - pg-levenshtein
+        - doc_id: 8cc5137d-8246-455e-acf7-fef43e9a1792
+          sources:
+            - pg-levenshtein
+        - doc_id: 61906f9a-f252-452b-8c2a-f5d1e7f49062
+          sources:
+            - pg-levenshtein
+        - doc_id: f47f9081-fc86-49f1-8fb6-07c79e017749
+          sources:
+            - pg-levenshtein
+        - doc_id: 87ab41af-375f-4c42-8b54-2fcf29900b47
+          sources:
+            - pg-levenshtein
+        - doc_id: 17699c3d-5000-4bfc-a4fc-f141dff95c94
+          sources:
+            - pg-levenshtein
+        - doc_id: ed909639-492f-4b6d-8108-af09758be5c3
+          sources:
+            - pg-levenshtein
+        - doc_id: 639f3373-f563-40d4-bf08-c11ca74bd88b
+          sources:
+            - pg-levenshtein
+        - doc_id: daca9a3f-ccce-4934-a2dc-fa6f2b6b13c0
+          sources:
+            - pg-levenshtein
+        - doc_id: b2baf682-46e1-45a3-a259-51b71584c1fd
+          sources:
+            - pg-levenshtein
+        - doc_id: 5e7b3e48-12e1-42c3-b4c8-2c56c54f42ae
+          sources:
+            - pg-levenshtein
+        - doc_id: 5c28e9f0-d7a0-47e2-a3b7-e137e25d39d9
+          sources:
+            - pg-levenshtein
+        - doc_id: df4f6f9a-d775-4a6d-902c-70b3da1477ce
+          sources:
+            - pg-levenshtein
+        - doc_id: cf9bf36e-6d80-4a5b-ba10-a66e281aaec2
+          sources:
+            - pg-levenshtein
+        - doc_id: 3d0f75d3-826c-4011-b62e-16f33148c77c
+          sources:
+            - pg-levenshtein
+        - doc_id: 584ba44d-0473-4638-a349-90516eb4e536
+          sources:
+            - pg-levenshtein
+        - doc_id: b593c46d-11df-4f5e-81ba-08e487912708
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: 4ffd0a3e-0efa-4a1a-a089-0b86f60a95c6
+          sources:
+            - pg-levenshtein
+        - doc_id: 713fd35e-0a27-4df6-abba-0f648c1f7fb0
+          sources:
+            - pg-levenshtein
+        - doc_id: 8691b43b-be22-45ea-a577-c6d0f90dbcb5
+          sources:
+            - pg-levenshtein
+        - doc_id: b2a5e3d3-174d-4eda-8dd5-3019df9659e8
+          sources:
+            - pg-levenshtein
+        - doc_id: b1926424-d098-4073-b336-f7a4d60db0ef
+          sources:
+            - pg-levenshtein
+        - doc_id: fe82ac9c-0631-4da6-ae6a-96095ce1c091
+          sources:
+            - pg-levenshtein
+        - doc_id: e6c763b5-0535-4f80-bd2e-334f28143ebd
+          sources:
+            - pg-levenshtein
+        - doc_id: ce2b9d67-4ac1-4926-8407-6ad29408645b
+          sources:
+            - pg-levenshtein
+        - doc_id: 381be107-bde8-4e2a-b637-de71fb162d48
+          sources:
+            - pg-levenshtein
+        - doc_id: f1a01f2d-b857-43bc-bbde-bd3e59fefe37
+          sources:
+            - pg-levenshtein
+        - doc_id: 20e686cf-006b-4d4a-b99a-3e371e3c1982
+          sources:
+            - pg-levenshtein
+        - doc_id: a4d7b4b0-aff6-4606-9b69-22a72e631a3f
+          sources:
+            - pg-levenshtein
+        - doc_id: be71fec0-1247-4cd8-9cd4-1ab2524b7c8d
+          sources:
+            - pg-levenshtein
+        - doc_id: 46f1f0c4-c8e5-454a-9de0-87be95d062cc
+          sources:
+            - pg-levenshtein
+        - doc_id: 234c0fec-d718-4f62-bd77-f0baa2714ae7
+          sources:
+            - pg-levenshtein
+        - doc_id: c64d59f1-5b17-46d9-b005-bbf121dcae12
+          sources:
+            - pg-levenshtein
+        - doc_id: eec96cf1-6399-4ca2-879e-da1653508b7e
+          sources:
+            - pg-levenshtein
+        - doc_id: 208f695f-aa0e-4f60-8963-97cfc561e792
+          sources:
+            - pg-levenshtein
+        - doc_id: 96a3cf0f-fd48-42c6-9697-bf48365a207b
+          sources:
+            - pg-levenshtein
+        - doc_id: efbec483-6b92-4d21-941d-1aa97721afe2
+          sources:
+            - pg-levenshtein
+        - doc_id: 2663219e-1243-408d-aff4-9cbdcaca4427
+          sources:
+            - pg-levenshtein
+        - doc_id: b1cc1246-6161-4ca7-9e23-ad1a1c751bc6
+          sources:
+            - paradedb
+        - doc_id: 4c5aeca5-f259-4940-92cd-114bc45d889c
+          sources:
+            - paradedb
+        - doc_id: 70e2882b-afff-4723-bd51-a24a4c33cb92
+          sources:
+            - paradedb
+        - doc_id: c7e6b4e2-0e13-40c3-9f82-a158506b4d3a
+          sources:
+            - paradedb
+        - doc_id: da9ac977-79af-494a-811d-49291d0cc0bb
+          sources:
+            - paradedb
+        - doc_id: cdb39932-5caf-4550-aa78-baf4876d3303
+          sources:
+            - paradedb
+        - doc_id: ffe54c68-f8ab-498a-b7f8-e4f5224e45cb
+          sources:
+            - paradedb
+        - doc_id: 911a2f79-f5a2-4181-b9a5-4613fbf94587
+          sources:
+            - paradedb
+        - doc_id: 9f0f5f27-41fd-4c4c-83e0-14cb7963e078
+          sources:
+            - paradedb
+        - doc_id: cc859a10-706c-479d-a285-ad980ef93d23
+          sources:
+            - paradedb
+        - doc_id: c32f5830-2c76-428b-bcab-86a254cc64b3
+          sources:
+            - paradedb
+        - doc_id: 53cdf7c6-5f94-43df-8602-de6719727fe1
+          sources:
+            - paradedb
+        - doc_id: 1dbab8b4-8dee-4adf-9bc7-19a43e4d0983
+          sources:
+            - paradedb
+        - doc_id: 125dcf8a-7005-4381-921f-91b097fcbdee
+          sources:
+            - paradedb
+        - doc_id: 75c98412-0d9c-4324-b957-616196945c2d
+          sources:
+            - paradedb
+        - doc_id: d6be0667-74f7-44a3-a7d0-49f1c8d818ba
+          sources:
+            - paradedb
+        - doc_id: 1653baa7-3df1-4279-bb6b-ffc89192d529
+          sources:
+            - paradedb
+        - doc_id: 4b62b24d-f64d-4b7e-ac33-e77d85da80e0
+          sources:
+            - paradedb
+        - doc_id: 44e10f27-a7c2-465b-a8b2-281561bbdf8d
+          sources:
+            - paradedb
+        - doc_id: 42191ffc-33a2-4f70-9c81-1865855e4c5d
+          sources:
+            - paradedb
+        - doc_id: 13b0e589-0111-4463-bdc5-af47f24d765a
+          sources:
+            - paradedb
+        - doc_id: ddeeb6a1-b041-43cd-b3b5-25d620fb281e
+          sources:
+            - paradedb
     - query_id: fuzzy-imigration-polcy
       query_desc: Misspelled 'immigration policy'
       docs:
@@ -3303,139 +3307,133 @@ queries:
             - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: e5f769e8-6a95-4d2b-952f-9152d0cb7a05
+        - doc_id: a9788675-0310-42ea-9033-7a89935b810c
+          sources:
+            - pg-levenshtein
+        - doc_id: 115c6e23-534b-4db2-b438-d4bda028c8d4
+          sources:
+            - pg-levenshtein
+        - doc_id: 6e9ded4b-0a37-4c3b-b2eb-380e17339fae
+          sources:
+            - pg-levenshtein
+        - doc_id: 344d7b54-a974-421c-9618-0ae48907de28
+          sources:
+            - pg-levenshtein
+        - doc_id: fa3e3ac3-134b-4501-b07b-66dbf6f663f3
+          sources:
+            - pg-levenshtein
+        - doc_id: 14131da3-f519-4576-a983-9d9c6c1829ac
+          sources:
+            - pg-levenshtein
+        - doc_id: 5dbec842-ec76-4e89-a9da-3e283638b267
+          sources:
+            - pg-levenshtein
+        - doc_id: b9e59ff5-1d01-4ccb-a271-338eab0803fd
+          sources:
+            - pg-levenshtein
+        - doc_id: 321d8a05-b318-44cf-bf95-abfd28e19d07
+          sources:
+            - pg-levenshtein
+        - doc_id: 8b98814f-0b63-4c47-9f6a-0ae8d3da06bc
+          sources:
+            - pg-levenshtein
+        - doc_id: b8f1b404-b8d0-430a-8aa7-f41109bea013
           sources:
             - pg-levenshtein
             - elasticsearch
-        - doc_id: 20f5f817-bdc9-4cff-9646-6a2cd689e5aa
-          sources:
-            - pg-levenshtein
-        - doc_id: 9cb9aeb1-9b62-44fa-83fb-acd100fffda3
-          sources:
-            - pg-levenshtein
-        - doc_id: f752f98f-1f08-4b72-9dde-4a5db4945eb5
-          sources:
-            - pg-levenshtein
-        - doc_id: 923022b3-d34c-4b62-8ecb-60043b4033cb
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 55a0cdc4-7b4a-4a9f-81fa-c32d9869912e
-          sources:
-            - pg-levenshtein
-        - doc_id: 250de8b2-ffcc-4439-b5e4-4ce3abc92f6a
-          sources:
-            - pg-levenshtein
-        - doc_id: f6067da4-0d29-4d40-8f3a-077065084737
-          sources:
-            - pg-levenshtein
-        - doc_id: 72b758cd-84db-40a0-a1a2-4378f3d883f1
-          sources:
-            - pg-levenshtein
-        - doc_id: 59e0ced8-84f6-4350-b00c-e4406ca68d9d
-          sources:
-            - pg-levenshtein
-        - doc_id: 001d8b1a-4a54-4855-bc1f-c696ccacd289
-          sources:
-            - pg-levenshtein
-        - doc_id: f32b54aa-5183-4622-97f9-f427194486fe
+        - doc_id: 35096a3d-099b-4b1a-bf24-0f4a862a7679
           sources:
             - pg-levenshtein
             - elasticsearch
-        - doc_id: 01492737-5296-4854-9923-ccef76d458d3
-          sources:
-            - pg-levenshtein
-        - doc_id: 3b765837-6eed-4c9b-a470-3695508e6441
-          sources:
-            - pg-levenshtein
-        - doc_id: 393e09f3-5f90-4ff5-b656-7206274f3bf3
-          sources:
-            - pg-levenshtein
-        - doc_id: 49ba8b1e-7561-47b7-8fb1-805c46a63d8b
-          sources:
-            - pg-levenshtein
-        - doc_id: 082ca6ea-a26d-4f23-8880-2764190d2868
-          sources:
-            - pg-levenshtein
-        - doc_id: 7ea73d25-016f-4c67-a58c-2f5e57fef8ce
-          sources:
-            - pg-levenshtein
-            - elasticsearch
-        - doc_id: 2cd4c99f-a0f6-4cce-935d-f9073ba6b3eb
-          sources:
-            - pg-levenshtein
-            - elasticsearch
-        - doc_id: b2119bf6-dc2c-4d94-8c75-17f91fadd995
-          sources:
-            - pg-levenshtein
-        - doc_id: f940bf3c-2533-4249-ae42-5fe7510aa41a
-          sources:
-            - pg-levenshtein
-        - doc_id: fb51e312-fdf5-4cbb-944e-24beb6745fea
-          sources:
-            - pg-levenshtein
-        - doc_id: 9b90b3c0-980f-4ddd-a47b-25100ef3ea13
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 7459baab-22ec-4471-8dba-8fe241ef0253
-          sources:
-            - pg-levenshtein
-        - doc_id: ca5d1345-8c84-474d-a088-6151d46ca529
-          sources:
-            - pg-levenshtein
-        - doc_id: 132cbe7e-8c95-442e-b472-005c72f5af6a
-          sources:
-            - pg-levenshtein
-        - doc_id: fb54a187-8bb0-411f-b03d-9bd0cfc07bc5
-          sources:
-            - pg-levenshtein
-        - doc_id: 03125eba-dd30-4acb-972b-f1212e43d7e8
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 28b69df2-2fb6-453f-8b0f-6a23321e0152
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 3b0be328-5796-45a0-ab68-e4a6d4f49e22
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: 1235825f-0b91-4035-9158-858a2d302eb7
-          sources:
-            - pg-levenshtein
-        - doc_id: 860a80e8-0bdd-41ca-998c-43112b698bdc
-          sources:
-            - pg-levenshtein
-        - doc_id: 252da19a-620f-46ae-9427-177a72a805ca
-          sources:
-            - pg-levenshtein
-            - paradedb
-        - doc_id: c1b01c68-3c2b-4a05-823f-dab2fe2d4a81
+        - doc_id: df102f26-dd76-4f15-8135-c20f1280a74b
           sources:
             - pg-levenshtein
             - paradedb
             - elasticsearch
-        - doc_id: 50da738f-7673-4cca-be83-35eed0927414
+        - doc_id: d348c1cb-a83d-4d6a-8aa6-cede6b9ab810
           sources:
             - pg-levenshtein
-        - doc_id: fe2e2b98-b0d8-4f9a-a54a-34f600907626
+        - doc_id: bacfc0fe-c9f4-48c8-a528-d7efb9dfa5db
           sources:
             - pg-levenshtein
-        - doc_id: 58cb69c1-a3ca-4c3c-8f56-d21d416cc300
+        - doc_id: 583580e3-b1d3-448e-8e87-f691844f9dfd
+          sources:
+            - pg-levenshtein
+        - doc_id: 8c816d53-361b-4854-8aa8-017b81fca03b
+          sources:
+            - pg-levenshtein
+        - doc_id: d06b58a1-debe-4d1a-a54a-c9ebf2141ff3
           sources:
             - pg-levenshtein
             - paradedb
+        - doc_id: 848c1410-02f9-4758-aced-00c159dc74a4
+          sources:
+            - pg-levenshtein
+        - doc_id: 9005cc74-3e4d-46cb-8454-1a85e3b2338b
+          sources:
+            - pg-levenshtein
+        - doc_id: 9d1797c4-e5be-41a8-929b-478e906c190f
+          sources:
+            - pg-levenshtein
+        - doc_id: d542f789-3227-4ebb-ac70-a3c49557f353
+          sources:
+            - pg-levenshtein
+        - doc_id: 38e16746-9aa0-43be-bb1b-e721b31e2916
+          sources:
+            - pg-levenshtein
+        - doc_id: e2aed919-4154-48d2-b4ac-b6f6c2d3befa
+          sources:
+            - pg-levenshtein
+            - paradedb
+        - doc_id: fbd486b8-5b21-4db0-8813-8e87271b535d
+          sources:
+            - pg-levenshtein
+        - doc_id: 0accd4ba-9bb9-4ac9-85fb-5f37a7c1cdd2
+          sources:
+            - pg-levenshtein
+        - doc_id: 169f6613-a863-408e-8237-f91cb5cd7f2a
+          sources:
+            - pg-levenshtein
+        - doc_id: 310fd136-11a3-4258-9716-53e263de7751
+          sources:
+            - pg-levenshtein
+        - doc_id: 5633bf1a-4d15-4b49-b727-cc23b146bfd5
+          sources:
+            - pg-levenshtein
+        - doc_id: cee6e6e9-78b0-4afa-85c7-e9f952e6a9cc
+          sources:
+            - pg-levenshtein
+        - doc_id: 068ae28c-8f12-4d4b-9b27-3f54b0f8d091
+          sources:
+            - pg-levenshtein
+        - doc_id: 77369f10-207d-462e-b710-a9270a59d047
+          sources:
+            - pg-levenshtein
             - elasticsearch
-        - doc_id: d96e8d99-022d-42da-bbf8-6745895c494e
+        - doc_id: c092c61f-aab2-4454-bdb9-feb9f372a1ed
+          sources:
+            - pg-levenshtein
+        - doc_id: 8907ac69-1420-4561-b1af-90568d24ad51
+          sources:
+            - pg-levenshtein
+            - elasticsearch
+        - doc_id: 42bf1f86-2fed-4ed7-86a8-b8139d70fb7c
+          sources:
+            - pg-levenshtein
+        - doc_id: dda883ac-6e66-4ccd-b56a-a56f6fe95e40
+          sources:
+            - pg-levenshtein
+        - doc_id: b5f1b499-5e82-44d9-997e-b165deebafc0
+          sources:
+            - pg-levenshtein
+        - doc_id: f8c07435-44d0-4e00-b5d7-70098f6bb3ab
           sources:
             - pg-levenshtein
             - paradedb
-        - doc_id: 33da2019-64c2-4f65-bb3a-3e514d2dfbde
+        - doc_id: 43ceaf2d-a7ce-44fd-8ce5-9214e2dd3abe
           sources:
             - pg-levenshtein
-        - doc_id: 7f6c7ede-fe41-48f6-8128-29a104441ac2
+        - doc_id: 4f4e5097-fab1-4f97-a5f9-52c43e2864b8
           sources:
             - pg-levenshtein
         - doc_id: c5dcf336-eb3f-465e-a5a1-b7a355e1c84f
@@ -3449,26 +3447,22 @@ queries:
           sources:
             - paradedb
             - elasticsearch
-        - doc_id: df102f26-dd76-4f15-8135-c20f1280a74b
-          sources:
-            - paradedb
-            - elasticsearch
-        - doc_id: 64ca7775-53d2-4324-a9a4-081ef675f628
-          sources:
-            - paradedb
-        - doc_id: 76fe8220-79ce-4dd7-98cd-055d219dfea1
-          sources:
-            - paradedb
-        - doc_id: 55f9c9e2-a10f-4403-8575-1077a79a7817
-          sources:
-            - paradedb
         - doc_id: 6ed675c7-91d4-40c5-a2f4-a2c5434daaba
+          sources:
+            - paradedb
+        - doc_id: 64ca7775-53d2-4324-a9a4-081ef675f628
           sources:
             - paradedb
         - doc_id: 4c4cabaa-b430-40e5-8b9a-11b2e82238ea
           sources:
             - paradedb
             - elasticsearch
+        - doc_id: 76fe8220-79ce-4dd7-98cd-055d219dfea1
+          sources:
+            - paradedb
+        - doc_id: 55f9c9e2-a10f-4403-8575-1077a79a7817
+          sources:
+            - paradedb
         - doc_id: 4ecd33af-31e4-4901-8e1f-21f7aecac730
           sources:
             - paradedb
@@ -3486,10 +3480,10 @@ queries:
           sources:
             - paradedb
             - elasticsearch
-        - doc_id: 4b8b58b9-2fc4-4edb-8f10-a6f29cb0a33a
+        - doc_id: f0c93bb4-9b0d-46d2-96a1-7009b72e4994
           sources:
             - paradedb
-        - doc_id: f0c93bb4-9b0d-46d2-96a1-7009b72e4994
+        - doc_id: 4b8b58b9-2fc4-4edb-8f10-a6f29cb0a33a
           sources:
             - paradedb
         - doc_id: bcc54944-6c6b-40d1-8d0b-82a778759d25
@@ -3504,48 +3498,70 @@ queries:
         - doc_id: a151b22d-903d-4420-a7c6-761a52c21472
           sources:
             - paradedb
-        - doc_id: e5e980e5-cc97-413d-8fcd-17c8cc9f9e38
+        - doc_id: 3e72d727-67ce-4c2b-aa41-62db50dd131b
           sources:
             - paradedb
-        - doc_id: fff9ae6a-807b-4039-b09a-c73b71766620
+        - doc_id: d66220d6-0dbb-44ea-986e-79603368e9a2
           sources:
             - paradedb
-        - doc_id: 21c1517a-742a-4ab6-91df-61414de189d9
+        - doc_id: a61ad9b5-daa4-4a01-a3b8-4fade40ec545
           sources:
             - paradedb
-        - doc_id: 78158582-6c6b-4c87-9d31-e62c48668cbd
+        - doc_id: 2a04dae4-0f26-4f00-b9ed-b081f40672fe
           sources:
             - paradedb
-        - doc_id: c26113b5-08f2-45ff-b580-51df286204c4
+        - doc_id: 44c70f75-d5b0-49b3-921f-aac6bff6d59b
           sources:
             - paradedb
-        - doc_id: ca66af0d-8511-4ac6-87a1-95254fae5edb
+        - doc_id: 287a9802-eb70-4a98-b05f-b33d1da5a314
           sources:
             - paradedb
-        - doc_id: 8fed14a6-ff8a-44b1-83ef-8aeaf7fcb41f
+        - doc_id: 24bee3dd-63b8-4cf8-94ef-ed9f1b7c1361
           sources:
             - paradedb
-        - doc_id: a72b8c48-0dd6-409b-a6a4-14d29a232984
+        - doc_id: 0dfd9619-a88d-49c5-825b-835605b2208d
           sources:
             - paradedb
-        - doc_id: 36aea7cf-159e-4d5c-8159-b1a38898cc95
+        - doc_id: 557c20fb-49db-477c-b206-21adeed742e1
           sources:
             - paradedb
-        - doc_id: e454884e-c580-43e7-b93a-a2ae7b38615a
+        - doc_id: 7456a627-9ecb-48f8-bca3-4561bf6a2808
           sources:
             - paradedb
-        - doc_id: 44c03c69-1750-4e72-92d2-3076822b74fe
+        - doc_id: b305a431-fbfe-4a61-9edd-c7c337109dc5
           sources:
             - paradedb
-        - doc_id: 55ef373a-57fb-4d12-9db8-a0a751801299
+        - doc_id: 782fa029-5eef-45e2-907a-71c1d91b376f
           sources:
             - paradedb
-        - doc_id: ea486c76-dec9-4563-b731-63a44238b5af
+            - elasticsearch
+        - doc_id: e835b02a-6e1f-4284-915e-6369fc5dcd7f
           sources:
             - paradedb
-        - doc_id: 0cc0b68e-6f8c-4b80-902f-71df35a19802
+        - doc_id: 9daba3eb-f6cf-44d9-a477-625022fb31a2
           sources:
             - paradedb
+        - doc_id: 7265b815-50f3-40d2-bac7-1b9a2019346b
+          sources:
+            - paradedb
+        - doc_id: 723500f0-8685-4277-884e-ad97c6b0797c
+          sources:
+            - paradedb
+        - doc_id: 5667bf43-07a4-44b6-9b3d-b313e85287b0
+          sources:
+            - paradedb
+        - doc_id: 56f75e68-2d16-4ac6-9ac7-9f0cc4c35d19
+          sources:
+            - paradedb
+        - doc_id: 12955013-4983-421b-950f-5fd99d0d0c82
+          sources:
+            - paradedb
+        - doc_id: 82b3341e-5282-47c3-a8b2-79ebb74d0f30
+          sources:
+            - paradedb
+        - doc_id: c1b01c68-3c2b-4a05-823f-dab2fe2d4a81
+          sources:
+            - elasticsearch
         - doc_id: 9a280e50-92c4-4898-9dd4-fda5ae114333
           sources:
             - elasticsearch
@@ -3556,9 +3572,6 @@ queries:
           sources:
             - elasticsearch
         - doc_id: 7591b0c7-afda-41f1-93ce-8371aa4d6073
-          sources:
-            - elasticsearch
-        - doc_id: 35096a3d-099b-4b1a-bf24-0f4a862a7679
           sources:
             - elasticsearch
         - doc_id: be506518-2e90-452e-9f3e-3eb750076b32
@@ -3573,10 +3586,10 @@ queries:
         - doc_id: c822412b-62e1-42bb-9afa-a2ce66a1b370
           sources:
             - elasticsearch
-        - doc_id: daa846d3-ee37-4fd3-96fc-d81ae9b5308d
+        - doc_id: 7ea73d25-016f-4c67-a58c-2f5e57fef8ce
           sources:
             - elasticsearch
-        - doc_id: 77369f10-207d-462e-b710-a9270a59d047
+        - doc_id: daa846d3-ee37-4fd3-96fc-d81ae9b5308d
           sources:
             - elasticsearch
         - doc_id: f3be0567-e192-4a31-bbac-031d29aabd1b
@@ -3594,13 +3607,13 @@ queries:
         - doc_id: 1ff44888-19c8-430e-85ca-f6519cbe7f9d
           sources:
             - elasticsearch
+        - doc_id: e5f769e8-6a95-4d2b-952f-9152d0cb7a05
+          sources:
+            - elasticsearch
         - doc_id: 375e5c32-9418-4a2d-a80d-61d9b9cc2c98
           sources:
             - elasticsearch
-        - doc_id: 8907ac69-1420-4561-b1af-90568d24ad51
-          sources:
-            - elasticsearch
-        - doc_id: b8f1b404-b8d0-430a-8aa7-f41109bea013
+        - doc_id: f32b54aa-5183-4622-97f9-f427194486fe
           sources:
             - elasticsearch
         - doc_id: 62b30131-8368-4bd0-a69f-e6966fa1a2c0
@@ -3624,10 +3637,13 @@ queries:
         - doc_id: 935f0a6f-eb6c-437d-8d00-fa6b47a28615
           sources:
             - elasticsearch
+        - doc_id: 58cb69c1-a3ca-4c3c-8f56-d21d416cc300
+          sources:
+            - elasticsearch
         - doc_id: 974c915d-17c7-4603-bfb7-a7dee4071fd2
           sources:
             - elasticsearch
-        - doc_id: 782fa029-5eef-45e2-907a-71c1d91b376f
+        - doc_id: 2cd4c99f-a0f6-4cce-935d-f9073ba6b3eb
           sources:
             - elasticsearch
         - doc_id: be8be2d0-e697-4f93-84a7-9452f8b88d2e

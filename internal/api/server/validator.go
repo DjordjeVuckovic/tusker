@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/DjordjeVuckovic/news-hunter/internal/apperr"
+	"github.com/DjordjeVuckovic/tusker/internal/apperr"
 	"github.com/go-playground/validator/v10"
 )
 

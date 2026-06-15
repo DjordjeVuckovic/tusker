@@ -1,7 +1,7 @@
 package judgment
 
 import (
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/google/uuid"
 )
 

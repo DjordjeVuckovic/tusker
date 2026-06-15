@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 )
 
 // Fusion weights for the hybrid score. Equal weighting is the common default

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/document"
-	pkgtesting "github.com/DjordjeVuckovic/news-hunter/pkg/testing"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
 )
 

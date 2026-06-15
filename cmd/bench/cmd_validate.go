@@ -7,11 +7,11 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/engine"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/spec"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/suite"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/trackctx"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/spf13/cobra"
 )
 

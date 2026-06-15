@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DjordjeVuckovic/news-hunter/pkg/config/env"
-	"github.com/DjordjeVuckovic/news-hunter/pkg/utils"
+	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
+	"github.com/DjordjeVuckovic/tusker/pkg/utils"
 )
 
 type Config struct {

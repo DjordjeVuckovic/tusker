@@ -1,6 +1,6 @@
 # Implementation Goal: Multi-Paradigm Search Architecture
 
-> **Purpose**: Reference for how News Hunter supports multiple search paradigms (full-text, boolean, phrase, semantic, hybrid) across storage backends (PostgreSQL, Elasticsearch).
+> **Purpose**: Reference for how Tusker supports multiple search paradigms (full-text, boolean, phrase, semantic, hybrid) across storage backends (PostgreSQL, Elasticsearch).
 
 ## Architecture Overview
 

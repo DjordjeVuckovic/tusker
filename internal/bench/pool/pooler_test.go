@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/engine"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

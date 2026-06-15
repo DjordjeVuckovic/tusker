@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

@@ -3,7 +3,7 @@ package reader
 import (
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 )
 
 // ToCanonicalRecord flattens an Article into the canonical flat record written

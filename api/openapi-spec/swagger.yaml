@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.Article:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.Article:
     properties:
       author:
         type: string
@@ -15,7 +15,7 @@ definitions:
       language:
         type: string
       metadata:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.ArticleMetadata'
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleMetadata'
       subtitle:
         type: string
       title:
@@ -24,7 +24,7 @@ definitions:
         format: string
         type: string
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.ArticleMetadata:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleMetadata:
     properties:
       category:
         description: Content metadata
@@ -40,11 +40,11 @@ definitions:
       sourceName:
         type: string
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.ArticleSearchResult:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleSearchResult:
     properties:
       article:
         allOf:
-        - $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.Article'
+        - $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.Article'
         description: Embedded Article struct for search results
       score:
         description: Score rank between 0 and 1
@@ -53,7 +53,7 @@ definitions:
         description: ScoreNormalized is the normalized(between 0-1) score
         type: number
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.BooleanParams:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.BooleanParams:
     properties:
       expression:
         minLength: 1
@@ -63,7 +63,7 @@ definitions:
     required:
     - expression
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.HybridParams:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.HybridParams:
     properties:
       k:
         minimum: 1
@@ -76,7 +76,7 @@ definitions:
     required:
     - query
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.MatchParams:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.MatchParams:
     properties:
       field:
         type: string
@@ -93,7 +93,7 @@ definitions:
     - field
     - query
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.MultiMatchParams:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.MultiMatchParams:
     properties:
       field_weights:
         additionalProperties:
@@ -116,7 +116,7 @@ definitions:
     - fields
     - query
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.PhraseParams:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.PhraseParams:
     properties:
       fields:
         items:
@@ -136,36 +136,36 @@ definitions:
     - fields
     - query
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.QueryWrapper:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryWrapper:
     properties:
       boolean:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.BooleanParams'
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.BooleanParams'
       hybrid:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.HybridParams'
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.HybridParams'
       match:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.MatchParams'
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.MatchParams'
       multi_match:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.MultiMatchParams'
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.MultiMatchParams'
       phrase:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.PhraseParams'
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.PhraseParams'
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.SearchRequest:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchRequest:
     properties:
       cursor:
         type: string
       query:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.QueryWrapper'
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryWrapper'
       size:
         minimum: 1
         type: integer
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.SearchResponse:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse:
     properties:
       has_more:
         type: boolean
       hits:
         items:
-          $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.ArticleSearchResult'
+          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleSearchResult'
         type: array
       max_score:
         type: number
@@ -176,18 +176,18 @@ definitions:
       total_matches:
         type: integer
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_api_dto.SemanticSearchResponse:
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.SemanticSearchResponse:
     properties:
       has_more:
         type: boolean
       hits:
         items:
-          $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.Article'
+          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.Article'
         type: array
       next_cursor:
         type: string
     type: object
-  github_com_DjordjeVuckovic_news-hunter_internal_types_query.Capabilities:
+  github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities:
     properties:
       boolean:
         type: boolean
@@ -204,15 +204,15 @@ definitions:
     type: object
 info:
   contact:
-    email: support@newshunter.com
+    email: support@tusker.io
     name: API Support
-  description: A full-text search engine for exploring multilingual news headlines
+  description: A full-text and semantic search engine for exploring multilingual news headlines
     and articles
   license:
     name: Apache 2.0
     url: https://opensource.org/licenses/Apache-2.0
   termsOfService: http://swagger.io/terms/
-  title: News Hunter API
+  title: Tusker API
   version: "1.0"
 paths:
   /v1/articles/search:
@@ -249,7 +249,7 @@ paths:
         "200":
           description: SearchStringQuery results with pagination metadata
           schema:
-            $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.SearchResponse'
+            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse'
         "400":
           description: Bad request - missing or invalid parameters
           schema:
@@ -294,7 +294,7 @@ paths:
         "200":
           description: SearchStringQuery results with pagination metadata
           schema:
-            $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.SemanticSearchResponse'
+            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SemanticSearchResponse'
         "400":
           description: Bad request - missing or invalid parameters
           schema:
@@ -323,14 +323,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.SearchRequest'
+          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchRequest'
       produces:
       - application/json
       responses:
         "200":
           description: SearchStringQuery results with pagination metadata
           schema:
-            $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_api_dto.SearchResponse'
+            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse'
         "400":
           description: Bad request - invalid query structure or parameters
           schema:
@@ -363,7 +363,7 @@ paths:
         "200":
           description: Supported search paradigms
           schema:
-            $ref: '#/definitions/github_com_DjordjeVuckovic_news-hunter_internal_types_query.Capabilities'
+            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities'
       summary: Report supported search paradigms
       tags:
       - capabilities

@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/document"
-	dquery "github.com/DjordjeVuckovic/news-hunter/internal/types/query"
-	pkgtesting "github.com/DjordjeVuckovic/news-hunter/pkg/testing"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
+	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
 )
 

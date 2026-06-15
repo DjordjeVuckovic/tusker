@@ -1,5 +1,5 @@
-# news-hunter
-- News Hunter is a full-text search engine for exploring multilingual news headlines and articles. The project uses Go 1.25 and focuses on importing, processing, and storing news data from various sources (currently Kaggle datasets).
+# tusker
+- Tusker is a full-text and semantic search engine for exploring multilingual news headlines and articles. The project uses Go 1.25 and focuses on importing, processing, and storing news data from various sources (currently Kaggle datasets).
 - The application provides a REST API for searching and retrieving news articles based on keywords, dates, and languages. It leverages PostgreSQL and Elasticsearch for data storage and supports full-text and semantic search capabilities.
 ## Commands
 ### Migrations

@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/pool"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
 )
 

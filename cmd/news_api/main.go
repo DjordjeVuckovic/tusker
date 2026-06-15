@@ -1,10 +1,10 @@
-// Package main News Hunter API
-// @title News Hunter API
+// Package main Tusker API
+// @title Tusker API
 // @version 1.0
-// @description A full-text search engine for exploring multilingual news headlines and articles
+// @description A full-text and semantic search engine for exploring multilingual news headlines and articles
 // @termsOfService http://swagger.io/terms/
 // @contact.name API Support
-// @contact.email support@newshunter.com
+// @contact.email support@tusker.io
 // @license.name Apache 2.0
 // @license.url https://opensource.org/licenses/Apache-2.0
 // @BasePath /
@@ -14,11 +14,11 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/api/router"
-	server2 "github.com/DjordjeVuckovic/news-hunter/internal/api/server"
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/factory"
-	pkgserver "github.com/DjordjeVuckovic/news-hunter/pkg/server"
+	"github.com/DjordjeVuckovic/tusker/internal/api/router"
+	server2 "github.com/DjordjeVuckovic/tusker/internal/api/server"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
+	pkgserver "github.com/DjordjeVuckovic/tusker/pkg/server"
 	"github.com/labstack/echo/v4"
 )
 
@@ -41,7 +41,7 @@ func main() {
 		SetupOpenApi("/swagger/*")
 
 	s.Echo.GET("/", func(c echo.Context) error {
-		return c.String(200, "News Hunter API is running")
+		return c.String(200, "Tusker API is running")
 	})
 
 	appSettings := NewAppConfig()

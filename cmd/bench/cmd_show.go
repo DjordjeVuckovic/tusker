@@ -6,11 +6,11 @@ import (
 	"sort"
 	"text/tabwriter"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/judgment"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/pool"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/report"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/spec"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/trackctx"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/report"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
 	"github.com/spf13/cobra"
 )
 

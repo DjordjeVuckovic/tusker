@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/ingest/reader"
-	"github.com/DjordjeVuckovic/news-hunter/pkg/config/env"
+	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
+	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
 	"github.com/spf13/cobra"
 )
 

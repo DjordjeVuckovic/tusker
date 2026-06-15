@@ -1,8 +1,8 @@
 package pool
 
 import (
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/engine"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/google/uuid"
 )
 

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/version"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/version"
 )
 
 // Meta is embedded in pool/annotations/report artifacts. Fields are

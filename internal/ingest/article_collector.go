@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/ingest/reader"
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 )
 
 type ArticleCollector struct {

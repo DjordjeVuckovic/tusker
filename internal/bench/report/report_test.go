@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/metrics"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/runner"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/google/uuid"
 )
 

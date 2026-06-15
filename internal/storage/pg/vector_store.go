@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgvector/pgvector-go"

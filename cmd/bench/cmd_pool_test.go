@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/runner"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/judgment"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/meta"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/pool"
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/trackctx"
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/factory"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/pg"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	"github.com/spf13/cobra"
 )
 

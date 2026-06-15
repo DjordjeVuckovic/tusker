@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding/embedfile"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/factory"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/objectstore"
-	"github.com/DjordjeVuckovic/news-hunter/pkg/config/env"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding/embedfile"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/objectstore"
+	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )

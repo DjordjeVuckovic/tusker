@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/bench/spec"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/pg"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 )
 
 func CreateFromSpec(ctx context.Context, engines map[string]spec.Engine) (map[string]Executor, func(), error) {

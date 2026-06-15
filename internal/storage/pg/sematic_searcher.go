@@ -4,10 +4,10 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/api/dto"
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/query"
+	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgvector/pgvector-go"
 )

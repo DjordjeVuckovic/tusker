@@ -1,6 +1,6 @@
 package runner
 
-import "github.com/DjordjeVuckovic/news-hunter/internal/storage"
+import "github.com/DjordjeVuckovic/tusker/internal/storage"
 
 var DefaultKValues = []int{3, 5, 10}
 

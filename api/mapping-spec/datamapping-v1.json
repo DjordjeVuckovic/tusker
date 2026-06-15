@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.newshunter.io/datamapper",
+  "$id": "https://schemas.tusker.io/datamapper",
   "title": "DataMapper",
   "type": "object",
   "required": [

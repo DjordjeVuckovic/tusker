@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	apiserver "github.com/DjordjeVuckovic/news-hunter/internal/api/server"
-	"github.com/DjordjeVuckovic/news-hunter/internal/apperr"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage"
-	dquery "github.com/DjordjeVuckovic/news-hunter/internal/types/query"
+	apiserver "github.com/DjordjeVuckovic/tusker/internal/api/server"
+	"github.com/DjordjeVuckovic/tusker/internal/apperr"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/labstack/echo/v4"
 )
 

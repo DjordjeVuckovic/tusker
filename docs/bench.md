@@ -1,6 +1,6 @@
 # bench — IR Benchmark CLI
 
-`bench` evaluates full-text, vector, and hybrid search queries against multiple engines (PostgreSQL variants, Elasticsearch, the news-hunter API), computes IR quality metrics and latency statistics, and writes self-attesting JSON and HTML reports.
+`bench` evaluates full-text, vector, and hybrid search queries against multiple engines (PostgreSQL variants, Elasticsearch, the tusker API), computes IR quality metrics and latency statistics, and writes self-attesting JSON and HTML reports.
 
 ## Track convention
 

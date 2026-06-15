@@ -1,8 +1,8 @@
 # Build variables
-APP_NAME := news-hunter
+APP_NAME := tusker
 CMD_DIR := ./cmd
 BIN_DIR := ./bin
-PKG := github.com/DjordjeVuckovic/news-hunter
+PKG := github.com/DjordjeVuckovic/tusker
 MIGRATIONS_PATH := ./db/migrations
 DB_CONN := "postgresql://news_user:news_password@localhost:54320/news_db?sslmode=disable"
 # ParadeDB runs on 54321 (docker-compose: pg-news-parade); BM25 via @@@ index.

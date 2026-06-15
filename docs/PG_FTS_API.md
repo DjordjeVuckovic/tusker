@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the PostgreSQL full-text search implementation for News Hunter, covering the weight label system, field boosting, and query capabilities that match Elasticsearch's API design.
+This document describes the PostgreSQL full-text search implementation for Tusker, covering the weight label system, field boosting, and query capabilities that match Elasticsearch's API design.
 
 ## Table of Contents
 

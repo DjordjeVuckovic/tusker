@@ -11,7 +11,7 @@ corpus:
 # NOTE: Hybrid queries combine keyword (BM25) and vector (embedding) signals.
 # The {{embedding}} placeholder is replaced with the pre-computed float array.
 # Document vectors live in the article_embeddings table (VECTOR(1024)), keyed by
-# article_id — the same schema the news-hunter API uses for semantic search.
+# article_id — the same schema the tusker API uses for semantic search.
 #
 # RRF formula: score(d) = Σ 1/(k + rank_i(d))  where k=60 (standard constant)
 #

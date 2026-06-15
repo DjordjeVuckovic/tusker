@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/DjordjeVuckovic/news-hunter/internal/embedding"
-	"github.com/DjordjeVuckovic/news-hunter/internal/ingest"
-	"github.com/DjordjeVuckovic/news-hunter/internal/ingest/reader"
-	"github.com/DjordjeVuckovic/news-hunter/internal/storage/factory"
-	"github.com/DjordjeVuckovic/news-hunter/internal/types/document"
-	"github.com/DjordjeVuckovic/news-hunter/pkg/config/env"
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/ingest"
+	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
 	"github.com/spf13/cobra"
 )
 

@@ -3,7 +3,7 @@ package reader
 import (
 	"io"
 
-	"github.com/DjordjeVuckovic/news-hunter/pkg/apis/datamapping"
+	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
 	"gopkg.in/yaml.v3"
 )
 
