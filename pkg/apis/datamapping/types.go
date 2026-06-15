@@ -4,7 +4,7 @@ import "fmt"
 
 // DataMapper defines field mapping configuration for data imports
 // +schema:root=true
-// +schema:group=tusker.io
+// +schema:group=tusker.sh
 // +schema:version=v1
 type DataMapper struct {
 	// Kind is the resource type identifier

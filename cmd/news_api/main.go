@@ -4,7 +4,7 @@
 // @description A full-text and semantic search engine for exploring multilingual news headlines and articles
 // @termsOfService http://swagger.io/terms/
 // @contact.name API Support
-// @contact.email support@tusker.io
+// @contact.email support@tusker.sh
 // @license.name Apache 2.0
 // @license.url https://opensource.org/licenses/Apache-2.0
 // @BasePath /

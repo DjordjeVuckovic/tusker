@@ -204,7 +204,7 @@ definitions:
     type: object
 info:
   contact:
-    email: support@tusker.io
+    email: support@tusker.sh
     name: API Support
   description: A full-text and semantic search engine for exploring multilingual news headlines
     and articles
