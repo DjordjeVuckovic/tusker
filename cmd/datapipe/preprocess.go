@@ -89,8 +89,10 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 
 	outputPath := cfg.OutputPath
 	outDir, outFilename := filepath.Split(cfg.OutputPath)
-	if err := os.MkdirAll(outDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
+	if outDir != "" {
+		if err := os.MkdirAll(outDir, 0755); err != nil {
+			return fmt.Errorf("failed to create output directory: %w", err)
+		}
 	}
 
 	mappingFile, err := os.Open(cfg.MappingPath)

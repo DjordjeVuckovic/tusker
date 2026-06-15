@@ -19,7 +19,6 @@ storage backend (Postgres or Elasticsearch).
 Stages:
   preprocess           clean + map a raw dataset into a canonical JSONL file
   load articles        map and index a dataset into the articles store
-                       (optionally generating embeddings inline via Ollama)
   load embeddings      load precomputed embeddings (Parquet) from a file or
                        object store into the article_embeddings store
 
