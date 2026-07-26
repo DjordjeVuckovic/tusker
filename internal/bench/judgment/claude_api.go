@@ -15,7 +15,6 @@ import (
 
 const (
 	defaultAPIBaseURL       = "https://api.anthropic.com"
-	defaultAPIModel         = "claude-haiku-4-5-20251001"
 	apiVersion              = "2023-06-01"
 	apiMaxOutputTokens      = 64
 	apiBatchMaxOutputTokens = 4096
@@ -40,9 +39,9 @@ func NewClaudeAPIStrategy(opts StrategyOptions) (*ClaudeAPIStrategy, error) {
 	if key == "" {
 		return nil, fmt.Errorf("claude-api strategy: ANTHROPIC_API_KEY not set and no key provided")
 	}
-	model := opts.APIModel
+	model := opts.Model
 	if model == "" {
-		model = defaultAPIModel
+		model = DefaultJudgeModel
 	}
 	base := opts.APIBaseURL
 	if base == "" {

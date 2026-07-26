@@ -17,6 +17,7 @@ const (
 // drowning in a 13k-line enriched-pool YAML.
 type ClaudeCLIStrategy struct {
 	binary string
+	model  string
 }
 
 func NewClaudeCLIStrategy(opts StrategyOptions) *ClaudeCLIStrategy {
@@ -24,15 +25,20 @@ func NewClaudeCLIStrategy(opts StrategyOptions) *ClaudeCLIStrategy {
 	if bin == "" {
 		bin = defaultCLIBinary
 	}
-	return &ClaudeCLIStrategy{binary: bin}
+	model := opts.Model
+	if model == "" {
+		model = DefaultJudgeModel
+	}
+	return &ClaudeCLIStrategy{binary: bin, model: model}
 }
 
 func (s *ClaudeCLIStrategy) Name() string { return string(StrategyClaudeCLI) }
 
-// ModelID returns the CLI binary name. The claude CLI's model is determined
-// by its own runtime configuration (--model flag / user defaults) — we cannot
-// reliably introspect it, so we record the binary identifier instead.
-func (s *ClaudeCLIStrategy) ModelID() string { return s.binary }
+// ModelID returns the model id passed to `claude --model`. Because the model is
+// pinned on every invocation rather than inherited from the CLI's ambient
+// configuration, meta.JudgeModel names the model that actually graded — and the
+// resume guard can reject a mid-run model swap.
+func (s *ClaudeCLIStrategy) ModelID() string { return s.model }
 
 func (s *ClaudeCLIStrategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc) (int, error) {
 	out, err := s.runCLI(ctx, BuildGradingPrompt(q, doc))
@@ -71,14 +77,15 @@ func (s *ClaudeCLIStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs
 }
 
 func (s *ClaudeCLIStrategy) runCLI(ctx context.Context, prompt string) (string, error) {
-	cmd := exec.CommandContext(ctx, s.binary, "-p", prompt)
+	cmd := exec.CommandContext(ctx, s.binary, "--model", s.model, "-p", prompt)
 	out, err := cmd.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			return "", fmt.Errorf("%s -p exit %d: %s", s.binary, exitErr.ExitCode(), string(exitErr.Stderr))
+			return "", fmt.Errorf("%s --model %s -p exit %d: %s",
+				s.binary, s.model, exitErr.ExitCode(), string(exitErr.Stderr))
 		}
-		return "", fmt.Errorf("%s -p: %w", s.binary, err)
+		return "", fmt.Errorf("%s --model %s -p: %w", s.binary, s.model, err)
 	}
 	return string(out), nil
 }

@@ -32,7 +32,8 @@ type Strategy interface {
 
 // ModelIdentifier is an optional capability for strategies that know which
 // specific model they used. cmd_judge checks this via type assertion to
-// populate meta.JudgeModel accurately without relying on the --api-model flag.
+// populate meta.JudgeModel, which is what makes a qrel set reproducible and
+// lets the resume guard reject a mid-run model swap.
 // Deterministic strategies (lexical, manual) do not implement this interface.
 type ModelIdentifier interface {
 	ModelID() string
@@ -91,9 +92,16 @@ func KnownStrategies() []string {
 	}
 }
 
+// DefaultJudgeModel is the model both LLM-as-judge transports use when none is
+// configured
+const DefaultJudgeModel = "claude-haiku-4-5-20251001"
+
 type StrategyOptions struct {
-	APIKey      string
-	APIModel    string
+	APIKey string
+	// Model is the judge model id, honoured by both claude-cli (passed as
+	// `claude --model`) and claude-api (the request body's model field).
+	// Empty means DefaultJudgeModel.
+	Model       string
 	APIBaseURL  string
 	CLIBinary   string
 	Concurrency int

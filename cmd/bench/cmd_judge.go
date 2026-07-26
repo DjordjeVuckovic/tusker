@@ -26,7 +26,7 @@ type judgeFlags struct {
 	batchSize      int
 	resume         bool
 	apiKey         string
-	apiModel       string
+	model          string
 	apiBaseURL     string
 	cliBinary      string
 	embeddingBase  string
@@ -48,6 +48,9 @@ func newJudgeCmd() *cobra.Command {
   claude-cli  — invokes 'claude -p' per batch (Anthropic LLM-as-judge batched)
   claude-api  — Anthropic Messages API in batches (set ANTHROPIC_API_KEY)
   manual      — writes grade:-1 placeholders for hand grading
+
+Both LLM strategies pin --model (default ` + judgment.DefaultJudgeModel + `) and
+record it as meta.judge_model, so qrels name the model that graded them.
 
 Output goes to tracks/<name>/trec/annotations.<strategy>.yaml by default.
 Multiple strategies live side-by-side; switch which one bench run scores
@@ -72,7 +75,8 @@ graded. Atomic writes mean Ctrl-C is safe.`,
 	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "Override LLM batch size (0 = strategy default)")
 	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output")
 	cmd.Flags().StringVar(&f.apiKey, "api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY)")
-	cmd.Flags().StringVar(&f.apiModel, "api-model", "", "Anthropic model id")
+	cmd.Flags().StringVar(&f.model, "model", "",
+		"Judge model id for claude-cli/claude-api (default "+judgment.DefaultJudgeModel+")")
 	cmd.Flags().StringVar(&f.apiBaseURL, "api-base", "", "Anthropic API base URL")
 	cmd.Flags().StringVar(&f.cliBinary, "cli-binary", "", "claude CLI binary path")
 	cmd.Flags().StringVar(&f.embeddingBase, "embedding-base", "", "Embedding endpoint for vector/hybrid (or EMBEDDING_BASE_URL)")
@@ -122,7 +126,7 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 
 	opts := judgment.StrategyOptions{
 		APIKey:      envOrFlag("ANTHROPIC_API_KEY", f.apiKey),
-		APIModel:    f.apiModel,
+		Model:       f.model,
 		APIBaseURL:  f.apiBaseURL,
 		CLIBinary:   f.cliBinary,
 		Concurrency: f.concurrency,
