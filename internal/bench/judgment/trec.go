@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/google/uuid"
 )
 
@@ -84,7 +85,7 @@ func ReadQrels(path string) (*File, error) {
 		return nil, fmt.Errorf("read qrels file: %w", err)
 	}
 
-	jf := &File{Strategy: "trec-qrels"}
+	jf := &File{Meta: meta.Meta{Judge: &meta.Judge{Strategy: "trec-qrels"}}}
 	for _, qid := range order {
 		jf.Queries = append(jf.Queries, *byQuery[qid])
 	}

@@ -177,10 +177,10 @@ bench-judge-lexical: build-bench
 	@./$(BIN_DIR)/bench judge $(TRACK) --strategy lexical
 
 bench-judge-cli: build-bench
-	@./$(BIN_DIR)/bench judge $(TRACK) --strategy claude-cli --resume
+	@./$(BIN_DIR)/bench judge $(TRACK) --strategy llm --provider claude-cli --resume
 
 bench-judge-api: build-bench
-	@./$(BIN_DIR)/bench judge $(TRACK) --strategy claude-api --resume
+	@./$(BIN_DIR)/bench judge $(TRACK) --strategy llm --provider claude-api --resume
 
 bench-show-spec: build-bench
 	@./$(BIN_DIR)/bench show spec $(TRACK)
@@ -192,7 +192,7 @@ bench-show-judgments: build-bench
 	@./$(BIN_DIR)/bench show judgments $(TRACK) --strategy lexical
 
 bench-qrels: build-bench
-	@./$(BIN_DIR)/bench qrels $(TRACK) --strategy lexical
+	@./$(BIN_DIR)/bench export $(TRACK) --format qrels --strategy lexical
 
 # Development workflow
 dev: fmt vet lint test build-all

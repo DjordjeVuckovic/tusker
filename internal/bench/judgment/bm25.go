@@ -5,6 +5,8 @@ import (
 	"math"
 	"sort"
 	"strings"
+
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 )
 
 const (
@@ -32,6 +34,10 @@ type BM25Strategy struct{}
 func NewBM25Strategy() *BM25Strategy { return &BM25Strategy{} }
 
 func (BM25Strategy) Name() string { return string(StrategyBM25) }
+
+func (BM25Strategy) Describe() meta.Judge {
+	return meta.Judge{Strategy: string(StrategyBM25)}
+}
 
 func (BM25Strategy) PreferredBatchSize() int { return poolBatchSize }
 

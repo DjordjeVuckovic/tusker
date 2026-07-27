@@ -81,10 +81,15 @@ func TestVectorGradeBatch_OmitsDocsWithoutVectors(t *testing.T) {
 	}
 }
 
-func TestVectorModelID(t *testing.T) {
+func TestVectorDescribe(t *testing.T) {
 	s := NewVectorStrategyWithStore(fakeVectorStore{}, "qwen3")
-	if got := s.ModelID(); got != "vector:qwen3" {
-		t.Errorf("ModelID = %q, want %q", got, "vector:qwen3")
+
+	got := s.Describe()
+	if got.Strategy != string(StrategyVector) {
+		t.Errorf("Strategy = %q, want %q", got.Strategy, StrategyVector)
+	}
+	if got.Model != "qwen3" {
+		t.Errorf("Model = %q, want %q", got.Model, "qwen3")
 	}
 }
 

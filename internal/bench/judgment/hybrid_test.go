@@ -44,9 +44,14 @@ func TestHybridGradeBatch_FusesSignals(t *testing.T) {
 	}
 }
 
-func TestHybridModelID(t *testing.T) {
+func TestHybridDescribe(t *testing.T) {
 	s := NewHybridStrategyWithStore(fakeVectorStore{}, "qwen3")
-	if got := s.ModelID(); got != "hybrid:bm25+qwen3" {
-		t.Errorf("ModelID = %q, want %q", got, "hybrid:bm25+qwen3")
+
+	got := s.Describe()
+	if got.Strategy != string(StrategyHybrid) {
+		t.Errorf("Strategy = %q, want %q", got.Strategy, StrategyHybrid)
+	}
+	if got.Model != "bm25+qwen3" {
+		t.Errorf("Model = %q, want %q", got.Model, "bm25+qwen3")
 	}
 }

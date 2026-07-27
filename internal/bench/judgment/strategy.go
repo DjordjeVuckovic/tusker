@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/google/uuid"
 )
@@ -25,18 +26,13 @@ type GradingDoc struct {
 
 // Strategy grades one (query, doc) pair at a time. Implementations must be
 // safe for concurrent calls — the runner dispatches multiple goroutines.
+//
+// Describe is mandatory: every artifact must attest who graded it, so a
+// strategy that cannot describe itself has no business writing qrels.
 type Strategy interface {
 	Name() string
+	Describe() meta.Judge
 	Grade(ctx context.Context, q GradingQuery, doc GradingDoc) (int, error)
-}
-
-// ModelIdentifier is an optional capability for strategies that know which
-// specific model they used. cmd_judge checks this via type assertion to
-// populate meta.JudgeModel, which is what makes a qrel set reproducible and
-// lets the resume guard reject a mid-run model swap.
-// Deterministic strategies (lexical, manual) do not implement this interface.
-type ModelIdentifier interface {
-	ModelID() string
 }
 
 // BatchStrategy is an optional capability: strategies that can grade N docs
@@ -63,44 +59,29 @@ type StrategyKind string
 // signals; LLM strategies call out to a model; manual is a placeholder for
 // human grading.
 const (
-	// Heuristic.
+	// StrategyLexical Heuristic.
 	StrategyLexical StrategyKind = "lexical" // token-overlap baseline
 	StrategyBM25    StrategyKind = "bm25"    // pool-local Okapi BM25
 	StrategyVector  StrategyKind = "vector"  // embedding cosine similarity
 	StrategyHybrid  StrategyKind = "hybrid"  // BM25 + vector fusion
 
-	// LLM.
-	StrategyClaudeCLI StrategyKind = "claude-cli"
-	StrategyClaudeAPI StrategyKind = "claude-api"
+	// StrategyLLM LLM-as-judge. One strategy for every vendor and transport —
+	// which endpoint it talks to is a Provider (claude-cli, claude-api, later
+	// codex-*, chatgpt-*), selected with --provider.
+	StrategyLLM StrategyKind = "llm"
 
-	// Human.
+	// StrategyManual Human.
 	StrategyManual StrategyKind = "manual"
 )
 
-// KnownStrategies returns every strategy kind the runner can instantiate.
-// Used by the spec validator to reject spec.defaults.judgments typos at load
-// time.
-func KnownStrategies() []string {
-	return []string{
-		string(StrategyLexical),
-		string(StrategyBM25),
-		string(StrategyVector),
-		string(StrategyHybrid),
-		string(StrategyClaudeCLI),
-		string(StrategyClaudeAPI),
-		string(StrategyManual),
-	}
-}
-
-// DefaultJudgeModel is the model both LLM-as-judge transports use when none is
-// configured
-const DefaultJudgeModel = "claude-haiku-4-5-20251001"
-
 type StrategyOptions struct {
 	APIKey string
-	// Model is the judge model id, honoured by both claude-cli (passed as
-	// `claude --model`) and claude-api (the request body's model field).
-	// Empty means DefaultJudgeModel.
+	// Provider selects the endpoint behind StrategyLLM. Empty means
+	// DefaultProvider.
+	Provider Provider
+	// Model is the judge model — a full id or a provider alias such as "haiku".
+	// Empty means the provider's default. The provider expands it, so the judge
+	// block always records a concrete id.
 	Model       string
 	APIBaseURL  string
 	CLIBinary   string
@@ -110,7 +91,7 @@ type StrategyOptions struct {
 	// read from it and the query is embedded through it. Engine-agnostic
 	// (Postgres today, ES later); built by the caller via storage/factory.
 	VectorStore storage.VectorStore
-	// EmbeddingModel labels meta.JudgeModel via ModelID().
+	// EmbeddingModel labels the judge block's model for vector/hybrid.
 	EmbeddingModel string
 }
 
@@ -124,13 +105,23 @@ func NewStrategy(kind StrategyKind, opts StrategyOptions) (Strategy, error) {
 		return NewVectorStrategy(opts)
 	case StrategyHybrid:
 		return NewHybridStrategy(opts)
-	case StrategyClaudeCLI:
-		return NewClaudeCLIStrategy(opts), nil
-	case StrategyClaudeAPI:
-		return NewClaudeAPIStrategy(opts)
+	case StrategyLLM:
+		return NewLLMStrategy(opts)
 	case StrategyManual:
 		return NewManualStrategy(), nil
 	default:
 		return nil, fmt.Errorf("unknown strategy %q (known: %s)", kind, strings.Join(KnownStrategies(), ", "))
 	}
+}
+
+// NewStrategyFromSelector resolves a judgment-set name ("lexical",
+// "claude-cli", …) and constructs the strategy that produced it. Used on read
+// paths; bench judge builds strategies from explicit --strategy/--provider.
+func NewStrategyFromSelector(sel string, opts StrategyOptions) (Strategy, error) {
+	kind, provider, err := ParseSelector(sel)
+	if err != nil {
+		return nil, err
+	}
+	opts.Provider = provider
+	return NewStrategy(kind, opts)
 }

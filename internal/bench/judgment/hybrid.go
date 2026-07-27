@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 )
 
@@ -41,13 +42,14 @@ func NewHybridStrategyWithStore(store storage.VectorStore, model string) *Hybrid
 
 func (HybridStrategy) Name() string { return string(StrategyHybrid) }
 
-// ModelID stamps meta.JudgeModel with both components.
-func (s HybridStrategy) ModelID() string {
+// Describe names both fusion components: BM25 contributes no model, so the
+// embedding model is what distinguishes one hybrid grade set from another.
+func (s HybridStrategy) Describe() meta.Judge {
 	model := "embedding"
 	if s.vector != nil && s.vector.model != "" {
 		model = s.vector.model
 	}
-	return string(StrategyHybrid) + ":bm25+" + model
+	return meta.Judge{Strategy: string(StrategyHybrid), Model: "bm25+" + model}
 }
 
 func (HybridStrategy) PreferredBatchSize() int { return poolBatchSize }

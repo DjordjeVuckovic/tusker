@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
@@ -90,9 +91,10 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 
 	prior := indexExisting(r.cfg.Existing)
 
+	judge := r.cfg.Strategy.Describe()
 	jf := &File{
-		Strategy: r.cfg.Strategy.Name(),
-		Queries:  make([]Entry, 0, len(pf.Queries)),
+		Meta:    meta.Meta{Judge: &judge},
+		Queries: make([]Entry, 0, len(pf.Queries)),
 	}
 
 	for _, entry := range pf.Queries {

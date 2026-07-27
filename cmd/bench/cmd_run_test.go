@@ -38,8 +38,7 @@ func TestLoadJudgmentsMap_FlattensAndFiltersUnjudged(t *testing.T) {
 	docSkip := uuid.New()
 
 	jf := &judgment.File{
-		Meta:     meta.New("judge"),
-		Strategy: "lexical",
+		Meta: meta.New("judge"),
 		Queries: []judgment.Entry{
 			{
 				QueryID: "q1",

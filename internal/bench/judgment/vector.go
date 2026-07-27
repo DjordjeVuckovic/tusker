@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/google/uuid"
 )
@@ -38,12 +39,10 @@ func NewVectorStrategyWithStore(store storage.VectorStore, model string) *Vector
 
 func (VectorStrategy) Name() string { return string(StrategyVector) }
 
-// ModelID lets cmd_judge stamp meta.JudgeModel with the embedding model used.
-func (s VectorStrategy) ModelID() string {
-	if s.model == "" {
-		return string(StrategyVector)
-	}
-	return string(StrategyVector) + ":" + s.model
+// Describe records the embedding model that produced the cosine scores, so a
+// vector-graded qrel set names the model it depends on.
+func (s VectorStrategy) Describe() meta.Judge {
+	return meta.Judge{Strategy: string(StrategyVector), Model: s.model}
 }
 
 func (VectorStrategy) PreferredBatchSize() int { return poolBatchSize }

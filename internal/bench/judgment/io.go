@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/version"
 	"gopkg.in/yaml.v3"
 )
@@ -35,6 +36,9 @@ func ReadFile(path string) (*File, error) {
 	if err := version.CheckSchema(jf.SchemaVersion, "annotations"); err != nil {
 		return nil, err
 	}
+	// Fold pre-judge-block artifacts into the current shape so callers only
+	// ever read Meta.Judge.
+	jf.Meta.Normalize()
 	return &jf, nil
 }
 
@@ -89,12 +93,15 @@ type IncrementalWriter struct {
 	current File
 }
 
-func NewIncrementalWriter(path, strategy string) *IncrementalWriter {
+// NewIncrementalWriter seeds the file with the judge block up front, so a run
+// interrupted mid-grade still leaves an artifact that names its grader — which
+// is what the resume guard reads back.
+func NewIncrementalWriter(path string, judge meta.Judge) *IncrementalWriter {
 	return &IncrementalWriter{
 		Path: path,
 		current: File{
-			Strategy: strategy,
-			Queries:  []Entry{},
+			Meta:    meta.Meta{Judge: &judge},
+			Queries: []Entry{},
 		},
 	}
 }
@@ -109,7 +116,12 @@ func (w *IncrementalWriter) LoadPrior() (*File, error) {
 	if jf == nil {
 		return nil, nil
 	}
+	// Keep this run's judge block: the caller validates compatibility against
+	// the prior file separately, and intermediate flushes should describe the
+	// grader currently running.
+	judge := w.current.Meta.Judge
 	w.current = *jf
+	w.current.Meta.Judge = judge
 	return jf, nil
 }
 

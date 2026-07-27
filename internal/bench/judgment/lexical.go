@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 )
 
 // LexicalStrategy is a deterministic baseline judge. It tokenizes the query
@@ -15,6 +17,10 @@ type LexicalStrategy struct{}
 func NewLexicalStrategy() *LexicalStrategy { return &LexicalStrategy{} }
 
 func (LexicalStrategy) Name() string { return string(StrategyLexical) }
+
+func (LexicalStrategy) Describe() meta.Judge {
+	return meta.Judge{Strategy: string(StrategyLexical)}
+}
 
 func (LexicalStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) (int, error) {
 	terms := tokenize(q.Description)

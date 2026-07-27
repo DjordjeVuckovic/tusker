@@ -266,7 +266,7 @@ func showPool(w io.Writer, pf *pool.PoolFile) {
 }
 
 func showJudgments(w io.Writer, jf *judgment.File) {
-	fmt.Fprintf(w, "Judgments (strategy=%s)\n", jf.Strategy)
+	fmt.Fprintf(w, "Judgments (judge=%s)\n", jf.Judge())
 	fmt.Fprintf(w, "Queries: %d\n\n", len(jf.Queries))
 
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)

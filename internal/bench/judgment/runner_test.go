@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 )
 
 type stubStorageReader struct {
@@ -38,6 +40,9 @@ type fakeStrategy struct {
 }
 
 func (f *fakeStrategy) Name() string { return f.name }
+func (f *fakeStrategy) Describe() meta.Judge {
+	return meta.Judge{Strategy: f.name}
+}
 func (f *fakeStrategy) Grade(_ context.Context, _ GradingQuery, _ GradingDoc) (int, error) {
 	return f.grade, f.err
 }
@@ -55,7 +60,11 @@ type fakeBatchStrategy struct {
 	perDocCalls    int
 }
 
-func (f *fakeBatchStrategy) Name() string            { return f.name }
+func (f *fakeBatchStrategy) Name() string { return f.name }
+func (f *fakeBatchStrategy) Describe() meta.Judge {
+	return meta.Judge{Strategy: f.name}
+}
+
 func (f *fakeBatchStrategy) PreferredBatchSize() int { return f.batchSize }
 func (f *fakeBatchStrategy) Grade(_ context.Context, _ GradingQuery, _ GradingDoc) (int, error) {
 	f.mu.Lock()
@@ -168,7 +177,7 @@ func TestRunner_ResumeSkipsAlreadyGraded(t *testing.T) {
 
 	// Pre-grade the first 3 docs
 	prior := &File{
-		Strategy: "fake-batch",
+		Meta: meta.Meta{Judge: &meta.Judge{Strategy: "fake-batch"}},
 		Queries: []Entry{
 			{
 				QueryID: "q1",

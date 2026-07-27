@@ -26,6 +26,7 @@ type judgeFlags struct {
 	batchSize      int
 	resume         bool
 	apiKey         string
+	provider       string
 	model          string
 	apiBaseURL     string
 	cliBinary      string
@@ -45,21 +46,28 @@ func newJudgeCmd() *cobra.Command {
   vector      — cosine similarity; doc vectors from PG, query embedded via
                 Ollama (needs --pg + EMBEDDING_BASE_URL)
   hybrid      — BM25 + vector fusion (needs --pg + EMBEDDING_BASE_URL)
-  claude-cli  — invokes 'claude -p' per batch (Anthropic LLM-as-judge batched)
-  claude-api  — Anthropic Messages API in batches (set ANTHROPIC_API_KEY)
+  llm         — LLM-as-judge, batched; pick the endpoint with --provider
   manual      — writes grade:-1 placeholders for hand grading
 
-Both LLM strategies pin --model (default ` + judgment.DefaultJudgeModel + `) and
-record it as meta.judge_model, so qrels name the model that graded them.
+The llm strategy is vendor-neutral: --provider names the endpoint
+(` + strings.Join(judgment.KnownProviders(), ", ") + `), and registering a new
+provider is all it takes to add Codex or ChatGPT.
 
-Output goes to tracks/<name>/trec/annotations.<strategy>.yaml by default.
+--model accepts a full model id or a shorthand (` + strings.Join(judgment.ClaudeModelAliases(), ", ") + `)
+and defaults to ` + judgment.DefaultJudgeModel + `. The resolved id, the
+provider and the prompt version are recorded in the artifact's judge block, so
+qrels always name the grader that produced them.
+
+Output goes to tracks/<name>/trec/annotations.<name>.yaml, where <name> is the
+strategy for heuristic judges and the provider for llm judges.
 Multiple strategies live side-by-side; switch which one bench run scores
 against via --judgments <name>.
 
 Resumable: re-run with the same --strategy and --resume to skip docs already
 graded. Atomic writes mean Ctrl-C is safe.`,
 		Example: `  bench judge fts_quality --strategy lexical
-  bench judge fts_quality --strategy claude-api --batch 20 --resume
+  bench judge fts_quality --strategy llm --provider claude-cli
+  bench judge fts_quality --strategy llm --provider claude-api --model sonnet --batch 20 --resume
   bench judge --pool /tmp/p.yaml --strategy lexical --output /tmp/a.yaml`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -75,8 +83,10 @@ graded. Atomic writes mean Ctrl-C is safe.`,
 	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "Override LLM batch size (0 = strategy default)")
 	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output")
 	cmd.Flags().StringVar(&f.apiKey, "api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY)")
+	cmd.Flags().StringVar(&f.provider, "provider", string(judgment.DefaultProvider),
+		"LLM endpoint for --strategy llm: "+strings.Join(judgment.KnownProviders(), " | "))
 	cmd.Flags().StringVar(&f.model, "model", "",
-		"Judge model id for claude-cli/claude-api (default "+judgment.DefaultJudgeModel+")")
+		"Judge model id or alias ("+strings.Join(judgment.ClaudeModelAliases(), " | ")+"); default "+judgment.DefaultJudgeModel)
 	cmd.Flags().StringVar(&f.apiBaseURL, "api-base", "", "Anthropic API base URL")
 	cmd.Flags().StringVar(&f.cliBinary, "cli-binary", "", "claude CLI binary path")
 	cmd.Flags().StringVar(&f.embeddingBase, "embedding-base", "", "Embedding endpoint for vector/hybrid (or EMBEDDING_BASE_URL)")
@@ -104,18 +114,24 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 		return fmt.Errorf("read pool: %w", err)
 	}
 
-	kind := judgment.StrategyKind(f.strategy)
+	kind, provider, err := resolveJudge(f)
+	if err != nil {
+		return err
+	}
+	// Heuristic judges file under their strategy; llm judges file under their
+	// provider, so two vendors can grade the same track side by side.
 	outPath := f.output
 	if outPath == "" {
-		outPath = tr.JudgmentsPath(string(kind))
+		outPath = tr.JudgmentsPath(judgment.JudgmentSetName(kind, provider))
 	}
 
 	// Stub-equivalent shortcut: manual strategy doesn't need PG or any
 	// network. Just emit grade:-1 placeholders so a human can edit.
 	if kind == judgment.StrategyManual {
 		jf := buildManualJudgments(pf)
+		judge := judgment.NewManualStrategy().Describe()
 		jf.Meta = meta.New("judge")
-		jf.Meta.Strategy = string(kind)
+		jf.Meta.Judge = &judge
 		jf.Meta.PoolRef = poolPath
 		if err := judgment.WriteFile(jf, outPath); err != nil {
 			return fmt.Errorf("write judgments: %w", err)
@@ -126,6 +142,7 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 
 	opts := judgment.StrategyOptions{
 		APIKey:      envOrFlag("ANTHROPIC_API_KEY", f.apiKey),
+		Provider:    provider,
 		Model:       f.model,
 		APIBaseURL:  f.apiBaseURL,
 		CLIBinary:   f.cliBinary,
@@ -150,7 +167,8 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 		return err
 	}
 
-	writer := judgment.NewIncrementalWriter(outPath, strat.Name())
+	judge := strat.Describe()
+	writer := judgment.NewIncrementalWriter(outPath, judge)
 	var prior *judgment.File
 	if f.resume {
 		prior, err = writer.LoadPrior()
@@ -201,52 +219,62 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 		return fmt.Errorf("judge run: %w", err)
 	}
 
-	// Final write with completed meta block.
+	// Final write with completed meta block. The judge descriptor captures what
+	// the strategy actually resolved to — including the model, which is empty on
+	// the flag whenever the user relied on the default — and the prompt version,
+	// so rubric drift is detectable on resume.
 	final := writer.Snapshot()
 	final.Meta = meta.New("judge")
-	final.Meta.Strategy = strat.Name()
+	final.Meta.Judge = &judge
 	final.Meta.PoolRef = poolPath
 	final.Meta.RelevanceScale = []int{0, 1, 2, 3}
 	final.Meta.GradedCount = countGraded(final)
-	// G6: capture the actual model the strategy used, not the CLI flag (which
-	// is empty when the user relied on the default model).
-	if mi, ok := strat.(judgment.ModelIdentifier); ok {
-		final.Meta.JudgeModel = mi.ModelID()
-	}
-	// G7: stamp the prompt version so rubric drift is detectable on resume.
-	final.Meta.JudgePromptVersion = judgment.PromptVersion
 	if err := judgment.WriteFile(final, outPath); err != nil {
 		return fmt.Errorf("finalise judgments: %w", err)
 	}
 
-	printDone(cmd.OutOrStdout(), fmt.Sprintf("Judgments written: %s  (strategy=%s  queries=%d  run_id=%s)",
-		outPath, final.Strategy, len(final.Queries), final.Meta.RunID))
+	printDone(cmd.OutOrStdout(), fmt.Sprintf("Judgments written: %s  (judge=%s  queries=%d  run_id=%s)",
+		outPath, judge, len(final.Queries), final.Meta.RunID))
 	return nil
 }
 
+// resolveJudge turns --strategy/--provider into the pair the strategy factory
+// needs. --provider applies only to the llm strategy; naming a judgment set
+// ("claude-cli") in --strategy is redirected to the explicit form rather than
+// silently accepted, so there is one way to write a judge.
+func resolveJudge(f judgeFlags) (judgment.StrategyKind, judgment.Provider, error) {
+	kind := judgment.StrategyKind(f.strategy)
+	switch kind {
+	case judgment.StrategyLLM:
+		return kind, judgment.Provider(f.provider), nil
+	case judgment.StrategyLexical, judgment.StrategyBM25, judgment.StrategyVector,
+		judgment.StrategyHybrid, judgment.StrategyManual:
+		return kind, "", nil
+	}
+
+	// A provider name in --strategy is the old spelling. Redirect rather than
+	// accept it, so there is exactly one way to write a judge.
+	if _, p, err := judgment.ParseSelector(f.strategy); err == nil {
+		return "", "", fmt.Errorf("%q names a provider, not a strategy — use --strategy llm --provider %s",
+			f.strategy, p)
+	}
+	return "", "", fmt.Errorf("unknown strategy %q (known: %s)",
+		f.strategy, strings.Join(judgment.KnownJudgeStrategies(), ", "))
+}
+
 // checkResumeCompat verifies that a prior judgments file is safe to resume with
-// the given strategy. It rejects files produced by a different strategy, model,
-// or grading-prompt version — mixing those in one file corrupts the grade set.
+// the given strategy. Any difference in the judge block — strategy, provider,
+// model or prompt version — means the two runs disagree on who is grading, and
+// appending would corrupt the set.
 func checkResumeCompat(prior *judgment.File, strat judgment.Strategy) error {
-	if prior.Strategy != "" && prior.Strategy != strat.Name() {
-		return fmt.Errorf("--resume strategy mismatch: existing file is %q, --strategy is %q",
-			prior.Strategy, strat.Name())
+	was, now := prior.Judge(), strat.Describe()
+	if (was == meta.Judge{}) || was.Equal(now) {
+		return nil
 	}
-	if mi, ok := strat.(judgment.ModelIdentifier); ok {
-		if prior.Meta.JudgeModel != "" && prior.Meta.JudgeModel != mi.ModelID() {
-			return fmt.Errorf(
-				"--resume model mismatch: existing file used %q, current strategy uses %q\n"+
-					"  • re-run without --resume to start fresh with the new model",
-				prior.Meta.JudgeModel, mi.ModelID())
-		}
-	}
-	if prior.Meta.JudgePromptVersion != "" && prior.Meta.JudgePromptVersion != judgment.PromptVersion {
-		return fmt.Errorf(
-			"--resume prompt version mismatch: existing file used prompt %q, current is %q\n"+
-				"  • the grading rubric changed; re-run without --resume to re-grade cleanly",
-			prior.Meta.JudgePromptVersion, judgment.PromptVersion)
-	}
-	return nil
+	return fmt.Errorf(
+		"--resume judge mismatch: existing file was graded by %q, this run uses %q\n"+
+			"  • re-run without --resume to re-grade cleanly under the new judge",
+		was, now)
 }
 
 // buildVectorStore constructs the engine-agnostic vector store for the
@@ -299,8 +327,7 @@ func openArticleReader(cmd *cobra.Command, pgConn string) (storage.Reader, error
 
 func buildManualJudgments(pf *pool.PoolFile) *judgment.File {
 	jf := &judgment.File{
-		Strategy: string(judgment.StrategyManual),
-		Queries:  make([]judgment.Entry, 0, len(pf.Queries)),
+		Queries: make([]judgment.Entry, 0, len(pf.Queries)),
 	}
 	for _, entry := range pf.Queries {
 		docs := make([]judgment.GradedDoc, 0, len(entry.Docs))

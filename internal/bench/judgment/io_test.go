@@ -8,11 +8,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 )
 
 func TestWriteAtomic_NoLeftoverTempOnSuccess(t *testing.T) {
 	dir := t.TempDir()
-	jf := &File{Strategy: "x", Queries: []Entry{{QueryID: "q"}}}
+	jf := &File{
+		Meta:    meta.Meta{Judge: &meta.Judge{Strategy: "x"}},
+		Queries: []Entry{{QueryID: "q"}},
+	}
 	path := filepath.Join(dir, "ann.yaml")
 
 	require.NoError(t, WriteFile(jf, path))
@@ -34,7 +39,7 @@ func TestReadFileIfExists_MissingReturnsNil(t *testing.T) {
 func TestIncrementalWriter_AppendFlushesEachQuery(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ann.yaml")
-	w := NewIncrementalWriter(path, "test-strat")
+	w := NewIncrementalWriter(path, meta.Judge{Strategy: "test-strat"})
 
 	docID := uuid.New()
 	err := w.Append(QueryProgress{QueryID: "q1"}, Entry{
@@ -45,7 +50,7 @@ func TestIncrementalWriter_AppendFlushesEachQuery(t *testing.T) {
 
 	jf, err := ReadFile(path)
 	require.NoError(t, err)
-	assert.Equal(t, "test-strat", jf.Strategy)
+	assert.Equal(t, "test-strat", jf.Judge().Strategy)
 	require.Len(t, jf.Queries, 1)
 	assert.Equal(t, 2, jf.Queries[0].Docs[0].Grade)
 
@@ -63,7 +68,7 @@ func TestIncrementalWriter_AppendFlushesEachQuery(t *testing.T) {
 func TestIncrementalWriter_AppendReplacesSameQuery(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ann.yaml")
-	w := NewIncrementalWriter(path, "test")
+	w := NewIncrementalWriter(path, meta.Judge{Strategy: "test"})
 
 	id := uuid.New()
 	require.NoError(t, w.Append(QueryProgress{QueryID: "q1"}, Entry{
@@ -86,14 +91,14 @@ func TestIncrementalWriter_LoadPriorRoundTrip(t *testing.T) {
 	path := filepath.Join(dir, "ann.yaml")
 
 	prior := &File{
-		Strategy: "test",
+		Meta: meta.Meta{Judge: &meta.Judge{Strategy: "test"}},
 		Queries: []Entry{
 			{QueryID: "q1", Docs: []GradedDoc{{DocID: uuid.New(), Grade: 2}}},
 		},
 	}
 	require.NoError(t, WriteFile(prior, path))
 
-	w := NewIncrementalWriter(path, "test")
+	w := NewIncrementalWriter(path, meta.Judge{Strategy: "test"})
 	loaded, err := w.LoadPrior()
 	require.NoError(t, err)
 	require.NotNil(t, loaded)

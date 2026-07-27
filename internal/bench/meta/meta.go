@@ -29,15 +29,67 @@ type Meta struct {
 	Engines   []string `yaml:"engines,omitempty" json:"engines,omitempty"`
 
 	// Judgment-only fields.
-	Strategy           string `yaml:"strategy,omitempty" json:"strategy,omitempty"`
-	JudgeModel         string `yaml:"judge_model,omitempty" json:"judge_model,omitempty"`
-	JudgePromptVersion string `yaml:"judge_prompt_version,omitempty" json:"judge_prompt_version,omitempty"`
-	PoolRef            string `yaml:"pool_ref,omitempty" json:"pool_ref,omitempty"`
-	GradedCount        int    `yaml:"graded_count,omitempty" json:"graded_count,omitempty"`
-	RelevanceScale     []int  `yaml:"relevance_scale,omitempty" json:"relevance_scale,omitempty"`
+	Judge          *Judge `yaml:"judge,omitempty" json:"judge,omitempty"`
+	PoolRef        string `yaml:"pool_ref,omitempty" json:"pool_ref,omitempty"`
+	GradedCount    int    `yaml:"graded_count,omitempty" json:"graded_count,omitempty"`
+	RelevanceScale []int  `yaml:"relevance_scale,omitempty" json:"relevance_scale,omitempty"`
+
+	// Legacy flat judgment fields, retained read-only so annotations written
+	// before the judge block still load at schema_version 1. Never written —
+	// Normalize folds them into Judge on read. Drop once no such files remain.
+	LegacyStrategy      string `yaml:"strategy,omitempty" json:"strategy,omitempty"`
+	LegacyJudgeModel    string `yaml:"judge_model,omitempty" json:"judge_model,omitempty"`
+	LegacyPromptVersion string `yaml:"judge_prompt_version,omitempty" json:"judge_prompt_version,omitempty"`
 
 	// Report-only fields.
 	Sources *Sources `yaml:"sources,omitempty" json:"sources,omitempty"`
+}
+
+// Judge attests who graded an annotations file. Structured rather than flat so
+// a judgment set names its grader unambiguously: Strategy is the generic
+// taxonomy entry (lexical, bm25, vector, hybrid, llm-cli, llm-api, manual) and
+// Provider/Model identify the vendor and model behind the LLM strategies. This
+// is what makes LLM-graded qrels reproducible and lets the resume guard reject
+// a grader swap mid-run.
+type Judge struct {
+	Strategy      string `yaml:"strategy" json:"strategy"`
+	Provider      string `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Model         string `yaml:"model,omitempty" json:"model,omitempty"`
+	PromptVersion string `yaml:"prompt_version,omitempty" json:"prompt_version,omitempty"`
+}
+
+// Equal reports whether two judges would produce comparable grades. Used by the
+// resume guard: any difference means the existing file and the current run
+// disagree on who is grading, so appending would corrupt the set.
+func (j Judge) Equal(other Judge) bool { return j == other }
+
+// String renders the judge for CLI output, e.g. "llm-cli/claude
+// claude-haiku-4-5-20251001" or plain "lexical".
+func (j Judge) String() string {
+	s := j.Strategy
+	if j.Provider != "" {
+		s += "/" + j.Provider
+	}
+	if j.Model != "" {
+		s += " " + j.Model
+	}
+	return s
+}
+
+// Normalize folds legacy flat judgment fields into the Judge block so readers
+// only ever deal with one shape. Idempotent; safe on any artifact.
+func (m *Meta) Normalize() {
+	if m.Judge != nil {
+		return
+	}
+	if m.LegacyStrategy == "" && m.LegacyJudgeModel == "" {
+		return
+	}
+	m.Judge = &Judge{
+		Strategy:      m.LegacyStrategy,
+		Model:         m.LegacyJudgeModel,
+		PromptVersion: m.LegacyPromptVersion,
+	}
 }
 
 // Sources is embedded in a Report's meta to attest which on-disk artifacts

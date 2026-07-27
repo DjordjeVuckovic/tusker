@@ -1,6 +1,10 @@
 package judgment
 
-import "context"
+import (
+	"context"
+
+	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+)
 
 // ManualStrategy emits GradeUnjudged (-1) for every doc. Useful when a human
 // wants to grade from scratch — the runner writes a JudgmentFile with
@@ -11,6 +15,10 @@ type ManualStrategy struct{}
 func NewManualStrategy() *ManualStrategy { return &ManualStrategy{} }
 
 func (ManualStrategy) Name() string { return string(StrategyManual) }
+
+func (ManualStrategy) Describe() meta.Judge {
+	return meta.Judge{Strategy: string(StrategyManual)}
+}
 
 func (ManualStrategy) Grade(_ context.Context, _ GradingQuery, _ GradingDoc) (int, error) {
 	return GradeUnjudged, nil
