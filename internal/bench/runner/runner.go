@@ -190,13 +190,15 @@ func (r *Runner) runEnginesForQuery(
 			slots[idx] = slot{
 				engName: engName,
 				qr: QueryResult{
-					QueryID:      q.ID,
-					EngineName:   engName,
-					Scores:       scores,
-					RankedDocIDs: result.rankedIDs,
-					TotalMatches: result.totalMatches,
-					Latency:      result.latencyStats,
-					Error:        result.err,
+					QueryID:       q.ID,
+					Category:      q.Category,
+					EngineName:    engName,
+					Scores:        scores,
+					RankedDocIDs:  result.rankedIDs,
+					ReturnedCount: len(result.rankedIDs),
+					CorpusMatches: result.corpusMatches,
+					Latency:       result.latencyStats,
+					Error:         result.err,
 				},
 				present: true,
 			}
@@ -249,10 +251,10 @@ func (r *Runner) judgmentsFor(q *suite.Query) map[uuid.UUID]int {
 }
 
 type execResult struct {
-	rankedIDs    []uuid.UUID
-	totalMatches int64
-	latencyStats LatencyStats
-	err          error
+	rankedIDs     []uuid.UUID
+	corpusMatches *int64
+	latencyStats  LatencyStats
+	err           error
 }
 
 func (r *Runner) executeWithRetries(
@@ -285,8 +287,8 @@ func (r *Runner) executeWithRetries(
 	}
 
 	return execResult{
-		rankedIDs:    lastExec.RankedDocIDs,
-		totalMatches: lastExec.TotalMatches,
-		latencyStats: ComputeLatencyStats(latencies),
+		rankedIDs:     lastExec.RankedDocIDs,
+		corpusMatches: lastExec.CorpusMatches,
+		latencyStats:  ComputeLatencyStats(latencies),
 	}
 }

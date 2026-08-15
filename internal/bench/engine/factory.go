@@ -21,7 +21,10 @@ func CreateFromSpec(ctx context.Context, engines map[string]spec.Engine) (map[st
 	for name, eng := range engines {
 		switch eng.Type {
 		case "postgres":
-			pool, err := pg.NewConnectionPool(ctx, pg.PoolConfig{ConnStr: eng.Connection})
+			pool, err := pg.NewConnectionPool(ctx, pg.PoolConfig{
+				ConnStr:            eng.Connection,
+				ConnectionSettings: eng.ConnectionSettings,
+			})
 			if err != nil {
 				cleanup()
 				return nil, nil, fmt.Errorf("create pg pool for %q: %w", name, err)

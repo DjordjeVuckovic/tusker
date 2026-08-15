@@ -68,6 +68,9 @@ type Engine struct {
 	Type       string `yaml:"type"`
 	Connection string `yaml:"connection"`
 	Index      string `yaml:"index,omitempty"`
+	// ConnectionSettings are GUCs pinning the operating point a postgres engine
+	// is measured at, e.g. hnsw.ef_search. See docs/bench.md.
+	ConnectionSettings map[string]string `yaml:"connection_settings,omitempty"`
 }
 
 type MetricsConfig struct {

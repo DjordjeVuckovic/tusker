@@ -38,10 +38,12 @@ type Corpus struct {
 }
 
 type Query struct {
-	ID          string                 `yaml:"id"`
-	Description string                 `yaml:"description"`
-	Engines     map[string]EngineQuery `yaml:"engines"`
-	Judgments   []RelevanceJudgment    `yaml:"judgments"`
+	ID          string `yaml:"id"`
+	Description string `yaml:"description"`
+	// Category drives per-category aggregation and the judge's grading rule.
+	Category  string                 `yaml:"category,omitempty"`
+	Engines   map[string]EngineQuery `yaml:"engines"`
+	Judgments []RelevanceJudgment    `yaml:"judgments"`
 }
 
 type EngineQuery struct {

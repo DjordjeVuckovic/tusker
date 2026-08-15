@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/report"
@@ -98,7 +101,7 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	}
 	jPath := tr.JudgmentsPath(judgmentsValue)
 
-	judgmentsMap, err := loadJudgmentsMap(jPath, explicit)
+	judgmentsMap, judgmentsMeta, err := loadJudgmentsMap(jPath, explicit)
 	if err != nil {
 		return err
 	}
@@ -157,6 +160,8 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	}
 	defer cleanup()
 
+	corpus := collectCorpusInfo(cmd.Context(), cmd.OutOrStdout(), executors)
+
 	r := runner.New(runCfg)
 	sp := startSpinner("Running " + tr.Name() + "…")
 	start := time.Now()
@@ -167,7 +172,10 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		return fmt.Errorf("run benchmark: %w", err)
 	}
 
-	rpt := report.Generate(result, &report.GenerateOptions{Spec: bs})
+	rpt := report.Generate(result, &report.GenerateOptions{
+		Spec:   bs,
+		Corpus: corpus,
+	})
 	rpt.Provenance.SpecID = bs.ID
 	rpt.Provenance.Sources = &meta.Sources{
 		Spec:      tr.Spec,
@@ -175,8 +183,12 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		Pool:      tr.Pool,
 		Judgments: jPath,
 	}
+	if judgmentsMeta != nil {
+		rpt.Provenance.Judge = judgmentsMeta.Judge
+		rpt.Provenance.GradedCount = judgmentsMeta.GradedCount
+		rpt.Provenance.PoolRef = judgmentsMeta.PoolRef
+	}
 
-	// Print the table to stdout.
 	report.WriteTable(rpt, os.Stdout)
 	fmt.Fprintf(os.Stdout, "%s %s\n", cDim.Sprint("Elapsed:"), elapsed.Round(time.Millisecond))
 
@@ -204,21 +216,21 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 //   - explicit=false (spec.defaults.judgments) → return nil, runner reports
 //     "no judgments" in the table. This lets validate/pool run on a fresh
 //     track that hasn't been judged yet.
-func loadJudgmentsMap(path string, explicit bool) (map[string]map[string]int, error) {
+func loadJudgmentsMap(path string, explicit bool) (map[string]map[string]int, *meta.Meta, error) {
 	if path == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if explicit {
-			return nil, fmt.Errorf("--judgments file not found: %s\n"+
+			return nil, nil, fmt.Errorf("--judgments file not found: %s\n"+
 				"  • check the strategy name (lexical, claude-cli, claude-api, manual)\n"+
 				"  • or pass an explicit path to an existing YAML", path)
 		}
-		return nil, nil
+		return nil, nil, nil
 	}
 	jf, err := judgment.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("load judgments %s: %w", path, err)
+		return nil, nil, fmt.Errorf("load judgments %s: %w", path, err)
 	}
 	out := make(map[string]map[string]int, len(jf.Queries))
 	for _, qe := range jf.Queries {
@@ -231,7 +243,45 @@ func loadJudgmentsMap(path string, explicit bool) (map[string]map[string]int, er
 		}
 		out[qe.QueryID] = inner
 	}
-	return out, nil
+	return out, &jf.Meta, nil
+}
+
+func collectCorpusInfo(ctx context.Context, w io.Writer, executors map[string]engine.Executor) report.CorpusInfo {
+	counts := make(map[string]int64)
+	for name, exec := range executors {
+		counter, ok := exec.(engine.CorpusCounter)
+		if !ok {
+			continue
+		}
+		n, err := counter.CorpusCount(ctx)
+		if err != nil {
+			printWarn(w, fmt.Sprintf("corpus count for %q failed: %v", name, err))
+			continue
+		}
+		counts[name] = n
+	}
+	if len(counts) == 0 {
+		return report.CorpusInfo{}
+	}
+
+	info := report.CorpusInfo{PerEngine: counts}
+	var first int64
+	same := true
+	for _, n := range counts {
+		if first == 0 {
+			first = n
+			continue
+		}
+		if n != first {
+			same = false
+		}
+	}
+	if same {
+		info.DocCount = first
+	} else {
+		printWarn(w, fmt.Sprintf("engines index different document counts: %v — cross-engine metrics are not comparable", counts))
+	}
+	return info
 }
 
 func firstNonZero(a, b int) int {

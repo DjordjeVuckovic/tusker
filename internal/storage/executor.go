@@ -9,8 +9,8 @@ type ExecOptions struct {
 }
 
 type ExecuteResult struct {
-	TotalHits int
-	Hits      []map[string]interface{}
+	RowCount int
+	Hits     []map[string]interface{}
 }
 
 // RawExecutor defines the interface for executing db queries.

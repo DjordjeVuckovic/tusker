@@ -16,6 +16,7 @@ type PoolFile struct {
 type PoolEntry struct {
 	QueryID   string      `yaml:"query_id"`
 	QueryDesc string      `yaml:"query_desc"`
+	Category  string      `yaml:"category,omitempty"`
 	Docs      []PooledDoc `yaml:"docs"`
 }
 

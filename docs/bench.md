@@ -36,6 +36,44 @@ load-time warning.
 (`EMBEDDING_BASE_URL` + a postgres engine). Without one, **`bench validate` fails up front**
 for these kinds instead of stubbing a fake vector and reporting a misleading OK.
 
+### Query categories
+
+A suite query may carry `category:` (free-form; the fts track uses keyword, phrase, boolean,
+multi-field, single-field). When a job's queries span more than one category, `bench run`
+prints the aggregated table per category alongside the overall one.
+
+Result-list length is the reason. A strict phrase query legitimately matches two documents
+where a keyword query matches thousands, and AP, recall and the NDCG ideal all normalise
+against the full judged relevant set, so an engine returning the correct two scores as
+though it missed forty. One mean over both measures list length as much as ranking quality.
+
+The tag also reaches the judge: `bench pool` copies it into `pool.yaml`, and the LLM prompt
+turns `phrase` and `boolean` into an explicit rule, so an on-topic article that fails the
+constraint grades 0.
+
+### Engine connection settings
+
+A postgres engine may pin GUCs that hold for every connection it opens:
+
+```yaml
+engines:
+  pgvector-cosine:
+    type: postgres
+    connection: "postgresql://…"
+    connection_settings:
+      hnsw.ef_search: "200"
+```
+
+They are applied in `AfterConnect`, once per connection, and a setting that will not apply
+fails the run. Per-statement `SET LOCAL` is not an option: the pool runs each query as its
+own implicit transaction on whichever connection is free.
+
+`hnsw.ef_search` fixes the ANN operating point, which decides how many candidates a vector
+scan considers and so both its recall and its latency. Turning the planner's index access
+off gives an unindexed arm to compare against: `enable_indexscan` plus `enable_bitmapscan`
+for the GIN A/B in `fts_quality`, `enable_indexscan` alone for the exact-scan vector
+baseline in `news_semantic`.
+
 ## Pipeline
 
 ```

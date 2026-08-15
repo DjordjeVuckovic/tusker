@@ -42,9 +42,10 @@ type EngineInfo struct {
 }
 
 type CorpusInfo struct {
-	Name      string `json:"name,omitempty"`
-	DocCount  int64  `json:"doc_count,omitempty"`
-	IndexName string `json:"index_name,omitempty"`
+	Name      string           `json:"name,omitempty"`
+	DocCount  int64            `json:"doc_count,omitempty"`
+	IndexName string           `json:"index_name,omitempty"`
+	PerEngine map[string]int64 `json:"per_engine,omitempty"`
 }
 
 type PlatformInfo struct {
@@ -64,10 +65,18 @@ func NewPlatformInfo() PlatformInfo {
 }
 
 type JobReport struct {
-	JobName      string
-	Aggregated   []AggregatedEntry
+	JobName    string
+	Aggregated []AggregatedEntry
+	// Empty when the suite tags fewer than two categories.
+	ByCategory   []CategoryReport
 	PerQuery     []Entry
 	Significance []PairwiseSignificance
+}
+
+type CategoryReport struct {
+	Category   string
+	QueryCount int
+	Aggregated []AggregatedEntry
 }
 
 // PairwiseSignificance is the result of a Wilcoxon signed-rank test comparing
@@ -88,20 +97,22 @@ type ReportConfig struct {
 }
 
 type Entry struct {
-	QueryID      string
-	JobName      string
-	EngineName   string
-	Judged       bool
-	NDCG         map[int]float64
-	Precision    map[int]float64
-	Recall       map[int]float64
-	F1           map[int]float64
-	AP           float64
-	RR           float64
-	Bpref        float64
-	TotalMatches int64
-	Latency      LatencyStats
-	Error        string
+	QueryID       string
+	Category      string
+	JobName       string
+	EngineName    string
+	Judged        bool
+	NDCG          map[int]float64
+	Precision     map[int]float64
+	Recall        map[int]float64
+	F1            map[int]float64
+	AP            float64
+	RR            float64
+	Bpref         float64
+	ReturnedCount int
+	CorpusMatches *int64
+	Latency       LatencyStats
+	Error         string
 }
 
 type AggregatedEntry struct {

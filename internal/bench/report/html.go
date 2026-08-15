@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -143,10 +144,18 @@ type htmlSigRow struct {
 
 type htmlQueryRow struct {
 	Query, Engine, NDCG, Precision, AP, RR, Bpref string
-	Hits                                          int64
+	ReturnedCount                                 int
+	CorpusMatches                                 string
 	P50, P95                                      string
 	Status                                        string
 	IsErr                                         bool
+}
+
+func htmlCorpusMatches(v *int64) string {
+	if v == nil {
+		return "—"
+	}
+	return strconv.FormatInt(*v, 10)
 }
 
 func buildViewModel(r *Report) htmlReport {
@@ -240,8 +249,8 @@ func buildViewModel(r *Report) htmlReport {
 				Query: e.QueryID, Engine: e.EngineName,
 				NDCG: fmtScore(e.NDCG, k), Precision: fmtScore(e.Precision, k),
 				AP: ap, RR: rr, Bpref: bp,
-				Hits: e.TotalMatches,
-				P50:  fmtDuration(e.Latency.P50()), P95: fmtDuration(e.Latency.P95()),
+				ReturnedCount: e.ReturnedCount, CorpusMatches: htmlCorpusMatches(e.CorpusMatches),
+				P50: fmtDuration(e.Latency.P50()), P95: fmtDuration(e.Latency.P95()),
 				Status: status, IsErr: isErr,
 			})
 		}

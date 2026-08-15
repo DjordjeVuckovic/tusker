@@ -13,20 +13,21 @@ import (
 )
 
 func TestLoadJudgmentsMap_EmptyPath(t *testing.T) {
-	m, err := loadJudgmentsMap("", true)
+	m, jm, err := loadJudgmentsMap("", true)
 	require.NoError(t, err)
 	assert.Nil(t, m, "empty path is always silent regardless of explicit")
+	assert.Nil(t, jm)
 }
 
 func TestLoadJudgmentsMap_MissingFileExplicitErrors(t *testing.T) {
-	_, err := loadJudgmentsMap(filepath.Join(t.TempDir(), "nope.yaml"), true)
+	_, _, err := loadJudgmentsMap(filepath.Join(t.TempDir(), "nope.yaml"), true)
 	require.Error(t, err, "explicit --judgments path must error when file missing")
 	assert.Contains(t, err.Error(), "--judgments file not found")
 	assert.Contains(t, err.Error(), "lexical", "error should list valid strategies")
 }
 
 func TestLoadJudgmentsMap_MissingFileImplicitSilent(t *testing.T) {
-	m, err := loadJudgmentsMap(filepath.Join(t.TempDir(), "nope.yaml"), false)
+	m, _, err := loadJudgmentsMap(filepath.Join(t.TempDir(), "nope.yaml"), false)
 	require.NoError(t, err, "spec.defaults missing file should NOT error — runner reports it")
 	assert.Nil(t, m)
 }
@@ -51,8 +52,10 @@ func TestLoadJudgmentsMap_FlattensAndFiltersUnjudged(t *testing.T) {
 	}
 	require.NoError(t, judgment.WriteFile(jf, path))
 
-	m, err := loadJudgmentsMap(path, true)
+	m, jm, err := loadJudgmentsMap(path, true)
 	require.NoError(t, err)
+	require.NotNil(t, jm, "the grader identity must come back so the report can record it")
+	assert.Equal(t, jf.Meta.RunID, jm.RunID)
 	require.Contains(t, m, "q1")
 	assert.Equal(t, 2, m["q1"][docOK.String()])
 	_, present := m["q1"][docSkip.String()]
@@ -68,7 +71,7 @@ func TestLoadJudgmentsMap_RejectsMissingSchemaVersion(t *testing.T) {
 queries: []
 `), 0644))
 
-	_, err := loadJudgmentsMap(path, true)
+	_, _, err := loadJudgmentsMap(path, true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "schema_version")
 }

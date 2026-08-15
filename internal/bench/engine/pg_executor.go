@@ -43,7 +43,6 @@ func (e *PgExecutor) Execute(ctx context.Context, rawQuery string, params []any)
 
 	return &Execution{
 		RankedDocIDs: ids,
-		TotalMatches: int64(result.TotalHits),
 		Latency:      latency,
 	}, nil
 }
@@ -59,6 +58,26 @@ func (e *PgExecutor) Validate(ctx context.Context, query string) error {
 		return fmt.Errorf("pg explain: %w", err)
 	}
 	return nil
+}
+
+func (e *PgExecutor) CorpusCount(ctx context.Context) (int64, error) {
+	res, err := e.executor.Exec(ctx, "SELECT count(*) AS n FROM articles", nil, nil)
+	if err != nil {
+		return 0, fmt.Errorf("pg corpus count: %w", err)
+	}
+	if len(res.Hits) == 0 {
+		return 0, fmt.Errorf("pg corpus count: no rows")
+	}
+	switch v := res.Hits[0]["n"].(type) {
+	case int64:
+		return v, nil
+	case int32:
+		return int64(v), nil
+	case int:
+		return int64(v), nil
+	default:
+		return 0, fmt.Errorf("pg corpus count: unsupported type %T", v)
+	}
 }
 
 func extractUUID(val interface{}) (uuid.UUID, error) {

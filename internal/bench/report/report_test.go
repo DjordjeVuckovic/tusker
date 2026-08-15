@@ -466,3 +466,73 @@ func TestGenerate_WithUUIDJudgedDocs(t *testing.T) {
 		t.Error("NDCG@10 should be > 0 with relevant docs")
 	}
 }
+
+// ─── Per-category aggregation ────────────────────────────────────────────────
+
+func withCategories(br *runner.BenchmarkResult, byQuery map[string]string) *runner.BenchmarkResult {
+	jr := br.Jobs[0]
+	for qid, results := range jr.Results {
+		for eng, qr := range results {
+			qr.Category = byQuery[qid]
+			results[eng] = qr
+		}
+	}
+	return br
+}
+
+func TestGenerate_ByCategorySplitsQueries(t *testing.T) {
+	engines := []string{"pg"}
+	queries := []string{"kw1", "kw2", "ph1"}
+	scores := map[string]map[string]metrics.ScoreSet{
+		"kw1": {"pg": makeJudgedScores(0.9)},
+		"kw2": {"pg": makeJudgedScores(0.7)},
+		"ph1": {"pg": makeJudgedScores(0.2)},
+	}
+	br := withCategories(makeBenchmarkResult(engines, queries, scores), map[string]string{
+		"kw1": "keyword", "kw2": "keyword", "ph1": "phrase",
+	})
+	r := Generate(br, nil)
+
+	byCat := make(map[string]CategoryReport)
+	for _, cr := range r.Jobs[0].ByCategory {
+		byCat[cr.Category] = cr
+	}
+	if len(byCat) != 2 {
+		t.Fatalf("got %d categories, want 2", len(byCat))
+	}
+	if got := byCat["keyword"].QueryCount; got != 2 {
+		t.Errorf("keyword QueryCount = %d, want 2", got)
+	}
+
+	kw := byCat["keyword"].Aggregated[0].NDCG[10]
+	if diff := kw - 0.8; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("keyword NDCG@10 = %.6f, want 0.8", kw)
+	}
+	ph := byCat["phrase"].Aggregated[0].NDCG[10]
+	if diff := ph - 0.2; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("phrase NDCG@10 = %.6f, want 0.2", ph)
+	}
+
+	overall := r.Jobs[0].Aggregated[0].NDCG[10]
+	want := (0.9 + 0.7 + 0.2) / 3
+	if diff := overall - want; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("overall NDCG@10 = %.6f, want %.6f", overall, want)
+	}
+}
+
+func TestGenerate_ByCategoryEmptyWhenUntagged(t *testing.T) {
+	br := makeBenchmarkResult([]string{"pg"}, []string{"q1", "q2"}, nil)
+	r := Generate(br, nil)
+	if got := len(r.Jobs[0].ByCategory); got != 0 {
+		t.Errorf("len(ByCategory) = %d, want 0 for an untagged suite", got)
+	}
+}
+
+func TestGenerate_ByCategoryEmptyForSingleCategory(t *testing.T) {
+	br := withCategories(makeBenchmarkResult([]string{"pg"}, []string{"q1", "q2"}, nil),
+		map[string]string{"q1": "keyword", "q2": "keyword"})
+	r := Generate(br, nil)
+	if got := len(r.Jobs[0].ByCategory); got != 0 {
+		t.Errorf("len(ByCategory) = %d, want 0 when every query shares one category", got)
+	}
+}

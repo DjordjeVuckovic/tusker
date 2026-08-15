@@ -8,20 +8,22 @@ corpus:
   name: news_hunter_articles
   source: "postgres://localhost:54320/news_db (articles)"
 
-# Query embeddings ({{embedding}} placeholder) use Qwen3-Embedding-0.6B (1024-dim).
-# Document vectors live in article_embeddings (VECTOR(1024)); requires migrations (make migrate-up-all).
+# Query embeddings ({{embedding}} placeholder) use Qwen3-Embedding-0.6B (1024-dim),
+# L2-normalised (scripts/embed_qwen3.ipynb). Document vectors live in
+# article_embeddings (VECTOR(1024)); requires migrations (make migrate-up-all).
+#
+# Cosine is the only distance measured here. On unit vectors <->, <#> and <=>
+# rank identically, since ||a-b||^2 = 2 - 2*cos(a,b), so a second operator would
+# add an index and a column to the table without adding a result.
+#
+# Every ES block sets "size" to knn.k. Without it ES returns its default of 10
+# hits regardless of k, capping AP and Bpref at 10/R.
 
 templates:
   - id: pgvector_cosine
     query: |
       SELECT article_id AS id FROM article_embeddings
       ORDER BY embedding <=> '{{embedding}}'::vector
-      LIMIT {{limit}}
-
-  - id: pgvector_l2
-    query: |
-      SELECT article_id AS id FROM article_embeddings
-      ORDER BY embedding <-> '{{embedding}}'::vector
       LIMIT {{limit}}
 
 queries:
@@ -34,8 +36,8 @@ queries:
       pgvector-cosine:
         template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
-      pgvector-l2:
-        template: pgvector_l2
+      pgvector-exact:
+        template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
       elasticsearch: |
         {
@@ -44,7 +46,8 @@ queries:
             "query_vector": {{precomputed}},
             "k": 50,
             "num_candidates": 200
-          }
+          },
+          "size": 50
         }
 
   - id: sem-political-leadership-change
@@ -53,8 +56,8 @@ queries:
       pgvector-cosine:
         template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
-      pgvector-l2:
-        template: pgvector_l2
+      pgvector-exact:
+        template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
       elasticsearch: |
         {
@@ -63,7 +66,8 @@ queries:
             "query_vector": {{precomputed}},
             "k": 50,
             "num_candidates": 200
-          }
+          },
+          "size": 50
         }
 
   - id: sem-environmental-impact
@@ -72,8 +76,8 @@ queries:
       pgvector-cosine:
         template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
-      pgvector-l2:
-        template: pgvector_l2
+      pgvector-exact:
+        template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
       elasticsearch: |
         {
@@ -82,7 +86,8 @@ queries:
             "query_vector": {{precomputed}},
             "k": 50,
             "num_candidates": 200
-          }
+          },
+          "size": 50
         }
 
   - id: sem-tech-disruption
@@ -91,8 +96,8 @@ queries:
       pgvector-cosine:
         template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
-      pgvector-l2:
-        template: pgvector_l2
+      pgvector-exact:
+        template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
       elasticsearch: |
         {
@@ -101,7 +106,8 @@ queries:
             "query_vector": {{precomputed}},
             "k": 50,
             "num_candidates": 200
-          }
+          },
+          "size": 50
         }
 
   - id: sem-public-health-threat
@@ -110,8 +116,8 @@ queries:
       pgvector-cosine:
         template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
-      pgvector-l2:
-        template: pgvector_l2
+      pgvector-exact:
+        template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
       elasticsearch: |
         {
@@ -120,7 +126,8 @@ queries:
             "query_vector": {{precomputed}},
             "k": 50,
             "num_candidates": 200
-          }
+          },
+          "size": 50
         }
 
   - id: sem-military-conflict
@@ -129,8 +136,8 @@ queries:
       pgvector-cosine:
         template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
-      pgvector-l2:
-        template: pgvector_l2
+      pgvector-exact:
+        template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
       elasticsearch: |
         {
@@ -139,7 +146,8 @@ queries:
             "query_vector": {{precomputed}},
             "k": 50,
             "num_candidates": 200
-          }
+          },
+          "size": 50
         }
 
   - id: sem-social-justice
@@ -148,8 +156,8 @@ queries:
       pgvector-cosine:
         template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
-      pgvector-l2:
-        template: pgvector_l2
+      pgvector-exact:
+        template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
       elasticsearch: |
         {
@@ -158,7 +166,8 @@ queries:
             "query_vector": {{precomputed}},
             "k": 50,
             "num_candidates": 200
-          }
+          },
+          "size": 50
         }
 
   - id: sem-energy-transition
@@ -167,8 +176,8 @@ queries:
       pgvector-cosine:
         template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
-      pgvector-l2:
-        template: pgvector_l2
+      pgvector-exact:
+        template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
       elasticsearch: |
         {
@@ -177,7 +186,8 @@ queries:
             "query_vector": {{precomputed}},
             "k": 50,
             "num_candidates": 200
-          }
+          },
+          "size": 50
         }
 
   - id: sem-inflation-cost-of-living
@@ -186,8 +196,8 @@ queries:
       pgvector-cosine:
         template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
-      pgvector-l2:
-        template: pgvector_l2
+      pgvector-exact:
+        template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
       elasticsearch: |
         {
@@ -196,7 +206,8 @@ queries:
             "query_vector": {{precomputed}},
             "k": 50,
             "num_candidates": 200
-          }
+          },
+          "size": 50
         }
 
   - id: sem-diplomatic-relations
@@ -205,8 +216,8 @@ queries:
       pgvector-cosine:
         template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
-      pgvector-l2:
-        template: pgvector_l2
+      pgvector-exact:
+        template: pgvector_cosine
         params: { embedding: "{{precomputed}}", limit: 50 }
       elasticsearch: |
         {
@@ -215,5 +226,6 @@ queries:
             "query_vector": {{precomputed}},
             "k": 50,
             "num_candidates": 200
-          }
+          },
+          "size": 50
         }

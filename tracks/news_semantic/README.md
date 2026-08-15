@@ -3,8 +3,13 @@
 Evaluates concept-level retrieval accuracy across:
 
 - **pgvector-cosine**: PostgreSQL `pgvector` extension with HNSW index, cosine distance (`<=>`)
-- **pgvector-l2**: Same pgvector with L2/Euclidean distance (`<->`)
+- **pgvector-exact**: Same query with the index turned off, so it returns the true nearest
+  neighbours. Ground truth for pgvector-cosine's recall.
 - **elasticsearch**: ES `knn` query on `dense_vector` field (cosine similarity)
+
+Cosine is the only distance measured. The corpus vectors are L2-normalised, and on unit
+vectors `<->` and `<#>` rank identically to `<=>`, so a second operator would cost an index
+without producing a different ranking.
 
 Queries are designed to require semantic understanding beyond keyword overlap — relevant documents may not contain the exact query terms.
 

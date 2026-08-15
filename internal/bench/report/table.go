@@ -26,6 +26,7 @@ func WriteTable(r *Report, w io.Writer) {
 		title = "Benchmark"
 	}
 	fmt.Fprintf(w, "\n%s\n", tBold.Sprintf("=== %s  run_id=%s ===", title, r.Provenance.RunID))
+	writeScoringHeader(w, r)
 
 	for _, jr := range r.Jobs {
 		fmt.Fprintf(w, "\n%s\n", tBold.Sprintf("--- Job: %s ---", jr.JobName))
@@ -36,11 +37,21 @@ func WriteTable(r *Report, w io.Writer) {
 			writeLatencyTable(w, &jr)
 		} else {
 			writeAggregatedTable(w, &jr, r.Config.KValues)
+			writeCategoryTables(w, &jr, r.Config.KValues)
 			writeLatencyTable(w, &jr)
 			writeSignificanceTable(w, &jr)
 			writePerQueryTable(w, &jr, r.Config.KValues)
 		}
 	}
+}
+
+// The judge and the cutoff change what every number below them means.
+func writeScoringHeader(w io.Writer, r *Report) {
+	judge := "unknown"
+	if r.Provenance.Judge != nil {
+		judge = r.Provenance.Judge.String()
+	}
+	fmt.Fprintf(w, "%s\n", tDim.Sprintf("judge=%s  relevant=grade>=%d", judge, r.Config.RelevanceThreshold))
 }
 
 func hasAnyJudgments(jr *JobReport) bool {
@@ -88,7 +99,14 @@ func newMDTable() table.Writer {
 }
 
 func writeMDAggregatedTable(w io.Writer, jr *JobReport, kValues []int) {
-	fmt.Fprintf(w, "### Aggregated Results\n\n")
+	writeMDMetricsTable(w, "Aggregated Results", jr.Aggregated, kValues)
+	for _, cr := range jr.ByCategory {
+		writeMDMetricsTable(w, fmt.Sprintf("Category: %s (%d queries)", cr.Category, cr.QueryCount), cr.Aggregated, kValues)
+	}
+}
+
+func writeMDMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, kValues []int) {
+	fmt.Fprintf(w, "### %s\n\n", title)
 
 	t := newMDTable()
 	hdr := make(table.Row, 0, 1+2*len(kValues)+5)
@@ -103,7 +121,7 @@ func writeMDAggregatedTable(w io.Writer, jr *JobReport, kValues []int) {
 	t.AppendHeader(hdr)
 
 	numMetricCols := len(kValues)*2 + 3
-	for _, agg := range jr.Aggregated {
+	for _, agg := range aggregated {
 		row := table.Row{agg.EngineName}
 		if agg.JudgedCount > 0 {
 			for _, k := range kValues {
@@ -201,7 +219,18 @@ func rightCols(cols ...int) []table.ColumnConfig {
 }
 
 func writeAggregatedTable(w io.Writer, jr *JobReport, kValues []int) {
-	fmt.Fprintf(w, "\n%s\n\n", tBold.Sprint("Aggregated Results"))
+	writeMetricsTable(w, "Aggregated Results", jr.Aggregated, kValues)
+}
+
+func writeCategoryTables(w io.Writer, jr *JobReport, kValues []int) {
+	for _, cr := range jr.ByCategory {
+		title := fmt.Sprintf("Category: %s (%d queries)", cr.Category, cr.QueryCount)
+		writeMetricsTable(w, title, cr.Aggregated, kValues)
+	}
+}
+
+func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, kValues []int) {
+	fmt.Fprintf(w, "\n%s\n\n", tBold.Sprint(title))
 
 	t := newTable(w)
 
@@ -232,7 +261,7 @@ func writeAggregatedTable(w io.Writer, jr *JobReport, kValues []int) {
 		bestNDCG[k] = math.Inf(-1)
 		bestP[k] = math.Inf(-1)
 	}
-	for _, agg := range jr.Aggregated {
+	for _, agg := range aggregated {
 		if agg.JudgedCount == 0 {
 			continue
 		}
@@ -255,7 +284,7 @@ func writeAggregatedTable(w io.Writer, jr *JobReport, kValues []int) {
 		}
 	}
 
-	for _, agg := range jr.Aggregated {
+	for _, agg := range aggregated {
 		row := table.Row{agg.EngineName}
 		if agg.JudgedCount > 0 {
 			for _, k := range kValues {
@@ -383,7 +412,7 @@ func writePerQueryTable(w io.Writer, jr *JobReport, kValues []int) {
 		"Query", "Engine",
 		fmt.Sprintf("NDCG@%d", k), fmt.Sprintf("P@%d", k),
 		"AP", "RR", "Bpref",
-		"Hits", "p50", "p95", "Status",
+		"Ret", "Corpus", "p50", "p95", "Status",
 	})
 	t.SetColumnConfigs(rightCols(3, 4, 5, 6, 7, 8, 9, 10))
 
@@ -406,7 +435,7 @@ func writePerQueryTable(w io.Writer, jr *JobReport, kValues []int) {
 			e.QueryID, e.EngineName,
 			fmtScore(e.NDCG, k), fmtScore(e.Precision, k),
 			apStr, rrStr, bprefStr,
-			e.TotalMatches,
+			e.ReturnedCount, fmtCorpusMatches(e.CorpusMatches),
 			fmtDuration(e.Latency.P50()), fmtDuration(e.Latency.P95()),
 			status,
 		})
@@ -414,6 +443,13 @@ func writePerQueryTable(w io.Writer, jr *JobReport, kValues []int) {
 
 	t.Render()
 	fmt.Fprintln(w)
+}
+
+func fmtCorpusMatches(v *int64) string {
+	if v == nil {
+		return tDim.Sprint("—")
+	}
+	return fmt.Sprintf("%d", *v)
 }
 
 func primaryK(kValues []int) int {

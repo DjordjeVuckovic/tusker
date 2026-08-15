@@ -14,6 +14,7 @@ import (
 type GradingQuery struct {
 	ID          string
 	Description string
+	Category    string
 }
 
 // GradingDoc is a single article candidate to grade.

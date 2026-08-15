@@ -70,3 +70,31 @@ func TestValidateKnnBody_KnnOnly(t *testing.T) {
 		t.Fatal("expected error for knn body missing field/vector")
 	}
 }
+
+func TestExactTotal(t *testing.T) {
+	tests := []struct {
+		name  string
+		total esTotal
+		want  *int64
+	}{
+		{"counted every match", esTotal{Value: 2466, Relation: "eq"}, ptr(int64(2466))},
+		{"stopped at track_total_hits", esTotal{Value: 10000, Relation: "gte"}, nil},
+		{"relation absent", esTotal{Value: 42}, ptr(int64(42))},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.total.exactCount()
+			switch {
+			case tt.want == nil && got != nil:
+				t.Fatalf("got %d, want nil", *got)
+			case tt.want != nil && got == nil:
+				t.Fatalf("got nil, want %d", *tt.want)
+			case tt.want != nil && *got != *tt.want:
+				t.Fatalf("got %d, want %d", *got, *tt.want)
+			}
+		})
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

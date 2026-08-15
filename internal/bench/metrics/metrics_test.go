@@ -23,6 +23,7 @@ func TestNDCGAtK(t *testing.T) {
 		ranked    []uuid.UUID
 		judgments map[uuid.UUID]int
 		k         int
+		threshold int
 		want      float64
 	}{
 		{
@@ -77,11 +78,58 @@ func TestNDCGAtK(t *testing.T) {
 			k:    3,
 			want: 1.0,
 		},
+		{
+			name:   "threshold 2 ignores marginal grades",
+			ranked: []uuid.UUID{ids[0], ids[3], ids[4]},
+			judgments: map[uuid.UUID]int{
+				ids[0]: 3,
+				ids[1]: 1,
+				ids[2]: 1,
+			},
+			k:         3,
+			threshold: 2,
+			want:      1.0,
+		},
+		{
+			name:   "threshold 2 gives a misplaced marginal doc no gain",
+			ranked: []uuid.UUID{ids[1], ids[0]},
+			judgments: map[uuid.UUID]int{
+				ids[0]: 3,
+				ids[1]: 1,
+			},
+			k:         10,
+			threshold: 2,
+			want:      0.6309297535714575,
+		},
+		{
+			name:   "threshold 1 credits the same misplaced marginal doc",
+			ranked: []uuid.UUID{ids[1], ids[0]},
+			judgments: map[uuid.UUID]int{
+				ids[0]: 3,
+				ids[1]: 1,
+			},
+			k:         10,
+			threshold: 1,
+			want:      0.7098097413968655,
+		},
+		{
+			name:   "threshold 1 counts marginal grades in the ideal",
+			ranked: []uuid.UUID{ids[0], ids[3], ids[4]},
+			judgments: map[uuid.UUID]int{
+				ids[0]: 3,
+				ids[1]: 1,
+				ids[2]: 1,
+			},
+			k:         3,
+			threshold: 1,
+			// DCG 7 over IDCG 7 + 1/log2(3) + 1/log2(4).
+			want: 0.8609101556836468,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := NDCGAtK(tt.ranked, tt.judgments, tt.k)
+			got := NDCGAtK(tt.ranked, tt.judgments, tt.k, maxInt(tt.threshold, 1))
 			if tt.name == "inverse ranking" {
 				assert.Less(t, got, 1.0)
 				assert.Greater(t, got, 0.0)
@@ -350,4 +398,12 @@ func TestComputeAll(t *testing.T) {
 
 	assert.Contains(t, scores.NDCG, 5)
 	assert.Contains(t, scores.NDCG, 10)
+}
+
+// Cases that set no threshold run at the default of 1.
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

@@ -88,10 +88,15 @@ func (e *APIExecutor) Execute(ctx context.Context, rawQuery string, _ []any) (*E
 		ids = append(ids, hit.Article.ID)
 	}
 
+	var corpusMatches *int64
+	if searchResp.TotalMatches > 0 {
+		corpusMatches = &searchResp.TotalMatches
+	}
+
 	return &Execution{
-		RankedDocIDs: ids,
-		TotalMatches: searchResp.TotalMatches,
-		Latency:      latency,
+		RankedDocIDs:  ids,
+		CorpusMatches: corpusMatches,
+		Latency:       latency,
 	}, nil
 }
 

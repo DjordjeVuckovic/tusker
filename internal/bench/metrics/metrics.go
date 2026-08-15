@@ -30,7 +30,7 @@ func ComputeAll(ranked []uuid.UUID, judgments map[uuid.UUID]int, kValues []int, 
 	}
 
 	for _, k := range kValues {
-		s.NDCG[k] = NDCGAtK(ranked, judgments, k)
+		s.NDCG[k] = NDCGAtK(ranked, judgments, k, relevanceThreshold)
 		s.Precision[k] = PrecisionAtK(ranked, judgments, k, relevanceThreshold)
 		s.Recall[k] = RecallAtK(ranked, judgments, k, relevanceThreshold)
 		s.F1[k] = F1AtK(ranked, judgments, k, relevanceThreshold)
