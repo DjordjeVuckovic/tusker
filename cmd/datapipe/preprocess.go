@@ -25,7 +25,7 @@ type preprocessConfig struct {
 	OutputPath  string
 	MappingPath string
 	Workers     int
-	WriteReport bool
+	WriteReport *bool
 }
 
 type FileExt string
@@ -76,21 +76,25 @@ type PreprocessReport struct {
 
 func newPreprocessCmd() *cobra.Command {
 	var cfg preprocessConfig
+	var writeReport bool
 	cmd := &cobra.Command{
 		Use:   "preprocess",
 		Short: "Clean and map a raw dataset into a canonical file",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if cmd.Flags().Changed("report") {
+				cfg.WriteReport = &writeReport
+			}
 			applyPreprocessEnvDefaults(&cfg)
 			if cfg.InputPath == "" || cfg.OutputPath == "" || cfg.MappingPath == "" {
 				return fmt.Errorf("--input, --output and --mapping are required")
 			}
-			if err := validateFileExt(cfg.OutputPath, supportedInputExtensions); err != nil {
+			if err := validateFileExt(cfg.InputPath, supportedInputExtensions); err != nil {
 				return fmt.Errorf("invalid input file ext: %w", err)
 			}
 			if err := validateFileExt(cfg.OutputPath, supportedOutputExtensions); err != nil {
 				return fmt.Errorf("invalid output file ext: %w", err)
 			}
-			if err := validateFileExt(cfg.OutputPath, supportedMappingExtensions); err != nil {
+			if err := validateFileExt(cfg.MappingPath, supportedMappingExtensions); err != nil {
 				return fmt.Errorf("invalid mapping file ext: %w", err)
 			}
 
@@ -103,7 +107,7 @@ func newPreprocessCmd() *cobra.Command {
 	f.StringVar(&cfg.OutputPath, "output", "", "Output file for canonical dataset")
 	f.StringVar(&cfg.MappingPath, "mapping", "", "Path to the YAML field-mapping config")
 	f.IntVar(&cfg.Workers, "workers", 16, "Number of parallel workers")
-	f.BoolVar(&cfg.WriteReport, "report", false, "Write validation report")
+	f.BoolVar(&writeReport, "report", false, "Write validation report")
 	return cmd
 }
 
@@ -122,18 +126,16 @@ func applyPreprocessEnvDefaults(cfg *preprocessConfig) {
 	if cfg.MappingPath == "" {
 		cfg.MappingPath = os.Getenv("MAPPING_CONFIG_PATH")
 	}
+
+	if cfg.WriteReport == nil {
+		wr := os.Getenv("WRITE_REPORT") == "true"
+		cfg.WriteReport = &wr
+	}
 }
 
 func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 	start := time.Now()
 
-	inputExt := filepath.Ext(cfg.InputPath)
-	if inputExt != ".csv" {
-		return fmt.Errorf("input file must be .csv")
-	}
-	inputBasename := strings.TrimSuffix(filepath.Base(cfg.InputPath), inputExt)
-
-	outputPath := cfg.OutputPath
 	outDir, outFilename := filepath.Split(cfg.OutputPath)
 	if outDir != "" {
 		if err := os.MkdirAll(outDir, 0755); err != nil {
@@ -167,7 +169,7 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 	}
 	defer dataFile.Close()
 
-	outFile, err := os.Create(outputPath)
+	outFile, err := os.Create(cfg.OutputPath)
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
@@ -239,8 +241,11 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 
 	report.ProcessingTime = time.Since(start).Seconds()
 
-	if cfg.WriteReport {
-		if err := writeReport(cfg.OutputPath, inputBasename, report); err != nil {
+	if cfg.WriteReport != nil && *cfg.WriteReport {
+		if err := writeReport(
+			outDir,
+			strings.TrimSuffix(outFilename, filepath.Ext(outFilename)),
+			report); err != nil {
 			return fmt.Errorf("failed to write report: %w", err)
 		}
 	}
@@ -260,8 +265,8 @@ func NewOutWriter(w io.Writer, ext FileExt) (ingest.CanonicalWriter, error) {
 	}
 }
 
-func writeReport(outputDir, basename string, report *PreprocessReport) error {
-	reportPath := filepath.Join(outputDir, fmt.Sprintf("%s_report.json", basename))
+func writeReport(outDir, basename string, report *PreprocessReport) error {
+	reportPath := filepath.Join(outDir, fmt.Sprintf("%s-report.json", basename))
 
 	reportFile, err := os.Create(reportPath)
 	if err != nil {
