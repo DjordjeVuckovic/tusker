@@ -8,12 +8,22 @@ defaults:
   judgments: lexical
 
 engines:
+  # The "no materialised column" baseline, not the unindexed arm of an index
+  # A/B: against pg-gin it also varies ranker weights, field set and ts config.
   pg-seq:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
   pg-gin:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
+  # The unindexed arm: same column and query as pg-gin, only index access
+  # differs. Rankings must come out identical; only latency may move.
+  pg-noindex:
+    type: postgres
+    connection: "postgresql://news_user:news_password@localhost:54320/news_db"
+    connection_settings:
+      enable_indexscan: "off"
+      enable_bitmapscan: "off"
   paradedb:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54321/news_db"
@@ -38,14 +48,25 @@ runs:
   iterations: 3
 
 jobs:
+  - name: "index-ab"
+    suite: suite.yaml
+    engines: [pg-noindex, pg-gin]
+
   - name: "pg-gin-vs-paradedb-vs-es"
     suite: suite.yaml
     engines: [pg-gin, paradedb, elasticsearch]
 
   - name: "bm25-engines"
     suite: suite.yaml
-    engines: [paradedb, tiger, elasticsearch]
+    engines: [paradedb, elasticsearch]
 
   - name: "all-engines"
     suite: suite.yaml
-    engines: [pg-seq, pg-gin, paradedb, tiger, elasticsearch]
+    engines: [pg-seq, pg-gin, paradedb, elasticsearch]
+
+  # tiger runs alone: it cannot filter, so it always fills the LIMIT and its AP
+  # would compare list lengths against the filtered engines. NDCG@10 stays
+  # comparable across jobs.
+  - name: "tiger-rank-everything"
+    suite: suite.yaml
+    engines: [tiger]

@@ -73,6 +73,16 @@ templates:
       )
       SELECT id FROM rrf ORDER BY rrf_score DESC LIMIT {{limit}}
 
+# DISCLOSURE: the two arms fuse differently. PG uses RRF at k=60; every ES block
+# below sums a BM25 score and a cosine similarity at 0.5 each, and those live on
+# different scales, so the larger signal decides the ranking. No comparative
+# hybrid claim comes out of this track as configured. Native RRF on 8.12 is
+# `rank: { rrf: { rank_constant: 60 } }`, a subscription feature; check the
+# deployed version and licence before swapping it in:
+#
+#   curl -s localhost:9200 | jq .version.number
+#   curl -s localhost:9200/_license | jq .license.type
+
 queries:
   # Hybrid queries cover cases where neither pure keyword nor pure semantic
   # is sufficient — the query has both a precise term and a semantic intent.

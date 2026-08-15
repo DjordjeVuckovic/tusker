@@ -16,6 +16,14 @@ const (
 When in doubt between two grades, pick the lower one.
 Grade what the article is ABOUT, not whether the query terms appear in the text.`
 
+	phraseConstraint = `This is a PHRASE query. Grade 0 unless the article contains the exact phrase, ` +
+		`with the words adjacent and in order. An article on the same topic that does not contain the phrase is grade 0, ` +
+		`however relevant it otherwise seems.`
+
+	booleanConstraint = `This is a BOOLEAN query. Grade 0 unless the article satisfies the whole expression, ` +
+		`including every negated term: an article containing a NOT term is grade 0. ` +
+		`Topical overlap alone does not satisfy the expression.`
+
 	systemPrompt = `You are an information retrieval relevance judge. ` +
 		`You grade news articles against a user's search intent. ` +
 		`Reply ONLY with the requested JSON object — no prose, no markdown.`
@@ -28,6 +36,10 @@ func BuildGradingPrompt(q GradingQuery, doc GradingDoc) string {
 	sb.WriteString("Grade this news article's relevance to the query.\n\n")
 	sb.WriteString(gradingScale)
 	sb.WriteString("\n\n")
+	if c := constraintFor(q.Category); c != "" {
+		sb.WriteString(c)
+		sb.WriteString("\n\n")
+	}
 	fmt.Fprintf(&sb, "Query: %s\n\n", q.Description)
 	fmt.Fprintf(&sb, "Article (doc_id: %s):\n", doc.ID)
 	fmt.Fprintf(&sb, "Title: %s\n", doc.Title)
@@ -39,6 +51,17 @@ func BuildGradingPrompt(q GradingQuery, doc GradingDoc) string {
 	}
 	fmt.Fprintf(&sb, "\nRespond with ONLY this JSON: {\"doc_id\":\"%s\",\"grade\":<0|1|2|3>}", doc.ID)
 	return sb.String()
+}
+
+func constraintFor(category string) string {
+	switch category {
+	case "phrase":
+		return phraseConstraint
+	case "boolean":
+		return booleanConstraint
+	default:
+		return ""
+	}
 }
 
 type gradeResponse struct {
@@ -86,7 +109,9 @@ func truncateRunes(s string, max int) string {
 // system prompt or grading scale changes in a way that could shift grades.
 // bench judge embeds this in the annotations meta block so you can tell which
 // prompt version produced a given judgment file and catch rubric drift on resume.
-const PromptVersion = "v1"
+//
+// v2 added the per-category constraints.
+const PromptVersion = "v2"
 
 const batchContentSnippetRunes = 600
 
@@ -99,6 +124,10 @@ const batchContentSnippetRunes = 600
 //   - the model is asked for a JSON array of N entries in input order
 func BuildBatchGradingPrompt(q GradingQuery, docs []GradingDoc) string {
 	var sb strings.Builder
+	if c := constraintFor(q.Category); c != "" {
+		sb.WriteString(c)
+		sb.WriteString("\n\n")
+	}
 	fmt.Fprintf(&sb, "Query: %s\n\n", q.Description)
 	fmt.Fprintf(&sb, "Grade each of the %d candidate articles below.\n\n", len(docs))
 

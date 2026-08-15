@@ -71,7 +71,10 @@ templates:
       ORDER BY pdb.score(id) DESC
       LIMIT {{limit}}
 
-  # pdb_multi_field_boosted: per-field boost, single BM25 scan
+  # pdb_multi_field_boosted: per-field boost, single BM25 scan. 3.0/2.0/1.0
+  # mirrors the ES "title^3, description^2, content" boosts. pg-gin's setweight
+  # A/B/C reads as 1.0/0.4/0.2 through ts_rank and cannot be matched; disclose
+  # that next to any cross-engine table.
   - id: pdb_multi_field_boosted
     query: |
       SELECT id FROM articles
@@ -112,8 +115,12 @@ templates:
   # indexes a single text column, so every query maps to one BM25 ranking over
   # the generated `search_text` column (title+subtitle+description+content).
   # `<@>` returns a negative BM25 score (lower = better), so ORDER BY ascending
-  # yields the top-k matches. Phrase/boolean queries degrade to bag-of-words OR
-  # — an intentional, measured limitation of the engine, not a bench shortcut.
+  # yields the top-k matches. Phrase/boolean queries degrade to bag-of-words OR,
+  # which is a measured limitation of the engine rather than a bench shortcut.
+  #
+  # No WHERE either: v1.0 exposes no match predicate, so this ranks the whole
+  # corpus and always fills the LIMIT. Hence the separate `tiger-rank-everything`
+  # job in spec.yaml.
   - id: tiger_bm25
     query: |
       SELECT id FROM articles
@@ -153,6 +160,7 @@ queries:
   # --- Simple keyword search ---
   - id: qs-climate
     description: "Simple keyword search for climate change articles"
+    category: keyword
     engines:
       tiger:
         template: tiger_bm25
@@ -163,8 +171,11 @@ queries:
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "climate change", limit: 100 }
+      pg-noindex:
+        template: pg_idx_multi_field
+        params: { terms: "climate change", limit: 100 }
       paradedb:
-        template: pdb_multi_field
+        template: pdb_multi_field_boosted
         params: { terms: "climate change", limit: 100 }
       elasticsearch: |
         {
@@ -188,6 +199,7 @@ queries:
 
   - id: qs-election
     description: "Simple keyword search for election coverage"
+    category: keyword
     engines:
       tiger:
         template: tiger_bm25
@@ -198,8 +210,11 @@ queries:
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "presidential election results", limit: 100 }
+      pg-noindex:
+        template: pg_idx_multi_field
+        params: { terms: "presidential election results", limit: 100 }
       paradedb:
-        template: pdb_multi_field
+        template: pdb_multi_field_boosted
         params: { terms: "presidential election results", limit: 100 }
       elasticsearch: |
         {
@@ -215,6 +230,7 @@ queries:
   # --- Single-field match ---
   - id: match-title-economy
     description: "Title-only search for economy articles"
+    category: single-field
     engines:
       tiger:
         template: tiger_bm25
@@ -223,6 +239,9 @@ queries:
         template: pg_fts_single_field
         params: { field: "title", tsquery_fn: "plainto_tsquery", terms: "economy recession", limit: 100 }
       pg-gin:
+        template: pg_idx_multi_field
+        params: { terms: "economy recession", limit: 100 }
+      pg-noindex:
         template: pg_idx_multi_field
         params: { terms: "economy recession", limit: 100 }
       paradedb:
@@ -249,6 +268,7 @@ queries:
 
   - id: match-content-ai
     description: "Phrase search for 'artificial intelligence' across all fields"
+    category: single-field
     engines:
       tiger:
         template: tiger_bm25
@@ -257,6 +277,9 @@ queries:
         template: pg_fts_phrase
         params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", terms: "artificial intelligence", limit: 100 }
       pg-gin:
+        template: pg_idx_phrase
+        params: { terms: "artificial intelligence", limit: 100 }
+      pg-noindex:
         template: pg_idx_phrase
         params: { terms: "artificial intelligence", limit: 100 }
       paradedb:
@@ -277,6 +300,7 @@ queries:
   # --- Phrase matching ---
   - id: phrase-global-warming
     description: "Exact phrase search for 'global warming'"
+    category: phrase
     engines:
       tiger:
         template: tiger_bm25
@@ -285,6 +309,9 @@ queries:
         template: pg_fts_phrase
         params: { fields: "title || ' ' || coalesce(content,'')", terms: "global warming", limit: 100 }
       pg-gin:
+        template: pg_idx_phrase
+        params: { terms: "global warming", limit: 100 }
+      pg-noindex:
         template: pg_idx_phrase
         params: { terms: "global warming", limit: 100 }
       paradedb:
@@ -304,6 +331,7 @@ queries:
 
   - id: phrase-trade-war-slop
     description: "Phrase search with slop for 'trade war'"
+    category: phrase
     engines:
       tiger:
         template: tiger_bm25
@@ -312,6 +340,9 @@ queries:
         template: pg_fts_phrase
         params: { fields: "title || ' ' || coalesce(description,'')", terms: "trade war", limit: 100 }
       pg-gin:
+        template: pg_idx_phrase
+        params: { terms: "trade war", limit: 100 }
+      pg-noindex:
         template: pg_idx_phrase
         params: { terms: "trade war", limit: 100 }
       paradedb:
@@ -333,6 +364,7 @@ queries:
   # --- Boolean / structured ---
   - id: bool-climate-not-politics
     description: "Boolean: climate articles excluding politics"
+    category: boolean
     engines:
       # pg_textsearch is OR-only: NOT/exclusion is unsupported, so the
       # exclusion term (politics) is dropped — positive terms only.
@@ -343,6 +375,9 @@ queries:
         template: pg_fts_boolean
         params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", tsquery_expr: "climate & !politics", limit: 100 }
       pg-gin:
+        template: pg_idx_boolean
+        params: { tsquery_expr: "climate & !politics", limit: 100 }
+      pg-noindex:
         template: pg_idx_boolean
         params: { tsquery_expr: "climate & !politics", limit: 100 }
       paradedb: |
@@ -382,6 +417,7 @@ queries:
 
   - id: bool-complex
     description: "Boolean: (technology OR science) AND innovation"
+    category: boolean
     engines:
       tiger:
         template: tiger_bm25
@@ -390,6 +426,9 @@ queries:
         template: pg_fts_boolean
         params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", tsquery_expr: "(technology | science) & innovation", limit: 100 }
       pg-gin:
+        template: pg_idx_boolean
+        params: { tsquery_expr: "(technology | science) & innovation", limit: 100 }
+      pg-noindex:
         template: pg_idx_boolean
         params: { tsquery_expr: "(technology | science) & innovation", limit: 100 }
       paradedb: |
@@ -437,6 +476,7 @@ queries:
   # --- Multi-field with boosting ---
   - id: mm-renewable-energy
     description: "Multi-field search for renewable energy with title boost"
+    category: multi-field
     engines:
       tiger:
         template: tiger_bm25
@@ -445,6 +485,9 @@ queries:
         template: pg_fts_weighted
         params: { terms: "renewable energy solar", limit: 100 }
       pg-gin:
+        template: pg_idx_weighted
+        params: { terms: "renewable energy solar", limit: 100 }
+      pg-noindex:
         template: pg_idx_weighted
         params: { terms: "renewable energy solar", limit: 100 }
       paradedb:
@@ -463,6 +506,7 @@ queries:
 
   - id: mm-tech-innovation
     description: "Multi-field search for technology innovation"
+    category: multi-field
     engines:
       tiger:
         template: tiger_bm25
@@ -471,6 +515,9 @@ queries:
         template: pg_fts_weighted
         params: { terms: "technology innovation startup", limit: 100 }
       pg-gin:
+        template: pg_idx_weighted
+        params: { terms: "technology innovation startup", limit: 100 }
+      pg-noindex:
         template: pg_idx_weighted
         params: { terms: "technology innovation startup", limit: 100 }
       paradedb:
@@ -491,6 +538,7 @@ queries:
 
   - id: qs-vaccine
     description: "Simple keyword search for vaccine news"
+    category: keyword
     engines:
       tiger:
         template: tiger_bm25
@@ -501,8 +549,11 @@ queries:
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "vaccine covid booster", limit: 100 }
+      pg-noindex:
+        template: pg_idx_multi_field
+        params: { terms: "vaccine covid booster", limit: 100 }
       paradedb:
-        template: pdb_multi_field
+        template: pdb_multi_field_boosted
         params: { terms: "vaccine covid booster", limit: 100 }
       elasticsearch: |
         {
@@ -517,6 +568,7 @@ queries:
 
   - id: qs-ukraine-war
     description: "Simple keyword search for Ukraine conflict coverage"
+    category: keyword
     engines:
       tiger:
         template: tiger_bm25
@@ -527,8 +579,11 @@ queries:
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "ukraine russia war", limit: 100 }
+      pg-noindex:
+        template: pg_idx_multi_field
+        params: { terms: "ukraine russia war", limit: 100 }
       paradedb:
-        template: pdb_multi_field
+        template: pdb_multi_field_boosted
         params: { terms: "ukraine russia war", limit: 100 }
       elasticsearch: |
         {
@@ -543,6 +598,7 @@ queries:
 
   - id: qs-interest-rates
     description: "Simple keyword search for central bank rate decisions"
+    category: keyword
     engines:
       tiger:
         template: tiger_bm25
@@ -553,8 +609,11 @@ queries:
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "interest rates federal reserve", limit: 100 }
+      pg-noindex:
+        template: pg_idx_multi_field
+        params: { terms: "interest rates federal reserve", limit: 100 }
       paradedb:
-        template: pdb_multi_field
+        template: pdb_multi_field_boosted
         params: { terms: "interest rates federal reserve", limit: 100 }
       elasticsearch: |
         {
@@ -569,6 +628,7 @@ queries:
 
   - id: qs-social-media
     description: "Simple keyword search for social media news"
+    category: keyword
     engines:
       tiger:
         template: tiger_bm25
@@ -579,8 +639,11 @@ queries:
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "social media twitter facebook", limit: 100 }
+      pg-noindex:
+        template: pg_idx_multi_field
+        params: { terms: "social media twitter facebook", limit: 100 }
       paradedb:
-        template: pdb_multi_field
+        template: pdb_multi_field_boosted
         params: { terms: "social media twitter facebook", limit: 100 }
       elasticsearch: |
         {
@@ -595,6 +658,7 @@ queries:
 
   - id: qs-housing-prices
     description: "Simple keyword search for housing market"
+    category: keyword
     engines:
       tiger:
         template: tiger_bm25
@@ -605,8 +669,11 @@ queries:
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "housing prices real estate", limit: 100 }
+      pg-noindex:
+        template: pg_idx_multi_field
+        params: { terms: "housing prices real estate", limit: 100 }
       paradedb:
-        template: pdb_multi_field
+        template: pdb_multi_field_boosted
         params: { terms: "housing prices real estate", limit: 100 }
       elasticsearch: |
         {
@@ -621,6 +688,7 @@ queries:
 
   - id: qs-space-exploration
     description: "Simple keyword search for space exploration"
+    category: keyword
     engines:
       tiger:
         template: tiger_bm25
@@ -631,8 +699,11 @@ queries:
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "space nasa mission launch", limit: 100 }
+      pg-noindex:
+        template: pg_idx_multi_field
+        params: { terms: "space nasa mission launch", limit: 100 }
       paradedb:
-        template: pdb_multi_field
+        template: pdb_multi_field_boosted
         params: { terms: "space nasa mission launch", limit: 100 }
       elasticsearch: |
         {
@@ -647,6 +718,7 @@ queries:
 
   - id: qs-immigration
     description: "Simple keyword search for immigration policy"
+    category: keyword
     engines:
       tiger:
         template: tiger_bm25
@@ -657,8 +729,11 @@ queries:
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "immigration policy border migrants", limit: 100 }
+      pg-noindex:
+        template: pg_idx_multi_field
+        params: { terms: "immigration policy border migrants", limit: 100 }
       paradedb:
-        template: pdb_multi_field
+        template: pdb_multi_field_boosted
         params: { terms: "immigration policy border migrants", limit: 100 }
       elasticsearch: |
         {
@@ -673,6 +748,7 @@ queries:
 
   - id: qs-cryptocurrency
     description: "Simple keyword search for cryptocurrency news"
+    category: keyword
     engines:
       tiger:
         template: tiger_bm25
@@ -683,8 +759,11 @@ queries:
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "bitcoin cryptocurrency blockchain", limit: 100 }
+      pg-noindex:
+        template: pg_idx_multi_field
+        params: { terms: "bitcoin cryptocurrency blockchain", limit: 100 }
       paradedb:
-        template: pdb_multi_field
+        template: pdb_multi_field_boosted
         params: { terms: "bitcoin cryptocurrency blockchain", limit: 100 }
       elasticsearch: |
         {
@@ -701,6 +780,7 @@ queries:
 
   - id: phrase-stock-market-crash
     description: "Exact phrase search for 'stock market crash'"
+    category: phrase
     engines:
       tiger:
         template: tiger_bm25
@@ -709,6 +789,9 @@ queries:
         template: pg_fts_phrase
         params: { fields: "title || ' ' || coalesce(description,'')", terms: "stock market crash", limit: 100 }
       pg-gin:
+        template: pg_idx_phrase
+        params: { terms: "stock market crash", limit: 100 }
+      pg-noindex:
         template: pg_idx_phrase
         params: { terms: "stock market crash", limit: 100 }
       paradedb:
@@ -728,6 +811,7 @@ queries:
 
   - id: phrase-interest-rate-hike
     description: "Exact phrase search for 'interest rate hike'"
+    category: phrase
     engines:
       tiger:
         template: tiger_bm25
@@ -736,6 +820,9 @@ queries:
         template: pg_fts_phrase
         params: { fields: "title || ' ' || coalesce(description,'')", terms: "interest rate hike", limit: 100 }
       pg-gin:
+        template: pg_idx_phrase
+        params: { terms: "interest rate hike", limit: 100 }
+      pg-noindex:
         template: pg_idx_phrase
         params: { terms: "interest rate hike", limit: 100 }
       paradedb:
@@ -755,6 +842,7 @@ queries:
 
   - id: phrase-human-rights-violations
     description: "Exact phrase search for 'human rights violations'"
+    category: phrase
     engines:
       tiger:
         template: tiger_bm25
@@ -763,6 +851,9 @@ queries:
         template: pg_fts_phrase
         params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", terms: "human rights violations", limit: 100 }
       pg-gin:
+        template: pg_idx_phrase
+        params: { terms: "human rights violations", limit: 100 }
+      pg-noindex:
         template: pg_idx_phrase
         params: { terms: "human rights violations", limit: 100 }
       paradedb:
@@ -784,6 +875,7 @@ queries:
 
   - id: bool-tech-not-crypto
     description: "Boolean: technology articles excluding cryptocurrency"
+    category: boolean
     engines:
       # OR-only engine: exclusion terms (cryptocurrency, bitcoin) are dropped.
       tiger:
@@ -793,6 +885,9 @@ queries:
         template: pg_fts_boolean
         params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", tsquery_expr: "technology & !cryptocurrency & !bitcoin", limit: 100 }
       pg-gin:
+        template: pg_idx_boolean
+        params: { tsquery_expr: "technology & !cryptocurrency & !bitcoin", limit: 100 }
+      pg-noindex:
         template: pg_idx_boolean
         params: { tsquery_expr: "technology & !cryptocurrency & !bitcoin", limit: 100 }
       paradedb: |
@@ -830,6 +925,7 @@ queries:
 
   - id: bool-health-science
     description: "Boolean: health AND (science OR medicine OR research)"
+    category: boolean
     engines:
       tiger:
         template: tiger_bm25
@@ -838,6 +934,9 @@ queries:
         template: pg_fts_boolean
         params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", tsquery_expr: "health & (science | medicine | research)", limit: 100 }
       pg-gin:
+        template: pg_idx_boolean
+        params: { tsquery_expr: "health & (science | medicine | research)", limit: 100 }
+      pg-noindex:
         template: pg_idx_boolean
         params: { tsquery_expr: "health & (science | medicine | research)", limit: 100 }
       paradedb: |
@@ -884,6 +983,7 @@ queries:
 
   - id: bool-economy-recession-not-covid
     description: "Boolean: (economy OR recession) AND NOT covid"
+    category: boolean
     engines:
       # OR-only engine: exclusion terms (covid, pandemic) are dropped.
       tiger:
@@ -893,6 +993,9 @@ queries:
         template: pg_fts_boolean
         params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", tsquery_expr: "(economy | recession) & !covid & !pandemic", limit: 100 }
       pg-gin:
+        template: pg_idx_boolean
+        params: { tsquery_expr: "(economy | recession) & !covid & !pandemic", limit: 100 }
+      pg-noindex:
         template: pg_idx_boolean
         params: { tsquery_expr: "(economy | recession) & !covid & !pandemic", limit: 100 }
       paradedb: |
@@ -936,6 +1039,7 @@ queries:
 
   - id: mm-inflation-economy
     description: "Multi-field search for inflation and economic impacts"
+    category: multi-field
     engines:
       tiger:
         template: tiger_bm25
@@ -944,6 +1048,9 @@ queries:
         template: pg_fts_weighted
         params: { terms: "inflation economy prices", limit: 100 }
       pg-gin:
+        template: pg_idx_weighted
+        params: { terms: "inflation economy prices", limit: 100 }
+      pg-noindex:
         template: pg_idx_weighted
         params: { terms: "inflation economy prices", limit: 100 }
       paradedb:
@@ -962,6 +1069,7 @@ queries:
 
   - id: mm-cybersecurity-data-breach
     description: "Multi-field search for cybersecurity incidents"
+    category: multi-field
     engines:
       tiger:
         template: tiger_bm25
@@ -970,6 +1078,9 @@ queries:
         template: pg_fts_weighted
         params: { terms: "cybersecurity data breach hack", limit: 100 }
       pg-gin:
+        template: pg_idx_weighted
+        params: { terms: "cybersecurity data breach hack", limit: 100 }
+      pg-noindex:
         template: pg_idx_weighted
         params: { terms: "cybersecurity data breach hack", limit: 100 }
       paradedb:
@@ -988,6 +1099,7 @@ queries:
 
   - id: mm-supreme-court-ruling
     description: "Multi-field search for US Supreme Court decisions"
+    category: multi-field
     engines:
       tiger:
         template: tiger_bm25
@@ -996,6 +1108,9 @@ queries:
         template: pg_fts_weighted
         params: { terms: "supreme court ruling decision", limit: 100 }
       pg-gin:
+        template: pg_idx_weighted
+        params: { terms: "supreme court ruling decision", limit: 100 }
+      pg-noindex:
         template: pg_idx_weighted
         params: { terms: "supreme court ruling decision", limit: 100 }
       paradedb:
@@ -1014,6 +1129,7 @@ queries:
 
   - id: mm-olympics-sports
     description: "Multi-field search for Olympics and major sports"
+    category: multi-field
     engines:
       tiger:
         template: tiger_bm25
@@ -1022,6 +1138,9 @@ queries:
         template: pg_fts_weighted
         params: { terms: "olympics sports championship medal", limit: 100 }
       pg-gin:
+        template: pg_idx_weighted
+        params: { terms: "olympics sports championship medal", limit: 100 }
+      pg-noindex:
         template: pg_idx_weighted
         params: { terms: "olympics sports championship medal", limit: 100 }
       paradedb:
@@ -1042,6 +1161,7 @@ queries:
 
   - id: match-title-pandemic
     description: "Title-only search for pandemic coverage"
+    category: single-field
     engines:
       tiger:
         template: tiger_bm25
@@ -1050,6 +1170,9 @@ queries:
         template: pg_fts_single_field
         params: { field: "title", tsquery_fn: "plainto_tsquery", terms: "pandemic lockdown", limit: 100 }
       pg-gin:
+        template: pg_idx_multi_field
+        params: { terms: "pandemic lockdown", limit: 100 }
+      pg-noindex:
         template: pg_idx_multi_field
         params: { terms: "pandemic lockdown", limit: 100 }
       paradedb:
@@ -1070,6 +1193,7 @@ queries:
 
   - id: match-title-semiconductor
     description: "Title-only search for semiconductor chip shortage"
+    category: single-field
     engines:
       tiger:
         template: tiger_bm25
@@ -1078,6 +1202,9 @@ queries:
         template: pg_fts_single_field
         params: { field: "title", tsquery_fn: "plainto_tsquery", terms: "semiconductor chip shortage", limit: 100 }
       pg-gin:
+        template: pg_idx_multi_field
+        params: { terms: "semiconductor chip shortage", limit: 100 }
+      pg-noindex:
         template: pg_idx_multi_field
         params: { terms: "semiconductor chip shortage", limit: 100 }
       paradedb:

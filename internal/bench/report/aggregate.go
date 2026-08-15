@@ -67,19 +67,21 @@ func generateJobReport(jr *runner.JobResult, kValues []int) JobReport {
 				continue
 			}
 			entry := Entry{
-				QueryID:      qr.QueryID,
-				JobName:      jr.JobName,
-				EngineName:   qr.EngineName,
-				Judged:       qr.Scores.Judged,
-				NDCG:         qr.Scores.NDCG,
-				Precision:    qr.Scores.Precision,
-				Recall:       qr.Scores.Recall,
-				F1:           qr.Scores.F1,
-				AP:           qr.Scores.AP,
-				RR:           qr.Scores.RR,
-				Bpref:        qr.Scores.Bpref,
-				TotalMatches: qr.TotalMatches,
-				Latency:      fromRunnerLatencyStats(qr.Latency),
+				QueryID:       qr.QueryID,
+				Category:      qr.Category,
+				JobName:       jr.JobName,
+				EngineName:    qr.EngineName,
+				Judged:        qr.Scores.Judged,
+				NDCG:          qr.Scores.NDCG,
+				Precision:     qr.Scores.Precision,
+				Recall:        qr.Scores.Recall,
+				F1:            qr.Scores.F1,
+				AP:            qr.Scores.AP,
+				RR:            qr.Scores.RR,
+				Bpref:         qr.Scores.Bpref,
+				ReturnedCount: qr.ReturnedCount,
+				CorpusMatches: qr.CorpusMatches,
+				Latency:       fromRunnerLatencyStats(qr.Latency),
 			}
 			if qr.Error != nil {
 				entry.Error = qr.Error.Error()
@@ -88,12 +90,52 @@ func generateJobReport(jr *runner.JobResult, kValues []int) JobReport {
 		}
 	}
 
-	report.Aggregated = aggregate(jr, kValues)
+	report.Aggregated = aggregate(jr, kValues, jr.QueryOrder)
+	report.ByCategory = aggregateByCategory(jr, kValues)
 	report.Significance = computeSignificance(jr, kValues)
 	return report
 }
 
-func aggregate(jr *runner.JobResult, kValues []int) []AggregatedEntry {
+// Categories keep the order they first appear in the suite.
+func aggregateByCategory(jr *runner.JobResult, kValues []int) []CategoryReport {
+	var order []string
+	members := make(map[string][]string)
+
+	for _, qID := range jr.QueryOrder {
+		cat := categoryOf(jr, qID)
+		if cat == "" {
+			continue
+		}
+		if _, seen := members[cat]; !seen {
+			order = append(order, cat)
+		}
+		members[cat] = append(members[cat], qID)
+	}
+	if len(order) < 2 {
+		return nil
+	}
+
+	reports := make([]CategoryReport, 0, len(order))
+	for _, cat := range order {
+		reports = append(reports, CategoryReport{
+			Category:   cat,
+			QueryCount: len(members[cat]),
+			Aggregated: aggregate(jr, kValues, members[cat]),
+		})
+	}
+	return reports
+}
+
+func categoryOf(jr *runner.JobResult, qID string) string {
+	for _, qr := range jr.Results[qID] {
+		if qr.Category != "" {
+			return qr.Category
+		}
+	}
+	return ""
+}
+
+func aggregate(jr *runner.JobResult, kValues []int, queryIDs []string) []AggregatedEntry {
 	entries := make([]AggregatedEntry, 0, len(jr.EngineNames))
 
 	for _, engName := range jr.EngineNames {
@@ -110,7 +152,7 @@ func aggregate(jr *runner.JobResult, kValues []int) []AggregatedEntry {
 		ndcgSamples := make(map[int][]float64, len(kValues))
 		var allStats []runner.LatencyStats
 
-		for _, qID := range jr.QueryOrder {
+		for _, qID := range queryIDs {
 			qr, ok := jr.Results[qID][engName]
 			if !ok {
 				continue

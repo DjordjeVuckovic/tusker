@@ -6,13 +6,15 @@ import (
 )
 
 type QueryResult struct {
-	QueryID      string
-	EngineName   string
-	Scores       metrics.ScoreSet
-	RankedDocIDs []uuid.UUID
-	TotalMatches int64
-	Latency      LatencyStats
-	Error        error
+	QueryID       string
+	Category      string
+	EngineName    string
+	Scores        metrics.ScoreSet
+	RankedDocIDs  []uuid.UUID
+	ReturnedCount int
+	CorpusMatches *int64
+	Latency       LatencyStats
+	Error         error
 }
 
 type JobResult struct {

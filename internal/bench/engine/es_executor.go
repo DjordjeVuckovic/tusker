@@ -69,10 +69,38 @@ func (e *EsExecutor) Execute(ctx context.Context, rawQuery string, _ []any) (*Ex
 	}
 
 	return &Execution{
-		RankedDocIDs: ids,
-		TotalMatches: esResp.Hits.Total.Value,
-		Latency:      latency,
+		RankedDocIDs:  ids,
+		CorpusMatches: esResp.Hits.Total.exactCount(),
+		Latency:       latency,
 	}, nil
+}
+
+func (e *EsExecutor) CorpusCount(ctx context.Context) (int64, error) {
+	url := fmt.Sprintf("%s/%s/_count", e.baseURL, e.index)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("es count request: %w", err)
+	}
+	resp, err := e.client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("es count http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("es count read: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("es count status %d: %s", resp.StatusCode, string(body))
+	}
+	var c struct {
+		Count int64 `json:"count"`
+	}
+	if err := json.Unmarshal(body, &c); err != nil {
+		return 0, fmt.Errorf("es count parse: %w", err)
+	}
+	return c.Count, nil
 }
 
 func (e *EsExecutor) Name() string { return e.name }
@@ -274,8 +302,19 @@ type esHits struct {
 	Hits  []esHit `json:"hits"`
 }
 
+// esTotal is ES hits.total. Relation is "gte" when ES stopped counting at
+// track_total_hits rather than counting every match.
 type esTotal struct {
-	Value int64 `json:"value"`
+	Value    int64  `json:"value"`
+	Relation string `json:"relation"`
+}
+
+func (t esTotal) exactCount() *int64 {
+	if t.Relation == "gte" {
+		return nil
+	}
+	v := t.Value
+	return &v
 }
 
 type esHit struct {

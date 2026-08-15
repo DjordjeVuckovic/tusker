@@ -82,8 +82,8 @@ func TestRawExecutor_Exec_SimpleQuery(t *testing.T) {
 		t.Fatalf("failed to execute query: %v", err)
 	}
 
-	if result.TotalHits != 1 {
-		t.Errorf("expected 1 hit, got %d", result.TotalHits)
+	if result.RowCount != 1 {
+		t.Errorf("expected 1 hit, got %d", result.RowCount)
 	}
 	if len(result.Hits) != 1 {
 		t.Fatalf("expected 1 hit in results, got %d", len(result.Hits))
@@ -117,8 +117,8 @@ func TestRawExecutor_Exec_ParameterizedQuery(t *testing.T) {
 		t.Fatalf("failed to execute query: %v", err)
 	}
 
-	if result.TotalHits != 1 {
-		t.Errorf("expected 1 hit, got %d", result.TotalHits)
+	if result.RowCount != 1 {
+		t.Errorf("expected 1 hit, got %d", result.RowCount)
 	}
 
 	hit := result.Hits[0]
@@ -146,8 +146,8 @@ func TestRawExecutor_Exec_MultipleParameters(t *testing.T) {
 		t.Fatalf("failed to execute query: %v", err)
 	}
 
-	if result.TotalHits != 1 {
-		t.Errorf("expected 1 hit, got %d", result.TotalHits)
+	if result.RowCount != 1 {
+		t.Errorf("expected 1 hit, got %d", result.RowCount)
 	}
 }
 
@@ -162,8 +162,8 @@ func TestRawExecutor_Exec_EmptyResults(t *testing.T) {
 		t.Fatalf("failed to execute query: %v", err)
 	}
 
-	if result.TotalHits != 0 {
-		t.Errorf("expected 0 hits, got %d", result.TotalHits)
+	if result.RowCount != 0 {
+		t.Errorf("expected 0 hits, got %d", result.RowCount)
 	}
 	if len(result.Hits) != 0 {
 		t.Errorf("expected 0 hits in results, got %d", len(result.Hits))
@@ -190,8 +190,8 @@ func TestRawExecutor_Exec_WithTimeout(t *testing.T) {
 		t.Fatalf("failed to execute query: %v", err)
 	}
 
-	if result.TotalHits != 1 {
-		t.Errorf("expected 1 hit, got %d", result.TotalHits)
+	if result.RowCount != 1 {
+		t.Errorf("expected 1 hit, got %d", result.RowCount)
 	}
 }
 
@@ -216,8 +216,8 @@ func TestRawExecutor_Exec_MultipleRows(t *testing.T) {
 		t.Fatalf("failed to execute query: %v", err)
 	}
 
-	if result.TotalHits != 5 {
-		t.Errorf("expected 5 hits, got %d", result.TotalHits)
+	if result.RowCount != 5 {
+		t.Errorf("expected 5 hits, got %d", result.RowCount)
 	}
 	if len(result.Hits) != 5 {
 		t.Fatalf("expected 5 hits in results, got %d", len(result.Hits))
@@ -253,8 +253,8 @@ func TestRawExecutor_Exec_AllFieldsReturned(t *testing.T) {
 		t.Fatalf("failed to execute query: %v", err)
 	}
 
-	if result.TotalHits != 1 {
-		t.Fatalf("expected 1 hit, got %d", result.TotalHits)
+	if result.RowCount != 1 {
+		t.Fatalf("expected 1 hit, got %d", result.RowCount)
 	}
 
 	hit := result.Hits[0]

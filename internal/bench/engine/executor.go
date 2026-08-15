@@ -21,8 +21,13 @@ type Validator interface {
 	Validate(ctx context.Context, query string) error
 }
 
+// CorpusCounter is an optional capability for executors that can report it.
+type CorpusCounter interface {
+	CorpusCount(ctx context.Context) (int64, error)
+}
+
 type Execution struct {
-	RankedDocIDs []uuid.UUID
-	TotalMatches int64
-	Latency      time.Duration
+	RankedDocIDs  []uuid.UUID
+	CorpusMatches *int64 // nil when the engine cannot report one
+	Latency       time.Duration
 }

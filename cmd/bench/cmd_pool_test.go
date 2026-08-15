@@ -49,10 +49,11 @@ func TestBuildPoolFile_DedupsQueryAcrossJobs(t *testing.T) {
 		},
 	}
 
-	pf := buildPoolFile(result, map[string]string{"q1": "desc"}, 50)
+	pf := buildPoolFile(result, map[string]string{"q1": "desc"}, map[string]string{"q1": "keyword"}, 50)
 
 	require.Len(t, pf.Queries, 1, "q1 should appear exactly once after merging jobs")
 	assert.Equal(t, "q1", pf.Queries[0].QueryID)
+	assert.Equal(t, "keyword", pf.Queries[0].Category)
 
 	// Union across both jobs = {id1, id2, id3}, deduplicated.
 	got := make(map[uuid.UUID]bool)
@@ -81,7 +82,7 @@ func TestBuildPoolFile_PreservesDistinctQueries(t *testing.T) {
 	}
 	result := &runner.BenchmarkResult{Jobs: []*runner.JobResult{job}}
 
-	pf := buildPoolFile(result, map[string]string{"q1": "d1", "q2": "d2"}, 50)
+	pf := buildPoolFile(result, map[string]string{"q1": "d1", "q2": "d2"}, nil, 50)
 
 	require.Len(t, pf.Queries, 2)
 	assert.Equal(t, "q1", pf.Queries[0].QueryID)

@@ -1,6 +1,7 @@
 package judgment
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -88,4 +89,46 @@ func TestParseBatchGradeJSON(t *testing.T) {
 		require.Error(t, err)
 		assert.Len(t, missing, 3)
 	})
+}
+
+func TestConstraintFor(t *testing.T) {
+	if got := constraintFor("phrase"); !strings.Contains(got, "exact phrase") {
+		t.Errorf("phrase constraint = %q, want it to demand the exact phrase", got)
+	}
+	if got := constraintFor("boolean"); !strings.Contains(got, "negated") {
+		t.Errorf("boolean constraint = %q, want it to mention negated terms", got)
+	}
+	for _, c := range []string{"", "keyword", "multi-field", "single-field"} {
+		if got := constraintFor(c); got != "" {
+			t.Errorf("constraintFor(%q) = %q, want empty", c, got)
+		}
+	}
+}
+
+func TestBuildGradingPrompt_IncludesCategoryConstraint(t *testing.T) {
+	doc := GradingDoc{ID: uuid.New(), Title: "Markets slide"}
+
+	phrase := BuildGradingPrompt(GradingQuery{ID: "q", Description: "stock market crash", Category: "phrase"}, doc)
+	if !strings.Contains(phrase, "PHRASE query") {
+		t.Error("phrase query prompt should carry the phrase constraint")
+	}
+
+	keyword := BuildGradingPrompt(GradingQuery{ID: "q", Description: "stock market crash", Category: "keyword"}, doc)
+	if strings.Contains(keyword, "PHRASE query") {
+		t.Error("keyword query prompt should grade on topic alone")
+	}
+}
+
+func TestBuildBatchGradingPrompt_IncludesCategoryConstraint(t *testing.T) {
+	docs := []GradingDoc{{ID: uuid.New(), Title: "Tech news"}}
+
+	boolean := BuildBatchGradingPrompt(GradingQuery{ID: "q", Description: "technology NOT crypto", Category: "boolean"}, docs)
+	if !strings.Contains(boolean, "BOOLEAN query") {
+		t.Error("boolean query batch prompt should carry the boolean constraint")
+	}
+
+	untagged := BuildBatchGradingPrompt(GradingQuery{ID: "q", Description: "technology"}, docs)
+	if strings.Contains(untagged, "BOOLEAN query") {
+		t.Error("untagged query batch prompt should carry no constraint")
+	}
 }

@@ -147,7 +147,7 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 		return ge, prog, fmt.Errorf("fetch docs: %w", err)
 	}
 
-	q := GradingQuery{ID: entry.QueryID, Description: entry.QueryDesc}
+	q := GradingQuery{ID: entry.QueryID, Description: entry.QueryDesc, Category: entry.Category}
 	gradedByID := r.dispatch(ctx, q, todo, docs)
 
 	// Append in original pool order — keeps doc ordering stable across runs.

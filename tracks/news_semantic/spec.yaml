@@ -9,13 +9,22 @@ defaults:
   # keywords with the query), so grade with Claude Code rather than lexical.
   judgments: claude-cli
 
+# pgvector defaults hnsw.ef_search to 40, below the LIMIT of 50 this suite asks
+# for. 200 matches the num_candidates Elasticsearch is given.
 engines:
   pgvector-cosine:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
-  pgvector-l2:
+    connection_settings:
+      hnsw.ef_search: "200"
+  # Ground truth for the ANN arm: same query, same operator, no index, so it
+  # returns the true nearest neighbours. Recall of pgvector-cosine against this
+  # is what the HNSW speedup costs.
+  pgvector-exact:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
+    connection_settings:
+      enable_indexscan: "off"
   elasticsearch:
     type: elasticsearch
     connection: "http://localhost:9200"
@@ -24,7 +33,9 @@ engines:
 metrics:
   k_values: [3, 5, 10]
   max_k: 50
-  relevance_threshold: 1
+  # 2, not 1: ~90 % of this pool grades at least 1, which pinned P@3, P@5 and
+  # MRR at 1.000 for every engine. Report the threshold beside the numbers.
+  relevance_threshold: 2
 
 runs:
   warmup: 1
@@ -33,4 +44,4 @@ runs:
 jobs:
   - name: "pgvector-vs-es-knn"
     suite: suite.yaml
-    engines: [pgvector-cosine, pgvector-l2, elasticsearch]
+    engines: [pgvector-cosine, pgvector-exact, elasticsearch]

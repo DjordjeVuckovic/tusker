@@ -210,14 +210,14 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
     </div>
     <table class="sortable" id="{{.FilterID}}">
       <thead><tr>
-        <th>Query</th><th>Engine</th><th>NDCG@K</th><th>P@K</th><th>AP</th><th>RR</th><th>Bpref</th><th>Hits</th><th>p50</th><th>p95</th><th>Status</th>
+        <th>Query</th><th>Engine</th><th>NDCG@K</th><th>P@K</th><th>AP</th><th>RR</th><th>Bpref</th><th>Returned</th><th>Corpus</th><th>p50</th><th>p95</th><th>Status</th>
       </tr></thead>
       <tbody>
       {{range .PerQuery}}<tr>
         <td>{{.Query}}</td><td>{{.Engine}}</td>
         <td>{{.NDCG}}</td><td>{{.Precision}}</td>
         <td>{{.AP}}</td><td>{{.RR}}</td><td>{{.Bpref}}</td>
-        <td>{{.Hits}}</td><td>{{.P50}}</td><td>{{.P95}}</td>
+        <td>{{.ReturnedCount}}</td><td>{{.CorpusMatches}}</td><td>{{.P50}}</td><td>{{.P95}}</td>
         <td>{{if .IsErr}}<span class="status-err">ERR</span>{{else}}<span class="status-ok">OK</span>{{end}}</td>
       </tr>{{end}}
       </tbody>

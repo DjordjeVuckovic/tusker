@@ -103,12 +103,12 @@ func poolTrack(cmd *cobra.Command, f poolFlags, tr *trackctx.Track) error {
 		return fmt.Errorf("pool run: %w", err)
 	}
 
-	descs, err := collectQueryDescriptions(bs)
+	descs, cats, err := collectQueryDescriptions(bs)
 	if err != nil {
 		return fmt.Errorf("load query descriptions: %w", err)
 	}
 
-	pf := buildPoolFile(result, descs, depth)
+	pf := buildPoolFile(result, descs, cats, depth)
 	pf.Meta = meta.New("pool")
 	pf.Meta.SpecID = bs.ID
 	pf.Meta.PoolDepth = depth
@@ -130,7 +130,7 @@ func poolTrack(cmd *cobra.Command, f poolFlags, tr *trackctx.Track) error {
 // job), so the same query_id surfaces in several JobResults. We union the
 // per-engine executions by query_id so each query is pooled — and later judged
 // — exactly once, regardless of how many jobs touched it.
-func buildPoolFile(result *runner.BenchmarkResult, descs map[string]string, depth int) *pool.PoolFile {
+func buildPoolFile(result *runner.BenchmarkResult, descs, cats map[string]string, depth int) *pool.PoolFile {
 	pf := &pool.PoolFile{}
 
 	var order []string                                       // first-seen query order
@@ -163,8 +163,8 @@ func buildPoolFile(result *runner.BenchmarkResult, descs map[string]string, dept
 					continue
 				}
 				execs[engName] = &engine.Execution{
-					RankedDocIDs: qr.RankedDocIDs,
-					TotalMatches: qr.TotalMatches,
+					RankedDocIDs:  qr.RankedDocIDs,
+					CorpusMatches: qr.CorpusMatches,
 				}
 			}
 		}
@@ -175,14 +175,16 @@ func buildPoolFile(result *runner.BenchmarkResult, descs map[string]string, dept
 		pf.Queries = append(pf.Queries, pool.PoolEntry{
 			QueryID:   qID,
 			QueryDesc: descs[qID],
+			Category:  cats[qID],
 			Docs:      pool.PoolResults(byQuery[qID], depth),
 		})
 	}
 	return pf
 }
 
-func collectQueryDescriptions(bs *spec.BenchSpec) (map[string]string, error) {
-	descs := make(map[string]string)
+func collectQueryDescriptions(bs *spec.BenchSpec) (descs, cats map[string]string, err error) {
+	descs = make(map[string]string)
+	cats = make(map[string]string)
 	seen := make(map[string]struct{})
 	for _, job := range bs.Jobs {
 		if _, ok := seen[job.Suite]; ok {
@@ -191,15 +193,18 @@ func collectQueryDescriptions(bs *spec.BenchSpec) (map[string]string, error) {
 		seen[job.Suite] = struct{}{}
 		ls, err := suite.LoadFromFile(job.Suite)
 		if err != nil {
-			return nil, fmt.Errorf("load suite %q for job %q: %w", job.Suite, job.Name, err)
+			return nil, nil, fmt.Errorf("load suite %q for job %q: %w", job.Suite, job.Name, err)
 		}
 		for _, q := range ls.Suite.Queries {
 			if q.Description != "" {
 				descs[q.ID] = q.Description
 			}
+			if q.Category != "" {
+				cats[q.ID] = q.Category
+			}
 		}
 	}
-	return descs, nil
+	return descs, cats, nil
 }
 
 func collectEngines(bs *spec.BenchSpec, _ *runner.BenchmarkResult) []string {

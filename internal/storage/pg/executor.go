@@ -52,8 +52,8 @@ func (e *RawExecutor) Exec(
 	}
 
 	return &storage.ExecuteResult{
-		TotalHits: len(results),
-		Hits:      results,
+		RowCount: len(results),
+		Hits:     results,
 	}, nil
 }
 

@@ -19,7 +19,7 @@ GOARCH ?= $(shell go env GOARCH)
 ARGS ?=
 
 # Build commands
-.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments migrate-up migrate-down migrate-up-parade migrate-down-parade migrate-up-tiger migrate-down-tiger migrate-up-all
+.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments migrate-up migrate-down migrate-up-parade migrate-down-parade migrate-up-tiger migrate-down-tiger migrate-up-all db-refresh-collation
 
 migrate-up:
 	@echo "Running database migrations up (native pg)..."
@@ -47,6 +47,13 @@ migrate-down-tiger:
 
 # Apply migrations to all Postgres backends (native + ParadeDB + pg_textsearch).
 migrate-up-all: migrate-up migrate-up-parade migrate-up-tiger
+
+# Clears the collation version mismatch warning. Re-run the FTS track afterwards
+# and confirm the metrics are unchanged.
+db-refresh-collation:
+	@echo "Reindexing and refreshing collation version (native pg)..."
+	@psql $(DB_CONN) -c "REINDEX DATABASE news_db;"
+	@psql $(DB_CONN) -c "ALTER DATABASE news_db REFRESH COLLATION VERSION;"
 
 # Build all commands
 build-all: build-datapipe build-news-api build-schemagen build-bench

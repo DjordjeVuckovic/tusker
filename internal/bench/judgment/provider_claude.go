@@ -70,6 +70,9 @@ type claudeCLIProvider struct {
 	model  string
 }
 
+// The error is always nil; the signature is fixed by the providers registry.
+//
+//nolint:unparam
 func newClaudeCLIProvider(opts StrategyOptions) (LLMProvider, error) {
 	bin := opts.CLIBinary
 	if bin == "" {
