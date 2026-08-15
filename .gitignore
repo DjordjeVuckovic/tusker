@@ -33,19 +33,29 @@ go.work.sum
 
 **/testdata
 
-dataset/*.csv
-dataset/*.json
-dataset/kagle/**
-dataset/kaggle/gl_news_data.csv
+# Dataset payloads (raw + canonical); fetched or generated, never committed
+datasets/**/*.csv
+datasets/**/*.json
+datasets/**/*.jsonl
+datasets/**/*.parquet
+
+# Regenerable bench exports (bench export --format html|markdown); the .json
+# reports next to them are provenance and stay tracked.
+tracks/**/reports/*.html
+tracks/**/reports/*.md
+
 bin/**
 benchmark_results/
 
 *.env
 .local
 
-# Local study/teaching notes (not part of the repo)
 .docs/
 
 .thesis
 
 .bugs/
+
+CLAUDE.local.md
+
+.notes

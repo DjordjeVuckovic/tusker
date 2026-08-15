@@ -19,7 +19,7 @@ GOARCH ?= $(shell go env GOARCH)
 ARGS ?=
 
 # Build commands
-.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments migrate-up migrate-down migrate-up-parade migrate-down-parade migrate-up-tiger migrate-down-tiger migrate-up-all db-refresh-collation
+.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments migrate-up migrate-down migrate-up-parade migrate-down-parade migrate-up-tiger migrate-down-tiger migrate-up-all db-refresh-collation db-volumes
 
 migrate-up:
 	@echo "Running database migrations up (native pg)..."
@@ -54,6 +54,12 @@ db-refresh-collation:
 	@echo "Reindexing and refreshing collation version (native pg)..."
 	@psql $(DB_CONN) -c "REINDEX DATABASE news_db;"
 	@psql $(DB_CONN) -c "ALTER DATABASE news_db REFRESH COLLATION VERSION;"
+
+# Lists every engine volume on disk and marks the namespace currently selected
+# by NEWS_VOLUME_NS in .env (see docker-compose.yml).
+db-volumes:
+	@echo "Selected namespace: $$(docker compose config --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["volumes"]["pg_news_data"]["name"].removesuffix("_pg_news_data"))')"
+	@docker volume ls --format '{{.Name}}' | grep -E '_(pg_news|es_news)' | sort
 
 # Build all commands
 build-all: build-datapipe build-news-api build-schemagen build-bench
@@ -169,37 +175,42 @@ build-bench:
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/bench $(CMD_DIR)/bench
 
+# Tracks live at tracks/<dataset>/<paradigm>; override either half, e.g.
+#   make bench-run TRACK=news_semantic
+#   make bench-run DATASET=cc-news TRACK=fts_quality
+DATASET ?= global-news-dataset
 TRACK ?= fts_quality
+TRACK_PATH := $(DATASET)/$(TRACK)
 
 bench-validate: build-bench
-	@./$(BIN_DIR)/bench validate $(TRACK)
+	@./$(BIN_DIR)/bench validate $(TRACK_PATH)
 
 bench-run: build-bench
-	@./$(BIN_DIR)/bench run $(TRACK)
+	@./$(BIN_DIR)/bench run $(TRACK_PATH)
 
 bench-pool: build-bench
-	@./$(BIN_DIR)/bench pool $(TRACK)
+	@./$(BIN_DIR)/bench pool $(TRACK_PATH)
 
 bench-judge-lexical: build-bench
-	@./$(BIN_DIR)/bench judge $(TRACK) --strategy lexical
+	@./$(BIN_DIR)/bench judge $(TRACK_PATH) --strategy lexical
 
 bench-judge-cli: build-bench
-	@./$(BIN_DIR)/bench judge $(TRACK) --strategy llm --provider claude-cli --resume
+	@./$(BIN_DIR)/bench judge $(TRACK_PATH) --strategy llm --provider claude-cli --resume
 
 bench-judge-api: build-bench
-	@./$(BIN_DIR)/bench judge $(TRACK) --strategy llm --provider claude-api --resume
+	@./$(BIN_DIR)/bench judge $(TRACK_PATH) --strategy llm --provider claude-api --resume
 
 bench-show-spec: build-bench
-	@./$(BIN_DIR)/bench show spec $(TRACK)
+	@./$(BIN_DIR)/bench show spec $(TRACK_PATH)
 
 bench-show-pool: build-bench
-	@./$(BIN_DIR)/bench show pool $(TRACK)
+	@./$(BIN_DIR)/bench show pool $(TRACK_PATH)
 
 bench-show-judgments: build-bench
-	@./$(BIN_DIR)/bench show judgments $(TRACK) --strategy lexical
+	@./$(BIN_DIR)/bench show judgments $(TRACK_PATH) --strategy lexical
 
 bench-qrels: build-bench
-	@./$(BIN_DIR)/bench export $(TRACK) --format qrels --strategy lexical
+	@./$(BIN_DIR)/bench export $(TRACK_PATH) --format qrels --strategy lexical
 
 # Development workflow
 dev: fmt vet lint test build-all
