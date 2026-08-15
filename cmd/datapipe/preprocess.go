@@ -28,6 +28,42 @@ type preprocessConfig struct {
 	WriteReport bool
 }
 
+type FileExt string
+
+const (
+	ExtCSV     FileExt = ".csv"
+	ExtJSONL   FileExt = ".jsonl"
+	ExtParquet FileExt = ".parquet"
+	ExtYAML    FileExt = ".yaml"
+)
+
+var supportedInputExtensions = map[FileExt]struct{}{
+	ExtCSV: {},
+}
+
+var supportedOutputExtensions = map[FileExt]struct{}{
+	ExtJSONL:   {},
+	ExtParquet: {},
+}
+
+var supportedMappingExtensions = map[FileExt]struct{}{
+	ExtYAML: {},
+}
+
+func fileExt(path string) FileExt {
+	return FileExt(strings.ToLower(filepath.Ext(path)))
+}
+
+func validateFileExt(path string, supported map[FileExt]struct{}) error {
+	ext := fileExt(path)
+
+	if _, ok := supported[ext]; !ok {
+		return fmt.Errorf("unsupported file extension %q", ext)
+	}
+
+	return nil
+}
+
 type PreprocessReport struct {
 	TotalRecords      int       `json:"total_records"`
 	ProcessedRecords  int       `json:"processed_records"`
@@ -48,6 +84,16 @@ func newPreprocessCmd() *cobra.Command {
 			if cfg.InputPath == "" || cfg.OutputPath == "" || cfg.MappingPath == "" {
 				return fmt.Errorf("--input, --output and --mapping are required")
 			}
+			if err := validateFileExt(cfg.OutputPath, supportedInputExtensions); err != nil {
+				return fmt.Errorf("invalid input file ext: %w", err)
+			}
+			if err := validateFileExt(cfg.OutputPath, supportedOutputExtensions); err != nil {
+				return fmt.Errorf("invalid output file ext: %w", err)
+			}
+			if err := validateFileExt(cfg.OutputPath, supportedMappingExtensions); err != nil {
+				return fmt.Errorf("invalid mapping file ext: %w", err)
+			}
+
 			return runPreprocess(cmd.Context(), cfg)
 		},
 	}
@@ -138,7 +184,7 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 		return fmt.Errorf("failed to create parallel reader: %w", err)
 	}
 
-	writer, err := NewOutWriter(outFile, filepath.Ext(cfg.OutputPath))
+	writer, err := NewOutWriter(outFile, fileExt(cfg.OutputPath))
 	if err != nil {
 		return err
 	}
@@ -203,11 +249,11 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 	return nil
 }
 
-func NewOutWriter(w io.Writer, ext string) (ingest.CanonicalWriter, error) {
+func NewOutWriter(w io.Writer, ext FileExt) (ingest.CanonicalWriter, error) {
 	switch ext {
-	case ".jsonl":
+	case ExtJSONL:
 		return ingest.NewJsonlCanonicalWriter(w), nil
-	case ".parquet":
+	case ExtParquet:
 		return ingest.NewParquetCanonicalWriter(w), nil
 	default:
 		return nil, fmt.Errorf("unknown output format: %s", ext)
