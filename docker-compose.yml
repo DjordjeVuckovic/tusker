@@ -6,6 +6,13 @@ services:
       POSTGRES_USER: news_user
       POSTGRES_PASSWORD: news_password
       POSTGRES_DB: news_db
+    # Building the HNSW index over 105k 1024-dim vectors needs the graph to fit
+    # in maintenance_work_mem: it takes 73s at 1GB and 337s at the 64MB default,
+    # where pgvector spills to disk after ~14k tuples and says so in a NOTICE.
+    # Parallel maintenance workers allocate through shared memory, which Docker
+    # caps at 64MB by default — far below the ~1GB such a build asks for.
+    command: postgres -c maintenance_work_mem=1GB
+    shm_size: 2gb
     ports:
       - "54320:5432"
     volumes:
@@ -18,6 +25,8 @@ services:
       POSTGRES_USER: news_user
       POSTGRES_PASSWORD: news_password
       POSTGRES_DB: news_db
+    command: postgres -c maintenance_work_mem=1GB
+    shm_size: 2gb
     ports:
       - "54321:5432"
     volumes:
@@ -30,6 +39,10 @@ services:
       POSTGRES_USER: news_user
       POSTGRES_PASSWORD: news_password
       POSTGRES_DB: news_db
+    # No command override: this image starts under Patroni rather than the
+    # postgres entrypoint, so maintenance_work_mem has to be set per session or
+    # via ALTER SYSTEM instead.
+    shm_size: 2gb
     ports:
       - "54322:5432"
     volumes:
