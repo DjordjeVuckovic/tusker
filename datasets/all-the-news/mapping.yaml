@@ -1,0 +1,43 @@
+kind: DataMapper
+version: v1
+metadata:
+  name: "All the News 2.0"
+  description: "Mapping for the All the News 2.0 dataset (Components One, rjac HF mirror), 2,688,878 articles from 27 US outlets, 2016-01..2020-04, full article bodies. The source columns idx, article_idx, year, month and day have no Article target and are dropped at fetch time."
+dataset: all_the_news
+dateFormat: "2006-01-02 15:04:05"
+fieldMappings:
+  - source: "title"
+    sourceType: "string"
+    target: "Title"
+    targetType: "string"
+    required: true
+  - source: "article"
+    sourceType: "string"
+    target: "Content"
+    targetType: "string"
+    required: false
+  - source: "author"
+    sourceType: "string"
+    target: "Author"
+    targetType: "string"
+    required: false
+  - source: "url"
+    sourceType: "url"
+    target: "URL"
+    targetType: "url"
+    required: false
+  - source: "date"
+    sourceType: "datetime"
+    target: "Metadata.PublishedAt"
+    targetType: "datetime"
+    required: false
+  - source: "publication"
+    sourceType: "string"
+    target: "Metadata.SourceName"
+    targetType: "string"
+    required: false
+  - source: "section"
+    sourceType: "string"
+    target: "Metadata.Category"
+    targetType: "string"
+    required: false
