@@ -5,23 +5,15 @@
 # ///
 """Fetch Kaggle datasets into datasets/<dir>/.
 
-Replaces the interactive scripts/download_kaggle_dataset.sh. The dataset is an
-argument rather than a menu answer, so this is scriptable, and kagglehub, which
-uv installs on demand, takes the place of the kaggle CLI.
-
-Usage:
   uv run scripts/fetch_kaggle_dataset.py --list
   uv run scripts/fetch_kaggle_dataset.py global_news
   uv run scripts/fetch_kaggle_dataset.py rmisra/news-category-dataset --force
 
-Kaggle serves whatever files the dataset owner uploaded, so there is nothing to
-project or slice. That is why this stays separate from fetch_hf_dataset.py,
-whose sizes, --mode, --seed and --format flags would all be meaningless against
-a zip of CSVs. The two share only conventions: a keyed registry,
-datasets/<dir>/ output, and a .meta.json sidecar.
+Kaggle serves whatever files the owner uploaded, so there is nothing to project
+or slice. That is why this is separate from fetch_hf_dataset.py, whose sizes,
+--mode and --format flags mean nothing against a zip of CSVs.
 
-Credentials: KAGGLE_USERNAME and KAGGLE_KEY in the environment, or
-~/.kaggle/kaggle.json.
+Credentials: KAGGLE_USERNAME and KAGGLE_KEY, or ~/.kaggle/kaggle.json.
 """
 
 from __future__ import annotations

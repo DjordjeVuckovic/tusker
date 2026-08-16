@@ -19,7 +19,7 @@ GOARCH ?= $(shell go env GOARCH)
 ARGS ?=
 
 # Build commands
-.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments migrate-up migrate-down migrate-up-parade migrate-down-parade migrate-up-tiger migrate-down-tiger migrate-up-all db-refresh-collation db-volumes
+.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments migrate-up migrate-down migrate-up-parade migrate-down-parade migrate-up-tiger migrate-down-tiger migrate-up-all db-refresh-collation db-volumes run-datapipe-preprocess run-datapipe-articles-pg run-datapipe-articles-parade run-datapipe-articles-tiger run-datapipe-articles-es run-datapipe-articles-all
 
 migrate-up:
 	@echo "Running database migrations up (native pg)..."
@@ -137,20 +137,41 @@ run-schemagen: build-schemagen
 	@echo "Running schema generator..."
 	@./$(BIN_DIR)/schemagen -output=api
 
-# Preprocess a raw dataset into canonical JSONL
-run-datapipe-preprocess: build-datapipe
-	@echo "Running datapipe preprocess..."
-	@ENV_PATHS="cmd/datapipe/preprocess.env" ./$(BIN_DIR)/datapipe preprocess
+# Dataset selection for datapipe. Each engine target composes the dataset env
+# with an engine env, so a corpus is swapped by overriding one variable:
+#   make run-datapipe-preprocess PREPROCESS_ENV=cmd/datapipe/preprocess-cc-news.env
+#   make run-datapipe-articles-all DATASET_ENV=cmd/datapipe/cc-news.env
+PREPROCESS_ENV ?= cmd/datapipe/preprocess.env
+DATASET_ENV ?= cmd/datapipe/articles.env
 
-# Load a dataset into the articles store (Postgres)
+# Preprocess a raw dataset (.csv/.jsonl/.parquet) into canonical JSONL
+run-datapipe-preprocess: build-datapipe
+	@echo "Running datapipe preprocess ($(PREPROCESS_ENV))..."
+	@ENV_PATHS="$(PREPROCESS_ENV)" ./$(BIN_DIR)/datapipe preprocess
+
+# Load a dataset into the articles store (native Postgres)
 run-datapipe-articles-pg: build-datapipe
-	@echo "Running datapipe load articles (pg)..."
-	@ENV_PATHS="cmd/datapipe/articles.env,cmd/datapipe/pg.env" ./$(BIN_DIR)/datapipe load articles
+	@echo "Running datapipe load articles (native pg)..."
+	@ENV_PATHS="$(DATASET_ENV),cmd/datapipe/pg.env" ./$(BIN_DIR)/datapipe load articles
+
+# Load a dataset into the articles store (ParadeDB)
+run-datapipe-articles-parade: build-datapipe
+	@echo "Running datapipe load articles (ParadeDB)..."
+	@ENV_PATHS="$(DATASET_ENV),cmd/datapipe/parade.env" ./$(BIN_DIR)/datapipe load articles
+
+# Load a dataset into the articles store (pg_textsearch)
+run-datapipe-articles-tiger: build-datapipe
+	@echo "Running datapipe load articles (pg_textsearch)..."
+	@ENV_PATHS="$(DATASET_ENV),cmd/datapipe/tiger.env" ./$(BIN_DIR)/datapipe load articles
 
 # Load a dataset into the articles store (Elasticsearch)
 run-datapipe-articles-es: build-datapipe
 	@echo "Running datapipe load articles (es)..."
-	@ENV_PATHS="cmd/datapipe/articles.env,cmd/datapipe/es.env" ./$(BIN_DIR)/datapipe load articles
+	@ENV_PATHS="$(DATASET_ENV),cmd/datapipe/es.env" ./$(BIN_DIR)/datapipe load articles
+
+# Load the same canonical dataset into every engine. Article IDs come from the
+# canonical file, so the corpora stay identical and directly comparable.
+run-datapipe-articles-all: run-datapipe-articles-pg run-datapipe-articles-parade run-datapipe-articles-tiger run-datapipe-articles-es
 
 # Load precomputed embeddings into the article_embeddings store (Postgres)
 run-datapipe-embeddings-pg: build-datapipe

@@ -5,35 +5,24 @@
 # ///
 """Fetch news datasets from HuggingFace into datasets/<dir>/.
 
-Reads parquet from HuggingFace with DuckDB and writes slices that keep the
-source column names as the publisher wrote them. Renaming raw fields onto the
-canonical schema happens later, in datapipe preprocess.
-
-Usage:
   uv run scripts/fetch_hf_dataset.py --list
-  uv run scripts/fetch_hf_dataset.py cc_news 100000
-  uv run scripts/fetch_hf_dataset.py all_the_news 100000 500000 --mode head
-  uv run scripts/fetch_hf_dataset.py cc_news --format raw
-  uv run scripts/fetch_hf_dataset.py vblagoje/cc_news full -o datasets/cc-news/dataset.csv
+  uv run scripts/fetch_hf_dataset.py cc_news --mirror        # shards to raw/
+  uv run scripts/fetch_hf_dataset.py cc_news                 # whole corpus
+  uv run scripts/fetch_hf_dataset.py cc_news 100000 500000   # nested slices
+  uv run scripts/fetch_hf_dataset.py cc_news 50000 --format parquet
 
---format picks what lands on disk. csv, the default, is the only raw input
-datapipe preprocess reads today. parquet writes the same columns for when
-internal/ingest/reader/parquet_reader.go stops being a stub. raw mirrors the
-untouched HuggingFace shards into datasets/<dir>/raw/, after which every slice
-reads from disk instead of re-streaming the corpus over the network, which
-takes about 8 minutes for cc_news and several times that for all_the_news.
+Sizes default to the whole corpus, and a count above it writes the whole corpus
+instead of failing. csv is the only format datapipe preprocess reads today.
 
---mode sample, also the default, draws a seeded reservoir sample. Both corpora
-are stored in crawl order, so a head slice is skewed: the first 20k cc_news
-rows cover 273 of 8,759 domains, and the first 20k all_the_news rows cover 7 of
-27 publications. That skew moves IDF and BM25 scores, which is what the
-benchmarks measure. --mode head keeps the fast, biased path for smoke tests.
+--mirror copies the shards down once. Slicing then reads them from disk: 482 s
+to 1.4 s for a cc_news sample.
 
-Sizes are cut from a single scan in hash(url) order, so a smaller slice is
-always a prefix of a larger one. Dates go through TRY_CAST because 77,598 of
-708,241 cc_news rows have an empty date, and a plain CAST aborts the whole
-export on the first one. Slicing runs in DuckDB rather than head -n because
-article bodies contain newlines and would be split mid-record.
+--mode sample seeds a reservoir sample, head takes the first N rows. Both
+corpora ship in crawl order, so head is skewed: 273 of 8,759 cc_news domains in
+the first 20k rows against 3,641 in a sample that size.
+
+Slices are cut in hash(url) order so they nest. Dates go through TRY_CAST since
+77,598 cc_news rows have none and CAST would abort the export.
 """
 
 from __future__ import annotations
@@ -55,8 +44,8 @@ import duckdb
 ROOT = Path(__file__).resolve().parents[1]
 
 FULL = "full"
-RAW = "raw"
-FORMAT_EXT = {"csv": ".csv", "parquet": ".parquet"}
+EXT = {"csv": ".csv", "parquet": ".parquet"}
+COPY_OPTIONS = {"csv": "HEADER, FORMAT CSV", "parquet": "FORMAT PARQUET"}
 
 
 @dataclass(frozen=True)
@@ -74,7 +63,7 @@ class Dataset:
 
     @property
     def mirror_dir(self) -> Path:
-        return ROOT / "datasets" / self.out_dir / RAW
+        return ROOT / "datasets" / self.out_dir / "raw"
 
 
 def _published_at(column: str = "date") -> str:
@@ -88,8 +77,7 @@ DATASETS: tuple[Dataset, ...] = (
         files="plain_text/*.parquet",
         out_dir="cc-news",
         columns=("title", "text", "description", "url", _published_at(), "domain"),
-        summary="CC-News, 708,241 English articles, 2017-01..2019-08, "
-        "8,759 domains, full bodies via news-please (~1.1 GB)",
+        summary="CC-News, 708,241 English articles, 2017-01..2019-08, 8,759 domains (~1.1 GB)",
     ),
     Dataset(
         key="all_the_news",
@@ -105,8 +93,7 @@ DATASETS: tuple[Dataset, ...] = (
             "publication",
             "section",
         ),
-        summary="All the News 2.0, 2,688,878 articles, 27 US outlets, "
-        "2016-01..2020-04, full bodies (~5.3 GB)",
+        summary="All the News 2.0, 2,688,878 articles, 27 US outlets, 2016-01..2020-04 (~5.3 GB)",
     ),
 )
 
@@ -148,13 +135,15 @@ def rel(path: Path) -> Path:
         return path
 
 
-def connect(threads: int | None, temp_dir: str) -> duckdb.DuckDBPyConnection:
+def mb(path: Path) -> float:
+    return path.stat().st_size / 1024 / 1024
+
+
+def connect(temp_dir: str) -> duckdb.DuckDBPyConnection:
     con = duckdb.connect()
     con.execute("INSTALL httpfs; LOAD httpfs;")
-    # An in-memory database spills into the working directory, so send it elsewhere.
+    # Keep DuckDB's spill files out of the repo.
     con.execute(f"SET temp_directory = '{temp_dir}'")
-    if threads:
-        con.execute(f"SET threads = {threads}")
     if sys.stderr.isatty():
         con.execute("SET enable_progress_bar = true")
     token = os.environ.get("HF_TOKEN")
@@ -164,13 +153,10 @@ def connect(threads: int | None, temp_dir: str) -> duckdb.DuckDBPyConnection:
     return con
 
 
-def hf_download_url(hf_path: str) -> str:
+def download(hf_path: str, out: Path) -> bool:
+    """False when out already holds the whole file."""
     owner, name, path = hf_path.removeprefix("hf://datasets/").split("/", 2)
-    return f"https://huggingface.co/datasets/{owner}/{name}/resolve/main/{path}"
-
-
-def download(url: str, out: Path) -> bool:
-    """Returns False when out already holds the whole file."""
+    url = f"https://huggingface.co/datasets/{owner}/{name}/resolve/main/{path}"
     request = urllib.request.Request(url)
     token = os.environ.get("HF_TOKEN")
     if token:
@@ -193,111 +179,79 @@ def mirror(con: duckdb.DuckDBPyConnection, ds: Dataset, dest: Path) -> list[Path
 
     dest.mkdir(parents=True, exist_ok=True)
     print(f"→ {ds.key}: mirroring {len(listing)} shards to {rel(dest)}", flush=True)
-    written: list[Path] = []
+    written = []
     for index, (hf_path,) in enumerate(listing, start=1):
         out = dest / Path(hf_path).name
         started = time.monotonic()
-        fetched = download(hf_download_url(hf_path), out)
-        mb = out.stat().st_size / 1024 / 1024
+        fetched = download(hf_path, out)
         note = f"{time.monotonic() - started:,.1f}s" if fetched else "already mirrored"
-        print(f"  [{index}/{len(listing)}] {out.name}  {mb:,.1f} MB  {note}", flush=True)
+        print(f"  [{index}/{len(listing)}] {out.name}  {mb(out):,.1f} MB  {note}", flush=True)
         written.append(out)
 
-    (dest / "mirror.meta.json").write_text(
-        json.dumps(
-            {
-                "tool": "scripts/fetch_hf_dataset.py",
-                "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "dataset": ds.key,
-                "hf_repo": ds.repo,
-                "source": ds.source,
-                "shards": [path.name for path in written],
-                "bytes": sum(path.stat().st_size for path in written),
-            },
-            indent=2,
-        )
-        + "\n"
-    )
+    write_meta(dest / "mirror.meta.json", ds, shards=[path.name for path in written])
     return written
 
 
 def source_for(ds: Dataset) -> tuple[str, str]:
     if any(ds.mirror_dir.glob("*.parquet")):
-        return f"{ds.mirror_dir}/*.parquet", f"local mirror {rel(ds.mirror_dir)}"
+        return f"{ds.mirror_dir}/*.parquet", f"mirror {rel(ds.mirror_dir)}"
     return ds.source, ds.source
 
 
-def copy_to_file(con: duckdb.DuckDBPyConnection, query: str, out: Path, fmt: str) -> int:
-    options = "HEADER, FORMAT CSV" if fmt == "csv" else "FORMAT PARQUET"
-    rows = con.execute(f"COPY ({query}) TO '{out}' ({options})").fetchone()
-    return int(rows[0]) if rows else 0
-
-
-def write_meta(
-    out: Path,
-    ds: Dataset,
-    args: argparse.Namespace,
-    source: str,
-    size: int | str,
-    rows: int,
-) -> None:
+def write_meta(out: Path, ds: Dataset, **fields: object) -> None:
     meta = {
         "tool": "scripts/fetch_hf_dataset.py",
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "duckdb_version": duckdb.__version__,
         "dataset": ds.key,
         "hf_repo": ds.repo,
-        "source": source,
-        "format": args.format,
-        "mode": args.mode,
-        "seed": args.seed if args.mode == "sample" and size != FULL else None,
-        "rows_requested": size,
-        "rows_written": rows,
         "columns": list(ds.columns),
+        **fields,
     }
-    out.with_suffix(".meta.json").write_text(json.dumps(meta, indent=2) + "\n")
+    out.write_text(json.dumps(meta, indent=2) + "\n")
 
 
-def fetch(con: duckdb.DuckDBPyConnection, ds: Dataset, args: argparse.Namespace) -> list[Path]:
-    if args.output:
-        out_dir = Path(args.output).expanduser().parent
-    elif args.out_dir:
-        out_dir = Path(args.out_dir).expanduser()
-    else:
-        out_dir = ROOT / "datasets" / ds.out_dir
-
-    if args.format == RAW:
-        return mirror(con, ds, out_dir if args.out_dir else ds.mirror_dir)
-
+def slice_dataset(
+    con: duckdb.DuckDBPyConnection, ds: Dataset, args: argparse.Namespace, out_dir: Path
+) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     source, source_label = source_for(ds)
     print(f"→ {ds.key}: reading {source_label}", flush=True)
 
-    select = ", ".join(ds.columns)
-    scan = f"SELECT {select} FROM read_parquet('{source}')"
+    scan = f"SELECT {', '.join(ds.columns)} FROM read_parquet('{source}')"
     sizes = sorted({s for s in args.sizes if s != FULL})
+    wants_full = FULL in args.sizes
     written: list[Path] = []
 
-    if args.mode == "sample" and sizes and FULL in args.sizes:
-        print("!  'full' and a sampled size together read the corpus twice", flush=True)
+    if sizes:
+        total = con.execute(f"SELECT count(*) FROM read_parquet('{source}')").fetchone()[0]
+        oversized = [s for s in sizes if s >= total]
+        if oversized:
+            print(f"!  {max(oversized):,} rows requested of {total:,}, writing the whole corpus")
+            sizes = [s for s in sizes if s < total]
+            wants_full = True
 
     def emit(size: int | str, query: str) -> None:
-        out = (
-            Path(args.output).expanduser()
-            if args.output
-            else out_dir / f"dataset-{label(size)}{FORMAT_EXT[args.format]}"
-        )
+        name = f"dataset-{label(size)}{EXT[args.format]}"
+        out = Path(args.output) if args.output else out_dir / name
         started = time.monotonic()
-        print(f"→ {ds.key}: writing {label(size)} to {rel(out)}", flush=True)
-        rows = copy_to_file(con, query, out, args.format)
-        write_meta(out, ds, args, source, size, rows)
-        mb = out.stat().st_size / 1024 / 1024
-        print(f"  {rows:,} rows, {mb:,.1f} MB, {time.monotonic() - started:,.1f}s")
+        rows = con.execute(f"COPY ({query}) TO '{out}' ({COPY_OPTIONS[args.format]})").fetchone()
+        rows = int(rows[0]) if rows else 0
+        write_meta(
+            out.with_suffix(".meta.json"),
+            ds,
+            source=source,
+            format=args.format,
+            mode=args.mode,
+            seed=args.seed if args.mode == "sample" and size != FULL else None,
+            rows_requested=size,
+            rows_written=rows,
+        )
+        print(f"  {rel(out)}  {rows:,} rows  {mb(out):,.1f} MB  {time.monotonic() - started:,.1f}s")
         written.append(out)
 
-    if FULL in args.sizes:
+    if wants_full:
         emit(FULL, scan)
-
     if not sizes:
         return written
 
@@ -306,17 +260,13 @@ def fetch(con: duckdb.DuckDBPyConnection, ds: Dataset, args: argparse.Namespace)
             emit(size, f"{scan} LIMIT {size}")
         return written
 
-    biggest = sizes[-1]
-    wait = "" if source_label.startswith("local mirror") else ", which streams the whole corpus"
-    print(f"→ {ds.key}: sampling {biggest:,} rows (seed {args.seed}){wait}", flush=True)
     started = time.monotonic()
     con.execute(
         f"CREATE TEMP TABLE slice AS {scan} "
-        f"USING SAMPLE reservoir({biggest} ROWS) REPEATABLE ({args.seed})"
+        f"USING SAMPLE reservoir({sizes[-1]} ROWS) REPEATABLE ({args.seed})"
     )
-    print(f"  sampled in {time.monotonic() - started:,.1f}s")
-    # hash(url) rather than table order: DuckDB does not promise a stable row
-    # order out of a parallel scan, and the slices have to nest.
+    print(f"  sampled {sizes[-1]:,} rows in {time.monotonic() - started:,.1f}s")
+    # Parallel scans have no stable row order; hash(url) keeps slices nested.
     for size in sizes:
         emit(size, f"SELECT * FROM slice ORDER BY hash(url) LIMIT {size}")
     return written
@@ -325,8 +275,8 @@ def fetch(con: duckdb.DuckDBPyConnection, ds: Dataset, args: argparse.Namespace)
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="fetch_hf_dataset.py",
-        description="Fetch HuggingFace news datasets into datasets/<dir>/.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Fetch HuggingFace news datasets into datasets/<dir>/.",
         epilog="\n".join(f"  {ds.key:<14} {ds.repo}\n{'':<17}{ds.summary}" for ds in DATASETS),
     )
     parser.add_argument("dataset", nargs="?", help="dataset key or HuggingFace repo id")
@@ -335,56 +285,43 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         nargs="*",
         type=parse_size,
         default=None,
-        help="row counts to cut, or 'full' (default: 100000)",
+        help="row counts to slice, or 'full' (default: full)",
     )
     parser.add_argument(
-        "--format",
-        choices=("csv", "parquet", RAW),
-        default="csv",
-        help="csv: projected slice, the only input preprocess reads today (default). "
-        "parquet: same columns, awaiting ParquetReader. "
-        "raw: mirror the untouched shards to datasets/<dir>/raw/",
+        "--mirror", action="store_true", help="copy the shards to datasets/<dir>/raw/, no slicing"
     )
-    parser.add_argument(
-        "--mode",
-        choices=("sample", "head"),
-        default="sample",
-        help="sample: seeded reservoir sample over the whole corpus (default). "
-        "head: first N rows, fast but crawl-ordered and biased",
-    )
-    parser.add_argument("--seed", type=int, default=42, help="reservoir sample seed (default: 42)")
-    parser.add_argument(
-        "-o",
-        "--output",
-        help="write the slice to this exact path instead of "
-        "datasets/<dir>/dataset-<size>.<ext>; one size only",
-    )
+    parser.add_argument("--format", choices=tuple(EXT), help="slice encoding (default: csv)")
+    parser.add_argument("--mode", choices=("sample", "head"), default="sample")
+    parser.add_argument("--seed", type=int, default=42, help="reservoir seed (default: 42)")
+    parser.add_argument("-o", "--output", help="exact output path; one size only")
     parser.add_argument("--out-dir", help="write into this directory instead")
-    parser.add_argument("--threads", type=int, help="DuckDB thread count")
     parser.add_argument("--list", action="store_true", help="list known datasets and exit")
     args = parser.parse_args(argv)
+
     if args.list:
         return args
     if not args.dataset:
-        parser.error("dataset is required (use --list to see the known keys)")
+        parser.error("dataset is required (--list shows the known keys)")
     if args.output and args.out_dir:
         parser.error("--output and --out-dir are mutually exclusive")
 
-    if args.format == RAW:
+    if args.mirror:
         if args.sizes:
-            parser.error("--format raw mirrors whole shards, drop the size argument")
+            parser.error("--mirror copies whole shards, drop the size argument")
         if args.output:
-            parser.error("--format raw writes a directory of shards, use --out-dir")
+            parser.error("--mirror writes a directory of shards, use --out-dir")
+        if args.format:
+            parser.error("--mirror keeps the published parquet, --format does not apply")
         return args
 
+    args.format = args.format or "csv"
     if not args.sizes:
-        args.sizes = [100_000]
+        args.sizes = [FULL]
     if args.output:
         if len(args.sizes) > 1:
             parser.error("--output names a single file, pass one size or use --out-dir")
-        want = FORMAT_EXT[args.format]
-        if Path(args.output).suffix != want:
-            parser.error(f"--output must end in {want} for --format {args.format}")
+        if Path(args.output).suffix != EXT[args.format]:
+            parser.error(f"--output must end in {EXT[args.format]} for --format {args.format}")
     return args
 
 
@@ -397,17 +334,24 @@ def main(argv: list[str]) -> int:
         return 0
 
     ds = resolve(args.dataset)
+    if args.output:
+        out_dir = Path(args.output).parent
+    elif args.out_dir:
+        out_dir = Path(args.out_dir)
+    else:
+        out_dir = ROOT / "datasets" / ds.out_dir
+
     with tempfile.TemporaryDirectory(prefix="fetch-hf-dataset-") as temp_dir:
-        con = connect(args.threads, temp_dir)
+        con = connect(temp_dir)
         try:
-            written = fetch(con, ds, args)
+            if args.mirror:
+                written = mirror(con, ds, out_dir if args.out_dir else ds.mirror_dir)
+            else:
+                written = slice_dataset(con, ds, args, out_dir)
         finally:
             con.close()
 
-    total = sum(path.stat().st_size for path in written) / 1024 / 1024
-    print(f"\nDone 🎇  {len(written)} file(s), {total:,.1f} MB in {rel(written[0].parent)}")
-    if args.format == RAW:
-        print(f"  slices now read from disk: uv run scripts/fetch_hf_dataset.py {ds.key} 100000")
+    print(f"Done 🎇  {len(written)} file(s), {sum(mb(p) for p in written):,.1f} MB")
     return 0
 
 

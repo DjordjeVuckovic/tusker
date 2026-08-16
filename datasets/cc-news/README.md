@@ -21,7 +21,7 @@ account for the difference.
 
 ```
 datasets/cc-news/
-  raw/                       mirrored HuggingFace shards (--format raw)
+  raw/                       mirrored HuggingFace shards (--mirror)
   dataset-100k.csv           slice written by scripts/fetch_hf_dataset.py
   dataset-100k.meta.json     provenance: repo, mode, seed, row count
   canonical-dataset.jsonl    datapipe preprocess output
@@ -33,29 +33,30 @@ Payloads are gitignored, so fetch or regenerate them.
 ## Fetch
 
 ```bash
-uv run scripts/fetch_hf_dataset.py cc_news --format raw       # mirror the shards once
-uv run scripts/fetch_hf_dataset.py cc_news 100000             # reservoir sample (default)
+uv run scripts/fetch_hf_dataset.py cc_news --mirror           # shards to raw/, once
+uv run scripts/fetch_hf_dataset.py cc_news                    # whole corpus, 708,241 rows
+uv run scripts/fetch_hf_dataset.py cc_news 100000             # reservoir sample of 100k
 uv run scripts/fetch_hf_dataset.py cc_news 100000 500000      # nested slices from one scan
-uv run scripts/fetch_hf_dataset.py cc_news 100000 --mode head # fast and biased, smoke tests
-uv run scripts/fetch_hf_dataset.py cc_news full -o datasets/cc-news/dataset.csv
 ```
 
-Mirror first if you plan to cut more than one slice. Sampling against HuggingFace has to
-stream all 1.1 GB and took 482 s here; the mirror downloads the same bytes in about 130 s
-and every later sample runs off disk in 1.4 s. Results do not change: the 20k sample cut
-from the mirror matched the one cut over the network on all 20,000 URLs.
+A row count above 708,241 writes the whole corpus as `dataset-full.csv` instead of
+failing, so the file name always states what is in it.
+
+Mirror first if you plan to cut more than one slice. Sampling against HuggingFace streams
+all 1.1 GB and took 482 s here, against 130 s to mirror the same bytes and 1.4 s per
+sample afterwards. The results match: the 20k sample cut from the mirror agreed with the
+one cut over the network on all 20,000 URLs.
 
 Sampling is the default because the parquet is stored in crawl order. The first 20k rows
-cover 273 of the 8,759 domains, while a 20k sample covers 3,641. Corpus term statistics
-drive IDF and BM25, so that skew would land straight in the measurements.
+cover 273 of the 8,759 domains, a 20k sample covers 3,641, and that skew would land in
+the IDF and BM25 numbers. `--mode head` takes the first N rows instead, which is only
+worth it for a quick look before mirroring.
 
-Two runs with the same `--seed` drew the identical sample when tested back to back.
-Slices are then cut in `hash(url)` order, which makes a smaller size a prefix of a larger
-one by construction. DuckDB promises neither across versions, so treat the written file
-plus its `.meta.json` as the archived artifact rather than the seed.
-
-`--format parquet` writes the same columns as the CSV slice. `datapipe preprocess`
-rejects it until `internal/ingest/reader/parquet_reader.go` is implemented.
+Two runs with the same `--seed` drew the identical sample here, and slices are cut in
+`hash(url)` order so a smaller size is a prefix of a larger one. DuckDB promises neither
+across versions, so treat the written file plus its `.meta.json` as the archived
+artifact. `--format parquet` writes the same columns; `datapipe preprocess` rejects it
+until `internal/ingest/reader/parquet_reader.go` is implemented.
 
 ## Preprocess and load
 

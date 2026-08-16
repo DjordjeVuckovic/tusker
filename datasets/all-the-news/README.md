@@ -21,7 +21,7 @@ land on optional targets. There is no description column, which is the mirror im
 
 ```
 datasets/all-the-news/
-  raw/                       mirrored HuggingFace shards (--format raw)
+  raw/                       mirrored HuggingFace shards (--mirror)
   dataset-100k.csv           slice written by scripts/fetch_hf_dataset.py
   dataset-100k.meta.json     provenance: repo, mode, seed, row count
   canonical-dataset.jsonl    datapipe preprocess output
@@ -33,23 +33,24 @@ Payloads are gitignored, so fetch or regenerate them.
 ## Fetch
 
 ```bash
-uv run scripts/fetch_hf_dataset.py all_the_news --format raw        # mirror the shards once
-uv run scripts/fetch_hf_dataset.py all_the_news 100000              # reservoir sample (default)
-uv run scripts/fetch_hf_dataset.py all_the_news 100000 500000       # nested slices from one scan
-uv run scripts/fetch_hf_dataset.py all_the_news 100000 --mode head  # fast and biased, smoke tests
-uv run scripts/fetch_hf_dataset.py all_the_news full -o datasets/all-the-news/dataset.csv
+uv run scripts/fetch_hf_dataset.py all_the_news --mirror        # shards to raw/, once
+uv run scripts/fetch_hf_dataset.py all_the_news                 # whole corpus, 2,688,878 rows
+uv run scripts/fetch_hf_dataset.py all_the_news 100000          # reservoir sample of 100k
+uv run scripts/fetch_hf_dataset.py all_the_news 100000 500000   # nested slices from one scan
 ```
 
+A row count above 2,688,878 writes the whole corpus as `dataset-full.csv` instead of
+failing, so the file name always states what is in it.
+
 This corpus is five times the size of `cc-news`, so mirror before slicing unless you only
-ever want one cut. Sampling over the network re-streams all 5.3 GB each time; against a
-local mirror it reads from disk.
+ever want one cut. Sampling over the network re-streams all 5.3 GB each time; against the
+mirror it reads from disk.
 
 Sampling is the default because the shards are not evenly mixed by outlet: the first 20k
 rows carry 7 of the 27 publications, and a corpus that narrow shifts the term statistics
-the IR metrics are computed from.
-
-`--format parquet` writes the same columns as the CSV slice. `datapipe preprocess`
-rejects it until `internal/ingest/reader/parquet_reader.go` is implemented.
+the IR metrics are computed from. `--format parquet` writes the same columns;
+`datapipe preprocess` rejects it until `internal/ingest/reader/parquet_reader.go` is
+implemented.
 
 ## Preprocess and load
 

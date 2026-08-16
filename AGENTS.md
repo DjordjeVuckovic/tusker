@@ -34,7 +34,7 @@ The project follows a layered architecture pattern:
 
 - **cmd/**: Entry points for different operations
     - `datapipe/`: Unified data-pipeline CLI with three stages:
-        - `datapipe preprocess`: Cleans and maps a raw dataset into a canonical JSONL file
+        - `datapipe preprocess`: Cleans and maps a raw dataset (`.csv`, `.jsonl`, `.parquet`) into a canonical JSONL file
         - `datapipe load articles`: Imports News datasets into the database (optional inline embedding generation via Ollama, `EMBEDDING_SOURCE=online`)
         - `datapipe load embeddings`: Loads precomputed embeddings (Parquet from Colab) from an S3-compatible store into `article_embeddings` (`EMBEDDING_SOURCE=file`) — see [docs/embeddings.md](docs/embeddings.md)
     - `news_api/`: HTTP API server for search functionality
@@ -47,7 +47,7 @@ The project follows a layered architecture pattern:
         - `query/`: Query types (search query types, language, scoring, cursor)
         - `operator/`: Operator value object (AND/OR logic)
     - `ingest/`: Data ingestion pipeline
-        - `reader/`: CSV/YAML data reading and parsing
+        - `reader/`: CSV/JSONL/Parquet/YAML data reading and parsing
     - `api/`: API layer for HTTP server
     - `storage/`: Storage abstractions and implementations
         - `factory/`: Storage factory for creating storage instances
