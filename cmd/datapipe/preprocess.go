@@ -38,7 +38,9 @@ const (
 )
 
 var supportedInputExtensions = map[FileExt]struct{}{
-	ExtCSV: {},
+	ExtCSV:     {},
+	ExtJSONL:   {},
+	ExtParquet: {},
 }
 
 var supportedOutputExtensions = map[FileExt]struct{}{
@@ -103,7 +105,7 @@ func newPreprocessCmd() *cobra.Command {
 	}
 
 	f := cmd.Flags()
-	f.StringVar(&cfg.InputPath, "input", "", "Path to the input CSV file")
+	f.StringVar(&cfg.InputPath, "input", "", "Path to the input dataset file (.csv, .jsonl, .parquet)")
 	f.StringVar(&cfg.OutputPath, "output", "", "Output file for canonical dataset")
 	f.StringVar(&cfg.MappingPath, "mapping", "", "Path to the YAML field-mapping config")
 	f.IntVar(&cfg.Workers, "workers", 16, "Number of parallel workers")
@@ -180,8 +182,12 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 		OutputFile: outFilename,
 	}
 
-	csvReader := reader.NewCSVReader(dataFile)
-	resultsChan, err := csvReader.ReadParallel(ctx, cfg.Workers)
+	rawReader, err := NewRawReader(dataFile, fileExt(cfg.InputPath))
+	if err != nil {
+		return err
+	}
+
+	resultsChan, err := rawReader.ReadParallel(ctx, cfg.Workers)
 	if err != nil {
 		return fmt.Errorf("failed to create parallel reader: %w", err)
 	}
@@ -252,6 +258,25 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 
 	logSummary(report)
 	return nil
+}
+
+// NewRawReader takes *os.File rather than io.Reader because parquet needs the
+// file size and random access to reach its trailing footer.
+func NewRawReader(f *os.File, ext FileExt) (reader.RawParallelReader, error) {
+	switch ext {
+	case ExtCSV:
+		return reader.NewCSVReader(f), nil
+	case ExtJSONL:
+		return reader.NewJSONLReader(f), nil
+	case ExtParquet:
+		info, err := f.Stat()
+		if err != nil {
+			return nil, fmt.Errorf("failed to stat input file: %w", err)
+		}
+		return reader.NewParquetReader(f, info.Size())
+	default:
+		return nil, fmt.Errorf("unknown input format: %s", ext)
+	}
 }
 
 func NewOutWriter(w io.Writer, ext FileExt) (ingest.CanonicalWriter, error) {

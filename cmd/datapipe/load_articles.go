@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
@@ -100,12 +99,9 @@ func runArticles(ctx context.Context, cfg *ArticlesConfig) error {
 	}
 	defer dataFile.Close()
 
-	var articleReader reader.RawParallelReader
-	switch filepath.Ext(cfg.DatasetPath) {
-	case ".jsonl":
-		articleReader = reader.NewJSONLReader(dataFile)
-	default:
-		articleReader = reader.NewCSVReader(dataFile)
+	articleReader, err := NewRawReader(dataFile, fileExt(cfg.DatasetPath))
+	if err != nil {
+		return fmt.Errorf("create dataset reader: %w", err)
 	}
 
 	mapper, err := newMapper(cfg)

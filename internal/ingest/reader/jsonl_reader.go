@@ -18,9 +18,11 @@ func NewJSONLReader(reader io.Reader) *JSONLReader {
 	return &JSONLReader{reader: reader}
 }
 
+const BufferSize = 10 * 1024 * 1024 // 10 MB
+
 func (jr *JSONLReader) Read() ([]map[string]string, error) {
 	scanner := bufio.NewScanner(jr.reader)
-	scanner.Buffer(make([]byte, 10*1024*1024), 10*1024*1024)
+	scanner.Buffer(make([]byte, BufferSize), BufferSize)
 
 	var records []map[string]string
 	for scanner.Scan() {
