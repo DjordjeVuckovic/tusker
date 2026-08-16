@@ -22,27 +22,27 @@ func newCleanCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clean [track]",
 		Short: "Remove old report artifacts, keeping the N most recent",
-		Long: `Deletes old JSON and HTML report files from tracks/<name>/reports/,
+		Long: `Deletes old JSON and HTML report files from <track>/reports/,
 keeping the --keep most-recent runs.  latest.json is never deleted.
 
 Reports are sorted by run timestamp in their filename (lexicographic = chronological),
 so the newest N are always retained.`,
-		Example: `  bench clean global-news-dataset/fts_quality            # keep 5 most recent (default)
-  bench clean global-news-dataset/fts_quality --keep 3
-  bench clean global-news-dataset/fts_quality --dry-run  # show what would be deleted`,
+		Example: `  bench clean tracks/global-news-dataset/fts_quality            # keep 5 most recent (default)
+  bench clean tracks/global-news-dataset/fts_quality --keep 3
+  bench clean tracks/global-news-dataset/fts_quality --dry-run  # show what would be deleted`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeClean(cmd, f, args)
 		},
 	}
-	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track name or path")
+	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().IntVar(&f.keep, "keep", 5, "Number of most-recent reports to keep")
 	cmd.Flags().BoolVar(&f.dryRun, "dry-run", false, "Print what would be deleted without deleting")
 	return cmd
 }
 
 func executeClean(cmd *cobra.Command, f cleanFlags, args []string) error {
-	tr, err := trackctx.Resolve(trackctx.Inputs{TrackArg: trackArg(f.trackArg, args)})
+	tr, err := trackctx.Resolve(trackInputs(f.trackArg, args))
 	if err != nil {
 		return err
 	}

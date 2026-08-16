@@ -36,18 +36,18 @@ func newExportCmd() *cobra.Command {
 
 qrels/tsv picks the judgments file in this order: --judgments PATH > --strategy NAME >
 defaults to lexical. html and markdown read the track's latest report.`,
-		Example: `  bench export global-news-dataset/fts_quality --format qrels
-  bench export global-news-dataset/fts_quality --format qrels --strategy claude-api
-  bench export global-news-dataset/fts_quality --format html
-  bench export global-news-dataset/fts_quality --format markdown
-  bench export global-news-dataset/fts_quality --format markdown --output /tmp/results.md
+		Example: `  bench export tracks/global-news-dataset/fts_quality --format qrels
+  bench export tracks/global-news-dataset/fts_quality --format qrels --strategy claude-api
+  bench export tracks/global-news-dataset/fts_quality --format html
+  bench export tracks/global-news-dataset/fts_quality --format markdown
+  bench export tracks/global-news-dataset/fts_quality --format markdown --output /tmp/results.md
   bench export --judgments /tmp/ad-hoc.yaml --format qrels --output /tmp/q.tsv`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeExport(cmd, f, args)
 		},
 	}
-	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track name or path")
+	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().StringVar(&f.format, "format", "qrels", "Export format: qrels (TREC TSV), html, or markdown")
 	cmd.Flags().StringVar(&f.strategy, "strategy", string(judgment.StrategyLexical), "Judgment strategy for TSV export")
 	cmd.Flags().StringVar(&f.judgmentsPath, "judgments", "", "Override annotations YAML path (TSV only)")
@@ -69,10 +69,9 @@ func executeExport(cmd *cobra.Command, f exportFlags, args []string) error {
 }
 
 func exportTSV(cmd *cobra.Command, f exportFlags, args []string) error {
-	tr, err := trackctx.Resolve(trackctx.Inputs{
-		TrackArg:   trackArg(f.trackArg, args),
-		OutputPath: f.output,
-	})
+	in := trackInputs(f.trackArg, args)
+	in.OutputPath = f.output
+	tr, err := trackctx.Resolve(in)
 	if err != nil {
 		return err
 	}
@@ -99,9 +98,7 @@ func exportTSV(cmd *cobra.Command, f exportFlags, args []string) error {
 }
 
 func exportMarkdown(cmd *cobra.Command, f exportFlags, args []string) error {
-	tr, err := trackctx.Resolve(trackctx.Inputs{
-		TrackArg: trackArg(f.trackArg, args),
-	})
+	tr, err := trackctx.Resolve(trackInputs(f.trackArg, args))
 	if err != nil {
 		return err
 	}
@@ -132,9 +129,7 @@ func exportMarkdown(cmd *cobra.Command, f exportFlags, args []string) error {
 }
 
 func exportHTML(cmd *cobra.Command, f exportFlags, args []string) error {
-	tr, err := trackctx.Resolve(trackctx.Inputs{
-		TrackArg: trackArg(f.trackArg, args),
-	})
+	tr, err := trackctx.Resolve(trackInputs(f.trackArg, args))
 	if err != nil {
 		return err
 	}

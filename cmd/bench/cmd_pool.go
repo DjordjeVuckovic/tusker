@@ -27,20 +27,20 @@ func newPoolCmd() *cobra.Command {
 		Use:   "pool [track]",
 		Short: "Run queries through all engines, write a TREC-style pool",
 		Long: `Generates a deduplicated pool of candidate docs per query, ready to be
-judged. Output goes to tracks/<name>/trec/pool.yaml by default; override
+judged. Output goes to <track>/trec/pool.yaml by default; override
 with --output for ad-hoc files.
 
 The pool file carries a meta block (run_id, tool, engines, depth) so later
 artifacts can attest which pool they were derived from.`,
-		Example: `  bench pool global-news-dataset/fts_quality
-  bench pool global-news-dataset/fts_quality --depth 50
+		Example: `  bench pool tracks/global-news-dataset/fts_quality
+  bench pool tracks/global-news-dataset/fts_quality --depth 50
   bench pool --track tracks/global-news-dataset/fts_quality --output /tmp/adhoc-pool.yaml`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executePool(cmd, f, args)
 		},
 	}
-	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track name or path")
+	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().StringVar(&f.specPath, "spec", "", "Override spec.yaml path")
 	cmd.Flags().IntVar(&f.depth, "depth", 0, "Top-K per engine (0 = spec.defaults.pool_depth or 100)")
 	cmd.Flags().StringVar(&f.output, "output", "", "Override pool output path")
@@ -48,11 +48,10 @@ artifacts can attest which pool they were derived from.`,
 }
 
 func executePool(cmd *cobra.Command, f poolFlags, args []string) error {
-	return forEachTrack(cmd.OutOrStdout(), trackctx.Inputs{
-		TrackArg:   trackArg(f.trackArg, args),
-		SpecPath:   f.specPath,
-		OutputPath: f.output,
-	}, func(tr *trackctx.Track) error {
+	in := trackInputs(f.trackArg, args)
+	in.SpecPath = f.specPath
+	in.OutputPath = f.output
+	return forEachTrack(cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
 		return poolTrack(cmd, f, tr)
 	})
 }

@@ -7,8 +7,10 @@
 
 set -euo pipefail
 
-DATASET="${DATASET:-global-news-dataset}"
-TRACK="${TRACK:-$DATASET/fts_quality}"
+# Relative track paths resolve under this root, so TRACK is just the folder name.
+# Unset it and pass a full path (tracks/<ds>/<track>) if you prefer.
+export BENCH_TRACK_ROOT="${BENCH_TRACK_ROOT:-tracks/global-news-dataset}"
+TRACK="${TRACK:-fts_quality}"
 
 # 0. Build
 make build-bench

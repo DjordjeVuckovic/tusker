@@ -15,6 +15,14 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
 )
 
+// trackRootEnv names the environment variable behind the --track-root flag.
+const trackRootEnv = "BENCH_TRACK_ROOT"
+
+// trackRoot is where relative track paths start (--track-root, defaulting to
+// $BENCH_TRACK_ROOT). Empty means the current directory, so a track arg behaves
+// like any other path; pointing it at a folder of tracks is pure convenience.
+var trackRoot string
+
 func createExecutors(ctx context.Context, bs *spec.BenchSpec) (map[string]engine.Executor, func(), error) {
 	return engine.CreateFromSpec(ctx, bs.Engines)
 }
@@ -91,8 +99,24 @@ func envOrFlag(envKey, flagVal string) string {
 	return os.Getenv(envKey)
 }
 
+// trackInputs builds the resolution inputs shared by every subcommand: the
+// track from a flag or positional arg, resolved against the active track root.
+// Callers layer their own --spec/--suite/--pool/--output overrides on top.
+func trackInputs(flag string, args []string) trackctx.Inputs {
+	return trackctx.Inputs{TrackArg: trackArg(flag, args), TrackRoot: trackRoot}
+}
+
+// trackRootOrCwd is the track root with its default applied, for commands that
+// build paths themselves instead of going through trackctx.
+func trackRootOrCwd() string {
+	if trackRoot == "" {
+		return "."
+	}
+	return trackRoot
+}
+
 // trackArg picks up the track from a flag or first positional arg. The CLI
-// allows either form: `bench pool global-news-dataset/fts_quality` or `bench pool --track global-news-dataset/fts_quality`.
+// allows either form: `bench pool tracks/news/fts` or `bench pool --track tracks/news/fts`.
 func trackArg(flag string, args []string) string {
 	if flag != "" {
 		return flag
@@ -120,7 +144,7 @@ func forEachTrack(w io.Writer, in trackctx.Inputs, fn func(*trackctx.Track) erro
 	if in.SpecPath != "" || in.SuitePath != "" || in.PoolPath != "" || in.OutputPath != "" {
 		return fmt.Errorf("--spec/--suite/--pool/--output cannot be combined with a glob pattern %q", in.TrackArg)
 	}
-	tracks, err := trackctx.ResolveGlob(in.TrackArg)
+	tracks, err := trackctx.ResolveGlob(in.TrackArg, in.TrackRoot)
 	if err != nil {
 		return err
 	}

@@ -35,14 +35,14 @@ func newValidateCmd() *cobra.Command {
   - api descriptors parse as {method, path, body?, params?}
 
 Returns non-zero exit if any query fails — wire it into CI.`,
-		Example: `  bench validate global-news-dataset/fts_quality
+		Example: `  bench validate tracks/global-news-dataset/fts_quality
   bench validate --track tracks/global-news-dataset/fts_quality --fail-fast`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeValidate(cmd, f, args)
 		},
 	}
-	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track name or path")
+	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().StringVar(&f.specPath, "spec", "", "Override spec.yaml path")
 	cmd.Flags().StringVar(&f.suitePath, "suite", "", "Override suite.yaml path (all jobs share it)")
 	cmd.Flags().BoolVar(&f.failFast, "fail-fast", false, "Stop at first failure")
@@ -57,11 +57,10 @@ type validateRow struct {
 }
 
 func executeValidate(cmd *cobra.Command, f validateFlags, args []string) error {
-	return forEachTrack(cmd.OutOrStdout(), trackctx.Inputs{
-		TrackArg:  trackArg(f.trackArg, args),
-		SpecPath:  f.specPath,
-		SuitePath: f.suitePath,
-	}, func(tr *trackctx.Track) error {
+	in := trackInputs(f.trackArg, args)
+	in.SpecPath = f.specPath
+	in.SuitePath = f.suitePath
+	return forEachTrack(cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
 		return validateTrack(cmd, f, tr)
 	})
 }

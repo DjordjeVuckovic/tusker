@@ -97,7 +97,7 @@ bench diff   [<name>]              compare latest two runs
 bench clean  [<name>]              remove old report files
 ```
 
-Every command accepts a track name as a positional arg (`bench run global-news-dataset/fts_quality`), a `--track` flag, or resolves from the current directory when you `cd tracks/<dataset>/<paradigm>`.
+Every command accepts a track path as a positional arg (`bench run tracks/global-news-dataset/fts_quality`), a `--track` flag, or resolves from the current directory when you `cd` into a track. Relative paths start at `--track-root` / `BENCH_TRACK_ROOT` — see [Track resolution](#track-resolution--the-track-root).
 
 ## Strategy taxonomy
 
@@ -181,11 +181,11 @@ Elapsed time is printed after the results table.
 
 Examples:
 ```bash
-bench export global-news-dataset/fts_quality --format qrels
-bench export global-news-dataset/fts_quality --format qrels --strategy claude-api
-bench export global-news-dataset/fts_quality --format html
-bench export global-news-dataset/fts_quality --format markdown
-bench export global-news-dataset/fts_quality --format markdown --output /tmp/results.md
+bench export tracks/global-news-dataset/fts_quality --format qrels
+bench export tracks/global-news-dataset/fts_quality --format qrels --strategy claude-api
+bench export tracks/global-news-dataset/fts_quality --format html
+bench export tracks/global-news-dataset/fts_quality --format markdown
+bench export tracks/global-news-dataset/fts_quality --format markdown --output /tmp/results.md
 ```
 
 ### `bench status [<name>]`
@@ -214,9 +214,9 @@ Pretty-prints a one-page summary of any artifact:
 Removes old JSON, HTML, and Markdown files from `reports/`, keeping the `--keep` most-recent (default 5). `latest.json` is never deleted.
 
 ```bash
-bench clean global-news-dataset/fts_quality            # keep 5 most recent
-bench clean global-news-dataset/fts_quality --keep 2
-bench clean global-news-dataset/fts_quality --dry-run  # show what would be deleted
+bench clean tracks/global-news-dataset/fts_quality            # keep 5 most recent
+bench clean tracks/global-news-dataset/fts_quality --keep 2
+bench clean tracks/global-news-dataset/fts_quality --dry-run  # show what would be deleted
 ```
 
 ## Metrics
@@ -243,36 +243,49 @@ All artifacts are self-attesting. A report's `provenance.sources` block records 
 
 For per-track documentation, see `tracks/<name>/README.md`.
 
-## Track naming convention
+## Track organisation
 
-One track per (dataset × IR paradigm), nested as `tracks/<dataset>/<paradigm>/`
-and addressed by a slash path — one directory per dataset:
+A track is **any folder** holding `spec.yaml` + `suite.yaml` + `trec/`. Nothing
+above it is enforced — `bench` never assumes a `tracks/` directory — so how you
+group tracks is your call. This repo uses one folder per dataset, one track per
+(dataset × IR paradigm):
 
-| Track                                | Paradigm            | Engines                                 |
-|--------------------------------------|---------------------|-----------------------------------------|
-| `global-news-dataset/fts_quality`    | Full-text search    | pg-seq, pg-gin, paradedb, elasticsearch |
-| `global-news-dataset/news_fuzzy`     | Fuzzy / approximate | pg_trgm, ES fuzziness                   |
-| `global-news-dataset/news_semantic`  | Semantic / vector   | pgvector, ES dense_vector kNN           |
-| `global-news-dataset/news_hybrid`    | Hybrid (RRF fusion) | pgvector+BM25, ES hybrid                |
-
-```
-tracks/global-news-dataset/fts_quality/     bench run global-news-dataset/fts_quality
-tracks/global-news-dataset/news_fuzzy/      bench run 'global-news-dataset/*'   # whole dataset
-tracks/global-news-dataset/news_semantic/
-tracks/global-news-dataset/news_hybrid/
-```
-
-A **flat** `tracks/<name>/` folder still resolves by its bare name — the CLI
-supports both layouts — but new tracks should nest under their dataset.
+| Track                                       | Paradigm            | Engines                                 |
+|---------------------------------------------|---------------------|-----------------------------------------|
+| `tracks/global-news-dataset/fts_quality`    | Full-text search    | pg-seq, pg-gin, paradedb, elasticsearch |
+| `tracks/global-news-dataset/news_fuzzy`     | Fuzzy / approximate | pg_trgm, ES fuzziness                   |
+| `tracks/global-news-dataset/news_semantic`  | Semantic / vector   | pgvector, ES dense_vector kNN           |
+| `tracks/global-news-dataset/news_hybrid`    | Hybrid (RRF fusion) | pgvector+BM25, ES hybrid                |
 
 This decomposition ensures that pools and judgments are paradigm-specific (different query types, different relevance criteria) and that statistical comparisons are between equivalent systems.
 
-### Track resolution & grouping
+### Track resolution & the track root
 
-A track arg is interpreted as:
+A track arg is an ordinary filesystem path:
 
-1. **Verbatim path** — absolute, `./`-/`../`-prefixed, or a `*.yaml` etc. — used as-is (escape hatch for tracks outside `./tracks`).
-2. **Name** — mapped under `tracks/`. May be nested with `/` (`global-news-dataset/fts_quality` → `tracks/global-news-dataset/fts_quality`).
-3. **Glob** — `global-news-dataset/*` fans out across every track-shaped match; `validate`, `pool`, `judge`, `run`, and `status` run once per matched track.
+1. **Absolute** — used as-is.
+2. **Relative** — resolved against the track root (below).
+3. **Glob** — fans out across every track-shaped match; `validate`, `pool`, `judge`, `run`, and `status` run once per matched track.
+4. **Omitted** — walks up from the current directory to the nearest track folder, so `cd`-ing into a track and running `bench status` works.
 
-Grouping is **explicit**: only a glob expands. A bare name always means exactly one track — there is no implicit "directory becomes a group" behaviour, so `bench run global-news-dataset` (when `global-news-dataset` is a directory of tracks, not a track) is an error. Glob mode forbids the single-track path overrides (`--spec`/`--suite`/`--pool`/`--output`). A per-track failure is logged and the run continues; the command exits non-zero listing the tracks that failed. Quote a glob so the shell doesn't expand it first: `bench run 'global-news-dataset/*'`.
+`--track-root <dir>`, or `BENCH_TRACK_ROOT`, is where relative paths start. It
+defaults to the current directory, so from the repo root:
+
+```bash
+bench run tracks/global-news-dataset/fts_quality
+bench run 'tracks/global-news-dataset/*'          # the whole dataset
+```
+
+Point it at a dataset folder and the same tracks get short names — it is pure
+convenience, identical to `cd`-ing there:
+
+```bash
+export BENCH_TRACK_ROOT=tracks/global-news-dataset
+bench run fts_quality
+bench run '*'                                     # the whole dataset
+```
+
+When a path misses, the error names what it tried and, if a folder of that name
+sits deeper, points at it — the usual sign the root is unset or too shallow.
+
+Grouping is **explicit**: only a glob expands. A single path always means exactly one track — a directory of tracks never implicitly becomes a group. Glob mode forbids the single-track path overrides (`--spec`/`--suite`/`--pool`/`--output`). A per-track failure is logged and the run continues; the command exits non-zero listing the tracks that failed. Quote a glob so the shell doesn't expand it first.

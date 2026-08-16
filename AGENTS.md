@@ -131,7 +131,7 @@ TREC-style IR evaluation pipeline. Full docs: [docs/bench.md](docs/bench.md).
 - `meta/` — provenance block embedded in every artifact (run_id, tool, generated_at, sources)
 - `version/` — schema version constant + checker
 
-**Track convention**: `tracks/<name>/spec.yaml` + `suite.yaml` + `trec/` + `reports/`. Every subcommand resolves paths from a track name, `--track` flag, or walk-up from CWD.
+**Track convention**: a track is any folder holding `spec.yaml` + `suite.yaml` + `trec/` (+ `reports/`) — the layout above it is not enforced; this repo groups them as `tracks/<dataset>/<paradigm>/`. Track args are ordinary paths: absolute, relative to the track root (`--track-root` / `BENCH_TRACK_ROOT`, default cwd), a glob, or omitted to walk up from CWD.
 
 **Strategy taxonomy**: `lexical` (token-overlap), `bm25` (pool-local Okapi BM25), `vector` (embedding cosine), `hybrid` (BM25 + vector fusion), `claude-cli` / `claude-api` (LLM batched), `manual` (human placeholders). `vector`/`hybrid` read doc vectors from a storage-agnostic `storage.VectorStore` (PG `article_embeddings` now, ES stubbed; PG precedence) and embed the query via Ollama (`--pg` + `EMBEDDING_BASE_URL`). The same store powers `pool`/`run` query-vector injection (reserved `{{precomputed}}` placeholder).
 

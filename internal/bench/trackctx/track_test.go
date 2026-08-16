@@ -26,44 +26,72 @@ func canonical(t *testing.T, p string) string {
 	return real
 }
 
-func TestResolve_BareNameUsesTracksDir(t *testing.T) {
-	dir := t.TempDir()
-	track := filepath.Join(dir, "tracks", "smoke")
-	makeTrack(t, track)
-
-	cwd, _ := os.Getwd()
+// chdir moves into dir for the duration of the test.
+func chdir(t *testing.T, dir string) {
+	t.Helper()
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Chdir(cwd) })
 	require.NoError(t, os.Chdir(dir))
+}
 
-	tr, err := Resolve(Inputs{TrackArg: "smoke"})
+func TestResolve_RelativePathFromCWD(t *testing.T) {
+	dir := t.TempDir()
+	track := filepath.Join(dir, "tracks", "news", "fts")
+	makeTrack(t, track)
+	chdir(t, dir)
+
+	tr, err := Resolve(Inputs{TrackArg: "tracks/news/fts"})
 	require.NoError(t, err)
-	assert.Equal(t, canonical(t, track), tr.Root)
 	canonTrack := canonical(t, track)
+	assert.Equal(t, canonTrack, tr.Root)
 	assert.Equal(t, filepath.Join(canonTrack, "spec.yaml"), tr.Spec)
 	assert.Equal(t, filepath.Join(canonTrack, "suite.yaml"), tr.Suite)
 	assert.Equal(t, filepath.Join(canonTrack, "trec", "pool.yaml"), tr.Pool)
+	assert.Equal(t, "tracks/news/fts", tr.Name(), "name is the path you typed")
 }
 
-func TestResolve_PathArgUsedVerbatim(t *testing.T) {
+func TestResolve_TrackRootShortensTheArg(t *testing.T) {
 	dir := t.TempDir()
-	track := filepath.Join(dir, "weird", "place")
+	track := filepath.Join(dir, "tracks", "news", "fts")
 	makeTrack(t, track)
+	chdir(t, dir)
 
-	tr, err := Resolve(Inputs{TrackArg: track})
+	tr, err := Resolve(Inputs{TrackArg: "fts", TrackRoot: "tracks/news"})
 	require.NoError(t, err)
 	assert.Equal(t, canonical(t, track), tr.Root)
+	assert.Equal(t, "fts", tr.Name(), "name is root-relative")
+}
+
+func TestResolve_TrackRootAcceptsAnyLayout(t *testing.T) {
+	// Nothing above the track folder is enforced: benches/b1 is as valid a
+	// layout as tracks/<dataset>/<paradigm>.
+	dir := t.TempDir()
+	track := filepath.Join(dir, "benches", "b1")
+	makeTrack(t, track)
+	chdir(t, dir)
+
+	tr, err := Resolve(Inputs{TrackArg: "b1", TrackRoot: "benches"})
+	require.NoError(t, err)
+	assert.Equal(t, canonical(t, track), tr.Root)
+}
+
+func TestResolve_AbsoluteArgIgnoresTrackRoot(t *testing.T) {
+	dir := t.TempDir()
+	track := filepath.Join(dir, "elsewhere", "solo")
+	makeTrack(t, track)
+
+	tr, err := Resolve(Inputs{TrackArg: track, TrackRoot: "/does/not/exist"})
+	require.NoError(t, err)
+	assert.Equal(t, canonical(t, track), tr.Root)
+	assert.Equal(t, "solo", tr.Name(), "outside the root, fall back to the base name")
 }
 
 func TestResolve_WalkUpFromNestedCWD(t *testing.T) {
 	dir := t.TempDir()
 	track := filepath.Join(dir, "tracks", "demo")
 	makeTrack(t, track)
-	nested := filepath.Join(track, "trec")
-	require.NoError(t, os.MkdirAll(nested, 0755))
-
-	cwd, _ := os.Getwd()
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
-	require.NoError(t, os.Chdir(nested))
+	chdir(t, filepath.Join(track, "trec"))
 
 	tr, err := Resolve(Inputs{})
 	require.NoError(t, err)
@@ -89,72 +117,44 @@ func TestResolve_ExplicitFlagsOverride(t *testing.T) {
 
 func TestResolve_UnknownTrackErrors(t *testing.T) {
 	dir := t.TempDir()
-	cwd, _ := os.Getwd()
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
-	require.NoError(t, os.Chdir(dir))
+	chdir(t, dir)
 
 	_, err := Resolve(Inputs{TrackArg: "nope"})
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tried:", "error should name the path it tried")
 	assert.Contains(t, err.Error(), "bench init nope", "error should suggest init command")
+}
+
+func TestResolve_ErrorSuggestsDeeperMatch(t *testing.T) {
+	// The usual symptom of an unset or too-shallow track root: the folder
+	// exists, just further down.
+	dir := t.TempDir()
+	makeTrack(t, filepath.Join(dir, "tracks", "news", "fts"))
+	chdir(t, dir)
+
+	_, err := Resolve(Inputs{TrackArg: "fts"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "did you mean: tracks/news/fts")
+	assert.Contains(t, err.Error(), "BENCH_TRACK_ROOT")
+}
+
+func TestResolve_NotTrackShapedErrors(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "tracks", "news"), 0755))
+	chdir(t, dir)
+
+	_, err := Resolve(Inputs{TrackArg: "tracks/news"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
 }
 
 func TestResolve_NoTrackNoWalkUp(t *testing.T) {
 	dir := t.TempDir()
-	cwd, _ := os.Getwd()
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
-	require.NoError(t, os.Chdir(dir))
+	chdir(t, dir)
 
 	_, err := Resolve(Inputs{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no track specified")
-}
-
-func TestResolve_TracksPrefixedNameIsBackwardCompatible(t *testing.T) {
-	// The docs use `--track tracks/fts_quality`; that must resolve to the same
-	// track as the bare name, not tracks/tracks/fts_quality.
-	dir := t.TempDir()
-	track := filepath.Join(dir, "tracks", "fts_quality")
-	makeTrack(t, track)
-
-	cwd, _ := os.Getwd()
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
-	require.NoError(t, os.Chdir(dir))
-
-	tr, err := Resolve(Inputs{TrackArg: "tracks/fts_quality"})
-	require.NoError(t, err)
-	assert.Equal(t, canonical(t, track), tr.Root)
-	assert.Equal(t, "fts_quality", tr.Name())
-}
-
-func TestResolve_NestedSingleName(t *testing.T) {
-	dir := t.TempDir()
-	track := filepath.Join(dir, "tracks", "news", "fts")
-	makeTrack(t, track)
-
-	cwd, _ := os.Getwd()
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
-	require.NoError(t, os.Chdir(dir))
-
-	tr, err := Resolve(Inputs{TrackArg: "news/fts"})
-	require.NoError(t, err)
-	assert.Equal(t, canonical(t, track), tr.Root)
-	assert.Equal(t, "news/fts", tr.Name(), "nested name carries the dataset prefix")
-}
-
-func TestResolve_BareDatasetDirIsError(t *testing.T) {
-	// "news" is a directory of tracks but not itself a track. Grouping is
-	// explicit (via glob), so a bare name must NOT implicitly expand — it errors.
-	dir := t.TempDir()
-	makeTrack(t, filepath.Join(dir, "tracks", "news", "fts"))
-	makeTrack(t, filepath.Join(dir, "tracks", "news", "fuzzy"))
-
-	cwd, _ := os.Getwd()
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
-	require.NoError(t, os.Chdir(dir))
-
-	_, err := Resolve(Inputs{TrackArg: "news"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
 }
 
 func TestResolveGlob_Expands(t *testing.T) {
@@ -164,30 +164,41 @@ func TestResolveGlob_Expands(t *testing.T) {
 	makeTrack(t, filepath.Join(dir, "tracks", "wiki", "fts"))
 	// A glob match that isn't track-shaped must be skipped.
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "tracks", "news", "scratch"), 0755))
+	chdir(t, dir)
 
-	cwd, _ := os.Getwd()
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
-	require.NoError(t, os.Chdir(dir))
-
-	tracks, err := ResolveGlob("news/*")
+	tracks, err := ResolveGlob("tracks/news/*", "")
 	require.NoError(t, err)
 
 	var names []string
 	for _, tr := range tracks {
 		names = append(names, tr.Name())
 	}
-	assert.Equal(t, []string{"news/fts", "news/fuzzy"}, names, "track-shaped matches only, sorted")
+	assert.Equal(t, []string{"tracks/news/fts", "tracks/news/fuzzy"}, names, "track-shaped matches only, sorted")
+}
+
+func TestResolveGlob_RootScopesThePattern(t *testing.T) {
+	dir := t.TempDir()
+	makeTrack(t, filepath.Join(dir, "tracks", "news", "fts"))
+	makeTrack(t, filepath.Join(dir, "tracks", "news", "fuzzy"))
+	makeTrack(t, filepath.Join(dir, "tracks", "wiki", "fts"))
+	chdir(t, dir)
+
+	tracks, err := ResolveGlob("*", "tracks/news")
+	require.NoError(t, err)
+
+	var names []string
+	for _, tr := range tracks {
+		names = append(names, tr.Name())
+	}
+	assert.Equal(t, []string{"fts", "fuzzy"}, names, "'*' means every track in the root")
 }
 
 func TestResolveGlob_NoMatchErrors(t *testing.T) {
 	dir := t.TempDir()
 	makeTrack(t, filepath.Join(dir, "tracks", "news", "fts"))
+	chdir(t, dir)
 
-	cwd, _ := os.Getwd()
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
-	require.NoError(t, os.Chdir(dir))
-
-	_, err := ResolveGlob("wiki/*")
+	_, err := ResolveGlob("tracks/wiki/*", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no tracks match pattern")
 }

@@ -38,30 +38,29 @@ func newRunCmd() *cobra.Command {
 		Use:   "run [track]",
 		Short: "Execute the benchmark + produce a report",
 		Long: `Runs every job in the track's spec.yaml against its engines, computes IR
-metrics + latency, writes a JSON report under tracks/<name>/reports/.
+metrics + latency, writes a JSON report under <track>/reports/.
 
-The track arg accepts a flat name (fts_quality), a nested <dataset>/<paradigm>
-name (global-news-dataset/fts_quality), or a glob (global-news-dataset/*) that
-runs every matching track, writing one report per track.
+The track arg is a path — absolute, or relative to --track-root (default: cwd) —
+or a glob, which runs every matching track and writes one report per track.
 
 The judgments file used for scoring resolves in this order:
   1. --judgments <name|path>      (CLI override)
   2. spec.defaults.judgments      (per-track default)
   3. none → metrics-less report, warning printed`,
-		Example: `  bench run global-news-dataset/fts_quality
-  bench run global-news-dataset/news_semantic
-  bench run 'global-news-dataset/*'        # every paradigm of the dataset
-  bench run global-news-dataset/fts_quality --judgments claude-api`,
+		Example: `  bench run tracks/global-news-dataset/fts_quality
+  bench run tracks/global-news-dataset/news_semantic
+  bench run 'tracks/global-news-dataset/*'        # every paradigm of the dataset
+  bench run tracks/global-news-dataset/fts_quality --judgments claude-api`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeRun(cmd, f, args)
 		},
 	}
-	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track name (e.g. fts_quality) or path")
+	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().StringVar(&f.specPath, "spec", "", "Override spec.yaml path")
 	cmd.Flags().StringVar(&f.suitePath, "suite", "", "Override suite.yaml path")
 	cmd.Flags().StringVar(&f.judgments, "judgments", "", "Strategy name (e.g. lexical) or annotations YAML path")
-	cmd.Flags().StringVar(&f.output, "output", "", "Override report path (default: tracks/<name>/reports/<run_id>.json)")
+	cmd.Flags().StringVar(&f.output, "output", "", "Override report path (default: <track>/reports/<run_id>.json)")
 	cmd.Flags().StringVar(&f.kValues, "k", "3,5,10", "K cut-offs for NDCG/P/R/F1")
 	cmd.Flags().StringVar(&f.jobs, "jobs", "", "Comma-separated job names to run (default: all jobs in spec)")
 	cmd.Flags().IntVar(&f.maxK, "max-k", 0, "Max docs retrieved per query (0 = spec.metrics.max_k)")
@@ -75,12 +74,11 @@ func executeRun(cmd *cobra.Command, f runFlags, args []string) error {
 	if err != nil {
 		return err
 	}
-	return forEachTrack(cmd.OutOrStdout(), trackctx.Inputs{
-		TrackArg:   trackArg(f.trackArg, args),
-		SpecPath:   f.specPath,
-		SuitePath:  f.suitePath,
-		OutputPath: f.output,
-	}, func(tr *trackctx.Track) error {
+	in := trackInputs(f.trackArg, args)
+	in.SpecPath = f.specPath
+	in.SuitePath = f.suitePath
+	in.OutputPath = f.output
+	return forEachTrack(cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
 		return runTrack(cmd, f, ks, tr)
 	})
 }

@@ -23,14 +23,14 @@ func newReportCmd() *cobra.Command {
 		Long: `Shortcut for bench show report. Prints provenance + aggregated metrics +
 latency + significance table for the most-recent run of the given track.`,
 		Args:    cobra.MaximumNArgs(1),
-		Example: "  bench report global-news-dataset/fts_quality\n  bench report /path/to/report.json",
+		Example: "  bench report tracks/global-news-dataset/fts_quality\n  bench report /path/to/report.json",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var rpt *report.Report
 			var err error
 			if len(args) == 1 && looksLikePath(args[0]) {
 				rpt, err = report.ReadJSON(args[0])
 			} else {
-				in := trackctx.Inputs{}
+				in := trackctx.Inputs{TrackRoot: trackRoot}
 				if len(args) == 1 {
 					in.TrackArg = args[0]
 				}
@@ -66,7 +66,7 @@ func newShowPoolCmd() *cobra.Command {
 		Use:     "pool [track|path]",
 		Short:   "Summarise a pool file",
 		Args:    cobra.MaximumNArgs(1),
-		Example: "  bench show pool global-news-dataset/fts_quality\n  bench show pool /path/to/pool.yaml",
+		Example: "  bench show pool tracks/global-news-dataset/fts_quality\n  bench show pool /path/to/pool.yaml",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := resolveArtifactPath(args, "pool", "")
 			if err != nil {
@@ -88,7 +88,7 @@ func newShowJudgmentsCmd() *cobra.Command {
 		Use:     "judgments [track|path]",
 		Short:   "Summarise a judgments file",
 		Args:    cobra.MaximumNArgs(1),
-		Example: "  bench show judgments global-news-dataset/fts_quality --strategy claude-api\n  bench show judgments /path/to/ann.yaml",
+		Example: "  bench show judgments tracks/global-news-dataset/fts_quality --strategy claude-api\n  bench show judgments /path/to/ann.yaml",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s := strategy
 			if s == "" {
@@ -115,7 +115,7 @@ func newShowSpecCmd() *cobra.Command {
 		Use:     "spec [track|path]",
 		Short:   "Summarise a bench spec",
 		Args:    cobra.MaximumNArgs(1),
-		Example: "  bench show spec global-news-dataset/fts_quality\n  bench show spec /path/to/spec.yaml",
+		Example: "  bench show spec tracks/global-news-dataset/fts_quality\n  bench show spec /path/to/spec.yaml",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, err := resolveArtifactPath(args, "spec", "")
 			if err != nil {
@@ -142,7 +142,7 @@ tables for each job.
 With a track name or path, follows reports/latest.json to the actual report.
 With a direct .json path, reads that file.`,
 		Args:    cobra.MaximumNArgs(1),
-		Example: "  bench show report global-news-dataset/fts_quality\n  bench show report /path/to/report.json",
+		Example: "  bench show report tracks/global-news-dataset/fts_quality\n  bench show report /path/to/report.json",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var rpt *report.Report
 			var err error
@@ -150,7 +150,7 @@ With a direct .json path, reads that file.`,
 			if len(args) == 1 && looksLikePath(args[0]) {
 				rpt, err = report.ReadJSON(args[0])
 			} else {
-				in := trackctx.Inputs{}
+				in := trackctx.Inputs{TrackRoot: trackRoot}
 				if len(args) == 1 {
 					in.TrackArg = args[0]
 				}
@@ -180,7 +180,7 @@ func resolveArtifactPath(args []string, kind, strategy string) (string, error) {
 		// caller just wants to read whatever file the user pointed at.
 		return args[0], nil
 	}
-	in := trackctx.Inputs{}
+	in := trackctx.Inputs{TrackRoot: trackRoot}
 	if len(args) == 1 {
 		in.TrackArg = args[0]
 	}

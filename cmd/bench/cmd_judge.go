@@ -58,23 +58,23 @@ and defaults to ` + judgment.DefaultJudgeModel + `. The resolved id, the
 provider and the prompt version are recorded in the artifact's judge block, so
 qrels always name the grader that produced them.
 
-Output goes to tracks/<name>/trec/annotations.<name>.yaml, where <name> is the
+Output goes to <track>/trec/annotations.<strategy>.yaml, where <strategy> is the
 strategy for heuristic judges and the provider for llm judges.
 Multiple strategies live side-by-side; switch which one bench run scores
 against via --judgments <name>.
 
 Resumable: re-run with the same --strategy and --resume to skip docs already
 graded. Atomic writes mean Ctrl-C is safe.`,
-		Example: `  bench judge global-news-dataset/fts_quality --strategy lexical
-  bench judge global-news-dataset/fts_quality --strategy llm --provider claude-cli
-  bench judge global-news-dataset/fts_quality --strategy llm --provider claude-api --model sonnet --batch 20 --resume
+		Example: `  bench judge tracks/global-news-dataset/fts_quality --strategy lexical
+  bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-cli
+  bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-api --model sonnet --batch 20 --resume
   bench judge --pool /tmp/p.yaml --strategy lexical --output /tmp/a.yaml`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeJudge(cmd, f, args)
 		},
 	}
-	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track name or path")
+	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().StringVar(&f.poolPath, "pool", "", "Override pool YAML path")
 	cmd.Flags().StringVar(&f.output, "output", "", "Override annotations output path")
 	cmd.Flags().StringVar(&f.strategy, "strategy", string(judgment.StrategyLexical), "Judge strategy")
@@ -95,11 +95,10 @@ graded. Atomic writes mean Ctrl-C is safe.`,
 }
 
 func executeJudge(cmd *cobra.Command, f judgeFlags, args []string) error {
-	return forEachTrack(cmd.OutOrStdout(), trackctx.Inputs{
-		TrackArg:   trackArg(f.trackArg, args),
-		PoolPath:   f.poolPath,
-		OutputPath: f.output,
-	}, func(tr *trackctx.Track) error {
+	in := trackInputs(f.trackArg, args)
+	in.PoolPath = f.poolPath
+	in.OutputPath = f.output
+	return forEachTrack(cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
 		return judgeTrack(cmd, f, tr)
 	})
 }

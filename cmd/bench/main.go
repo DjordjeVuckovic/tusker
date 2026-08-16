@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log/slog"
+	"fmt"
 	"os"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
@@ -22,24 +22,31 @@ const (
 engines (Postgres, ParadeDB, Elasticsearch, the tusker API), produces
 IR-quality metrics (NDCG, MAP, MRR, Bpref, P/R/F1) and latency statistics.
 
-Typical pipeline (pass the track name as a positional arg):
+Typical pipeline (pass the track path as a positional arg):
 
-  1. bench init <name>              scaffold tracks/<name>/
-  2. bench validate <name>          dry-run every query through each engine
-  3. bench pool <name>              gather candidate docs → trec/pool.yaml
-  4. bench judge <name>             grade with lexical (default) or LLM strategy
-  5. bench run <name>               execute + report (reads spec.defaults.judgments)
-  6. bench export <name> --format html    shareable HTML report
-     bench export <name> --format qrels  TREC qrels for trec_eval / R / Python
+  1. bench init <track>              scaffold a track folder
+  2. bench validate <track>          dry-run every query through each engine
+  3. bench pool <track>              gather candidate docs → trec/pool.yaml
+  4. bench judge <track>             grade with lexical (default) or LLM strategy
+  5. bench run <track>               execute + report (reads spec.defaults.judgments)
+  6. bench export <track> --format html    shareable HTML report
+     bench export <track> --format qrels  TREC qrels for trec_eval / R / Python
 
-  bench status <name>               see where you left off
-  bench diff   <name>               compare latest two runs
-  bench clean  <name>               remove old report files (keep N newest)
+  bench status <track>               see where you left off
+  bench diff   <track>               compare latest two runs
+  bench clean  <track>               remove old report files (keep N newest)
 
-Tracks live under ./tracks as either a flat folder (fts_quality) or nested as
-<dataset>/<paradigm> (global-news-dataset/fts_quality). validate/pool/judge/run/
-status accept a glob to run every paradigm of a dataset at once — quote it:
-bench run 'global-news-dataset/*'.
+A track is any folder holding spec.yaml + suite.yaml + trec/ — nothing above it
+is assumed, so tracks/global-news-dataset/fts_quality and benches/b1 are both
+fine. The arg is an ordinary path: absolute, or relative to the track root.
+validate/pool/judge/run/status also take a glob — quote it:
+bench run 'tracks/global-news-dataset/*'.
+
+--track-root <dir> (or BENCH_TRACK_ROOT) is where relative track paths start,
+defaulting to the current directory.
+
+  BENCH_TRACK_ROOT=tracks/global-news-dataset bench run news_fuzzy
+  BENCH_TRACK_ROOT=tracks/global-news-dataset bench run '*'
 `
 )
 
@@ -51,6 +58,8 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.PersistentFlags().StringVar(&trackRoot, "track-root", os.Getenv(trackRootEnv),
+		"Base directory for relative track paths (default $"+trackRootEnv+", else cwd)")
 	root.AddCommand(
 		newRunCmd(),
 		newPoolCmd(),
@@ -66,7 +75,9 @@ func main() {
 	)
 
 	if err := root.Execute(); err != nil {
-		slog.Error("bench failed", "error", err)
+		// Printed rather than logged: resolution errors carry indented hint
+		// lines, and slog would escape the newlines into one unreadable string.
+		fmt.Fprintf(os.Stderr, "%s %v\n", cFail.Sprint("Error:"), err)
 		os.Exit(1)
 	}
 }

@@ -180,42 +180,43 @@ build-bench:
 	@mkdir -p $(BIN_DIR)
 	@go build -o $(BIN_DIR)/bench $(CMD_DIR)/bench
 
-# Tracks live at tracks/<dataset>/<paradigm>; override either half, e.g.
+# BENCH_TRACK_ROOT is where bench resolves relative track paths, so targets name
+# the track alone. Override either half, e.g.
 #   make bench-run TRACK=news_semantic
-#   make bench-run DATASET=cc-news TRACK=fts_quality
-DATASET ?= global-news-dataset
+#   make bench-run BENCH_TRACK_ROOT=tracks/cc-news TRACK=fts_quality
+BENCH_TRACK_ROOT ?= tracks/global-news-dataset
 TRACK ?= fts_quality
-TRACK_PATH := $(DATASET)/$(TRACK)
+export BENCH_TRACK_ROOT
 
 bench-validate: build-bench
-	@./$(BIN_DIR)/bench validate $(TRACK_PATH)
+	@./$(BIN_DIR)/bench validate $(TRACK)
 
 bench-run: build-bench
-	@./$(BIN_DIR)/bench run $(TRACK_PATH)
+	@./$(BIN_DIR)/bench run $(TRACK)
 
 bench-pool: build-bench
-	@./$(BIN_DIR)/bench pool $(TRACK_PATH)
+	@./$(BIN_DIR)/bench pool $(TRACK)
 
 bench-judge-lexical: build-bench
-	@./$(BIN_DIR)/bench judge $(TRACK_PATH) --strategy lexical
+	@./$(BIN_DIR)/bench judge $(TRACK) --strategy lexical
 
 bench-judge-cli: build-bench
-	@./$(BIN_DIR)/bench judge $(TRACK_PATH) --strategy llm --provider claude-cli --resume
+	@./$(BIN_DIR)/bench judge $(TRACK) --strategy llm --provider claude-cli --resume
 
 bench-judge-api: build-bench
-	@./$(BIN_DIR)/bench judge $(TRACK_PATH) --strategy llm --provider claude-api --resume
+	@./$(BIN_DIR)/bench judge $(TRACK) --strategy llm --provider claude-api --resume
 
 bench-show-spec: build-bench
-	@./$(BIN_DIR)/bench show spec $(TRACK_PATH)
+	@./$(BIN_DIR)/bench show spec $(TRACK)
 
 bench-show-pool: build-bench
-	@./$(BIN_DIR)/bench show pool $(TRACK_PATH)
+	@./$(BIN_DIR)/bench show pool $(TRACK)
 
 bench-show-judgments: build-bench
-	@./$(BIN_DIR)/bench show judgments $(TRACK_PATH) --strategy lexical
+	@./$(BIN_DIR)/bench show judgments $(TRACK) --strategy lexical
 
 bench-qrels: build-bench
-	@./$(BIN_DIR)/bench export $(TRACK_PATH) --format qrels --strategy lexical
+	@./$(BIN_DIR)/bench export $(TRACK) --format qrels --strategy lexical
 
 # Development workflow
 dev: fmt vet lint test build-all

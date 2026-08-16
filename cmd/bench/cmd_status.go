@@ -22,19 +22,19 @@ exist, when they were last generated, and what the next natural step is.
 
 Analogous to git status — run it at the start of any session to see where
 you left off.`,
-		Example: `  bench status global-news-dataset/fts_quality
+		Example: `  bench status tracks/global-news-dataset/fts_quality
   bench status          # walk-up from CWD`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeStatus(cmd.OutOrStdout(), trackArg, args)
 		},
 	}
-	cmd.Flags().StringVar(&trackArg, "track", "", "Track name or path")
+	cmd.Flags().StringVar(&trackArg, "track", "", "Track path (relative to --track-root)")
 	return cmd
 }
 
 func executeStatus(w io.Writer, track string, args []string) error {
-	return forEachTrack(w, trackctx.Inputs{TrackArg: trackArg(track, args)}, func(tr *trackctx.Track) error {
+	return forEachTrack(w, trackInputs(track, args), func(tr *trackctx.Track) error {
 		return statusTrack(w, tr)
 	})
 }

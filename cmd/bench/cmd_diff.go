@@ -29,25 +29,25 @@ func newDiffCmd() *cobra.Command {
 		Long: `Loads two report JSON files and shows per-engine metric deltas and the
 per-query NDCG regressions sorted by magnitude.
 
-Without --a/--b, picks the two most-recent reports in tracks/<name>/reports/.
+Without --a/--b, picks the two most-recent reports in <track>/reports/.
 With --a and --b, accepts run IDs (e.g. 2026-05-26T23-39-05-run-7e0750) or
 direct paths to report.json files.`,
-		Example: `  bench diff global-news-dataset/fts_quality                               # latest two runs
-  bench diff global-news-dataset/fts_quality --b 2026-05-26T23-39-05-run-7e0750
+		Example: `  bench diff tracks/global-news-dataset/fts_quality                               # latest two runs
+  bench diff tracks/global-news-dataset/fts_quality --b 2026-05-26T23-39-05-run-7e0750
   bench diff --a /tmp/before.json --b /tmp/after.json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeDiff(cmd.OutOrStdout(), f, args)
 		},
 	}
-	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track name or path")
+	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().StringVar(&f.pathA, "a", "", "Before run: run ID or path to report.json")
 	cmd.Flags().StringVar(&f.pathB, "b", "", "After run: run ID or path to report.json")
 	return cmd
 }
 
 func executeDiff(w io.Writer, f diffFlags, args []string) error {
-	tr, err := trackctx.Resolve(trackctx.Inputs{TrackArg: trackArg(f.trackArg, args)})
+	tr, err := trackctx.Resolve(trackInputs(f.trackArg, args))
 	if err != nil {
 		// If both paths are explicit we don't need a track.
 		if f.pathA != "" && f.pathB != "" {

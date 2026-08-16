@@ -30,22 +30,23 @@ func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init <track>",
 		Short: "Scaffold a new evaluation track folder",
-		Long: `Creates a self-contained evaluation track under tracks/<name>/:
+		Long: `Creates a self-contained evaluation track at the given path:
 
-  tracks/<name>/
+  <track>/
     spec.yaml          # engines + jobs + defaults
     suite.yaml         # query templates + queries
     trec/              # generated pool, annotations, qrels live here
     reports/           # one JSON per bench run
     README.md          # workflow notes
 
-The folder IS the track — no hidden state, no selector. Run any subcommand
-either by name (bench run my_track) or path (bench run --track ./elsewhere).
+The folder IS the track — no hidden state, no selector, and no directory
+layout above it is assumed. The path is relative to --track-root
+(BENCH_TRACK_ROOT, default: current directory) unless it is absolute.
 
-A name may nest with "/" to group paradigms under a dataset:
-  bench init cc-news/fts_quality   → tracks/cc-news/fts_quality/
-  (run the whole dataset with: bench run 'cc-news/*')`,
-		Example: "  bench init global-news-dataset/fts_quality_v2\n  bench init cc-news/fts_quality",
+Group related tracks by putting them in one folder and running a glob:
+  bench init tracks/cc-news/fts_quality
+  bench run 'tracks/cc-news/*'`,
+		Example: "  bench init tracks/cc-news/fts_quality\n  BENCH_TRACK_ROOT=tracks/cc-news bench init news_fuzzy",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeInit(cmd, f, args[0])
@@ -56,15 +57,15 @@ A name may nest with "/" to group paradigms under a dataset:
 }
 
 func executeInit(cmd *cobra.Command, f initFlags, name string) error {
-	if err := validateTrackName(name); err != nil {
+	if err := validateTrackPath(name); err != nil {
 		return err
 	}
 
-	// Bare name → tracks/<name>/. A path-shaped arg is used verbatim, so power
-	// users can drop a track anywhere.
+	// The arg is a path like any other: absolute as-is, relative against the
+	// track root (default: cwd). No parent layout is invented.
 	root := name
-	if !pathLike(name) {
-		root = filepath.Join("tracks", name)
+	if !filepath.IsAbs(name) {
+		root = filepath.Join(trackRootOrCwd(), name)
 	}
 
 	if info, err := os.Stat(root); err == nil && info.IsDir() && !f.force {
@@ -103,26 +104,12 @@ func executeInit(cmd *cobra.Command, f initFlags, name string) error {
 	_ = os.WriteFile(filepath.Join(root, "trec", ".gitkeep"), nil, 0644)
 	_ = os.WriteFile(filepath.Join(root, "reports", ".gitkeep"), nil, 0644)
 
-	// Refer to the track by its tracks-relative name (news/fts), not the bare
-	// basename, so nested tracks get a runnable hint.
-	hint := name
-	if pathLike(name) {
-		hint = root
-	}
+	// The arg as typed addresses the track again under the same root, so it is
+	// the hint that always works.
 	cmd.Printf("Track created: %s/\n", root)
 	cmd.Printf("Next: edit %s/suite.yaml, then run:\n", root)
-	cmd.Printf("  bench validate %s\n", hint)
+	cmd.Printf("  bench validate %s\n", name)
 	return nil
-}
-
-// pathLike reports whether the arg is a verbatim filesystem path (absolute or
-// dot-prefixed) rather than a track name. A slash-nested name like "news/fts"
-// is NOT path-like — it maps under tracks/ as a nested track.
-func pathLike(s string) bool {
-	if s == "" {
-		return false
-	}
-	return s[0] == '/' || s[0] == '.'
 }
 
 func renderTemplate(srcPath, destPath string, ctx initContext, force bool) error {
@@ -147,23 +134,24 @@ func renderTemplate(srcPath, destPath string, ctx initContext, force bool) error
 	return nil
 }
 
-func validateTrackName(name string) error {
-	if name == "" {
-		return fmt.Errorf("track name is empty")
+// validateTrackPath guards the scaffold target. It is an ordinary path —
+// absolute or relative, nested as deep as you like — so only empty segments and
+// characters that make a path awkward to type back are rejected.
+func validateTrackPath(p string) error {
+	if p == "" {
+		return fmt.Errorf("track path is empty")
 	}
-	// "/" nests a track under a dataset dir (news/fts), but it must separate
-	// non-empty segments — no leading, trailing, or doubled slashes.
-	if strings.HasPrefix(name, "/") || strings.HasSuffix(name, "/") || strings.Contains(name, "//") {
-		return fmt.Errorf("track name has an empty path segment: %q", name)
+	if strings.HasSuffix(p, "/") || strings.Contains(p, "//") {
+		return fmt.Errorf("track path has an empty path segment: %q", p)
 	}
-	for _, r := range name {
+	for _, r := range p {
 		switch {
 		case r >= 'a' && r <= 'z',
 			r >= 'A' && r <= 'Z',
 			r >= '0' && r <= '9',
-			r == '-' || r == '_' || r == '/':
+			r == '-' || r == '_' || r == '/' || r == '.':
 		default:
-			return fmt.Errorf("track name may only contain [a-zA-Z0-9_-] and / for nesting: %q", name)
+			return fmt.Errorf("track path may only contain [a-zA-Z0-9_-.] and /: %q", p)
 		}
 	}
 	return nil
