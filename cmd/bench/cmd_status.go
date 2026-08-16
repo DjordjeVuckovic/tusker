@@ -22,7 +22,7 @@ exist, when they were last generated, and what the next natural step is.
 
 Analogous to git status — run it at the start of any session to see where
 you left off.`,
-		Example: `  bench status fts_quality
+		Example: `  bench status global-news-dataset/fts_quality
   bench status          # walk-up from CWD`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

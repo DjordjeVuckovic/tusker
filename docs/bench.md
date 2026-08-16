@@ -97,7 +97,7 @@ bench diff   [<name>]              compare latest two runs
 bench clean  [<name>]              remove old report files
 ```
 
-Every command accepts a track name as a positional arg (`bench run fts_quality`), a `--track` flag, or resolves from the current directory when you `cd tracks/<name>`.
+Every command accepts a track name as a positional arg (`bench run global-news-dataset/fts_quality`), a `--track` flag, or resolves from the current directory when you `cd tracks/<dataset>/<paradigm>`.
 
 ## Strategy taxonomy
 
@@ -181,11 +181,11 @@ Elapsed time is printed after the results table.
 
 Examples:
 ```bash
-bench export fts_quality --format qrels
-bench export fts_quality --format qrels --strategy claude-api
-bench export fts_quality --format html
-bench export fts_quality --format markdown
-bench export fts_quality --format markdown --output /tmp/results.md
+bench export global-news-dataset/fts_quality --format qrels
+bench export global-news-dataset/fts_quality --format qrels --strategy claude-api
+bench export global-news-dataset/fts_quality --format html
+bench export global-news-dataset/fts_quality --format markdown
+bench export global-news-dataset/fts_quality --format markdown --output /tmp/results.md
 ```
 
 ### `bench status [<name>]`
@@ -214,9 +214,9 @@ Pretty-prints a one-page summary of any artifact:
 Removes old JSON, HTML, and Markdown files from `reports/`, keeping the `--keep` most-recent (default 5). `latest.json` is never deleted.
 
 ```bash
-bench clean fts_quality            # keep 5 most recent
-bench clean fts_quality --keep 2
-bench clean fts_quality --dry-run  # show what would be deleted
+bench clean global-news-dataset/fts_quality            # keep 5 most recent
+bench clean global-news-dataset/fts_quality --keep 2
+bench clean global-news-dataset/fts_quality --dry-run  # show what would be deleted
 ```
 
 ## Metrics
@@ -245,26 +245,25 @@ For per-track documentation, see `tracks/<name>/README.md`.
 
 ## Track naming convention
 
-One track per (dataset × IR paradigm). Two layouts are supported side by side:
+One track per (dataset × IR paradigm), nested as `tracks/<dataset>/<paradigm>/`
+and addressed by a slash path — one directory per dataset:
 
-**Flat** — `tracks/<dataset>_<paradigm>/`, addressed by its name:
-
-| Track           | Paradigm            | Engines                                 |
-|-----------------|---------------------|-----------------------------------------|
-| `news_fts`      | Full-text search    | pg-seq, pg-gin, paradedb, elasticsearch |
-| `news_fuzzy`    | Fuzzy / approximate | pg_trgm, ES fuzziness                   |
-| `news_semantic` | Semantic / vector   | pgvector, ES dense_vector kNN           |
-| `news_hybrid`   | Hybrid (RRF fusion) | pgvector+BM25, ES hybrid                |
-
-**Nested** — `tracks/<dataset>/<paradigm>/`, addressed by a slash path
-(`news/fts`), grouping a dataset's paradigms under one directory:
+| Track                                | Paradigm            | Engines                                 |
+|--------------------------------------|---------------------|-----------------------------------------|
+| `global-news-dataset/fts_quality`    | Full-text search    | pg-seq, pg-gin, paradedb, elasticsearch |
+| `global-news-dataset/news_fuzzy`     | Fuzzy / approximate | pg_trgm, ES fuzziness                   |
+| `global-news-dataset/news_semantic`  | Semantic / vector   | pgvector, ES dense_vector kNN           |
+| `global-news-dataset/news_hybrid`    | Hybrid (RRF fusion) | pgvector+BM25, ES hybrid                |
 
 ```
-tracks/news/fts/        bench run news/fts     # one paradigm
-tracks/news/fuzzy/      bench run 'news/*'     # every paradigm of the dataset
-tracks/news/semantic/
-tracks/news/hybrid/
+tracks/global-news-dataset/fts_quality/     bench run global-news-dataset/fts_quality
+tracks/global-news-dataset/news_fuzzy/      bench run 'global-news-dataset/*'   # whole dataset
+tracks/global-news-dataset/news_semantic/
+tracks/global-news-dataset/news_hybrid/
 ```
+
+A **flat** `tracks/<name>/` folder still resolves by its bare name — the CLI
+supports both layouts — but new tracks should nest under their dataset.
 
 This decomposition ensures that pools and judgments are paradigm-specific (different query types, different relevance criteria) and that statistical comparisons are between equivalent systems.
 
@@ -273,7 +272,7 @@ This decomposition ensures that pools and judgments are paradigm-specific (diffe
 A track arg is interpreted as:
 
 1. **Verbatim path** — absolute, `./`-/`../`-prefixed, or a `*.yaml` etc. — used as-is (escape hatch for tracks outside `./tracks`).
-2. **Name** — mapped under `tracks/`. May be nested with `/` (`news/fts` → `tracks/news/fts`).
-3. **Glob** — `news/*` fans out across every track-shaped match; `validate`, `pool`, `judge`, `run`, and `status` run once per matched track.
+2. **Name** — mapped under `tracks/`. May be nested with `/` (`global-news-dataset/fts_quality` → `tracks/global-news-dataset/fts_quality`).
+3. **Glob** — `global-news-dataset/*` fans out across every track-shaped match; `validate`, `pool`, `judge`, `run`, and `status` run once per matched track.
 
-Grouping is **explicit**: only a glob expands. A bare name always means exactly one track — there is no implicit "directory becomes a group" behaviour, so `bench run news` (when `news` is a directory of tracks, not a track) is an error. Glob mode forbids the single-track path overrides (`--spec`/`--suite`/`--pool`/`--output`). A per-track failure is logged and the run continues; the command exits non-zero listing the tracks that failed. Quote a glob so the shell doesn't expand it first: `bench run 'news/*'`.
+Grouping is **explicit**: only a glob expands. A bare name always means exactly one track — there is no implicit "directory becomes a group" behaviour, so `bench run global-news-dataset` (when `global-news-dataset` is a directory of tracks, not a track) is an error. Glob mode forbids the single-track path overrides (`--spec`/`--suite`/`--pool`/`--output`). A per-track failure is logged and the run continues; the command exits non-zero listing the tracks that failed. Quote a glob so the shell doesn't expand it first: `bench run 'global-news-dataset/*'`.

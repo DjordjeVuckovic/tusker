@@ -20,17 +20,23 @@ echo "3) Hacker News Posts"
 read -r -p "Enter the number of your choice: " choice
 
 if [ "$choice" -eq 1 ]; then
-    dataset="rmisra/news-category-dataset"
-elif [ "$choice" -eq 2 ]; then
     dataset="everydaycodings/global-news-dataset"
+    dir="global-news-dataset"
+elif [ "$choice" -eq 2 ]; then
+    dataset="rmisra/news-category-dataset"
+    dir="news-category-dataset"
 elif [ "$choice" -eq 3 ]; then
     dataset="hacker-news/hacker-news-posts"
+    dir="hacker-news-posts"
 else
     echo "Invalid choice. Exiting."
     exit 1
 fi
 
-# Download and unzip the dataset
-kaggle datasets download "$dataset" --unzip -p ../dataset/kaggle
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+out_dir="${root}/datasets/${dir}"
 
-echo "Dataset downloaded and extracted to dataset/kaggle 🎇"
+# Download and unzip the dataset
+kaggle datasets download "$dataset" --unzip -p "$out_dir"
+
+echo "Dataset downloaded and extracted to datasets/${dir} 🎇"

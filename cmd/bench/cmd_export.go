@@ -36,11 +36,11 @@ func newExportCmd() *cobra.Command {
 
 qrels/tsv picks the judgments file in this order: --judgments PATH > --strategy NAME >
 defaults to lexical. html and markdown read the track's latest report.`,
-		Example: `  bench export fts_quality --format qrels
-  bench export fts_quality --format qrels --strategy claude-api
-  bench export fts_quality --format html
-  bench export fts_quality --format markdown
-  bench export fts_quality --format markdown --output /tmp/results.md
+		Example: `  bench export global-news-dataset/fts_quality --format qrels
+  bench export global-news-dataset/fts_quality --format qrels --strategy claude-api
+  bench export global-news-dataset/fts_quality --format html
+  bench export global-news-dataset/fts_quality --format markdown
+  bench export global-news-dataset/fts_quality --format markdown --output /tmp/results.md
   bench export --judgments /tmp/ad-hoc.yaml --format qrels --output /tmp/q.tsv`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

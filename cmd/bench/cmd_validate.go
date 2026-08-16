@@ -35,8 +35,8 @@ func newValidateCmd() *cobra.Command {
   - api descriptors parse as {method, path, body?, params?}
 
 Returns non-zero exit if any query fails — wire it into CI.`,
-		Example: `  bench validate fts_quality
-  bench validate --track tracks/fts_quality --fail-fast`,
+		Example: `  bench validate global-news-dataset/fts_quality
+  bench validate --track tracks/global-news-dataset/fts_quality --fail-fast`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeValidate(cmd, f, args)

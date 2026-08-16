@@ -92,7 +92,7 @@ func envOrFlag(envKey, flagVal string) string {
 }
 
 // trackArg picks up the track from a flag or first positional arg. The CLI
-// allows either form: `bench pool fts_quality` or `bench pool --track fts_quality`.
+// allows either form: `bench pool global-news-dataset/fts_quality` or `bench pool --track global-news-dataset/fts_quality`.
 func trackArg(flag string, args []string) string {
 	if flag != "" {
 		return flag

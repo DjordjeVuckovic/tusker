@@ -23,7 +23,8 @@ Stages:
                        object store into the article_embeddings store
 
 Typical flow:
-  datapipe preprocess --input raw.csv --output dataset/canonical --mapping m.yaml
+  datapipe preprocess --input datasets/<name>/dataset.csv \
+      --output datasets/<name>/canonical --mapping m.yaml
   datapipe load articles
   datapipe load embeddings
 `

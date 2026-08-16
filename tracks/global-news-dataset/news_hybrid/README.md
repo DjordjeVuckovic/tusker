@@ -36,8 +36,8 @@ This tests whether hybrid fusion gives better results than either signal alone.
 
 ```bash
 # Pre-compute embeddings first (same as news_semantic)
-python scripts/embed_queries.py --suite tracks/news_hybrid/suite.yaml \
-  --output tracks/news_hybrid/trec/query_embeddings.json
+python scripts/embed_queries.py --suite tracks/global-news-dataset/news_hybrid/suite.yaml \
+  --output tracks/global-news-dataset/news_hybrid/trec/query_embeddings.json
 
 bench pool     news_hybrid
 bench judge    news_hybrid --strategy claude-api

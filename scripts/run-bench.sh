@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Tusker search benchmark — canonical workflow (bench v1, track-first).
+#
+# A "track" is a self-contained folder under tracks/<dataset>/ holding spec.yaml,
+# suite.yaml, generated pool/annotations/qrels in trec/, and reports/.
+# The folder IS the track — no hidden state.
+
+set -euo pipefail
+
+DATASET="${DATASET:-global-news-dataset}"
+TRACK="${TRACK:-$DATASET/fts_quality}"
+
+# 0. Build
+make build-bench
+
+# 0a. (Optional) Scaffold a new track from templates.
+# ./bin/bench init my_new_track
+
+# 1. Sanity-check spec + suite ahead of real engine time.
+./bin/bench validate "$TRACK"
+
+# 2. Eyeball the configuration.
+./bin/bench show spec "$TRACK"
+
+# 3. Generate the candidate pool from all configured engines.
+./bin/bench pool "$TRACK"
+./bin/bench show pool "$TRACK"
+
+# 4a. Grade with the deterministic lexical baseline (no LLM, no API).
+./bin/bench judge "$TRACK" --strategy lexical
+
+# 4b. ... OR with the Claude CLI per batch (cheap: bills through your Claude
+#     subscription). Model defaults to haiku; --model sonnet for a stronger judge.
+./bin/bench judge "$TRACK" --strategy llm --provider claude-cli --resume
+
+# 4c. ... OR with the Anthropic API in batches (set ANTHROPIC_API_KEY).
+./bin/bench judge "$TRACK" --strategy llm --provider claude-api --batch 20 --resume
+
+# 4d. ... OR write -1 placeholders for hand grading.
+./bin/bench judge "$TRACK" --strategy manual
+
+# 5. Inspect grades before running the benchmark.
+./bin/bench show judgments "$TRACK" --strategy lexical
+
+# 6. Run the benchmark. Defaults to spec.defaults.judgments; override with
+#    --judgments <name> to swap which judgment set scores this run.
+./bin/bench run "$TRACK"
+./bin/bench run "$TRACK" --judgments claude-cli
+
+# 7. (Optional) Export TREC qrels for trec_eval / external tooling.
+#    Judgment sets are addressed by name: lexical, claude-cli, claude-api, ...
+./bin/bench export "$TRACK" --format qrels --strategy claude-cli

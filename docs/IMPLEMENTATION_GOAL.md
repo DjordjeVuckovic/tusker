@@ -67,7 +67,7 @@ expressed as distinct query types and distinct searcher interfaces.
 | Semantic   | done (pgvector)           | done (kNN dense_vector) |
 | Hybrid     | done (RRF in SQL)         | in progress |
 
-Fuzzy is exercised only through the bench harness (`tracks/news_fuzzy`, raw SQL/DSL templates);
+Fuzzy is exercised only through the bench harness (`tracks/global-news-dataset/news_fuzzy`, raw SQL/DSL templates);
 there is no fuzzy HTTP endpoint. (Note: `query.Match` carries a `Fuzziness` field that ES honors
 and PG currently ignores.)
 
@@ -162,7 +162,7 @@ five are always `true`; `semantic` is `true` only when a semantic searcher is co
 - [x] FTS: string / match / multi_match / phrase / boolean — PG and ES, HTTP + bench.
 - [x] Semantic search — PG and ES (pgvector / kNN), HTTP endpoint.
 - [x] Hybrid (RRF) — PG done (SQL); ES in progress.
-- [x] Fuzzy — bench-only (`tracks/news_fuzzy`); no HTTP endpoint.
+- [x] Fuzzy — bench-only (`tracks/global-news-dataset/news_fuzzy`); no HTTP endpoint.
 - [x] Capability discovery endpoint.
 
 ---

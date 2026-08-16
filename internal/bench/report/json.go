@@ -36,7 +36,7 @@ type latestPointer struct {
 }
 
 // ReadLatestReport follows the pointer written at latestPath (e.g.
-// tracks/fts_quality/reports/latest.json) to the actual report file and
+// tracks/global-news-dataset/fts_quality/reports/latest.json) to the actual report file and
 // returns the parsed Report. The pointer stores a path relative to its own
 // directory so it survives moves of the track folder.
 func ReadLatestReport(latestPath string) (*Report, error) {

@@ -65,9 +65,9 @@ against via --judgments <name>.
 
 Resumable: re-run with the same --strategy and --resume to skip docs already
 graded. Atomic writes mean Ctrl-C is safe.`,
-		Example: `  bench judge fts_quality --strategy lexical
-  bench judge fts_quality --strategy llm --provider claude-cli
-  bench judge fts_quality --strategy llm --provider claude-api --model sonnet --batch 20 --resume
+		Example: `  bench judge global-news-dataset/fts_quality --strategy lexical
+  bench judge global-news-dataset/fts_quality --strategy llm --provider claude-cli
+  bench judge global-news-dataset/fts_quality --strategy llm --provider claude-api --model sonnet --batch 20 --resume
   bench judge --pool /tmp/p.yaml --strategy lexical --output /tmp/a.yaml`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -11,18 +11,6 @@ services:
     volumes:
       - pg_news_data:/var/lib/postgresql
 
-  pg-news-native-test:
-    image: pgvector/pgvector:pg18
-    container_name: pg-news-native-test
-    environment:
-      POSTGRES_USER: news_user
-      POSTGRES_PASSWORD: news_password
-      POSTGRES_DB: news_db
-    ports:
-      - "54327:5432"
-    volumes:
-      - pg_news_data_test:/var/lib/postgresql
-
   pg-news-parade:
     image: paradedb/paradedb:latest-pg18
     container_name: pg-parade-news
@@ -85,9 +73,6 @@ services:
 volumes:
   pg_news_data:
     name: ${NEWS_VOLUME_NS:-news-hunter}_pg_news_data
-    driver: local
-  pg_news_data_test:
-    name: ${NEWS_VOLUME_NS:-news-hunter}_pg_news_data_test
     driver: local
   es_news_data:
     name: ${NEWS_VOLUME_NS:-news-hunter}_es_news_data

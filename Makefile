@@ -152,10 +152,15 @@ run-datapipe-articles-es: build-datapipe
 	@echo "Running datapipe load articles (es)..."
 	@ENV_PATHS="cmd/datapipe/articles.env,cmd/datapipe/es.env" ./$(BIN_DIR)/datapipe load articles
 
-# Load precomputed embeddings into the article_embeddings store
-run-datapipe-embeddings: build-datapipe
-	@echo "Running datapipe load embeddings..."
-	@ENV_PATHS="cmd/datapipe/embeddings.env" ./$(BIN_DIR)/datapipe load embeddings
+# Load precomputed embeddings into the article_embeddings store (Postgres)
+run-datapipe-embeddings-pg: build-datapipe
+	@echo "Running datapipe load embeddings (pg)..."
+	@ENV_PATHS="cmd/datapipe/embeddings.env,cmd/datapipe/pg.env" ./$(BIN_DIR)/datapipe load embeddings
+
+# Load precomputed embeddings into the article_embeddings store (Elasticsearch)
+run-datapipe-embeddings-es: build-datapipe
+	@echo "Running datapipe load embeddings (es)..."
+	@ENV_PATHS="cmd/datapipe/embeddings.env,cmd/datapipe/es.env" ./$(BIN_DIR)/datapipe load embeddings
 
 run-api: build-news-api
 	@echo "Running news search service..."

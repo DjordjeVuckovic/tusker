@@ -40,17 +40,18 @@ func newRunCmd() *cobra.Command {
 		Long: `Runs every job in the track's spec.yaml against its engines, computes IR
 metrics + latency, writes a JSON report under tracks/<name>/reports/.
 
-The track arg accepts a flat name (fts_quality), a nested name (news/fts), or a
-glob (news/*) that runs every matching track, writing one report per track.
+The track arg accepts a flat name (fts_quality), a nested <dataset>/<paradigm>
+name (global-news-dataset/fts_quality), or a glob (global-news-dataset/*) that
+runs every matching track, writing one report per track.
 
 The judgments file used for scoring resolves in this order:
   1. --judgments <name|path>      (CLI override)
   2. spec.defaults.judgments      (per-track default)
   3. none → metrics-less report, warning printed`,
-		Example: `  bench run fts_quality
-  bench run news/fts                       # nested track
-  bench run 'news/*'                       # every paradigm of the news dataset
-  bench run news/fts --judgments claude-api`,
+		Example: `  bench run global-news-dataset/fts_quality
+  bench run global-news-dataset/news_semantic
+  bench run 'global-news-dataset/*'        # every paradigm of the dataset
+  bench run global-news-dataset/fts_quality --judgments claude-api`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeRun(cmd, f, args)

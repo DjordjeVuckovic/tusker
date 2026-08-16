@@ -43,8 +43,9 @@ The folder IS the track — no hidden state, no selector. Run any subcommand
 either by name (bench run my_track) or path (bench run --track ./elsewhere).
 
 A name may nest with "/" to group paradigms under a dataset:
-  bench init news/fts   → tracks/news/fts/   (run the group with: bench run 'news/*')`,
-		Example: "  bench init fts_quality_v2\n  bench init news/fts",
+  bench init cc-news/fts_quality   → tracks/cc-news/fts_quality/
+  (run the whole dataset with: bench run 'cc-news/*')`,
+		Example: "  bench init global-news-dataset/fts_quality_v2\n  bench init cc-news/fts_quality",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeInit(cmd, f, args[0])

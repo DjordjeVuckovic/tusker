@@ -52,7 +52,7 @@ meta:
   strategy: manual
   judge_model: ""
   judge_prompt_version: v1
-  pool_ref: tracks/fts_quality/trec/pool.yaml
+  pool_ref: tracks/global-news-dataset/fts_quality/trec/pool.yaml
   graded_count: 42
   relevance_scale: [0, 1, 2, 3]
 strategy: manual

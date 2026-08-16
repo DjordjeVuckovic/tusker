@@ -32,8 +32,8 @@ per-query NDCG regressions sorted by magnitude.
 Without --a/--b, picks the two most-recent reports in tracks/<name>/reports/.
 With --a and --b, accepts run IDs (e.g. 2026-05-26T23-39-05-run-7e0750) or
 direct paths to report.json files.`,
-		Example: `  bench diff fts_quality                               # latest two runs
-  bench diff fts_quality --b 2026-05-26T23-39-05-run-7e0750
+		Example: `  bench diff global-news-dataset/fts_quality                               # latest two runs
+  bench diff global-news-dataset/fts_quality --b 2026-05-26T23-39-05-run-7e0750
   bench diff --a /tmp/before.json --b /tmp/after.json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

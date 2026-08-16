@@ -34,9 +34,9 @@ Query embeddings must be pre-computed before running `bench pool`:
 ```bash
 # Generate embeddings for all suite queries using OpenAI text-embedding-3-small
 python scripts/embed_queries.py \
-  --suite tracks/news_semantic/suite.yaml \
+  --suite tracks/global-news-dataset/news_semantic/suite.yaml \
   --model text-embedding-3-small \
-  --output tracks/news_semantic/trec/query_embeddings.json
+  --output tracks/global-news-dataset/news_semantic/trec/query_embeddings.json
 
 # Embed the article corpus (one-time)
 python scripts/embed_corpus.py \

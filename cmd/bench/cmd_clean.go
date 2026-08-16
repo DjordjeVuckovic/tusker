@@ -27,9 +27,9 @@ keeping the --keep most-recent runs.  latest.json is never deleted.
 
 Reports are sorted by run timestamp in their filename (lexicographic = chronological),
 so the newest N are always retained.`,
-		Example: `  bench clean fts_quality            # keep 5 most recent (default)
-  bench clean fts_quality --keep 3
-  bench clean fts_quality --dry-run  # show what would be deleted`,
+		Example: `  bench clean global-news-dataset/fts_quality            # keep 5 most recent (default)
+  bench clean global-news-dataset/fts_quality --keep 3
+  bench clean global-news-dataset/fts_quality --dry-run  # show what would be deleted`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeClean(cmd, f, args)

@@ -32,9 +32,9 @@ with --output for ad-hoc files.
 
 The pool file carries a meta block (run_id, tool, engines, depth) so later
 artifacts can attest which pool they were derived from.`,
-		Example: `  bench pool fts_quality
-  bench pool fts_quality --depth 50
-  bench pool --track tracks/fts_quality --output /tmp/adhoc-pool.yaml`,
+		Example: `  bench pool global-news-dataset/fts_quality
+  bench pool global-news-dataset/fts_quality --depth 50
+  bench pool --track tracks/global-news-dataset/fts_quality --output /tmp/adhoc-pool.yaml`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executePool(cmd, f, args)
