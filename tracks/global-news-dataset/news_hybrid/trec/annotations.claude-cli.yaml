@@ -1,0 +1,1883 @@
+schema_version: 1
+meta:
+    run_id: 2026-07-27T00-10-22-judge-e9fcdd
+    tool: bench/1.0.0
+    generated_at: 2026-07-27T00:10:22.941566Z
+    strategy: claude-cli
+    judge_model: claude-haiku-4-5-20251001
+    judge_prompt_version: v1
+    pool_ref: /Users/djordjevuckovic/projects/news-hunter/tracks/news_hybrid/trec/pool.yaml
+    graded_count: 923
+    relevance_scale:
+        - 0
+        - 1
+        - 2
+        - 3
+strategy: claude-cli
+queries:
+    - query_id: hybrid-climate-energy-policy
+      docs:
+        - doc_id: 7e5a1029-8299-4615-b4e0-5b897ce9ab9f
+          grade: 1
+        - doc_id: b6782b38-bd8b-495c-b73e-800f3e415502
+          grade: 3
+        - doc_id: 9b916082-fefd-483e-a393-adb91e416f66
+          grade: 3
+        - doc_id: c83953a8-2fd4-49ab-a7eb-7969a98b1ed6
+          grade: 3
+        - doc_id: 6e316f8d-e0c4-47e6-9ac7-857b60e12ed4
+          grade: 3
+        - doc_id: b6e91757-e8df-458b-885c-ee92532eab21
+          grade: 3
+        - doc_id: 700c91ca-bd30-48e5-9eff-d4bc6f20e240
+          grade: 3
+        - doc_id: 873e3c61-04ee-4e22-a2d3-bc7f1909ab01
+          grade: 3
+        - doc_id: a1e797a3-0859-4b5a-a1fd-67ed496c6306
+          grade: 3
+        - doc_id: ded21157-0194-445f-b1fd-74ecaaf45b49
+          grade: 2
+        - doc_id: a0273e95-c83c-4abf-aeb9-10eb892e81cc
+          grade: 3
+        - doc_id: 859449ee-f1c9-4cda-b959-3d0d888d322e
+          grade: 3
+        - doc_id: f60a75c2-a8ea-4904-95e7-7a3ca90560ed
+          grade: 3
+        - doc_id: b04f4122-1040-482c-897c-13c79a8584c9
+          grade: 3
+        - doc_id: 42c94ad3-9c35-4f15-b978-74333a56477d
+          grade: 3
+        - doc_id: 1995d86d-2e95-4143-b6bf-d93dc4bf035d
+          grade: 2
+        - doc_id: 47b542ba-e33d-4d3f-b107-889299569c12
+          grade: 2
+        - doc_id: 03f87556-5e27-4285-a06a-92ca774a29be
+          grade: 3
+        - doc_id: db6e056f-9f2c-441f-815a-28a2eb762c31
+          grade: 2
+        - doc_id: 6ce6919a-717a-48d9-9ad9-ba948981556b
+          grade: 1
+        - doc_id: 10f9db4a-a182-4d80-8678-f3565c94ad8c
+          grade: 0
+        - doc_id: d0dc092b-6c5f-4f54-82a2-780a0a840257
+          grade: 3
+        - doc_id: 7d4ead26-4461-42c1-a874-f282068cc0be
+          grade: 3
+        - doc_id: 53d94fde-a9c2-4d9b-896e-b7cb9274b774
+          grade: 2
+        - doc_id: cfdf686d-b4df-4ae7-9224-58df0f9ebbe2
+          grade: 3
+        - doc_id: 5a9248eb-09a7-4e15-b8ad-1f3a67cab95b
+          grade: 2
+        - doc_id: 2d1502bf-683f-4437-966b-de1f833de365
+          grade: 3
+        - doc_id: 863680b7-57f3-4f5a-96fa-c836692f637c
+          grade: 2
+        - doc_id: 64ca7775-53d2-4324-a9a4-081ef675f628
+          grade: 1
+        - doc_id: 07ae776d-9af4-4700-a95a-540e8ef8c939
+          grade: 3
+        - doc_id: 22923dae-c325-41e4-98f1-bc7fd49b11a0
+          grade: 3
+        - doc_id: a6b76f63-f3bb-4577-ba07-2de7e3bc218c
+          grade: 3
+        - doc_id: cd00322c-733d-43d4-829a-44a2fb320507
+          grade: 3
+        - doc_id: e387585a-fabf-4664-b2f8-c3073acea101
+          grade: 3
+        - doc_id: c52af2e6-61c8-49b8-a918-67b5e77c1eb8
+          grade: 3
+        - doc_id: cc058fda-a85d-4c48-8868-f2e5b90a3f5c
+          grade: 3
+        - doc_id: 4393d365-f2cf-45fc-a1ba-303968f75f75
+          grade: 3
+        - doc_id: c4ddfd56-63ac-49ae-9932-23d0b39c4831
+          grade: 1
+        - doc_id: a69ea4bc-2250-4f15-ad34-016a4bdac35e
+          grade: 1
+        - doc_id: 0e23cc54-d2a2-4141-9d97-1f358242f426
+          grade: 3
+        - doc_id: 554fdc8b-0426-44c3-a121-5da860d11b01
+          grade: 3
+        - doc_id: 5cf8c2dc-a2af-4dec-b02a-d7d9dda651ed
+          grade: 3
+        - doc_id: 912a0f2c-3350-447c-acc7-e6805f7b17d5
+          grade: 3
+        - doc_id: af10866d-7a3a-4caa-838c-20d97c59a12f
+          grade: 2
+        - doc_id: d139ffca-3c77-4737-8f27-5add6c5c35ef
+          grade: 2
+        - doc_id: 7e1c7a75-b436-4602-857f-0cc8bbb4c323
+          grade: 2
+        - doc_id: 8c694388-dc20-41a3-8f57-dd70ba387397
+          grade: 2
+        - doc_id: f3e119d7-bc48-4a28-a92e-1243e4664692
+          grade: 2
+        - doc_id: 9569fc1e-1d63-459f-88a2-8de4cad43e2c
+          grade: 3
+        - doc_id: ae1441c8-fca0-4615-91b2-9e8f5d03995a
+          grade: 2
+        - doc_id: c8f28366-642e-436a-9809-1a47e7c08bee
+          grade: 3
+        - doc_id: e9d7b2af-0411-4bcb-baf2-8c33e040d8c2
+          grade: 2
+        - doc_id: b78975e8-1fd8-4b24-8cc9-b23a4b0e6327
+          grade: 0
+        - doc_id: 7171bc7e-54d7-4726-899b-063b508e3070
+          grade: 3
+        - doc_id: 0ddc771f-49f3-4f93-b887-6afc75244ae4
+          grade: 2
+        - doc_id: 7fdf5c70-fbe5-46dc-a5fd-6990807aa695
+          grade: 2
+        - doc_id: 7265b815-50f3-40d2-bac7-1b9a2019346b
+          grade: 3
+        - doc_id: 12955013-4983-421b-950f-5fd99d0d0c82
+          grade: 3
+        - doc_id: ca66af0d-8511-4ac6-87a1-95254fae5edb
+          grade: 0
+        - doc_id: 24861118-f2a1-449e-b698-811f8a9c10da
+          grade: 1
+        - doc_id: 7964c6f7-f53c-49c4-a699-ef54a36a5840
+          grade: 3
+        - doc_id: 2e0587af-0634-48e9-8e85-3afeb39a6e47
+          grade: 2
+        - doc_id: ae4f2e30-a701-46a8-81f1-aa258ab0a7d2
+          grade: 3
+        - doc_id: 1cd2f0f6-b2b6-44a4-b9f1-faa04cce5aa6
+          grade: 2
+        - doc_id: 58a81fdf-f353-457d-9a07-4ad1d702ec22
+          grade: 2
+        - doc_id: 9eb1d5d0-462c-4e77-a1a7-9ed242c6e589
+          grade: 2
+        - doc_id: 00267cf4-855c-4d27-84cc-e73c574fbac3
+          grade: 3
+        - doc_id: 0ebc1c38-7f99-4ddd-a987-67ff54f06e8d
+          grade: 1
+        - doc_id: e1e46991-6ef6-4dbf-9a0c-caba43da4bae
+          grade: 2
+        - doc_id: 752960e2-e2e6-4a62-ba8f-25149b1f69c7
+          grade: 2
+        - doc_id: 6644268f-3771-4da7-b3a3-96732481b902
+          grade: 3
+        - doc_id: 3101b991-bcc7-43b5-8cbf-d8e87ce72134
+          grade: 2
+        - doc_id: c0ab3dd2-dd73-402d-9151-f80fa59adc02
+          grade: 3
+        - doc_id: 079d9833-308b-4d46-8a82-7585de4eb632
+          grade: 3
+        - doc_id: 9fd832a5-9bc3-4987-81ab-7d250580c994
+          grade: 2
+        - doc_id: cce09fd7-c6f8-45fd-b375-30a3f4fb7742
+          grade: 2
+        - doc_id: 05f81217-6535-4ee4-b4a6-0d7d1935d778
+          grade: 2
+        - doc_id: ec2961fc-d7c0-4226-adfa-68d8a3e912ab
+          grade: 0
+        - doc_id: 379d0d58-9539-474b-aa4b-782635ccf55b
+          grade: 0
+        - doc_id: 4fbed928-0579-4f96-b30d-e6a5549cd324
+          grade: 0
+        - doc_id: b3d2711f-008b-437e-90ee-81ff58c86e0d
+          grade: 0
+        - doc_id: eaf21e7c-0470-4ae9-b504-9e0e1b9c0834
+          grade: 0
+        - doc_id: db7da1c3-f333-42f1-bd89-0cd44c34f5ce
+          grade: 0
+        - doc_id: 3582b0ac-765d-481c-b98d-59a610fe499d
+          grade: 3
+        - doc_id: be40499f-fbd6-488d-a36b-a3a6436aac57
+          grade: 3
+        - doc_id: 5847df71-9290-480a-a496-26645a049f2a
+          grade: 0
+        - doc_id: a0655f11-c2b6-43db-8a0e-cca63354f0e3
+          grade: 0
+        - doc_id: dae339fd-eb64-49a4-9d5b-087be144c57f
+          grade: 0
+        - doc_id: 8d4847f8-3123-4703-bec0-637e518b14e0
+          grade: 0
+        - doc_id: 711ae03e-9015-4e83-882b-4b453ec93daa
+          grade: 0
+        - doc_id: c085015a-cd57-4898-a0c3-5368d0adfaa0
+          grade: 0
+        - doc_id: c5dcf336-eb3f-465e-a5a1-b7a355e1c84f
+          grade: 0
+    - query_id: hybrid-election-democracy
+      docs:
+        - doc_id: 0012900f-2772-48b4-a207-7c8814be5ec4
+          grade: 3
+        - doc_id: f50726d8-8413-4941-ace8-905296ba0367
+          grade: 3
+        - doc_id: 7e3a32a1-4fd1-4581-a8e1-1bc7f1ffec3c
+          grade: 3
+        - doc_id: 51ad3c66-b36a-40f5-9d88-41e39a211c3f
+          grade: 3
+        - doc_id: 754a820c-8680-434a-af3a-c88022c6748d
+          grade: 2
+        - doc_id: 57a0599a-340b-42c4-a478-2ed337ecfb02
+          grade: 2
+        - doc_id: 6d090ca4-f890-4a4b-9607-246a35daad06
+          grade: 3
+        - doc_id: aa3bb46c-9f7c-46be-9cf2-ba0ad16a9bd1
+          grade: 3
+        - doc_id: a7052a0c-e785-4843-b662-0fd28d6b7716
+          grade: 3
+        - doc_id: 7c641475-3a04-4f56-9524-ce7c438e83a8
+          grade: 3
+        - doc_id: fe4459d4-f6f4-4623-8489-c2c8d3904294
+          grade: 3
+        - doc_id: 43bae633-9ec2-4029-a75c-4e8d242bf64b
+          grade: 3
+        - doc_id: bdb419d2-006a-4211-af05-3fb141dd9fa3
+          grade: 3
+        - doc_id: 94eda9e6-7794-4ac6-832d-346fcd716881
+          grade: 3
+        - doc_id: 0ef2ccff-7ec7-46e4-9480-c86cc6b9b5a8
+          grade: 3
+        - doc_id: 31a521af-c2a2-432e-be88-7d99f05ddd66
+          grade: 3
+        - doc_id: 160ca6ef-af59-424c-934f-0a7e431f37bd
+          grade: 3
+        - doc_id: de97c1c6-9d21-43b6-a33a-622e94dc5a34
+          grade: 3
+        - doc_id: 023c8c59-c440-43ab-b7a5-df615ee673ca
+          grade: 3
+        - doc_id: 77313f8e-0b95-4603-b8dc-7296ef525f66
+          grade: 3
+        - doc_id: e3d24f7c-4170-49a0-9f19-3626f7881d55
+          grade: 3
+        - doc_id: c18c52b7-186e-4c8b-b63f-56f1cf26a20f
+          grade: 2
+        - doc_id: 76f1342f-ecd0-4859-a2cb-9d26f953242b
+          grade: 3
+        - doc_id: 699e0e47-e8db-45b4-b303-6e06161fbfc4
+          grade: 2
+        - doc_id: 06accac1-bf47-4d24-95ae-bbd24c141c84
+          grade: 3
+        - doc_id: c1443718-68a8-4479-b6f6-611ce32f4dcf
+          grade: 3
+        - doc_id: 6ee5de3d-7754-4e22-8d0c-563131c2aac1
+          grade: 3
+        - doc_id: 13ae8d95-bbb9-481a-98e6-2f7fe538434b
+          grade: 3
+        - doc_id: 8a94e7fb-c61e-4131-8c9a-7af6c902d67b
+          grade: 3
+        - doc_id: c3774067-d6a8-4808-8548-1d981062271d
+          grade: 2
+        - doc_id: ca9780c4-93ca-4705-8611-8992c42b8c18
+          grade: 0
+        - doc_id: 36ed0a1f-dc36-4284-9723-31ff0b977e4a
+          grade: 3
+        - doc_id: 80f12032-1c3f-4229-a350-9a76ab00390c
+          grade: 3
+        - doc_id: 8e7e85ce-be26-4893-b69c-98e5cfd8a0dc
+          grade: 2
+        - doc_id: 3d4dd9de-6a21-486e-95ca-464acd6c21cb
+          grade: 3
+        - doc_id: aae915ec-4672-4704-b4c5-dc8ec6075e46
+          grade: 3
+        - doc_id: 7ce39a6b-a8bc-4a3b-a4c1-307026e731b1
+          grade: 3
+        - doc_id: 07594f3e-db7a-4f2e-9468-1bfa824a1828
+          grade: 2
+        - doc_id: 7436c478-f527-4609-98e3-c7852f76dafd
+          grade: 3
+        - doc_id: a7545e01-6938-44d9-978f-9cbef7c41dd0
+          grade: 2
+        - doc_id: 024bac9a-f6ac-48d6-96b1-e63dbae11441
+          grade: 3
+        - doc_id: 322ba1ce-09f7-4dbc-b30a-655cae134fcb
+          grade: 3
+        - doc_id: ec7f18ec-40e8-456f-940b-0dfa16591da2
+          grade: 3
+        - doc_id: 47239463-9049-4d57-91d3-8131e2868143
+          grade: 3
+        - doc_id: a728a50f-c382-40e5-91b9-413aee368d5b
+          grade: 3
+        - doc_id: 688b5fe1-9936-4d34-bc2b-1bf19a3faf9e
+          grade: 3
+        - doc_id: ae8301b9-bfcd-4ee3-b197-925e532cf3b1
+          grade: 3
+        - doc_id: 4c685b4d-2cf2-4b6e-8804-171ead02098a
+          grade: 3
+        - doc_id: c4855c64-daea-4e3c-83e2-9fef53609dd0
+          grade: 3
+        - doc_id: 2313cbfe-0982-475f-98d6-1f07d3a9bf79
+          grade: 1
+        - doc_id: 992c206b-d41b-408a-8a20-57d9c62429cc
+          grade: 2
+        - doc_id: c9cb069b-c143-4278-9516-ef1c5930b6f4
+          grade: 3
+        - doc_id: 6efebb4e-bab3-4a72-8908-0e41d23dd4b4
+          grade: 2
+        - doc_id: 1551929b-210c-4ec3-9bfd-a7bb7d049255
+          grade: 3
+        - doc_id: 132bd3d9-ab42-4467-aba1-cfdf63f3e327
+          grade: 1
+        - doc_id: 7ca8b2a5-b585-457f-9838-03f302ecd41d
+          grade: 1
+        - doc_id: d349da3a-531c-45df-a46a-999a6f32c5e7
+          grade: 1
+        - doc_id: 1bafe4f8-4863-4fae-b3a8-10cab21b6610
+          grade: 2
+        - doc_id: 35d648da-7914-4422-9ccb-fe6df1459df4
+          grade: 1
+        - doc_id: 0980fecd-65ec-4dff-bd98-e2944bfa82c4
+          grade: 2
+        - doc_id: b58b70f2-c1b2-41e7-b7fd-2d54e32d6411
+          grade: 3
+        - doc_id: a79a5d30-667d-4e6b-966e-589b7f78e040
+          grade: 0
+        - doc_id: 86473343-e91a-4d11-82fe-0c2ad8e7b81d
+          grade: 2
+        - doc_id: 7fa1e8d0-39fe-4175-bbe6-a758cdc6e9fc
+          grade: 3
+        - doc_id: dedb7964-5637-4774-9c39-e041dc3498d3
+          grade: 1
+        - doc_id: 5e0ee4e2-193f-4703-9961-2c6773f868d6
+          grade: 2
+        - doc_id: 727ffe48-fa80-471e-8e75-0ba62d747d83
+          grade: 3
+        - doc_id: c338821b-d2fe-4b6c-98f9-64070fcb1e40
+          grade: 3
+        - doc_id: 42a672a1-c764-4375-a93a-e79b9fc96bf5
+          grade: 3
+        - doc_id: 01242d8e-e445-4121-a680-eadb5bac3d1e
+          grade: 0
+        - doc_id: 05c8dcfc-33aa-4ac9-aa8a-6e8e07774deb
+          grade: 1
+        - doc_id: b2a91d61-87e2-4e98-a2e2-3681c3d35858
+          grade: 3
+        - doc_id: befa667c-2859-4816-8c6f-6d8b99ff35b1
+          grade: 3
+        - doc_id: 65b6e12d-ff87-4af2-82d6-e7864e547412
+          grade: 3
+        - doc_id: 05827be5-057f-4f8a-a44e-accccf700447
+          grade: 3
+        - doc_id: 85813185-a871-4aa7-9dc6-384ff873a911
+          grade: 3
+        - doc_id: baec5492-4c6e-4c13-a4ca-499adad2a01d
+          grade: 1
+        - doc_id: 7f6342f9-1ab7-4027-af2c-68d67371915e
+          grade: 0
+        - doc_id: fcef9ec8-755f-4481-9846-9d41114b6090
+          grade: 1
+        - doc_id: 13e8cd59-a5bc-4a1b-8078-bc172e12b59f
+          grade: 3
+        - doc_id: c8dad5f7-7aac-4eec-ba79-9b2244e987ee
+          grade: 3
+        - doc_id: e59d8da5-2855-481a-baa8-b72b9b60015a
+          grade: 3
+        - doc_id: 5f1be8e4-67a5-430e-a4b1-af58b9daaf38
+          grade: 3
+        - doc_id: 1ea73b42-d540-4d76-b812-5adfa5fd06da
+          grade: 1
+        - doc_id: d4eb907e-a687-40e7-9e15-f7c077cebea7
+          grade: 3
+        - doc_id: dc8edf2f-4d6e-415a-8783-a7a0f436c07d
+          grade: 2
+        - doc_id: 50b27f6b-bb75-40f6-aa5d-db36f808ed69
+          grade: 2
+        - doc_id: 5c3872e4-c5f9-4cd9-8cc2-14ef505365ed
+          grade: 2
+        - doc_id: aeacb2b2-472b-4e7f-9618-1a346e0753e6
+          grade: 1
+        - doc_id: a879d6f3-8780-4d42-afe9-dc68cf1b6dc5
+          grade: 2
+        - doc_id: 2181a5e6-168a-4446-8434-2ad63d76494f
+          grade: 3
+        - doc_id: 8d8a37ab-6a0b-46c9-91b3-9a7e3be1cda4
+          grade: 3
+        - doc_id: 274926aa-a485-429e-8cdd-80eb4c229a40
+          grade: 3
+        - doc_id: 90878557-8482-44e1-906d-ecab1bbc6f94
+          grade: 0
+        - doc_id: fb935f46-3b4d-4c64-b513-76b6a702b8e9
+          grade: 3
+        - doc_id: 0bb1858d-c37c-478f-9538-69228f47b508
+          grade: 3
+        - doc_id: 096599b3-15e0-47d1-85ee-36a63f7a5796
+          grade: 3
+        - doc_id: 7fac1871-60d7-4c75-93fa-1ee08be3c58d
+          grade: 1
+        - doc_id: 4798a4c3-c452-43d9-b7ab-b6100cb7e635
+          grade: 3
+    - query_id: hybrid-covid-health-response
+      docs:
+        - doc_id: e1505b3a-4e91-46d0-b6c0-2d0ad4f77d18
+          grade: 3
+        - doc_id: 774957da-5dff-41d7-a5b4-f06a6e1f729c
+          grade: 3
+        - doc_id: 1a0a9576-b33f-48e6-9760-68f80f3235c5
+          grade: 1
+        - doc_id: 7bc5a557-67d6-4983-9b6f-3c24460260c1
+          grade: 3
+        - doc_id: 9fef6f5a-bc03-4f4a-a418-dd63c9feb657
+          grade: 2
+        - doc_id: c06d033d-73c4-4e29-af31-1edce21029e6
+          grade: 0
+        - doc_id: edc0f29e-50c5-4533-b579-7932a0e296bf
+          grade: 3
+        - doc_id: 5ab5b09c-2ab3-4e41-8080-8523efac959d
+          grade: 1
+        - doc_id: 53f782d0-c715-4d67-93ba-e0c489057a09
+          grade: 2
+        - doc_id: dc151625-424b-4325-8fb3-534e42ba0d42
+          grade: 1
+        - doc_id: e494cddf-f390-41d4-80cf-d1b917beea96
+          grade: 1
+        - doc_id: 4f8c3248-1c39-4029-926a-c6b310e80293
+          grade: 2
+        - doc_id: 04ee2d59-0f9d-4ad8-8364-7590473682d6
+          grade: 2
+        - doc_id: 19e8692d-2a26-4c27-8636-b2cdfc294ef1
+          grade: 2
+        - doc_id: e01a6781-5299-4393-ac73-9e1563466f46
+          grade: 2
+        - doc_id: 3353ed53-6c6d-4ff8-b315-177fbd3d2e49
+          grade: 3
+        - doc_id: 4f44da73-f982-43af-80b7-3782658d0967
+          grade: 1
+        - doc_id: a2805ed1-8269-4ae6-86fb-1b738dd0c383
+          grade: 2
+        - doc_id: c3ac2be3-f38a-4552-828e-801bec3e9823
+          grade: 2
+        - doc_id: dfa3f0d0-ac84-4b26-83b5-656c8fd27f01
+          grade: 2
+        - doc_id: 7a8f6521-8841-4ca0-b5e4-0ba7b078004d
+          grade: 3
+        - doc_id: 23697585-307d-42f2-b847-014a2006dc5c
+          grade: 3
+        - doc_id: 26e62ed5-9ee5-413e-a89c-d3e49cc83234
+          grade: 1
+        - doc_id: a1a0e8d2-fee6-499b-ad24-faf96d262490
+          grade: 1
+        - doc_id: 66670b28-eb70-4835-9fd5-3331caa007f9
+          grade: 2
+        - doc_id: 5a3cb333-2085-4bc8-a46c-c3bab138d392
+          grade: 1
+        - doc_id: 400c9a12-e1ac-4db0-9b9f-e4aba3509a9b
+          grade: 3
+        - doc_id: 0eca07d2-1d62-4a92-9514-1bb1242836d9
+          grade: 1
+        - doc_id: 4f98462d-b730-458c-bf0b-72cc74505627
+          grade: 0
+        - doc_id: 97447437-5f9c-4ffb-ac38-2bced8bc29e7
+          grade: 3
+        - doc_id: 77169717-0df8-49e4-a7fd-c4efb2508183
+          grade: 3
+        - doc_id: f441b98a-af24-4e14-9664-88ea2200fb82
+          grade: 3
+        - doc_id: 683352a5-58f7-4423-8cce-8956fd301c92
+          grade: 3
+        - doc_id: cc8025e6-9ae0-4956-9f20-575a3e5debb0
+          grade: 2
+        - doc_id: 451f8a16-c03f-4fb1-860a-e2f74532e927
+          grade: 0
+        - doc_id: 296a485a-b7b3-46cc-b069-81d84261e82e
+          grade: 1
+        - doc_id: e74b0bfe-0e91-406c-982a-2a420b05d4fe
+          grade: 1
+        - doc_id: fbc162fe-74f4-4e35-b787-0cf3c0ba5770
+          grade: 3
+        - doc_id: 243e6f66-ce37-421b-8218-97c59f783b2b
+          grade: 3
+        - doc_id: 6aa07642-c1c0-4673-b562-13010b41902e
+          grade: 1
+        - doc_id: 526ee8ce-6fef-449a-a797-0602cad15d77
+          grade: 3
+        - doc_id: 462e0251-0d80-4698-954d-96c73976ce92
+          grade: 3
+        - doc_id: b102c2ae-84df-4298-9fc4-dc10b7b6c6ba
+          grade: 2
+        - doc_id: a72bd24c-a6c1-4a3b-9754-afb89d0bc466
+          grade: 1
+        - doc_id: 51b7efc4-a3f0-4ad7-8ad3-c515d0769a1c
+          grade: 3
+        - doc_id: acd30e40-3b4c-4b33-97a8-a02afe9c051c
+          grade: 2
+        - doc_id: 32b5e56f-dbf3-4bd4-88c1-c158cc668f4a
+          grade: 3
+        - doc_id: d78313f7-53f6-4d2d-a040-e36f6a6e8480
+          grade: 0
+        - doc_id: 733c4b0c-0dd1-4fbb-9768-f226be917634
+          grade: 1
+        - doc_id: b66fa600-b48c-4bca-9b16-855c9f3b00a6
+          grade: 2
+        - doc_id: 08d33c0a-4d90-4576-97b6-bb27163f71c4
+          grade: 2
+        - doc_id: 76aa8d91-1afb-450c-983d-eaab7a62fe5f
+          grade: 1
+        - doc_id: a248dd0f-c6ea-4cd8-b8d4-93e743980f7a
+          grade: 1
+        - doc_id: 1bac661d-9b5a-4a3f-85f1-ec9b4cc0cef8
+          grade: 2
+        - doc_id: c3fd176d-0360-45c9-a4a6-a5ebc3f9960a
+          grade: 1
+        - doc_id: 5081d9ee-dfb8-405f-b52b-8bc20de3a4f2
+          grade: 3
+        - doc_id: 898bbc19-d61c-4a4c-888c-91e23977f299
+          grade: 3
+        - doc_id: c7396645-9316-49ff-b2c0-59f7e293a997
+          grade: 1
+        - doc_id: 7adec3a3-bbe7-4a50-94a1-a9e481be5495
+          grade: 2
+        - doc_id: 977fb8b4-fa51-4581-b723-020d09ebd116
+          grade: 2
+        - doc_id: d6287a38-c16a-453c-8774-e305dd491c12
+          grade: 3
+        - doc_id: e056f87f-e2b1-4b13-9987-97e3ce8e6423
+          grade: 3
+        - doc_id: 2dd006d3-5d27-4da6-8e68-385f341d37a9
+          grade: 1
+        - doc_id: 711ed12b-2935-4976-a615-015655a98d13
+          grade: 1
+        - doc_id: ce60b783-73bd-4382-b06d-bc041a00f1ae
+          grade: 2
+        - doc_id: cb496ac3-a6d2-47a2-9b91-f2bf0f2184db
+          grade: 2
+        - doc_id: a6cab317-4575-4271-ab89-d4e5c94766fc
+          grade: 1
+        - doc_id: f4964893-dcb3-4359-8f01-bf35131cce2b
+          grade: 0
+        - doc_id: 7fc0147a-7ce7-4386-bb11-f2bad5d4ee4e
+          grade: 1
+        - doc_id: 8edcc5b5-d502-4d70-beff-8fe9681452b4
+          grade: 3
+        - doc_id: d7e583ed-cb59-4291-995a-0fd9cc528cd6
+          grade: 1
+        - doc_id: 7c2e47a6-c50b-421b-90cd-073ff9906ef9
+          grade: 1
+        - doc_id: c1adbf31-2c3f-414b-ab11-ff228a1c86b3
+          grade: 3
+        - doc_id: fe1d3722-f5f5-4d11-ad38-4ee46f39e945
+          grade: 1
+        - doc_id: 2c913bd0-95a9-422f-9399-03ec86ed4cd0
+          grade: 2
+        - doc_id: b2cdd2f1-2c8c-4ec8-83bf-3088c63fda23
+          grade: 1
+        - doc_id: 1da599a2-e598-4a90-bb42-48167e59d83b
+          grade: 3
+        - doc_id: 5088cd0a-d4be-48ff-b52b-67238382c3c8
+          grade: 1
+        - doc_id: 51b0c21e-2ccc-4185-9529-433b04cc1120
+          grade: 2
+        - doc_id: 6cf70f76-014b-4d98-8d9b-37e55808676b
+          grade: 1
+        - doc_id: 338878f2-9e3f-4e60-b876-576c1d38dbb1
+          grade: 3
+        - doc_id: 7ffdf192-2b41-4433-b1c0-35a0cd5200d7
+          grade: 1
+        - doc_id: 5fe09e97-3d51-4ec5-8221-8ef7c87f4b5d
+          grade: 3
+        - doc_id: 53c79f00-e999-49d0-83c6-f87a7b817f88
+          grade: 3
+        - doc_id: b0281a64-c42b-421a-9dd4-14623568490b
+          grade: 1
+        - doc_id: e55a3af7-5e8a-4dfc-8dd7-a7972d9844aa
+          grade: 1
+        - doc_id: f6e36884-043a-476f-bf35-bc73ff693dbc
+          grade: 3
+        - doc_id: d83e31d5-bed7-4760-84ad-26a49688f43d
+          grade: 1
+        - doc_id: 2561af2d-fb36-492a-a4a1-c00ee51c4263
+          grade: 3
+        - doc_id: 61df8188-ada8-4fe0-bb25-5733be954937
+          grade: 0
+    - query_id: hybrid-ai-jobs-economy
+      docs:
+        - doc_id: cd5b0abf-7e41-494c-b186-88b35c25d3ca
+          grade: 0
+        - doc_id: ccbbdb7e-a591-452d-8765-e1b27a02d4cf
+          grade: 0
+        - doc_id: 04f8b951-9954-4d74-a7be-b5b69759c020
+          grade: 2
+        - doc_id: a70a8881-34fe-43eb-a801-6cc0341bf988
+          grade: 0
+        - doc_id: 03106335-9bdc-446c-83a2-62b36e5d7b2a
+          grade: 0
+        - doc_id: 3283c7dc-bfa0-421c-9c09-fbddbe91d742
+          grade: 0
+        - doc_id: 99294899-61f4-4977-acbb-257aa0cd7f5a
+          grade: 0
+        - doc_id: f9a69442-65db-4703-ab6e-82ff65e4b57e
+          grade: 3
+        - doc_id: 9933b065-a004-4eaa-b789-06ace4cdb67a
+          grade: 2
+        - doc_id: 43976dd0-ec74-4729-bda7-3416925e327d
+          grade: 0
+        - doc_id: 81ee51c4-5aca-4ef6-adf7-5192a00238df
+          grade: 0
+        - doc_id: 7cf4a789-7f94-43b6-901f-8aab4037b3fc
+          grade: 0
+        - doc_id: 44fd4ac8-fd4c-4a56-bef0-6a2b374f464d
+          grade: 0
+        - doc_id: c562eec1-11bb-4c86-8e77-85dede1ae9f4
+          grade: 1
+        - doc_id: 6fe56e08-df82-4e25-a69e-4585bea3b042
+          grade: 3
+        - doc_id: b11ca134-95cb-4105-b59a-a09b5179e96d
+          grade: 3
+        - doc_id: 42b208e8-078e-4d98-a755-cd350a947302
+          grade: 0
+        - doc_id: 68b490eb-eb6a-4e7b-941d-4b2cc742f776
+          grade: 3
+        - doc_id: 331d6a58-0ded-4349-8241-56f29e4cbae3
+          grade: 1
+        - doc_id: 95988b37-ccab-43f5-9f2c-bcb25c0907c0
+          grade: 1
+        - doc_id: bbaf6d38-e58f-46e4-8a1f-83ca5a5d28c4
+          grade: 0
+        - doc_id: 15fb7b7d-4f75-44c3-8d65-5f4278d2addb
+          grade: 3
+        - doc_id: 1481123e-5db8-4ab8-b228-948e4513edcb
+          grade: 0
+        - doc_id: 3869f81e-ba51-4ecc-8574-3ee768eabb15
+          grade: 3
+        - doc_id: e15e1df9-ad30-425d-8660-6503c517b548
+          grade: 0
+        - doc_id: b496aa0c-bb5e-4eb2-bcac-d742533c6c4a
+          grade: 1
+        - doc_id: 831d3219-5cb6-4a74-af95-39dce0ff0094
+          grade: 0
+        - doc_id: ce05a8a1-cae5-40bd-aec7-29d6b35c3c00
+          grade: 3
+        - doc_id: f3a48198-5497-4f32-b715-30ef8ac3ce5d
+          grade: 3
+        - doc_id: 61b8155d-a5c9-453d-9ce7-406fed2bb2de
+          grade: 3
+        - doc_id: 69929e9f-afec-43c4-931f-cd8153403430
+          grade: 3
+        - doc_id: d4dc9e9b-358a-4938-9df3-ad14174d3f21
+          grade: 3
+        - doc_id: 26e802f3-c801-4a1f-8962-a297d4d0efe4
+          grade: 3
+        - doc_id: 2d3377a3-5086-47c3-a708-df1b00709f90
+          grade: 3
+        - doc_id: 071e5e8d-b4f1-497a-aa00-6d322f77fe7d
+          grade: 3
+        - doc_id: ea86f6ae-761b-4599-890e-12c43cfaee54
+          grade: 1
+        - doc_id: b4e70e8d-88ba-4dcd-8120-0abbf9851f12
+          grade: 0
+        - doc_id: f62f72e3-2a90-4559-b84a-c1849672ab75
+          grade: 0
+        - doc_id: c4776596-1873-412b-8f32-414c88c8659d
+          grade: 0
+        - doc_id: d9024d65-ddd1-4a47-8a40-2909ee47d4d0
+          grade: 1
+        - doc_id: 932a8caa-eed2-435b-a61b-6d822b627736
+          grade: 0
+        - doc_id: cf05e295-9305-4b47-a02f-79d6b6934c15
+          grade: 2
+        - doc_id: 8737ac59-2e9b-4ddd-b2cd-1f6c80bead39
+          grade: 0
+        - doc_id: 86f923ff-fb32-4f76-9f2a-f34fe4442fed
+          grade: 3
+        - doc_id: b17be4a9-1d5b-48ec-ad6a-c4033a75a69b
+          grade: 0
+        - doc_id: c722f32d-1697-44f6-bf46-fbca61335140
+          grade: 0
+        - doc_id: 6449e483-c2e7-4933-a6a1-dcf3de40aede
+          grade: 1
+        - doc_id: c66cc91e-a226-4791-b773-a7a4b713e55e
+          grade: 0
+        - doc_id: d954643f-0ec3-4274-b9da-704f206fdf8f
+          grade: 0
+        - doc_id: 946e0a6c-2d76-4794-b9ac-5778614dea0f
+          grade: 1
+        - doc_id: e9e34ed2-a62e-4040-971b-d25112a43c9e
+          grade: 3
+        - doc_id: 684d54a4-9a3b-439e-9607-d73fb136113d
+          grade: 3
+        - doc_id: 2e908585-260b-4d98-8648-f35b44db48a4
+          grade: 3
+        - doc_id: ec15275a-dfd7-4e45-85b0-6e9ed69cd51b
+          grade: 3
+        - doc_id: 97d3595e-4158-4dc9-9273-6db197a45825
+          grade: 3
+        - doc_id: 76162013-f8ac-4092-bf66-1ef51eae63a2
+          grade: 1
+        - doc_id: b8528114-c395-4be2-82f8-b9b1b4c9396d
+          grade: 3
+        - doc_id: 518754fc-1b4e-4ccf-a2f0-0b9c5c19de37
+          grade: 3
+        - doc_id: 9ed1d26f-edd3-4c1f-ad26-644ce6e18847
+          grade: 3
+        - doc_id: 16c2af4c-2f73-4cde-a431-653370c7123c
+          grade: 1
+        - doc_id: 5a263907-1667-42ce-bcaa-9ab3947b5ff8
+          grade: 3
+        - doc_id: c16ec4db-057a-4c66-8271-803b89974833
+          grade: 3
+        - doc_id: 7c7ddf1e-6087-4b18-b8e1-1476084f1d45
+          grade: 2
+        - doc_id: acbd8007-aa06-4fd1-85e7-dd532ec0a9de
+          grade: 3
+        - doc_id: 95ec8a59-bfaf-4761-bf50-163ed44ba730
+          grade: 2
+        - doc_id: be3625f6-f0ef-4dde-97ba-61e206b85387
+          grade: 3
+        - doc_id: 3a998802-1d83-4dc9-9857-fad3acbe192b
+          grade: 3
+        - doc_id: e0e70c84-6dee-460b-9b94-cfc3571eb14d
+          grade: 2
+        - doc_id: a21d4236-2622-4acf-b9b9-04a6e9d7980f
+          grade: 3
+        - doc_id: 3e97df01-faa0-4512-bc4a-e61315c7c921
+          grade: 2
+        - doc_id: 141f4a8c-aff6-4860-a93b-6d07f7829fd5
+          grade: 3
+        - doc_id: 97b2b1d8-8895-490b-93a4-2bc0801eafe0
+          grade: 3
+        - doc_id: 1021de31-1b9a-426e-80a4-8661389dd27e
+          grade: 3
+        - doc_id: 01976ce8-c32c-40a6-a416-cc1c2b2fe90f
+          grade: 1
+        - doc_id: 82c867a3-aaa4-4641-9b8b-81d2ca9d6df2
+          grade: 2
+        - doc_id: b348f51d-765e-47d6-827a-f086ec9d102d
+          grade: 3
+        - doc_id: 991db63b-8e49-4777-a346-a35717eb4474
+          grade: 3
+        - doc_id: 8c93a8ae-dac7-4a0c-8f21-2ace74d6c5fe
+          grade: 3
+        - doc_id: 5d05a159-01b5-4614-a623-979c81eceb85
+          grade: 3
+        - doc_id: 9e0f83ff-621f-4acc-8212-df7dbf5ac061
+          grade: 3
+        - doc_id: 8bdfb357-74ae-471e-b2ce-ef800c46a6ce
+          grade: 0
+        - doc_id: d41ec3c7-11e7-413c-a8ee-64986b67ae90
+          grade: 0
+        - doc_id: eb8f9d89-6095-4336-8507-e010d567bee9
+          grade: 0
+        - doc_id: 2fc45dae-97ef-40b6-b91c-a5a62fe78a0f
+          grade: 0
+        - doc_id: cffa5ef7-46ed-47dd-b22a-96169034b2ec
+          grade: 0
+        - doc_id: 8a226279-77df-4f1b-9b60-ac6a11eecce6
+          grade: 1
+        - doc_id: da47f6f2-57ea-42ae-993e-65511c7736f4
+          grade: 0
+        - doc_id: d20e79d1-3cb0-4127-b5a3-c195c5678e17
+          grade: 2
+    - query_id: hybrid-ukraine-war-impact
+      docs:
+        - doc_id: 4f7ddb74-cd08-49cb-b0e8-3895cc7598cb
+          grade: 3
+        - doc_id: 8b197350-5e81-408a-b1a3-72cd29c77d9a
+          grade: 3
+        - doc_id: 4c52037f-74dd-44ec-b209-0f220e5367ba
+          grade: 1
+        - doc_id: 73e3965c-c2ac-4034-bed8-a609c5e3894e
+          grade: 2
+        - doc_id: 8faa215a-50c1-4980-8ffa-c3c3fa46254f
+          grade: 2
+        - doc_id: c099e65b-1dbf-4427-8d95-47c2ea623804
+          grade: 2
+        - doc_id: 6d1bb162-d958-44a5-ba6f-0e11d44e6a37
+          grade: 3
+        - doc_id: 333cbb33-0d07-414c-913d-a50cb9476637
+          grade: 1
+        - doc_id: fd0ee898-d972-4cc0-a157-c005b5c681af
+          grade: 3
+        - doc_id: 7fb297d8-2c6e-49a5-b2f0-55db520a3725
+          grade: 1
+        - doc_id: 331ecd81-9ea4-49eb-b5df-c6d87edb1a3f
+          grade: 3
+        - doc_id: 49a229e5-a1cb-4b84-bb0c-da04d05e7a75
+          grade: 3
+        - doc_id: de20a48a-e8f2-4aad-8b28-565f85095556
+          grade: 2
+        - doc_id: 946af697-9ba2-43cc-8bfc-4e3fd8402267
+          grade: 2
+        - doc_id: 363259ac-9a06-4956-8ff6-f02157d8e83f
+          grade: 3
+        - doc_id: 8e9772f4-db3a-4539-bccd-44d80f64ef55
+          grade: 1
+        - doc_id: 573edcbb-16d3-4f6d-a41a-47604f15efbd
+          grade: 3
+        - doc_id: 08be2c64-167f-489d-b8d8-b1265126d8db
+          grade: 1
+        - doc_id: 2970e163-ec14-49b0-9938-c0dc1468e51b
+          grade: 1
+        - doc_id: 5ab9c8a0-71b4-4381-92d8-f6d828520d15
+          grade: 3
+        - doc_id: 71cecbc4-e173-4f46-8162-9200689458dd
+          grade: 3
+        - doc_id: f8ff9c92-183b-4c7c-96fa-3ee4554b47ea
+          grade: 3
+        - doc_id: e45f9813-ae91-4092-9db1-247c57596df0
+          grade: 3
+        - doc_id: 78648c06-091f-4efc-9118-a00ad59f96e0
+          grade: 3
+        - doc_id: 2a1b7788-a102-418a-8826-44dc4dc6662a
+          grade: 3
+        - doc_id: 17be966c-294c-4d41-ac27-f148c350ea89
+          grade: 1
+        - doc_id: 0ba5e59f-cf0e-4d7d-b6b5-5edaf6c13102
+          grade: 1
+        - doc_id: 6b1f7db1-bd69-4138-964a-a97c67aa652f
+          grade: 3
+        - doc_id: 8b8ccb37-e3bf-45bb-8153-7388bc98f0f5
+          grade: 3
+        - doc_id: 550106c1-6013-40dd-a268-110384e071d8
+          grade: 1
+        - doc_id: 2970ef0a-8a24-438f-b39f-5666b37625dc
+          grade: 2
+        - doc_id: 0f2b410d-5cdc-4ada-a0d2-99d91336a35e
+          grade: 2
+        - doc_id: 7075fe77-6c8e-4a19-9b30-8e663f36072b
+          grade: 3
+        - doc_id: 90d9cd4d-d1ff-4d1d-8d48-736578ae22a3
+          grade: 2
+        - doc_id: ec250b7a-0da8-45a3-a7ca-da5df613aacb
+          grade: 1
+        - doc_id: 433b6c3b-556a-46db-97cf-8bec4298d3b5
+          grade: 3
+        - doc_id: e052398e-20c6-4dd7-a0ed-0098ffb35d42
+          grade: 2
+        - doc_id: dbe254f1-d664-48bd-8f99-fe1113175a93
+          grade: 2
+        - doc_id: 5230341d-334d-4dd2-ae41-ad73700f5f51
+          grade: 1
+        - doc_id: bf5b4943-63e2-4f48-92a3-74b6b92f69ff
+          grade: 2
+        - doc_id: f2ddd5c2-ed73-43b1-845e-48aa6c0f43fd
+          grade: 2
+        - doc_id: d6007206-8285-4ad7-8d55-eedb70218ea1
+          grade: 1
+        - doc_id: 66397383-012e-4de5-9c43-9d430a193d13
+          grade: 3
+        - doc_id: 15d6ceb5-386c-438f-ae7e-a46ac03ca8a4
+          grade: 1
+        - doc_id: 4a3879e7-be53-458b-89df-566cb1bc3cad
+          grade: 3
+        - doc_id: b91a796d-e973-431a-87a3-5a8f1baa9d68
+          grade: 2
+        - doc_id: b7f07440-f92a-45ca-adc4-8bb21dfa1229
+          grade: 2
+        - doc_id: a653d042-7b1f-415e-ba87-e45323e64a64
+          grade: 1
+        - doc_id: 8f790aa1-a802-40db-8185-bd61a38bd1f6
+          grade: 3
+        - doc_id: f6488fa8-839d-410c-9f8f-6ff23789ca10
+          grade: 0
+        - doc_id: 3c0da51d-e7cd-48a4-b8f7-e45ab9ae894e
+          grade: 3
+        - doc_id: 0e8f0158-adbc-4413-9884-7686140aa137
+          grade: 3
+        - doc_id: 020b7bc7-516d-4e1f-94ea-e0aeacae4336
+          grade: 2
+        - doc_id: fae62dcc-781c-4fe9-aacb-acde5b8e8c78
+          grade: 2
+        - doc_id: cb3e135c-f992-4540-9d9f-a60d509913b1
+          grade: 3
+        - doc_id: 1949e5bf-d83c-4ea1-a629-c28e3ecd2b47
+          grade: 3
+        - doc_id: 1e07d5df-8cc9-47bb-82cb-0378b8ec437d
+          grade: 3
+        - doc_id: 7330458d-a990-47be-9f09-fd8cbfda1fc9
+          grade: 2
+        - doc_id: f56df545-7266-49b7-bf9e-80dc581bc2a6
+          grade: 1
+        - doc_id: 4fc9110f-eae6-494f-be09-b4b55fe573e1
+          grade: 2
+        - doc_id: b9f11b84-d3ff-49d5-af09-3b301b959b3c
+          grade: 2
+        - doc_id: b8e077bb-e12d-4e79-94c5-c4e2875e5b01
+          grade: 0
+        - doc_id: b16e1c43-d115-4cfc-bfeb-484e98c61712
+          grade: 1
+        - doc_id: d8d2f533-4d5b-42f3-8372-fe8309ef6212
+          grade: 0
+        - doc_id: 9b56a8b2-befa-4026-9222-794638473536
+          grade: 3
+        - doc_id: 5e825b24-a169-47d6-888e-eac1cf667894
+          grade: 2
+        - doc_id: 8907858c-647e-42cb-9495-2520ecad05bf
+          grade: 3
+        - doc_id: 4ae1fb19-8986-46d8-9d14-0d8cfa8be33a
+          grade: 2
+        - doc_id: 00007f78-9f14-471d-a223-d8702f73db9f
+          grade: 0
+        - doc_id: 3dd77e73-a8da-422c-96ff-c170eee14230
+          grade: 1
+        - doc_id: 9d6bdb25-e187-4b13-90a5-cf572a30893d
+          grade: 3
+        - doc_id: e84d4679-3edc-457e-b877-f5b7306167ea
+          grade: 3
+        - doc_id: 894c7eae-d936-4f72-be93-b4c3954a8952
+          grade: 0
+        - doc_id: 460aa769-f27c-4fd9-94b0-26edfad6b43b
+          grade: 1
+        - doc_id: 68751d30-7da9-4c1a-87e9-da65597ea596
+          grade: 3
+        - doc_id: dbb9d9a1-077a-4552-a90f-ee33910c4912
+          grade: 3
+        - doc_id: a7c724bb-b1fd-4ec4-a5ed-d9eb75beb5ca
+          grade: 3
+        - doc_id: 8baaf3d0-d31f-4ae3-82ae-ea2d85038ad6
+          grade: 1
+        - doc_id: 569dcf7c-9b01-4796-8f89-3d0d9ddad9f4
+          grade: 1
+        - doc_id: 3b0aa435-0108-40ca-b5ee-3c225690ceca
+          grade: 2
+        - doc_id: 2e22ec9f-4ce6-4a23-9402-ea84b7f40ef9
+          grade: 3
+        - doc_id: a278c80b-8e1a-4b69-91c4-980358a848e4
+          grade: 3
+        - doc_id: d77fd183-937a-477e-8082-54044942c82b
+          grade: 3
+        - doc_id: 4ead29c9-5199-4edc-9355-533e023edc5a
+          grade: 3
+        - doc_id: f08ca823-b478-4f6d-97a3-cd93574e8a84
+          grade: 3
+        - doc_id: 8ec23306-4575-4f83-901c-c98f207bc899
+          grade: 3
+        - doc_id: e9e110cf-c6e8-4dbd-bc84-93d179a142db
+          grade: 3
+        - doc_id: af22bd5f-5f46-479b-9adf-25550d3e95d8
+          grade: 3
+        - doc_id: 27b5fc5d-2e13-4841-b5cf-9f9465a93a6b
+          grade: 1
+        - doc_id: 16a2c2f1-6b9f-4add-b799-80ef76cac59f
+          grade: 0
+        - doc_id: 2d33d90b-cd6a-4330-8729-0ef31e5b996b
+          grade: 1
+        - doc_id: d1402104-2831-4fb2-aa50-788b14b2b8b3
+          grade: 2
+        - doc_id: 7922b397-4d66-45ab-b04f-31af14d1ade3
+          grade: 1
+        - doc_id: d57d77d1-427a-4b0b-8b45-0caaecc48ab0
+          grade: 3
+        - doc_id: ecbd14ce-1c1d-41d3-921b-b7dda309246f
+          grade: 1
+        - doc_id: 4c3841be-65bc-4c8d-b82b-3ad9cf73d1da
+          grade: 2
+        - doc_id: 48500d69-c7a7-4c0c-a9b1-a5958189af23
+          grade: 3
+        - doc_id: 723aaea1-cc11-483e-8bb5-973f2d88c70f
+          grade: 3
+        - doc_id: 80a24b88-2e08-4acc-bdbb-4393cb89bdcd
+          grade: 2
+        - doc_id: 83703ada-8905-4eb0-9ce9-531a18722d10
+          grade: 2
+        - doc_id: 95455234-434d-47e7-89d4-c38cbe966063
+          grade: 0
+        - doc_id: f881aba7-3df3-4e16-b2dc-b861091403ea
+          grade: 0
+    - query_id: hybrid-interest-rates-inflation
+      docs:
+        - doc_id: 7d23c8a3-bd9d-46c7-90f8-cccbdf5d8292
+          grade: 3
+        - doc_id: 41d9ffb8-e283-4630-9bf5-b75489ea6568
+          grade: 3
+        - doc_id: 7b4f3059-f6ce-41da-b91a-008d37a0182d
+          grade: 3
+        - doc_id: 1b6b28ad-cf8d-48e4-a8b7-5412b4541b59
+          grade: 3
+        - doc_id: a14a2c02-2a47-4d88-896c-cdbb3809e016
+          grade: 3
+        - doc_id: 17edce0f-3e70-424b-8820-46d4e8f0aae2
+          grade: 3
+        - doc_id: b0f1c68f-3525-4cef-b569-1b09fa5b6a89
+          grade: 2
+        - doc_id: a9d2a474-beb0-4f15-be04-a9f046355f10
+          grade: 3
+        - doc_id: 2b6404b9-a927-4143-b375-51341be3f85e
+          grade: 3
+        - doc_id: f5bc4a9f-7851-4870-bb8d-60a88551e221
+          grade: 3
+        - doc_id: 07d94077-f4fc-4ef0-b2e7-68f996050844
+          grade: 3
+        - doc_id: 3fed811b-4b79-479c-a23a-edc2d8bad9a0
+          grade: 1
+        - doc_id: 5e3899e1-25fe-473f-b392-924f7532899b
+          grade: 3
+        - doc_id: 12af6ad4-6951-49d3-a31f-26b740fbcae0
+          grade: 3
+        - doc_id: c51eb606-50e6-426b-86f8-744e64de9bb0
+          grade: 3
+        - doc_id: edd2b77c-2c96-4576-aee9-ab68b80d6f99
+          grade: 1
+        - doc_id: e392b64c-afc9-4780-8dd4-086eec25433a
+          grade: 3
+        - doc_id: d8109b4e-2ca2-4327-8a5b-8072b7dd3ba5
+          grade: 1
+        - doc_id: c7cbdae4-d890-4544-aa01-69589122b45b
+          grade: 3
+        - doc_id: 5afac4e5-f2c7-4f08-b733-cd2aee90804f
+          grade: 3
+        - doc_id: 1c95940f-5852-470d-8103-cd6718dfdf56
+          grade: 1
+        - doc_id: 06eb6e46-96af-4a06-bdfe-c4aa15acee04
+          grade: 3
+        - doc_id: e26c5263-ee76-477c-abb0-751c9da0e0fd
+          grade: 3
+        - doc_id: eab1a3b3-6b42-4f27-873b-dab6e8f8c1f8
+          grade: 3
+        - doc_id: 3bb09005-3e9b-400b-a44a-03f70a68d2a2
+          grade: 3
+        - doc_id: a8d4ae7b-473a-4f7e-b4ca-c3ede6fc44db
+          grade: 2
+        - doc_id: ee0809ed-3fd7-4001-bd26-4c992ef897fc
+          grade: 3
+        - doc_id: af587cc7-da07-4d50-87ef-987b0c49cf72
+          grade: 3
+        - doc_id: d5a9b17a-6456-4daf-b49d-cc03c1057dc8
+          grade: 3
+        - doc_id: c9b74086-5a05-45c9-bcd3-fe82d1ce4171
+          grade: 2
+        - doc_id: 959f57f8-ca4f-4d74-9e66-56f615597573
+          grade: 3
+        - doc_id: ae99b0fd-3d5e-4ebe-8155-eceb86983cae
+          grade: 3
+        - doc_id: a9c4128b-7062-4c5c-bfac-3033a5647c63
+          grade: 2
+        - doc_id: 6451c93a-b1d8-4916-9c94-38f2196e37d2
+          grade: 3
+        - doc_id: 45a76d97-0fd7-44e3-8910-f741aa39abdc
+          grade: 3
+        - doc_id: d87dc0bf-3aba-4415-b342-6af7268931cd
+          grade: 2
+        - doc_id: 3214c5e6-7003-4e39-8a7e-87c95b9334d0
+          grade: 2
+        - doc_id: bcb5b80b-ae9f-46e4-99ce-3bebaf7e5897
+          grade: 3
+        - doc_id: 06828f15-45c1-4cb8-81f0-5677c3520293
+          grade: 1
+        - doc_id: cdb587ee-6111-4be0-b9c1-cde10f5dafe2
+          grade: 3
+        - doc_id: 9dceaff3-d5f3-4593-b03d-dfac9866c7b0
+          grade: 2
+        - doc_id: 45141aeb-010a-4c3c-9b04-9068e1cce0b7
+          grade: 2
+        - doc_id: 3c438723-d459-4b2a-bd30-908600de009d
+          grade: 3
+        - doc_id: 38583460-cc61-449f-a3f6-3e7a00dcf623
+          grade: 1
+        - doc_id: 236d9449-0738-4438-88f3-b5548f1b72c7
+          grade: 2
+        - doc_id: 0e3b8ce4-e40d-4e4e-8670-f9fc4d8c6926
+          grade: 1
+        - doc_id: 72aa9648-4829-4ae8-b90d-f19cc334b04d
+          grade: 3
+        - doc_id: f5a5456f-00ec-4744-a36a-7ec5aba70384
+          grade: 2
+        - doc_id: 6fac33dc-11c1-461d-929b-a5fbcf5dcaea
+          grade: 2
+        - doc_id: 3c2af8f3-f3f9-4daf-91fa-a93ddf89a3d8
+          grade: 2
+        - doc_id: d9e91d8d-75df-48ae-951f-62715e38c2bc
+          grade: 3
+        - doc_id: c702b66a-c826-4b91-8e29-b6fabed603da
+          grade: 2
+        - doc_id: 067faff0-8a86-4eb3-89be-8e1b7961ac71
+          grade: 3
+        - doc_id: 8e572bb2-2e2c-4d50-9506-8463f90fd94b
+          grade: 2
+        - doc_id: 9242056a-d9fc-4f0d-a2b5-29994fa454ae
+          grade: 1
+        - doc_id: a3a69bed-9c6f-40b0-974b-bab8dd68aa12
+          grade: 2
+        - doc_id: e4fcf763-798e-4801-85c1-09085d7d5264
+          grade: 3
+        - doc_id: 0d6b748f-4e4d-4679-bd47-5bfc98b40781
+          grade: 2
+        - doc_id: 470c6841-438d-4a27-9ef5-a2e01c7280bb
+          grade: 0
+        - doc_id: 118b3bd7-324c-44e0-b999-6acf007c096b
+          grade: 3
+        - doc_id: e048c539-53aa-4ea0-996f-17aee395c105
+          grade: 1
+        - doc_id: 3f7c8b43-2a67-4f06-ae1d-50d047fabb49
+          grade: 3
+        - doc_id: da712616-82a9-4acb-acbb-f34380f159f6
+          grade: 1
+        - doc_id: 7bb87c1f-158e-43d0-9fd3-cb1b800c2837
+          grade: 2
+        - doc_id: 23ff7623-aaa7-45cb-8d91-15acb9b86be5
+          grade: 3
+        - doc_id: e62599fb-31b9-426c-a857-9a70306bcdc7
+          grade: 0
+        - doc_id: de2b2e92-4787-40ac-ba19-403aff17a54d
+          grade: 1
+        - doc_id: c721babc-f67a-40ca-9da1-725d8ddb5056
+          grade: 0
+        - doc_id: 9f86ef5a-e104-48c8-9b37-00b46079d745
+          grade: 0
+        - doc_id: 03771bd1-6188-46f6-850e-cf80c5c298b7
+          grade: 0
+        - doc_id: 1230dfbc-f0c0-4092-9679-e6a93e65fb68
+          grade: 1
+        - doc_id: 5f9646c5-117d-440b-8f26-149bbc17e7cb
+          grade: 1
+        - doc_id: 54d9d051-722d-4219-b823-7d64a49c1f68
+          grade: 1
+        - doc_id: 8b8d04fd-6738-490b-9d10-81b15818c14d
+          grade: 1
+        - doc_id: d31008bd-9740-4db5-84be-313965038899
+          grade: 1
+        - doc_id: a6decf2c-527c-4f5b-ab0b-e0f316c31c22
+          grade: 1
+        - doc_id: 9859e44d-9f94-49e5-8da4-123286ce1ca4
+          grade: 1
+        - doc_id: 4174ac9d-b0fc-4312-85c4-01d8a140cc6a
+          grade: 1
+        - doc_id: 50ec9694-edf2-48f9-abb8-16719fbb968c
+          grade: 1
+        - doc_id: 39aaae95-2465-47fb-b1f4-cac69496852c
+          grade: 1
+        - doc_id: 5916f700-e999-4db8-a174-269229ed77ac
+          grade: 1
+        - doc_id: e31d869a-0d59-4b1c-bf30-ec460b14a649
+          grade: 1
+        - doc_id: c183eae7-6199-421c-8e99-98141cbcbe25
+          grade: 1
+        - doc_id: 92397d6d-c669-4e37-95a0-3584c98da02e
+          grade: 1
+        - doc_id: 97a95e34-5649-4bd0-9e3f-6eef064b99e9
+          grade: 1
+        - doc_id: 23f2c949-c05e-414b-b7d1-6228d9a5331f
+          grade: 1
+        - doc_id: 5ea1dbcf-9849-4081-9006-5276676a155f
+          grade: 1
+        - doc_id: 8729a82b-a4a4-4959-8116-b9ca817e8f0c
+          grade: 1
+        - doc_id: 9da8ea4d-e360-4f6c-8c56-036464099bc5
+          grade: 1
+        - doc_id: 8a54ddc8-982c-4c8b-a23f-a53398a4e136
+          grade: 1
+        - doc_id: 87eeef3b-e71b-4e64-8410-e74059943dfb
+          grade: 1
+        - doc_id: 28bd9cef-b5e6-4944-86d1-d3ee50baa3a3
+          grade: 1
+        - doc_id: 77205347-b07b-49a8-970e-d492020e76cd
+          grade: 1
+        - doc_id: 7bacc146-c473-4513-b349-8458b86e0049
+          grade: 1
+        - doc_id: 29de92a2-368b-4b70-96af-4aa1e337db00
+          grade: 1
+        - doc_id: 759540e2-43a2-429a-a301-6930daf8130e
+          grade: 1
+    - query_id: hybrid-china-trade-tension
+      docs:
+        - doc_id: b526018b-8e6b-4123-914b-b8d63f1d4ba7
+          grade: 2
+        - doc_id: e3680573-6bdf-40ce-bb4d-e163c6f7806e
+          grade: 3
+        - doc_id: 4c9b9760-c8fd-42d9-ae55-459a2aa01dec
+          grade: 2
+        - doc_id: fb650188-4e5d-4a9c-bddf-37cd6b4c8f9f
+          grade: 2
+        - doc_id: 8fcc213f-5297-4990-a68e-c09895120970
+          grade: 3
+        - doc_id: d17eed03-4f8d-4f4f-8bce-23286da8a362
+          grade: 0
+        - doc_id: 7143ec66-0a08-4465-acab-7afff93ca339
+          grade: 2
+        - doc_id: e462b559-0d09-499c-ad4d-0bcb5b1058eb
+          grade: 2
+        - doc_id: bc92b79f-ea68-480b-8061-7738c1b16c67
+          grade: 2
+        - doc_id: 50e36578-3f35-45b3-abaa-0d5ef874be4e
+          grade: 2
+        - doc_id: f1036542-3f91-46b3-972b-e0d9264ac473
+          grade: 3
+        - doc_id: 8e71fbcd-8537-4214-ab8d-da65ce9f2e80
+          grade: 2
+        - doc_id: 7e2b63da-a11c-460a-b672-4c3ce7c326f5
+          grade: 3
+        - doc_id: bf6e40c6-a29a-45ef-b8c7-51b54e036710
+          grade: 3
+        - doc_id: e65b1005-f635-4ce6-8e27-83a7eb610e77
+          grade: 3
+        - doc_id: 2bb66ecc-a044-46bd-ab3f-795d19d35c98
+          grade: 3
+        - doc_id: cf6abbcf-2121-4594-afe1-f24d6e7ae77c
+          grade: 3
+        - doc_id: 2aef362f-4070-4f9f-9c92-abe80ba12d42
+          grade: 2
+        - doc_id: de45c5a5-dfa7-42ab-9923-f177a06d98b7
+          grade: 3
+        - doc_id: 28238f9f-787c-4f53-b2a9-83c51a074fe0
+          grade: 2
+        - doc_id: 9392ba9c-71ed-420d-bb36-e7e2b078f148
+          grade: 0
+        - doc_id: 0b0d8149-f700-428c-92f4-dacda1d835c0
+          grade: 3
+        - doc_id: 9a981bd5-21c5-40aa-8061-d271f68f04da
+          grade: 2
+        - doc_id: d2cc1004-7be3-4f28-896d-4ecb8a4293b7
+          grade: 3
+        - doc_id: a0c34d6e-00ca-4d52-922e-0e83732613c6
+          grade: 2
+        - doc_id: 850dfb5c-2e0b-4cce-916a-5dc8c3cbd39a
+          grade: 2
+        - doc_id: dfaeca8b-4b03-4efd-9e44-9166b69cd449
+          grade: 2
+        - doc_id: 75b37df9-e329-45bc-a6e3-acdc36e764a1
+          grade: 3
+        - doc_id: 926bea4d-6145-4627-a0b8-00c177a93a9d
+          grade: 2
+        - doc_id: 1af34e62-f0c8-4606-962a-bca0b63ed6ed
+          grade: 2
+        - doc_id: 388ff673-4284-4ec2-bea2-fe7ab2d7a4ff
+          grade: 2
+        - doc_id: ddc2449e-daac-459f-b59d-7276057610ca
+          grade: 3
+        - doc_id: 5f571431-cd79-4114-a097-0ebc45851498
+          grade: 3
+        - doc_id: fe824e94-0410-4b4a-8145-b6be2b9de93d
+          grade: 3
+        - doc_id: 910d3c30-52f3-4efc-9327-35bdcfb13d4e
+          grade: 3
+        - doc_id: d50fa971-594e-493a-b4bc-7746e9f89a20
+          grade: 1
+        - doc_id: 9114913d-876f-43c4-b45c-b9a63d87d3d2
+          grade: 1
+        - doc_id: ca2ffb6d-22c7-4a24-ace7-ba6f5cb6b069
+          grade: 1
+        - doc_id: 43068ee2-6671-43ce-b5df-92c40f949571
+          grade: 3
+        - doc_id: 1a892a2e-e448-43ad-ac5a-57048694d088
+          grade: 1
+        - doc_id: 08bde41e-0c06-42c8-8e40-ad0c194350ab
+          grade: 3
+        - doc_id: 69ce5b1a-d649-4979-a24e-d28fbd7346ec
+          grade: 2
+        - doc_id: 74b5b699-754e-43e2-94cb-4d882f0b38cf
+          grade: 3
+        - doc_id: 73952b0f-4678-4e51-8d37-8244bb6c7641
+          grade: 2
+        - doc_id: d8053a5a-42a8-4f5f-86b8-c05e9dfadd53
+          grade: 3
+        - doc_id: 73fcd485-b027-4ea9-900c-84385a7eb400
+          grade: 3
+        - doc_id: 51aae89b-46ea-4e71-ad32-17ef01e3b3f7
+          grade: 2
+        - doc_id: 7d90390b-fee4-44cf-b8bc-875ead2a1e7c
+          grade: 1
+        - doc_id: a57e6ed0-dc67-42b2-9d0d-ef74516205f1
+          grade: 0
+        - doc_id: ab67365d-0c65-4f14-b46c-5e2097beae83
+          grade: 3
+        - doc_id: d6280a25-4b11-44e2-b86e-1329fb224261
+          grade: 1
+        - doc_id: 8e2ece52-95e2-42f1-a0ee-dcceb2ab8a19
+          grade: 1
+        - doc_id: 0bcce9da-e564-4036-bf0a-e2ba90da2080
+          grade: 1
+        - doc_id: a0199334-530b-40a1-8e13-74f77b18bf2c
+          grade: 2
+        - doc_id: 02349982-4554-4909-bf44-852846a1be2f
+          grade: 1
+        - doc_id: 0757647e-923d-4803-86c0-ad62bbdbf7d6
+          grade: 3
+        - doc_id: f97aa845-296b-4c9c-86b4-f90b7aface2d
+          grade: 0
+        - doc_id: ea40dc82-8f59-4b43-904d-c3fcf9d73309
+          grade: 1
+        - doc_id: 59ab15ad-d372-4367-9fa0-877e1392c65d
+          grade: 0
+        - doc_id: 636ace0d-8d4f-4b2b-9708-8fb0736a3496
+          grade: 0
+        - doc_id: 5bc97e04-ef92-4b7d-89f5-4284786da0b9
+          grade: 3
+        - doc_id: 6ee6779c-ffff-4db2-8a99-9ceaa3c18cd0
+          grade: 0
+        - doc_id: 9ddeb1c8-4af8-4a70-bf55-0f00b88bce60
+          grade: 2
+        - doc_id: 2d570d5d-64c0-4142-80f8-2ceefe4d3266
+          grade: 2
+        - doc_id: 50bb01e1-e09b-4988-b1b9-d89c4fcc6698
+          grade: 0
+        - doc_id: cd203b63-d16b-4b14-b970-9ca7f64623c0
+          grade: 0
+        - doc_id: 8e583552-0134-4d45-8887-319eba3c41a4
+          grade: 3
+        - doc_id: 40a6ab1f-84c4-495b-bec5-f8cb585f1c61
+          grade: 3
+        - doc_id: 424c2356-3593-4a53-be01-f540925ed9cd
+          grade: 3
+        - doc_id: fff702b3-bbde-48a2-adcb-f9f1d0bb03fd
+          grade: 3
+        - doc_id: 10332812-9d5e-4037-8571-831415a1f726
+          grade: 3
+        - doc_id: 5444cf4a-2e2c-4e73-8ae2-81e888593d13
+          grade: 3
+        - doc_id: 73e49745-2534-4a8b-8b5f-423976c850c7
+          grade: 3
+        - doc_id: 73db5ab9-793c-44ee-9193-463daa145dd9
+          grade: 3
+        - doc_id: 6e782ee1-0525-4885-b257-934f0c0e1488
+          grade: 3
+        - doc_id: 049101ba-564a-4185-b5f8-013982a3e499
+          grade: 0
+        - doc_id: 1a466488-55b4-45a2-9348-8d588ee71517
+          grade: 0
+        - doc_id: 1545fde1-6d2f-4881-9e36-2fbb68c50123
+          grade: 1
+    - query_id: hybrid-social-media-misinformation
+      docs:
+        - doc_id: ec20728f-aa08-47a4-af33-cf5c6183147f
+          grade: 3
+        - doc_id: c334d1e5-dea6-407e-8ace-a2699af446e6
+          grade: 2
+        - doc_id: 5b710cde-66b5-4561-911b-789df547bf67
+          grade: 2
+        - doc_id: 2dd082a7-795b-4882-826b-f05f0ec84243
+          grade: 3
+        - doc_id: c874bd95-2bd8-498a-81ba-85a989ca0748
+          grade: 1
+        - doc_id: 7ae8ec9c-a82d-4f4f-8366-a20608b5c130
+          grade: 3
+        - doc_id: 1de11ac0-7de3-4ba3-9dcc-340d25b8a332
+          grade: 0
+        - doc_id: 6d5d5357-cae0-4149-b162-d845e1e32620
+          grade: 2
+        - doc_id: cf999550-40ff-4c31-9c77-602ebe530593
+          grade: 3
+        - doc_id: cbbcfa9d-096a-4710-8ab3-68503bd2aa81
+          grade: 2
+        - doc_id: c52d1696-9b66-4860-a65a-c2de96082b33
+          grade: 1
+        - doc_id: 89b0141b-eead-4db1-8fa1-b134b14c6619
+          grade: 1
+        - doc_id: 9f435942-1fc3-4e23-b07e-b79334ee6fd3
+          grade: 1
+        - doc_id: 7286659f-9102-4a79-8a06-d7be5cf7ceaa
+          grade: 3
+        - doc_id: 69e7d2c5-2567-4783-bbd2-be548a39b5c5
+          grade: 3
+        - doc_id: da53daf8-0f80-4118-ae30-2242dc4b7c51
+          grade: 3
+        - doc_id: 2c912f92-b60b-4efb-b7eb-45c2199b5a5d
+          grade: 3
+        - doc_id: 50d89b4b-d8a2-45fd-804b-1082c90427e8
+          grade: 1
+        - doc_id: ed422bf1-c38a-4055-a37a-406bb3d2f7c5
+          grade: 3
+        - doc_id: 4dc79ec8-4df2-4bc0-8b7e-abeadf2a4304
+          grade: 3
+        - doc_id: 97e49087-a3fc-495a-a3b6-6bab1bc088c7
+          grade: 3
+        - doc_id: 93ffcdb0-2c12-4f58-b342-dbe7c55c023c
+          grade: 2
+        - doc_id: f37e3e5f-744d-4bfd-8069-f17a07377f0e
+          grade: 3
+        - doc_id: 206e6f6d-4a5e-4511-8e6d-63d290cdc4f1
+          grade: 3
+        - doc_id: 56c5e874-a1bf-41a9-a2c5-2f366cb46ad3
+          grade: 1
+        - doc_id: 11fce8b4-e13a-43ee-9f16-e684bfc4cf1e
+          grade: 3
+        - doc_id: 0be1c5d7-0976-495b-813e-f6359d884968
+          grade: 3
+        - doc_id: 944b14d2-ea04-450e-8fc3-0684cc8038ba
+          grade: 3
+        - doc_id: 4f40b93e-557e-426b-b536-46c1687d5d51
+          grade: 3
+        - doc_id: 83fb5d1c-fd97-43da-a0d5-f29cda1b9b7c
+          grade: 1
+        - doc_id: 78c1142f-4050-407e-a82f-e58777476dab
+          grade: 3
+        - doc_id: 63a3392a-1c02-4774-8a5f-eb90cccc4ca2
+          grade: 1
+        - doc_id: 1f5beee6-27ac-4b30-8301-23de863cb31f
+          grade: 3
+        - doc_id: 764f85aa-0064-4a6f-9692-fde4dc1afaa1
+          grade: 2
+        - doc_id: 6db84c3a-d4f0-420e-b003-5b994b6a3ddb
+          grade: 1
+        - doc_id: d2c754fb-d2f2-4db2-b163-4f32912b1c57
+          grade: 1
+        - doc_id: ce84ce8e-695e-4b91-bbd1-7e80bd78d741
+          grade: 2
+        - doc_id: 5274e368-c4ee-43d3-97f9-9e2fff565d06
+          grade: 1
+        - doc_id: 1852efa4-31f9-4d83-b647-828ff61cac85
+          grade: 1
+        - doc_id: cd5218a8-8baf-468f-b823-bfbd9c8f7d2e
+          grade: 2
+        - doc_id: c69ad0d4-ea23-4447-a50e-6a8225c8632a
+          grade: 3
+        - doc_id: 96fc765b-45ab-46af-94b2-12bb6d8f7ac9
+          grade: 3
+        - doc_id: fa8e1302-398e-4c9b-9be0-d6b7325c8d3d
+          grade: 2
+        - doc_id: df25a517-c73a-45e4-93db-9b78ecb15ca9
+          grade: 1
+        - doc_id: d51b3901-0952-4028-837e-7d50dfcf5358
+          grade: 2
+        - doc_id: 34deadb4-d562-4234-a406-9fe0cad35ded
+          grade: 2
+        - doc_id: 253ff566-4dd9-4954-a956-9d00c1231f60
+          grade: 3
+        - doc_id: d1c4a160-80fa-4d50-9797-300de373f7cc
+          grade: 2
+        - doc_id: 583a727f-c94c-470a-ab69-b10a44cc35ce
+          grade: 2
+        - doc_id: a919b79f-7c7d-4d5a-9d0a-47e5536771af
+          grade: 1
+        - doc_id: 40188b8b-e1e4-414d-ba51-bb78ee920d42
+          grade: 2
+        - doc_id: 4a4a5c81-bb8e-4ba1-99fc-4e63df20fa9f
+          grade: 2
+        - doc_id: 5f4f6a4e-b451-4d4f-ae23-f146a4ebaf13
+          grade: 2
+        - doc_id: 3ff1422e-8488-4d59-a4e8-356bee0b0160
+          grade: 1
+        - doc_id: 29381faa-044a-4d9e-94f7-762ba60f32cc
+          grade: 1
+        - doc_id: 5358f10a-b9b2-4731-a816-80bedbeff2bc
+          grade: 0
+        - doc_id: 89977a5e-9d3f-4036-a7a1-0c4b4cc49d70
+          grade: 0
+        - doc_id: 46dee2fd-0594-44d8-a994-bc3c09a7e247
+          grade: 3
+        - doc_id: 6a7eeaba-54ee-489e-ae68-bb7c8d19b952
+          grade: 2
+        - doc_id: bade8a2f-981f-4b0a-b86f-4babcbcdc0a4
+          grade: 1
+        - doc_id: 50893b89-02cd-40bf-a754-c87323796132
+          grade: 1
+        - doc_id: e843a925-1e0f-4173-9ea0-b5e02cf4384c
+          grade: 1
+        - doc_id: 9a8ab63d-8717-4e5b-9382-0675ec750418
+          grade: 2
+        - doc_id: b33f84bb-12f7-4282-846d-c1d1536301bb
+          grade: 1
+        - doc_id: 1658a2dc-8d22-4612-933c-50ae9a05034d
+          grade: 3
+        - doc_id: a0ddd2e6-29ad-4573-ac28-2404322b60d6
+          grade: 3
+        - doc_id: d936772e-a67c-4b71-9171-48269ee03769
+          grade: 2
+        - doc_id: 8d372a29-5724-4e32-a7a6-0b8ca423cf17
+          grade: 0
+        - doc_id: fde80a2d-7ede-47d4-86cb-30793e122255
+          grade: 1
+        - doc_id: f273f502-b7b9-474f-87cc-f705b2a94c38
+          grade: 1
+        - doc_id: 693e9703-0626-4cb1-a71a-28f758b76778
+          grade: 1
+        - doc_id: 90df546b-2f06-49ce-8a23-69d8b3201c16
+          grade: 1
+        - doc_id: 40eadbf8-4e90-499d-98db-714de0c410b7
+          grade: 1
+        - doc_id: 4a8b0eb7-92d7-49da-853f-46c9bbeb7560
+          grade: 1
+        - doc_id: e7a3f805-2426-4284-bde9-38bbb3b89e7e
+          grade: 2
+        - doc_id: 2fb70bcd-9cf4-489e-9a50-6abb33ad858b
+          grade: 2
+        - doc_id: 3761a432-0425-4d82-9631-890b9f8619c0
+          grade: 3
+        - doc_id: 32f7f852-7905-4355-8fe1-245b73cc5ae1
+          grade: 0
+        - doc_id: 5664144d-1f09-4582-a14e-daa47cd679d6
+          grade: 0
+        - doc_id: e9953f0a-9ff8-42e5-8e63-caa210e76286
+          grade: 3
+        - doc_id: 9d4af4d0-c475-4acd-b7e3-5e276cd9e1bd
+          grade: 3
+        - doc_id: b3a6c9a4-3cd8-48bb-853e-7905c3a97a96
+          grade: 1
+        - doc_id: c4239191-7e9c-455f-b14c-39af77fd856a
+          grade: 1
+        - doc_id: 6ecf6222-243c-4d72-840b-24164d4cdbd2
+          grade: 1
+        - doc_id: c007617f-a7b1-47d0-9dcd-dbd6c84d4416
+          grade: 1
+        - doc_id: de6c0e4b-c0c0-4d0f-9b4d-5c77a5acd8b3
+          grade: 1
+        - doc_id: ccacfb6e-4e21-47cd-af9c-a80bb33102ed
+          grade: 3
+        - doc_id: 5e1c0115-e2e0-4d18-b086-65b5cf452c2c
+          grade: 0
+        - doc_id: 4750550c-4808-4ed7-b6ef-f45904e2278a
+          grade: 0
+        - doc_id: e769446a-c6fc-46a6-9957-834fa9917e05
+          grade: 3
+        - doc_id: a57dcff9-3a3c-498a-8b1b-73a792f85d74
+          grade: 3
+        - doc_id: c259d944-647c-4bfa-ba72-a4a8dc388bf9
+          grade: 1
+        - doc_id: 07b1c1e9-2ce8-4ee8-b474-77c39bde756f
+          grade: 3
+        - doc_id: 73d3b4c9-6b9f-490d-9d69-a10f21fcb69f
+          grade: 0
+        - doc_id: 65160926-6c7c-4588-b499-b29417670d84
+          grade: 2
+        - doc_id: ec6331a1-9bb8-4ea7-b1a8-2effc87abe4c
+          grade: 2
+    - query_id: hybrid-housing-crisis
+      docs:
+        - doc_id: 874cce50-c320-451f-81e1-0fcd543ef4de
+          grade: 3
+        - doc_id: b03836fe-066b-4153-b78f-1193c4b746c2
+          grade: 3
+        - doc_id: 34a6e1d1-78a3-41d2-a665-f360304f2e40
+          grade: 3
+        - doc_id: 2f531f57-a3b8-48a6-a8ea-b2c2ad8990a3
+          grade: 3
+        - doc_id: 420156bb-d771-4efb-b20a-a77f77e7520f
+          grade: 2
+        - doc_id: fb657fd9-458f-455c-b953-716939fcf913
+          grade: 3
+        - doc_id: 9c8f1ba4-7599-4b16-a313-097c4c95ea81
+          grade: 3
+        - doc_id: 26d0934d-cf0f-46e4-8d88-efc4c324d9e6
+          grade: 3
+        - doc_id: 1da5a914-5402-45f9-b1bc-d0b16586c2dc
+          grade: 1
+        - doc_id: a83efa10-b74f-48a9-b852-f7f14472c00b
+          grade: 3
+        - doc_id: 89d99632-7434-4884-9b47-3b37dcb41843
+          grade: 3
+        - doc_id: fce282c7-1db8-4795-ac3f-fdecc768f5cf
+          grade: 3
+        - doc_id: 3d7e3904-ff65-4575-baa5-d73f655d8c88
+          grade: 3
+        - doc_id: 4b577c4e-fb91-434b-9851-2239ea844be0
+          grade: 3
+        - doc_id: c5b9b647-a6d9-4a36-aaf7-bc2e98e223f1
+          grade: 3
+        - doc_id: 461c950a-1cda-4b42-909f-2ad643688787
+          grade: 3
+        - doc_id: 91644b34-9c6b-4e9a-9865-5d7d3310d12f
+          grade: 3
+        - doc_id: 0a34fc1b-1182-4a95-88c9-834adafec591
+          grade: 3
+        - doc_id: 6c80e36f-78bc-41cc-a018-3673c0c06c38
+          grade: 1
+        - doc_id: c0ab15f8-505a-49b3-89e0-824a5a5e394b
+          grade: 3
+        - doc_id: e1feba0e-22a9-4841-b345-dfec436f73b3
+          grade: 3
+        - doc_id: 55104cfc-b91d-4660-8b01-c8a3fe7d8e1f
+          grade: 3
+        - doc_id: d4bf7929-d599-469b-b2c6-f6c2f6be9daf
+          grade: 3
+        - doc_id: 5259c3bc-256c-4cdc-a624-ddc86d8e3144
+          grade: 3
+        - doc_id: cea25e77-4639-426d-bab4-c603abfa1fa0
+          grade: 3
+        - doc_id: 91b15d5e-fc87-40ec-946c-4f0ea2c2e76c
+          grade: 3
+        - doc_id: 93c6d1d9-dbcf-48f3-a43a-79ae6eb3596f
+          grade: 3
+        - doc_id: cd01580c-4b7d-4d8d-b67a-acf5d4d25360
+          grade: 3
+        - doc_id: 4f89aeba-3d83-47b9-9576-a5359f49edf6
+          grade: 3
+        - doc_id: 04d78c63-9dea-46d7-9233-e5559e21f4d2
+          grade: 3
+        - doc_id: 648a4b8a-a791-4499-9b30-8cca94518b6f
+          grade: 3
+        - doc_id: 9c1ba207-6b75-4e05-83c8-cf4ae2716f7c
+          grade: 3
+        - doc_id: dddd9f57-d475-4d59-8747-f67c1767220f
+          grade: 3
+        - doc_id: bf59fbd9-5277-484f-984f-21afce844118
+          grade: 1
+        - doc_id: 8eed26a5-d679-4d3a-af69-ee223a58470f
+          grade: 3
+        - doc_id: 528102a0-53cd-4f57-b519-867e1892dedd
+          grade: 3
+        - doc_id: c46cc11d-da90-4653-9a30-7da1e99bb408
+          grade: 3
+        - doc_id: fbd70e3f-8245-4632-a9ce-ed5b48c18929
+          grade: 3
+        - doc_id: 15b94616-b4b1-42b1-85f3-f3d770c04302
+          grade: 3
+        - doc_id: 62b84132-a1e5-4f89-bced-aaa4eb83a30e
+          grade: 3
+        - doc_id: 32873580-e752-4206-adaf-36ad01223362
+          grade: 3
+        - doc_id: b0a68739-6fc9-4949-bddc-9468f934fa61
+          grade: 2
+        - doc_id: c325427a-3b5b-4570-af52-3d44ef031afe
+          grade: 2
+        - doc_id: 3c41496a-9a72-486e-9795-8b8bd4d0a97a
+          grade: 2
+        - doc_id: fdd778d7-3a65-41b8-a3ce-2f653b8e0d49
+          grade: 3
+        - doc_id: 503cb994-ecad-460c-8fce-bed0f93a5c03
+          grade: 2
+        - doc_id: 8e03e433-6018-46e3-9f88-30c5a16dd709
+          grade: 2
+        - doc_id: f0b7342d-646b-4a45-92a6-0f0f2cfa249a
+          grade: 3
+        - doc_id: f1503a9f-8ea5-4f80-bcf7-11a60bcbe914
+          grade: 1
+        - doc_id: fcdde2aa-a561-4056-9ba7-25922cb5f703
+          grade: 3
+        - doc_id: 53f8f3ac-2337-4a9a-8585-1a7ea693fd7a
+          grade: 3
+        - doc_id: f91f3653-e665-44ca-928d-040c6535d5e6
+          grade: 2
+        - doc_id: 64151922-4cfa-4d85-b2fc-c88e521a4158
+          grade: 2
+        - doc_id: 78305abb-4a7b-4aa7-81f6-c99dfa383f11
+          grade: 2
+        - doc_id: 11ac99fa-d22b-4fe6-9df0-dc3ddfff1545
+          grade: 3
+        - doc_id: 0d185e4b-39ea-4050-961b-741788ec6493
+          grade: 1
+        - doc_id: 65981639-aea9-43a2-a5a0-3c2099cee474
+          grade: 1
+        - doc_id: 62fb0578-e0f2-4795-bee4-ea84ffe909ae
+          grade: 3
+        - doc_id: 24a63d72-ed3d-4ffc-9da4-988085cbcfe2
+          grade: 3
+        - doc_id: 0a4e3695-f8b6-4600-9283-bdc315886b3f
+          grade: 1
+        - doc_id: bbe29c24-da2e-4c76-b3dd-87089b1273a2
+          grade: 1
+        - doc_id: 95e4adf2-6fed-413b-842e-44377943ea7c
+          grade: 2
+        - doc_id: 3d3f4f26-93d3-444f-a159-eca2f3758157
+          grade: 1
+        - doc_id: a1786015-dc9b-4838-83f1-79be2d6ce1e4
+          grade: 2
+        - doc_id: c07548f1-ebcb-4912-8352-bd6acbf87971
+          grade: 3
+        - doc_id: 8cf8f920-f8f6-479c-9ba3-3dc80511d5a1
+          grade: 3
+        - doc_id: 387d71a3-3fbd-4541-82d0-bd330af2f245
+          grade: 2
+        - doc_id: ee0362f5-034a-4798-84bf-eeb8f488ccf9
+          grade: 3
+        - doc_id: 7cd8baaa-c24c-4680-a153-040784c8cd37
+          grade: 1
+        - doc_id: 90c8fc8a-dfd6-4e3a-98e2-eee3b8050127
+          grade: 3
+        - doc_id: 672a1953-cf73-45ff-b0f8-68007a9b2ee0
+          grade: 3
+        - doc_id: 1943c1b1-f53e-4a25-9227-a8efabae5388
+          grade: 0
+        - doc_id: c9ccf94c-6749-44be-9b0d-be756673d0eb
+          grade: 1
+        - doc_id: 80a66c77-1f19-452a-9dc6-ef2189b14df2
+          grade: 3
+        - doc_id: 346b39a6-5092-46f2-84ba-d7370bb036a8
+          grade: 1
+        - doc_id: 0b84eb8b-0449-405a-82e9-7065a8ae9439
+          grade: 1
+        - doc_id: 9d4e0350-6be1-4639-ac32-9313cc63b22f
+          grade: 0
+        - doc_id: e5eb8756-f4f4-47d9-b07a-e7fd9acd929e
+          grade: 0
+        - doc_id: d21ba563-f2ec-4b25-9f30-df1d02aa86e6
+          grade: 0
+        - doc_id: 4af2a7cd-ef74-4a43-b922-b79d87a0c533
+          grade: 0
+        - doc_id: b9a693c1-f173-4012-b863-3a24005f5cc2
+          grade: 3
+        - doc_id: bd2a901b-59be-4ad4-9168-87c01c686861
+          grade: 0
+        - doc_id: 94b103a7-676b-4ce1-9543-34ea8b3c36f5
+          grade: 2
+        - doc_id: 25985d65-126c-4e27-82e7-14905d79dad5
+          grade: 3
+        - doc_id: 4881e86c-4d2a-4ac9-950f-12cd000304e8
+          grade: 2
+        - doc_id: cc57cc6e-4f26-47ae-865f-3aa5fdd28574
+          grade: 0
+        - doc_id: a06a7903-1bf6-4fb7-89fa-b29a42b4ca83
+          grade: 3
+        - doc_id: bb55a639-a43b-4eba-8db3-addfd20d4e07
+          grade: 1
+        - doc_id: a3d4415b-2c56-4abe-b5a7-c91529824a9a
+          grade: 1
+        - doc_id: 4b28c3f6-922b-4927-a500-b7da926093fb
+          grade: 2
+    - query_id: hybrid-space-exploration
+      docs:
+        - doc_id: 9271661d-a9cb-4eb7-8d12-09872299e9a0
+          grade: 3
+        - doc_id: a3e8f510-6aeb-4d42-8583-620dbd325532
+          grade: 3
+        - doc_id: 780e78ec-ba82-409e-aec3-60b53d8eb989
+          grade: 1
+        - doc_id: 2fe852b2-757a-4691-8b71-f35fbb0bceb7
+          grade: 3
+        - doc_id: 51ce374e-79a5-4f9e-b2af-d2be263d06ee
+          grade: 3
+        - doc_id: f8da6725-9de5-490c-84bc-d8328be447cf
+          grade: 1
+        - doc_id: 10e81b9a-799a-43bd-9e42-20f61947c891
+          grade: 2
+        - doc_id: 5c00368b-8a63-4b40-abf9-51df84d5cc77
+          grade: 1
+        - doc_id: aeae7503-b884-45bc-aff0-2fdabb1ac47b
+          grade: 3
+        - doc_id: 202df3c9-7726-48c9-9dff-1b008f2d1387
+          grade: 3
+        - doc_id: afcee223-1936-433f-b2e4-5b47d52956bb
+          grade: 2
+        - doc_id: de2eb061-1d95-45c4-8378-d49c3778580b
+          grade: 2
+        - doc_id: 4315e804-7f86-49ca-8142-a660db6c2124
+          grade: 3
+        - doc_id: f399e659-d5d4-4741-87f9-cc9a4aa12de1
+          grade: 1
+        - doc_id: a55ad264-0144-4378-9526-d5a963982119
+          grade: 3
+        - doc_id: d6502dc0-e558-40f9-b547-dafd8e578331
+          grade: 2
+        - doc_id: 88eda9d6-6e6d-421e-bb3a-338c1eecbf9b
+          grade: 3
+        - doc_id: 07c69022-44a5-496f-b46c-351e45533e4b
+          grade: 3
+        - doc_id: a440c032-d581-409a-84dd-6b56023b4a59
+          grade: 2
+        - doc_id: 7c694a92-298e-477b-8765-d582d5c72d75
+          grade: 3
+        - doc_id: d6d672f5-65f0-4d4c-9f0a-326c828791ca
+          grade: 3
+        - doc_id: 00bc60b3-bab8-4e7e-9e03-79db2576e54b
+          grade: 1
+        - doc_id: 3b8a8b4b-cdee-4e3e-ad9f-855425fe288d
+          grade: 3
+        - doc_id: a33757e1-86ec-460f-b660-33f289d433b1
+          grade: 2
+        - doc_id: ba23ae9e-1052-41d5-82b7-2b966e9d753e
+          grade: 1
+        - doc_id: b3e942e3-b188-411e-b330-cf91d80f0a7f
+          grade: 1
+        - doc_id: a0910d18-74a3-4df2-b074-7520962042ab
+          grade: 3
+        - doc_id: 2dbd06e0-2675-4c85-85df-b0675c91bf67
+          grade: 2
+        - doc_id: d0e49fe7-a49d-4025-acbc-89a5d4537965
+          grade: 2
+        - doc_id: e46a7ef0-fe7b-4e94-8387-ede9dc4b634c
+          grade: 2
+        - doc_id: b17be4a9-1d5b-48ec-ad6a-c4033a75a69b
+          grade: 2
+        - doc_id: 3124db12-9d55-4c16-9384-2124f1b190b8
+          grade: 3
+        - doc_id: cec0ecec-1108-498e-a3e3-bf67d0a9a55f
+          grade: 2
+        - doc_id: 8e7d533c-b69e-442e-8a46-c89de7a7ce8d
+          grade: 3
+        - doc_id: 2b763175-75cd-4610-b2d9-6b3ccee54830
+          grade: 3
+        - doc_id: 009413c7-6028-4c35-a70a-1f5b6801da59
+          grade: 3
+        - doc_id: 341396c7-1e85-4a2f-8a03-33ffd44f0ea5
+          grade: 2
+        - doc_id: 6473ccfa-2c8d-46fe-a76c-8959c94a9ae6
+          grade: 2
+        - doc_id: d907dcb4-3924-42cb-8214-ce5aba41f1ab
+          grade: 3
+        - doc_id: 3240a6f0-266d-4ef9-a10a-69b8fdc505b9
+          grade: 1
+        - doc_id: 1e5e0379-a6c6-4519-a2af-1a8ed9d20b40
+          grade: 3
+        - doc_id: cbcb7304-9542-4665-a89c-cf90cb4f7fa6
+          grade: 3
+        - doc_id: 72222f0e-8b7d-482e-9a4b-c5f68fc2f0b7
+          grade: 1
+        - doc_id: 377b0aa4-5f56-4f78-ae3c-07bddf1ec0b3
+          grade: 3
+        - doc_id: a31b3bff-f6cc-4ce3-ab8d-ef5491ef521d
+          grade: 1
+        - doc_id: f31d668f-5a05-4920-bc28-8405d6e2b099
+          grade: 3
+        - doc_id: 6069651d-852b-414e-9d08-4be6c76c6603
+          grade: 3
+        - doc_id: 8744ed73-160e-4b48-8f68-e60a663e5c3c
+          grade: 1
+        - doc_id: e9cf1c64-3b2b-4472-8cb5-13301723deac
+          grade: 3
+        - doc_id: 35c42d9b-6468-49f4-adaa-e4d36827c3ee
+          grade: 2
+        - doc_id: b77cd81d-eb71-4879-a18c-e669d5e60c6f
+          grade: 1
+        - doc_id: e556f1c3-7405-4f57-8a94-cabef635d9eb
+          grade: 2
+        - doc_id: 1506f579-4e9d-44dc-8785-9080a77e5fc6
+          grade: 1
+        - doc_id: 39a25080-a381-4958-9f6c-73de66a85779
+          grade: 3
+        - doc_id: 6a4f6087-9f3c-4d17-83da-b4c09d0da612
+          grade: 1
+        - doc_id: fab969d5-8132-4d1e-a9cf-d78185db9252
+          grade: 2
+        - doc_id: bce4f12a-0907-4ba6-a006-bf69b13d8fdf
+          grade: 2
+        - doc_id: 44aef4e2-586a-40af-9b89-46e4af68c137
+          grade: 3
+        - doc_id: c21086b3-72c6-4ea9-8f4d-8f5a7bfea35d
+          grade: 1
+        - doc_id: 9c5ab8ee-e768-48e1-8220-da465442c6da
+          grade: 2
+        - doc_id: 69a64e42-c5ec-40bd-bbab-a10cad7589a9
+          grade: 3
+        - doc_id: 22fb3fce-312a-4de1-91db-ee4fca2b68a6
+          grade: 3
+        - doc_id: 0e48c913-83bd-4361-b918-d72195ac1cda
+          grade: 1
+        - doc_id: 5afd43de-b9d9-4c71-abf2-20da0592aec7
+          grade: 3
+        - doc_id: 2aae00f8-1307-42ba-bdc6-ada3eb6d3653
+          grade: 3
+        - doc_id: d72688a8-2707-491b-8b00-e484ff73ac51
+          grade: 1
+        - doc_id: d2958cb6-db9d-4d9a-a025-7c919b78fab7
+          grade: 2
+        - doc_id: dac90831-b851-481f-962e-18e739094210
+          grade: 1
+        - doc_id: 3d1e22ef-1400-4d2c-9604-eebf84472c31
+          grade: 1
+        - doc_id: 56afc3d5-98b6-42ed-a5fe-a1611455f20c
+          grade: 3
+        - doc_id: ae36b561-f6a5-4891-9282-a1aa01a9ccc8
+          grade: 3
+        - doc_id: 756d0b72-1e59-4ec2-b43d-65dcbe1b496f
+          grade: 3
+        - doc_id: 69832abc-c96f-492f-ba1d-97aea77ee23d
+          grade: 3
+        - doc_id: 5031ec9d-0cd8-4a46-8a0f-d1d5391c5239
+          grade: 1
+        - doc_id: 8a129eb0-da04-44c4-9f9b-1ce0ead2bfcc
+          grade: 3
+        - doc_id: ef20bb10-cbed-4e42-8046-06f6c670712a
+          grade: 1
+        - doc_id: 617dcce1-c3df-41bd-9a84-16a3a0f21c62
+          grade: 3
+        - doc_id: 14bf4b1d-64bc-4da0-a346-8277be3de332
+          grade: 3
+        - doc_id: 0b57cadf-a03b-453f-8cbb-a9f6c90dce6e
+          grade: 3
+        - doc_id: bb032b2f-2992-4d34-b488-55986c9275c7
+          grade: 3
+        - doc_id: 31a79b42-57d7-4b54-9e55-8696b3d8a3af
+          grade: 1
+        - doc_id: 3825f4ac-f162-4f84-8cff-392e7314f53d
+          grade: 3
+        - doc_id: 441decb3-5cdc-4fa8-85e5-73757c2ade02
+          grade: 1
+        - doc_id: 1b1a59f5-0872-44ed-a808-173176bc3170
+          grade: 0
+        - doc_id: 9723282f-2080-4e49-9e9e-4d343c47d516
+          grade: 1
+        - doc_id: 6bfe08bc-7f16-4fb7-8c49-69f69c504f32
+          grade: 0
+        - doc_id: 06d0b625-ca52-48bc-9554-54b4025c1207
+          grade: 0
+        - doc_id: ce14f1b9-c02d-4048-aeb6-a77512c731bd
+          grade: 0
+        - doc_id: b195309d-dae0-4b5a-8e36-88cb21c783a9
+          grade: 0
+        - doc_id: 740aefa5-116f-439d-a6c5-1c880352fd5e
+          grade: 3
+        - doc_id: b746d5dd-860f-4c7f-92b4-f3fd1fb3ebd1
+          grade: 3
+        - doc_id: 71e4e7da-f916-412e-a342-423f10d0e8b7
+          grade: 0

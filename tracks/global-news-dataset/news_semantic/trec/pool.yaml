@@ -1,0 +1,2104 @@
+schema_version: 1
+meta:
+    run_id: 2026-07-26T22-30-58-pool-dfe31b
+    tool: bench/1.0.0
+    generated_at: 2026-07-26T22:30:58.2472Z
+    spec_id: news_semantic
+    pool_depth: 50
+    engines:
+        - pgvector-cosine
+        - pgvector-l2
+        - elasticsearch
+suite_name: pgvector-vs-es-knn
+queries:
+    - query_id: sem-economic-crisis-consequences
+      query_desc: Articles about economic downturns, recessions, job losses — broader than 'recession'
+      docs:
+        - doc_id: 94a6410c-2eba-4cfe-8fe6-b23f9657438e
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 44b62d95-d945-40d0-953e-34c2cd567c98
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: ea92085b-44c9-4701-92aa-726a3241281d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 29eaf2fb-c9bd-44b8-ae24-831fc9a642f3
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: d19eb18c-6bf5-4b2d-abfb-9cf7b86f2f58
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 57a4a45a-51bc-4bf1-91cc-7cb37a35d2db
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: fd723aeb-7f2d-496f-a209-16f56350c8a9
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 4c77d340-c538-4ec4-beab-98b11f866a38
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 320a8d60-ab51-4e5b-9271-ba9e7fef5695
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 403ed4f4-c18e-4475-bfc7-35371c401d97
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 018dfa72-1778-40a6-af3c-cabbdf8add45
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: ca812029-6063-4dc5-a9e4-9393c6dda82a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: ad0bbbd6-2320-4e62-98b2-bfa2e859b2f0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 0ed76081-863a-40f7-b35b-97dba3e6e4ad
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 3548a33f-3b51-41b5-a0ed-624f0e59d39e
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: d3ac7251-cae3-4342-b694-cd197e3e8700
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: df86fc09-49c6-4956-b569-a7e01f05cf6b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2304d33b-23af-40ab-a00f-47d8a89b14f5
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 351fc37b-fefa-45b6-b6ec-8b1bbf0070a8
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2f6f70ed-29c1-4922-ae56-4a11e2c2ff54
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 8a0d84d8-0ac3-40f7-bbf5-cf1a203fa571
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 627db705-3350-408b-bce9-b098fe8eb0f4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 9cae9e8e-83cd-41d2-adf9-7a91c80cdfcc
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 5bcc2d09-b43c-47b6-8728-d4445c90532c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c86c2800-60ea-4676-b674-40ab4dd5dc58
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2ae29a0c-25cb-49fe-af79-3d2cecde281b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: bd5a50ad-b399-4c60-b1d7-b2180dd8835d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 77879725-e743-4a21-8ef5-609ec89fd885
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 15a42097-08f8-443f-a382-aa46da0ab6b6
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: d9091c20-251d-4caf-a811-9f1c6ed48094
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 96a531c1-829b-4490-948f-385a5c434e7a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: fee5f5fc-aec2-440b-982e-23e332ab34d3
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: a1cb4281-fb5b-4eae-a79c-87e6fc8c2ea2
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 81323f6f-72cd-4aa3-911a-a166058ffeae
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: ce6c330b-9957-40a4-8326-ae0b5e9c3a5c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: a941f202-7c26-411c-acb7-11fb0c69c5d2
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 588e315c-4705-4a8a-bd65-e096ce18eeb7
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 428b3df8-1704-41c2-903d-57f3fa1f40eb
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 51b0c21e-2ccc-4185-9529-433b04cc1120
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: a75af82e-d5d7-449d-b998-fd36a24ea066
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 20ae40ba-8086-4f5c-a7e3-035921502ef5
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 8c48ecd3-ca1b-46e2-9894-4bde280c2288
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 8e5891b2-d41c-4e1a-95be-37d03759bcd4
+          sources:
+            - pgvector-l2
+        - doc_id: ca911eac-d8c5-4d07-9197-6db3d93ff3f1
+          sources:
+            - pgvector-l2
+        - doc_id: 687919bb-c5cf-43e9-bc25-1368f74fee0f
+          sources:
+            - pgvector-l2
+        - doc_id: 53266513-9aad-449f-bd2a-1d14ed7ffd38
+          sources:
+            - pgvector-l2
+        - doc_id: eae0a9a9-ddc4-4846-8529-cae0b2eda0dc
+          sources:
+            - pgvector-l2
+        - doc_id: 55e8c817-bd78-463e-bda7-2f8bd7269001
+          sources:
+            - pgvector-l2
+        - doc_id: 006031a0-f575-4a7c-b940-08b0e0656bd0
+          sources:
+            - pgvector-l2
+        - doc_id: 03a8704a-9d65-4891-afa0-e15bd49f1d8a
+          sources:
+            - pgvector-l2
+    - query_id: sem-political-leadership-change
+      query_desc: Leadership transitions, elections, coups — not just 'election' keyword
+      docs:
+        - doc_id: a17cf160-8413-4375-a291-c490b7e37889
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 1a1249f7-ef0c-4669-8ffb-be4e4136ae7c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 1e6fd0c1-c13e-4022-a684-3fa0453bf553
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 7a0761d4-2f69-40bd-9ff3-4e0fa20411bd
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: fbcb2aac-d578-4948-aae5-7d8c49789357
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: d87364c8-cdfa-4ea5-9035-ab45c55a5362
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 0440287e-dc65-413f-84d0-fef265e2808c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: fe4459d4-f6f4-4623-8489-c2c8d3904294
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: a06e4ab1-2fa3-45d9-b5d6-6a3ba196c7c8
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: efeaf3bf-a58c-4814-a327-df6820a098e5
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f9ddc561-673b-42df-bef8-af479d125e36
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: a9d0b348-6f2a-475c-8cce-dd7a18f6ef7a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 3d7e0995-4177-4d92-8e33-e3b1a4a6e635
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 004981d6-33c7-42b6-86d4-2043c0bece83
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 54666e46-8935-461f-8359-2f9660852322
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c5b86d81-4032-4777-9932-3354867a5f14
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: aae915ec-4672-4704-b4c5-dc8ec6075e46
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: dc4cee11-9faa-4aa8-b65b-079e92275323
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 19c8dd1c-a7e0-438a-b24f-9ab508c56fc6
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 3c4d68c2-baa1-4997-b179-fe1d5831721c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 0a16cea9-085a-4b93-84cd-0185e1c50fef
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 8e7e85ce-be26-4893-b69c-98e5cfd8a0dc
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: e03df6cb-c7d5-427c-80a1-07d443632234
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 51fd1f6a-a522-46bb-87be-de003b70f5a5
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: a884440e-b092-4ffc-9b64-baf6717bec79
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: db75af55-e32c-4e6d-b3c0-b54adac329be
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 07594f3e-db7a-4f2e-9468-1bfa824a1828
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2e2fddb0-feee-4d80-ada1-8220ccd4f237
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 42d36e97-9806-4360-b8aa-a4c2e571cb04
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: ae8301b9-bfcd-4ee3-b197-925e532cf3b1
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6ee5de3d-7754-4e22-8d0c-563131c2aac1
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 4c685b4d-2cf2-4b6e-8804-171ead02098a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: e6a36fd6-9dfc-485b-b8f3-0e93f2e1d376
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 81c16732-1508-4b80-8173-6d14e83ba313
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: adfcb079-58bc-443a-9d1a-7519d1e0be68
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 523a2320-b82a-4e6b-af43-374d487ea62c
+          sources:
+            - pgvector-cosine
+        - doc_id: e35f7e83-2fae-4220-bdf4-78dc9128886a
+          sources:
+            - pgvector-cosine
+        - doc_id: 0012900f-2772-48b4-a207-7c8814be5ec4
+          sources:
+            - pgvector-cosine
+        - doc_id: e02d1f4a-b2d8-42ea-a404-1ac97cec030a
+          sources:
+            - pgvector-cosine
+        - doc_id: 36ed0a1f-dc36-4284-9723-31ff0b977e4a
+          sources:
+            - pgvector-cosine
+        - doc_id: ae8d34ad-0c29-485d-8c32-2020bb1da281
+          sources:
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: df60e1ad-c253-4061-bf4d-6eb4067997c6
+          sources:
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: e61bca63-fc00-435e-afe8-6cb6cca3a68b
+          sources:
+            - pgvector-l2
+        - doc_id: e4ffde8d-1bc1-43a5-9c8c-b50beea1ef58
+          sources:
+            - pgvector-l2
+        - doc_id: 4eca67ac-d514-4ab4-a6fc-a0d3a5d95376
+          sources:
+            - pgvector-l2
+        - doc_id: f412c29f-7e31-4572-89e1-a0fb3134b912
+          sources:
+            - pgvector-l2
+        - doc_id: cd8b91c3-2dda-4916-a5f7-86db81efa8a0
+          sources:
+            - pgvector-l2
+        - doc_id: 8bc0958a-aa30-478f-b973-430b458b98de
+          sources:
+            - pgvector-l2
+        - doc_id: 0eab3ed4-79af-4a7e-98bc-35d280fc379e
+          sources:
+            - pgvector-l2
+        - doc_id: bae2dcd3-55d2-40f6-a50a-e4721a267866
+          sources:
+            - pgvector-l2
+        - doc_id: 753046b6-3c58-402f-89a7-e64c5dc3a428
+          sources:
+            - pgvector-l2
+        - doc_id: 8d043535-a874-4f11-92ac-4353cdf4e74a
+          sources:
+            - pgvector-l2
+        - doc_id: 10348c7b-c9e0-4da8-9183-155744c02ddd
+          sources:
+            - pgvector-l2
+        - doc_id: 968b8eb0-ae49-4726-b905-af362c4c8e33
+          sources:
+            - pgvector-l2
+        - doc_id: 9dc49dbc-dc7f-4fe5-8aa5-3642634f4272
+          sources:
+            - pgvector-l2
+    - query_id: sem-environmental-impact
+      query_desc: Environmental consequences of human activity — beyond 'climate change'
+      docs:
+        - doc_id: 12236d46-96a9-4c52-b8a4-27e0dde42ba9
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 62244d03-5fb0-4425-afb1-1bc378f1f6e5
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: afc049ea-1e7b-48eb-9a6e-9f44b3f3472c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: aaca179a-c21a-4d5f-b49b-b1737d0a8afb
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 9cb84dfb-ebf8-4a9e-98d2-9569b995e046
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 680d425c-34fb-469e-acb9-7bc8f9621562
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 108a17d7-7efc-4342-9e6e-72f60ec31b41
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 88a7edd2-b00a-4ed0-9e6d-d48fbcf4283d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 86067be2-aa4f-438d-bc32-8c8a8a39a90b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 602cdbbb-d5a1-4d41-9809-3ffe9fa83517
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 9bde0b2b-e768-47a0-914c-78823b1c51a4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 8c330193-85d8-4308-a193-1e1ed9f037cc
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 993dbfbd-3fb0-4f47-90e0-e619ee2820ec
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 02247b61-e7ef-45bc-b8f6-e6b2ac191a2f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: fba1b037-ae74-4a52-8942-46734648a675
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 63f4b229-f4f0-43c4-95fd-636b9b29dcfd
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 66c51634-1768-4d81-b046-e6c0996891c4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 29f729e2-e372-4973-96ed-1579f3598b70
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 27dfc448-9226-44e8-89ab-a0a4d486b3a4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6b92a72b-2257-4754-9f15-dd4edfec62d7
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 359a01c8-318f-4671-b0fb-3eb90e01e943
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 95438bfe-98d0-4e4b-b4c0-d62ff44aeebb
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: aed96951-0807-4eb7-9e05-28f70cfbf30b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f27d3a2a-6fbf-4fd4-86dd-4e6d263d0b03
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 108314d8-22f5-4d0e-9032-e5c79bc92514
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 8cb574f7-9da6-452e-82f4-a102c7dfdd4d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 4a10bdb1-2049-4bea-a4c8-a2457621b7ed
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: b86d5483-2f71-4045-bed4-fd601c9c9609
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 80579434-e82d-4210-a3c0-9aa3594e4d23
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: d4f056df-323c-4407-b5e9-183ec8842849
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: b24162ae-79df-44e9-bf8a-84d1acd14ff7
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 254f30b6-075f-4fe0-b70d-b0daeeba13da
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f0458981-15d3-40a0-8422-5df953ebfde8
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 4f153928-2d24-4b7f-a946-76c11d95248f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 4e7f1ece-cbb9-4d2e-b44b-0cc60ed91216
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 77ff80b1-5fa4-429a-af49-4bf7b05e6232
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 890eda5a-de4f-4ded-91aa-8a4b1f744ec3
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: e747a385-67c0-437a-91fe-928e9e7de8be
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 66d84ac9-4cdd-4e36-af9f-6f5c0daa618c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 90ca40be-d947-4d82-bba4-b0359d6cf0dd
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 58a1de34-50ee-40d8-af3e-8e7fa37539df
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 65f10380-59e3-48d6-b064-793732a6be02
+          sources:
+            - pgvector-l2
+        - doc_id: 8cf2e7e1-f0c6-481a-9feb-08be1829a289
+          sources:
+            - pgvector-l2
+        - doc_id: 32e821b6-7ee4-4d1b-a68d-a43b0b7671fc
+          sources:
+            - pgvector-l2
+        - doc_id: 79250399-7c16-49f5-91e0-63c4ff876aaf
+          sources:
+            - pgvector-l2
+        - doc_id: 0d66e98c-2854-454e-9a40-83982e6a0c56
+          sources:
+            - pgvector-l2
+        - doc_id: 2d1a7079-abe7-4aac-9e6d-2afe77f44bad
+          sources:
+            - pgvector-l2
+        - doc_id: 6d6d8b13-15d3-420b-af7a-af6ad498c0a3
+          sources:
+            - pgvector-l2
+        - doc_id: c4b8737a-292d-4f6f-b8dd-9a7bbcb8cf17
+          sources:
+            - pgvector-l2
+        - doc_id: 3e1e5dd4-958b-4774-868e-d3d2cc952585
+          sources:
+            - pgvector-l2
+    - query_id: sem-tech-disruption
+      query_desc: Technology reshaping industries — not just 'AI' or 'startup'
+      docs:
+        - doc_id: 565f6eef-0f69-4d8c-9e07-3cd27bb65a5f
+          sources:
+            - elasticsearch
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 51b721a9-330e-42c8-9c0f-f2be1d8ec759
+          sources:
+            - elasticsearch
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f44fb458-c82c-409c-9ec4-70e1451482dc
+          sources:
+            - elasticsearch
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 8ab5fd55-8eec-44c1-a658-6a83da67ae7e
+          sources:
+            - elasticsearch
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 8ab6f611-1340-441f-a1ce-c9eff14ce446
+          sources:
+            - elasticsearch
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 023f167e-7ed9-4568-81d2-cf000678ceed
+          sources:
+            - elasticsearch
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 12a8cae2-33ea-4350-a41c-1f600c25c2ca
+          sources:
+            - elasticsearch
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 80692cf2-29b1-4647-b2e7-c71a3397d22b
+          sources:
+            - elasticsearch
+            - pgvector-l2
+        - doc_id: cf88de2f-a71a-4272-bbc8-ae97425f5527
+          sources:
+            - elasticsearch
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: e9b18c6b-c9a0-4811-9640-53e1beeddefb
+          sources:
+            - elasticsearch
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 77879725-e743-4a21-8ef5-609ec89fd885
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 29dfddad-d14d-4474-8689-14ae6c6d2197
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 0bd2ae71-d32b-45e2-b05a-29719bdfdd4f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 06cc6c8d-8656-46a8-a162-26ec597e924e
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 211abea6-7c62-4d72-92cd-25341b5cece7
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: a7438404-cbdd-4fe5-91d7-d1a6207f1545
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f8d9e5ee-e946-4b7c-b811-f94372568fde
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: a1db2176-e927-474f-baf5-dada96cf6acb
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 374974b5-12e4-4d31-967c-a2ea72e783db
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 3c53d07b-73e0-4e52-88bc-ed4c37251195
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: aa964c80-13f7-4799-a837-c2faeb575ed3
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2e26c010-c865-4c61-9366-c400ec1c2736
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 3e97df01-faa0-4512-bc4a-e61315c7c921
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 77e17ca8-0332-4e50-9a5a-b6c201532bc9
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c57bec37-ede6-4d3e-95af-bf969b20a8b3
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 9281dc6d-958c-4725-aaa1-797a881ab4b6
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2cd0f035-376c-465b-a705-6cd13855c02b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 20c89098-6ae9-43b2-b99b-88c34048a6c7
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: cbef8f0f-799f-4e55-b2aa-0d57e034b0b0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 86ba7138-84b0-4cd0-9d45-baa28dddbd00
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c562eec1-11bb-4c86-8e77-85dede1ae9f4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 47b93283-26e5-43cb-8e6f-76ac4f61524d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 5fd5bb77-8d2c-446d-a788-3e7a695ea31f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 1bc5fb6c-2229-4c84-be0f-565673747a0a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c9dc802a-439c-4eab-a8af-a6f338f60fd2
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 859bd2ad-a739-4558-98d5-304a356d61d8
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 5d3d3025-c892-4938-98d5-638f11417213
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: dac43fd3-d176-46b0-b329-3600cf32dd1e
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: b20102cd-8cfe-4779-8e5b-4593e5f772f3
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 688f7d3f-c513-4b1f-96ef-4551c82f667c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: b87672a8-9f8e-4b6a-a272-7d08806bff60
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: fdd3b6eb-f0c4-4a22-a6bd-3254f84b4a7c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 38449e52-338d-4f06-9e50-1d457f1feabf
+          sources:
+            - pgvector-l2
+        - doc_id: 221e3135-c52a-42a7-aec1-e2e6154f69a3
+          sources:
+            - pgvector-l2
+        - doc_id: f1bd97e4-da86-4470-8b64-8b70ae129cd6
+          sources:
+            - pgvector-l2
+        - doc_id: 19c6e191-b8e3-4459-b226-4dec09d1ca60
+          sources:
+            - pgvector-l2
+        - doc_id: 07ee3cbe-5508-470d-9faa-739765d9d61a
+          sources:
+            - pgvector-l2
+        - doc_id: 3eae5223-f1a9-4c6c-802c-3643ae215d23
+          sources:
+            - pgvector-l2
+        - doc_id: 504fb77b-5e6b-4b5e-9785-eaa084892dda
+          sources:
+            - pgvector-l2
+        - doc_id: 0e5eefad-c8f3-40e4-8c46-80c259dc01c9
+          sources:
+            - pgvector-l2
+    - query_id: sem-public-health-threat
+      query_desc: Disease outbreaks, health emergencies — broader than 'pandemic'
+      docs:
+        - doc_id: 011de694-b19c-4461-bbf4-a597f3116e13
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: cb66bebd-cb91-4a69-a539-7eedc5a60353
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 0a82e610-75d8-4869-85c3-ff497f629267
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 4f98462d-b730-458c-bf0b-72cc74505627
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 62244d03-5fb0-4425-afb1-1bc378f1f6e5
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 34e79049-57d3-4f07-b19a-3f08b6b2629b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 4d497921-82df-418b-ba17-82a4d1d230b4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: dadd6e45-869a-4344-af1d-727738e0422c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 99049b45-e6b5-471b-837d-341a90fbc9c6
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: c06d033d-73c4-4e29-af31-1edce21029e6
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: c5dc393f-f62c-4834-8e67-04ed91e41c13
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 04df398c-5dee-49e2-bbff-f937293ed03f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 341332a4-4a68-49e9-8d66-17b79ff29551
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 4f19028e-22ba-4160-9648-ab4dfa39c241
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 30f60c8d-f02f-4aae-9296-a947ffe54ea2
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 7e2b0ee3-8556-4bf9-97c8-ba161b1cbd0e
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: d6c8a4b3-4220-47e4-9571-257e1be4bf8f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 4a86fc6d-80bf-405b-ba73-2cb6c8aa82f2
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: e029b853-79b6-4ed8-bc8b-298b7854f57e
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f617659f-253d-4a0c-a521-3def40d34b84
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6cb2158d-d91d-4794-87b1-b187cc2abe36
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: a1a0aa80-021b-4020-ac26-bc7565ea1505
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f7468674-dd29-459a-8f48-d47a44160617
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 49acca37-ac4c-458c-91ed-89992e8ee756
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 451f8a16-c03f-4fb1-860a-e2f74532e927
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: e70c537a-1610-4089-a69c-10aeec0fd44a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: af9e3b42-067b-4d31-8f86-4a6575a8c576
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c9469d57-0b57-4830-b027-61f517dfa51a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 8a58bbb2-4315-4fa6-8cbb-872094c43358
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: d78313f7-53f6-4d2d-a040-e36f6a6e8480
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: b102c2ae-84df-4298-9fc4-dc10b7b6c6ba
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: cc0b024d-e6e2-4934-b62a-dddc009017cd
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 14b5dbc1-2249-4ecc-9820-5a77088771c9
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: dfd150ac-b06c-4d96-9ccd-111ef5861437
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: e74b0bfe-0e91-406c-982a-2a420b05d4fe
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c9b873b9-2c21-4396-a458-efaf27216ec0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: dc3108ab-037f-48d2-afc1-6b4329323fa0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 68fabb93-d472-4f6b-a595-d29a886b26f6
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 50344b19-ccc1-4fc9-8ac3-90ec91296486
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6d34f399-78d2-457e-99d1-b82988c5adfd
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: aabd33cd-db08-48d8-ad5d-d6632c7576fa
+          sources:
+            - pgvector-l2
+        - doc_id: edc0f29e-50c5-4533-b579-7932a0e296bf
+          sources:
+            - pgvector-l2
+        - doc_id: ef408adc-2ec8-478f-8565-7e8dea38b11c
+          sources:
+            - pgvector-l2
+        - doc_id: e494cddf-f390-41d4-80cf-d1b917beea96
+          sources:
+            - pgvector-l2
+        - doc_id: dacb51c3-81bf-426b-8c76-82d24c2b4059
+          sources:
+            - pgvector-l2
+        - doc_id: 08e006e8-1b66-4438-8ae6-63cbd4f76ddd
+          sources:
+            - pgvector-l2
+        - doc_id: 42a24758-0a61-4247-88db-29a535b553b8
+          sources:
+            - pgvector-l2
+        - doc_id: 774957da-5dff-41d7-a5b4-f06a6e1f729c
+          sources:
+            - pgvector-l2
+        - doc_id: a2805ed1-8269-4ae6-86fb-1b738dd0c383
+          sources:
+            - pgvector-l2
+        - doc_id: a6cb66f7-99bf-44a9-874a-bebf94e8e6d7
+          sources:
+            - pgvector-l2
+    - query_id: sem-military-conflict
+      query_desc: Armed conflict, war, military operations
+      docs:
+        - doc_id: 4fc9110f-eae6-494f-be09-b4b55fe573e1
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 65f10380-59e3-48d6-b064-793732a6be02
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 5cdfb5dc-dba0-4580-8c12-4ab91aca67e0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 459066ee-e813-455b-a4a5-0d14309aa4e0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 4b57639a-7183-42d6-a86d-3676e1141f95
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 0a519cad-a4ae-4570-8e74-7b430b38f0c7
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 54d0cf6f-6294-4958-ac59-207dd283b3d0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 36af6772-1537-406e-99c0-0cfc92c63cc8
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 24bc7ea3-f77b-4df4-8da6-40417bfb78f4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: da390ceb-4c60-4410-8317-41e532bfa732
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: a6f7b11d-c2b5-4c8d-b4bd-d1d065fb40e2
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 9ccd9be1-483a-4358-af36-1d5446bf9ae1
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f1f0c64a-3c60-4fdf-9f95-570d19a14078
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: de095a2c-1187-4e2e-8f81-dcebd99dd6f8
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 7d353329-fac4-4e30-a4d1-59be2f4288b9
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: db80d113-c338-449c-b95d-a55d2c761b34
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: ef7a233c-32d5-48ee-ba56-f212f19d669c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: ab890bf3-e38c-4a0f-840c-56d29c3698f2
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 25b44d60-4dd6-467d-aea6-48f81651a1d6
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 8305077f-99e1-4448-88d2-bfece73ac9d1
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 58d78f78-65ce-43db-acfa-bd66e114a5b8
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 33b61ea1-ba92-4372-86ac-66072e18ec63
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 8ea01b26-7b17-44af-be01-4dc24937e7f1
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 41bdfb88-8860-44a5-b430-03e04466ec3d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 0db5d66e-bc74-4506-841d-4d3bd5bdbf96
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 763e0529-26fc-4092-87d8-f55767d1c1ee
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 83e73771-ec70-44c8-bfe1-458e8ed77ea6
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 319d0ae4-b52e-473f-9a97-7b7fc830e6cf
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 3e3889cc-36a6-4f4d-bcf5-3b81391f7867
+          sources:
+            - pgvector-cosine
+        - doc_id: fe76acf4-8ba5-4bf4-a0ac-062ba0fb6052
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: d8653eeb-781b-4cf4-af8f-4dd12b087fb8
+          sources:
+            - pgvector-cosine
+        - doc_id: e7a3070c-79e7-46c0-8c57-0cdde0a1ad41
+          sources:
+            - pgvector-cosine
+        - doc_id: 43a399d2-c1db-4478-ade5-16dd4edf93c0
+          sources:
+            - pgvector-cosine
+        - doc_id: 73e3965c-c2ac-4034-bed8-a609c5e3894e
+          sources:
+            - pgvector-cosine
+        - doc_id: 5230341d-334d-4dd2-ae41-ad73700f5f51
+          sources:
+            - pgvector-cosine
+        - doc_id: 7faeeeaf-b8fe-4dde-8272-2ac5a022ff89
+          sources:
+            - pgvector-cosine
+        - doc_id: 51223afd-985b-4d28-a6b0-9fc5d93fc142
+          sources:
+            - pgvector-cosine
+        - doc_id: d8d2f533-4d5b-42f3-8372-fe8309ef6212
+          sources:
+            - pgvector-cosine
+        - doc_id: 0d9f887d-031f-486c-9d1d-3b79f1288674
+          sources:
+            - pgvector-cosine
+        - doc_id: 0ca479af-2c08-4ef5-a9ce-e8fbd6094c89
+          sources:
+            - pgvector-cosine
+        - doc_id: e976cd17-a950-43fa-a26b-6b1a42a7fca0
+          sources:
+            - pgvector-cosine
+        - doc_id: 2b5d06e0-43df-41e9-83a7-95955a0ca0f9
+          sources:
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 5494c2c6-b75c-4ac6-84f3-45a4975a6437
+          sources:
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: e688805b-e30a-4f6d-9b91-a980931a87b8
+          sources:
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: d74e63eb-8c26-484e-a572-2981d8c8f5d5
+          sources:
+            - pgvector-l2
+        - doc_id: 13485af7-f59b-4e23-ad6e-f27229b008a7
+          sources:
+            - pgvector-l2
+        - doc_id: e81243bc-00b9-4b30-a084-ae57e157a3f4
+          sources:
+            - pgvector-l2
+        - doc_id: adfa4484-6d77-416b-b487-fc73e78a64b1
+          sources:
+            - pgvector-l2
+        - doc_id: 3fdfd0b0-16ff-4d55-ac1f-73e07ad38813
+          sources:
+            - pgvector-l2
+        - doc_id: b2b82f4c-5ef3-4a32-adac-fd2e65f7cb4d
+          sources:
+            - pgvector-l2
+        - doc_id: 2e65b81b-ce66-4b39-a5c6-cec819f95202
+          sources:
+            - pgvector-l2
+        - doc_id: 8c97e0fa-6513-4a39-adf5-558454f41b23
+          sources:
+            - pgvector-l2
+        - doc_id: 35e7c1f1-da82-4549-a2d4-e29cf8f92848
+          sources:
+            - pgvector-l2
+        - doc_id: 155617af-a174-45a1-85a3-139947fb25da
+          sources:
+            - pgvector-l2
+        - doc_id: 72c7b063-f5f3-419c-bbfb-569c9c98f93d
+          sources:
+            - pgvector-l2
+        - doc_id: 6193d0fa-9068-481c-9e04-80670dbb2663
+          sources:
+            - pgvector-l2
+        - doc_id: c0235972-3fc0-497b-a6d2-65a7fcfea34a
+          sources:
+            - pgvector-l2
+        - doc_id: 410b6bb1-b596-47d9-8f17-d288d6953c0a
+          sources:
+            - pgvector-l2
+        - doc_id: 2d87683a-e4e8-4494-88da-451d8a194324
+          sources:
+            - pgvector-l2
+        - doc_id: e13745a9-87be-4d28-8f6b-b46791069f6e
+          sources:
+            - pgvector-l2
+        - doc_id: 10d809d2-137f-4d7f-8da2-b4e7ab38ffcc
+          sources:
+            - pgvector-l2
+        - doc_id: 59c7ee41-6fc4-4e42-8a54-d65344f86e06
+          sources:
+            - pgvector-l2
+    - query_id: sem-social-justice
+      query_desc: Civil rights, protests, inequality — conceptual, not keyword-driven
+      docs:
+        - doc_id: 2d0d11a3-9322-4976-9e66-9921750b2dba
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: fcef9ec8-755f-4481-9846-9d41114b6090
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 504a1d04-5e3c-4032-b218-393ca7a63573
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 34f1bd3d-394f-4945-a3ba-594100974b0d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 982b1419-4ce8-4c06-b39e-62880451717a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 4befdc41-444a-4f93-8e0b-f706ed32f3a0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 05827848-4140-4b6f-bc63-8b6596214b28
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 50c47b3d-2ac3-4442-a684-c51e3f82b560
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 16f14638-be97-4c2e-948c-c2d708ac041c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 40a33dd2-7948-4c16-9763-95153a5677b5
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 547a70e1-05b8-4d07-899c-7cd0ea317a94
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 77582a17-fefe-44fd-a8ee-5511d313ccad
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 614300aa-2953-409d-b594-d4385c2ecaba
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: b5bbf3ba-44cb-4b3e-9aad-7407fbd5e4e2
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 981b15fa-62df-45c7-8d79-f9cc1d771821
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 858b7e56-0eaf-4f42-ae5e-b4106e11d3e5
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6a3d9f41-6475-451c-b500-b1c0cd295542
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: dd7e9cc8-c30c-4aee-acd7-f078974b0dba
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: d371648c-5bd4-48df-8d4b-45dfbbdd862e
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 329d06ee-ce3d-4ab5-8b37-58287b176181
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 626fd0ea-d82f-41c6-9412-6965b1d63ffb
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6205482f-c4b2-47e1-9631-70b24fa626c6
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: ff9b9b56-1d35-4198-b432-a8d0650b463b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 7452e984-91af-46d7-ae24-48d2af3bad20
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 993e00a2-3030-4b6f-8a6a-0e2c70615dec
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2c67b282-3d61-4e1a-a74d-9dcca084cad8
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6c1ab3fe-ddab-43a4-8136-b35017cc629c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 1083cd8c-a852-47c8-af85-94b98bafb4b4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: ff29e45a-a054-4aad-839f-36d23856b8e5
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 4bcc3f1f-4ff2-4143-8b84-d5b29001fe4f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6233eaa0-87fe-491b-a884-059db40b8b54
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 33c257f9-ca8c-402c-8f77-4daca0f5901a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 58ed4839-de67-46ba-b717-0b5ebc521666
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 46ca122f-0c2e-4859-a2a0-58c6edff3c47
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: acffd553-441d-42e9-aadc-84b88f809d83
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 0be1fdb5-d8ab-438a-88f6-132d9a56a61f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c9f67e25-fe18-4013-b601-aded951b4f1f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 166eff2f-943b-4b97-83c5-0467aa364129
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 72d604a8-3927-4a99-afa0-c1957c40e435
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c085015a-cd57-4898-a0c3-5368d0adfaa0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f1c2b8e1-e51c-4b4f-ba56-648e9de0af57
+          sources:
+            - pgvector-l2
+        - doc_id: 91d3d895-492e-449e-8503-b30448eea95c
+          sources:
+            - pgvector-l2
+        - doc_id: 2284c710-e551-4f8f-a3d6-13e8978ea872
+          sources:
+            - pgvector-l2
+        - doc_id: d0394306-f87d-4917-b801-38dfbc57d7a7
+          sources:
+            - pgvector-l2
+        - doc_id: d0c4bdf1-98d9-4e38-93c7-1a8cf97b3df4
+          sources:
+            - pgvector-l2
+        - doc_id: b84e55b5-e793-4f1a-88e2-5fafb172eb11
+          sources:
+            - pgvector-l2
+        - doc_id: 19b5d52a-872b-45ca-be5c-b7b6c7da041a
+          sources:
+            - pgvector-l2
+        - doc_id: 1a82806f-a10b-45f0-82aa-291b7c4c6cff
+          sources:
+            - pgvector-l2
+        - doc_id: 0eb8ff28-b3f3-4757-9ccc-255e90b62ab4
+          sources:
+            - pgvector-l2
+        - doc_id: b6b46b88-290c-4ec1-9a7d-ed1695ba1ed6
+          sources:
+            - pgvector-l2
+    - query_id: sem-energy-transition
+      query_desc: Shift from fossil fuels to renewables — policy + technology angle
+      docs:
+        - doc_id: e5b1dc62-bfd3-4479-b0d8-e9fe1ffa8bf4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 9c5b7357-aac9-45b1-a29f-0a60d142f0dc
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 39e229ac-2062-460e-9e5f-71b27f466517
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: a0273e95-c83c-4abf-aeb9-10eb892e81cc
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: a1e797a3-0859-4b5a-a1fd-67ed496c6306
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 2d27ae53-1a54-4fef-aaef-2ad9ae2f000e
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: b7081041-976b-4ab6-8823-c19492fbf151
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 62694782-1d8f-490f-8322-a5f2317df65b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 4ccbab84-a9dd-4247-96fd-5f48cbbad53f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 24fde6a1-c0d6-4ce5-b7df-e9f4993cefc6
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: f57e47d5-e969-48c7-978d-b890f82f3e1c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: dbddcfcc-131e-462c-b3a7-7a016dc3df1b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: bb588cb3-0568-4c87-a79c-9f9b9b90c1f9
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 5a9248eb-09a7-4e15-b8ad-1f3a67cab95b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: caa97ef2-8819-45e4-9956-796a474c37e6
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: a339bbd2-68d8-4114-956e-3e92f4a433ad
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: bc09ff96-f8de-417b-84aa-0161e24aa766
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: cc058fda-a85d-4c48-8868-f2e5b90a3f5c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 7fd94c5c-6cbb-4bab-9ead-3804fbb31769
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 0adaa081-32e3-4722-9c1e-693711c5e3d4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 9569fc1e-1d63-459f-88a2-8de4cad43e2c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 42c94ad3-9c35-4f15-b978-74333a56477d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 78f23b4e-05c0-47f7-8d72-659d71186c0a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: d79862ed-0b64-43e8-9fdc-a16b3621d61c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: dd95ff53-449e-4e5c-bb96-3dbd2cb5279a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: ab50c76b-607d-43f8-a8a4-685053b4d235
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 859449ee-f1c9-4cda-b959-3d0d888d322e
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 47b542ba-e33d-4d3f-b107-889299569c12
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 9db11bfd-d6cd-4a33-946f-07e73c13fd63
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 80692fdb-4bef-445a-8164-4a4171133988
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 5a17b497-2866-414b-b216-b9f149c9d03c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 301b59ad-f891-4df4-b4e7-7cad1b44ba75
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: ef62ef45-72ed-42ee-9854-aad746320ec4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 873e3c61-04ee-4e22-a2d3-bc7f1909ab01
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6ce6919a-717a-48d9-9ad9-ba948981556b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 3678a39e-c265-42bf-87bf-2f0bed56f987
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: cde12122-4d8a-4256-b55f-fa0afeb4269b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2351f148-b0aa-40a5-b751-efedd4f2b2e4
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 1995d86d-2e95-4143-b6bf-d93dc4bf035d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: fb30c032-e9a7-485b-83dc-e516938cf655
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: db3aa035-9bb4-46dc-ac15-a1e0d29ef203
+          sources:
+            - pgvector-l2
+        - doc_id: b6e91757-e8df-458b-885c-ee92532eab21
+          sources:
+            - pgvector-l2
+        - doc_id: 22a10b4e-c596-4493-a521-bc575b29d4fa
+          sources:
+            - pgvector-l2
+        - doc_id: ed660e50-82dc-49d9-ae0c-2aa992c0d901
+          sources:
+            - pgvector-l2
+        - doc_id: 76a69194-d22b-45f1-96e9-1d0ea0b99cdd
+          sources:
+            - pgvector-l2
+        - doc_id: 9eb1d5d0-462c-4e77-a1a7-9ed242c6e589
+          sources:
+            - pgvector-l2
+        - doc_id: c8e3f5f3-ebf2-4544-8023-e4027d4c9686
+          sources:
+            - pgvector-l2
+        - doc_id: 8c980554-5678-43fd-9a51-d93a4b3f50ed
+          sources:
+            - pgvector-l2
+        - doc_id: 59f846d9-73c5-464c-9561-095ea55461ef
+          sources:
+            - pgvector-l2
+        - doc_id: c83953a8-2fd4-49ab-a7eb-7969a98b1ed6
+          sources:
+            - pgvector-l2
+    - query_id: sem-inflation-cost-of-living
+      query_desc: Rising prices, affordability crisis, central bank response
+      docs:
+        - doc_id: f5a5456f-00ec-4744-a36a-7ec5aba70384
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: ee0809ed-3fd7-4001-bd26-4c992ef897fc
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: af587cc7-da07-4d50-87ef-987b0c49cf72
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: bf59fbd9-5277-484f-984f-21afce844118
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 7917c09d-eff2-4e0b-9b56-467187444e67
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 6accdee2-c790-4365-a2aa-82d7f932258e
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 5afac4e5-f2c7-4f08-b733-cd2aee90804f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 3548a33f-3b51-41b5-a0ed-624f0e59d39e
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 1cdd7b55-042f-41c6-abb5-a17f50c067f7
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: be767e1b-9644-443a-952b-504e59fbb21b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 9dceaff3-d5f3-4593-b03d-dfac9866c7b0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 45141aeb-010a-4c3c-9b04-9068e1cce0b7
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 91644b34-9c6b-4e9a-9865-5d7d3310d12f
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 38583460-cc61-449f-a3f6-3e7a00dcf623
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2073c1b7-b4b4-43e3-9960-c7f45b64f0d5
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 04805d4c-c3cd-45b9-9236-77a0b7d03d10
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f60bd0cf-faa0-41c6-8eca-4eaaef5a85eb
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 7dc9d17b-a633-471e-a3ac-1b82c07fc319
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6ba305bc-c7b5-4e58-9b88-3825efbe0831
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 35eeafaa-0842-414f-886b-080796d20e00
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c682f4db-00a9-4420-ba77-ace52b45fdd0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 07d94077-f4fc-4ef0-b2e7-68f996050844
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: a08f8f03-adcd-41fa-b373-16c3ba90b282
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c5b47a4b-a04e-44d3-9771-529e53e0c97c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 68b4c958-bbc9-4fc3-92ae-9dc800534346
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2233bb67-3052-4690-acdf-f228d9a5711d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f76aa3d5-eb26-40b1-89f8-6e0acc6a0f16
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 91e33343-ab0c-48f2-bc3c-9f8477d099f0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 3738be4e-4e60-4db3-af2c-8737d0f1f26a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 5008845c-3985-4a94-83ac-3e84e78279e2
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: efb11ce0-bfc2-4e09-9404-d14fae5f068a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f432fc88-047a-4873-b281-f2b686e97440
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: b03836fe-066b-4153-b78f-1193c4b746c2
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: cf0dcac0-dcc3-401a-81f7-b49e49b76acb
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 5d56f027-e754-41b1-8439-d80e2f5dda81
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 23ccea1c-922e-40f2-a912-15f90332db13
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c9b74086-5a05-45c9-bcd3-fe82d1ce4171
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 44c03c69-1750-4e72-92d2-3076822b74fe
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: eeb21d08-71b5-44f8-8eed-7c32b0f75a45
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 63c34147-f5c3-4e83-b927-0d59696afc7a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c5874290-cfca-4eff-a82f-592a686f7bfb
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 18304217-98c0-4112-8337-377033df3b24
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 80760877-dc5a-41b3-a35c-6a09397765aa
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2b9da2cd-f043-4828-b82c-3f44e11cde80
+          sources:
+            - pgvector-l2
+        - doc_id: 35eaeaed-2d99-4a8b-8a28-e513b024161a
+          sources:
+            - pgvector-l2
+        - doc_id: 7a86ef20-8ca8-4ce2-872a-e429927fa70f
+          sources:
+            - pgvector-l2
+        - doc_id: 762d1697-4b2a-4eef-b3ed-237736a514db
+          sources:
+            - pgvector-l2
+        - doc_id: eab1a3b3-6b42-4f27-873b-dab6e8f8c1f8
+          sources:
+            - pgvector-l2
+        - doc_id: 2b6404b9-a927-4143-b375-51341be3f85e
+          sources:
+            - pgvector-l2
+        - doc_id: 2d19242b-5849-4f48-a6e9-9f59a33eab85
+          sources:
+            - pgvector-l2
+    - query_id: sem-diplomatic-relations
+      query_desc: International diplomacy, treaties, sanctions
+      docs:
+        - doc_id: 1b4876b6-750f-459b-a106-34dec51c11a7
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 72f94c61-59f2-4028-8917-5cb3113264d7
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: f5d49f40-d5eb-4d4c-8eb5-cf77e4d41c75
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: ffa6c649-5e6e-4fdc-a0f4-4e22692e0c07
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: bac18afd-35b9-4cf8-a921-cde395c96686
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: eb666486-40ff-4d73-998d-11e5de1c0ad0
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 8bc9cbd7-ed26-4077-9da0-466703dbfabd
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: fb51b23b-0e9c-42b9-8326-72ad354635d2
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2572e7a6-ae74-4db4-863e-a34cb9036097
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2f651711-432e-40d6-8e2f-5e2432ceb1c7
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 51782e75-c580-4722-acd7-1534b6de7205
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f7c5aac4-d3df-4dee-894a-44f37cd349eb
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 1626b337-210f-4aeb-bb81-1b1dc372d90b
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 51576cf4-e04f-48f6-9dc7-19c15d8f0e3c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: d9f6856e-7f7f-4737-8ec1-a0d9f1404996
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 5d094a97-fbbc-4cb6-893d-036633ffa0dd
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 4cb87707-f1cd-4a99-80a9-fdcb37a3d295
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 25dcd228-6f98-4226-813b-c6c1c3ff7312
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 61f59a6e-b9f9-4f33-bfe7-ec743fdc9b54
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 58219c02-6c15-4b01-b3c6-b80f9dc6391d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 23a3b2be-ea1f-4d5f-b7ea-542eefc9f3a5
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: c8aee7a3-ea08-47ea-9dbe-14766fc8b649
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 743d1d3b-e889-478b-b7e5-b31b30f73858
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 09f5893d-c6fb-4951-bc01-017616590033
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 7a9ee2c0-b8f5-4ad8-8e2d-bddeab781b6a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6dc60fd0-818f-4f1c-8f3c-66a74d904663
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 572ba71e-f8e5-4776-820a-e31e08e778ea
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: fcade323-684b-4574-9648-644203fb4e2d
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 2ad34e6d-cfc7-4c79-b290-164b2ef5f667
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: f252fd32-19a4-4571-8ff8-05c92197dbfb
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: b10f309d-0e2e-4d40-bfe2-bc1a669541b1
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 6babf32a-1d70-4479-a65a-ad21928e990c
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 90f19645-e83e-41af-876e-34a96c5edf81
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 1835cf07-fac3-465b-b4bd-7e7878cb5e3a
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: aa6f0c06-46f3-414b-8adb-14c6d6b1adcc
+          sources:
+            - pgvector-cosine
+            - pgvector-l2
+        - doc_id: 34445552-cef9-4841-b0d2-20752d408037
+          sources:
+            - pgvector-cosine
+        - doc_id: 59df70b4-3efc-4107-99a8-f9103f354dfb
+          sources:
+            - pgvector-cosine
+        - doc_id: b5c8aa95-6a13-42e9-8446-59fdaefa542e
+          sources:
+            - pgvector-cosine
+        - doc_id: 10232731-679f-436b-97c8-c67b4ea8d1b9
+          sources:
+            - pgvector-cosine
+        - doc_id: 2bea4b5f-7e53-4848-9368-0510fca57337
+          sources:
+            - pgvector-cosine
+        - doc_id: 7fee454b-e665-49e1-b470-a55dc75a92ba
+          sources:
+            - pgvector-cosine
+        - doc_id: 0dfd9619-a88d-49c5-825b-835605b2208d
+          sources:
+            - pgvector-cosine
+        - doc_id: 1f3ac187-7903-4f49-b9b1-66df5c1fbd3b
+          sources:
+            - pgvector-cosine
+        - doc_id: 83b7f10f-6242-42d5-99c7-c39a8a512fec
+          sources:
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 1d8568a6-58fb-4889-b175-6b9ab97f665a
+          sources:
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: 5e76eda8-51e5-47bf-90d5-01d208d2bcce
+          sources:
+            - pgvector-l2
+            - elasticsearch
+        - doc_id: bbb333d1-84e3-4124-ad80-87427eaa6e34
+          sources:
+            - pgvector-l2
+        - doc_id: d9bae35f-d6af-4b8a-a193-7843af300a20
+          sources:
+            - pgvector-l2
+        - doc_id: e4e1e7ec-d29f-443d-a66c-7f63d4ffe70b
+          sources:
+            - pgvector-l2
+        - doc_id: 97c68671-df45-4d56-a9b4-5249f020b93f
+          sources:
+            - pgvector-l2
+        - doc_id: c3c8e348-a5b4-4f90-9b98-5c0413746cdc
+          sources:
+            - pgvector-l2
+        - doc_id: c69cf018-6609-46aa-b69f-fa5c69dac28f
+          sources:
+            - pgvector-l2
+        - doc_id: 30fa901d-ac9f-4381-997d-51428462087c
+          sources:
+            - pgvector-l2
+        - doc_id: cd091dad-e1ce-4777-9090-eb4cffe2c1f6
+          sources:
+            - pgvector-l2
+        - doc_id: 1fac9744-32f8-42f5-86af-acb70a5289a0
+          sources:
+            - pgvector-l2
+        - doc_id: 01a9d021-d8bf-4f25-9c0e-e13df6e51c7a
+          sources:
+            - pgvector-l2
+        - doc_id: 43c1fedb-054d-4339-9d2f-0f015f705c61
+          sources:
+            - pgvector-l2
+        - doc_id: e2cf72b6-8256-485b-8e28-a2577206e62c
+          sources:
+            - pgvector-l2

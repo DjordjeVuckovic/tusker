@@ -59,3 +59,5 @@ benchmark_results/
 CLAUDE.local.md
 
 .notes
+
+tracks/**/trec/qrels.*.tsv
