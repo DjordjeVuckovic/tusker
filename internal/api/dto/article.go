@@ -7,28 +7,29 @@ import (
 )
 
 type Article struct {
-	ID          uuid.UUID       `json:"id"`
-	Title       string          `json:"title"`
-	Subtitle    string          `json:"subtitle,omitempty"`
-	Content     string          `json:"content"`
-	Author      string          `json:"author,omitempty"`
-	Description string          `json:"description,omitempty"`
-	Language    string          `json:"language,omitempty"`
-	CreatedAt   time.Time       `json:"createdAt"`
-	URL         string          `json:"url,omitempty" swaggertype:"string" format:"string"`
-	Metadata    ArticleMetadata `json:"metadata"`
+	ID          uuid.UUID `json:"id"`
+	Title       string    `json:"title"`
+	Subtitle    string    `json:"subtitle,omitempty"`
+	Content     string    `json:"content"`
+	Author      string    `json:"author,omitempty"`
+	Description string    `json:"description,omitempty"`
+	Language    string    `json:"language,omitempty"`
+	URL         string    `json:"url,omitempty" swaggertype:"string" format:"string"`
+
+	PublishedAt *time.Time `json:"publishedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+
+	Metadata ArticleMetadata `json:"metadata,omitzero"`
 }
 
 type ArticleMetadata struct {
-	// Essential source tracking
-	SourceId    string    `json:"sourceId,omitempty"`
-	SourceName  string    `json:"sourceName,omitempty"`
-	PublishedAt time.Time `json:"publishedAt,omitempty"`
-	// Content metadata
-	Category string `json:"category,omitempty"`
+	SourceId   string     `json:"sourceId,omitempty"`
+	SourceName string     `json:"sourceName,omitempty"`
+	Category   string     `json:"category,omitempty"`
+	ImportedAt *time.Time `json:"importedAt,omitempty"`
 
-	// System metadata
-	ImportedAt time.Time `json:"importedAt,omitempty"`
+	// Extra carries dataset-specific fields that have no schema field.
+	Extra map[string]any `json:"extra,omitempty"`
 }
 
 type ArticleSearchResult struct {

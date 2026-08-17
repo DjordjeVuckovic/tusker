@@ -2,7 +2,6 @@ package native
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -51,7 +50,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 	if cursor == nil {
 		searchSQL = `
 			SELECT
-				id, title, subtitle, content, author, description, url, language, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 				ts_rank(search_vector, plainto_tsquery('english', $1)) as rank
 			FROM articles
 			WHERE search_vector @@ plainto_tsquery('english', $1)
@@ -62,7 +61,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 	} else {
 		searchSQL = `
 			SELECT
-				id, title, subtitle, content, author, description, url, language, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 				ts_rank(search_vector, plainto_tsquery('english', $1)) as rank
 			FROM articles
 			WHERE search_vector @@ plainto_tsquery('english', $1)
@@ -83,32 +82,15 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 	var rawScores []float64
 
 	for rows.Next() {
-		var metadataJSON []byte
 		var rawScore float64
-		var article dto.Article
 
-		if err := rows.Scan(
-			&article.ID,
-			&article.Title,
-			&article.Subtitle,
-			&article.Content,
-			&article.Author,
-			&article.Description,
-			&article.URL,
-			&article.Language,
-			&article.CreatedAt,
-			&metadataJSON,
-			&rawScore,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan article: %w", err)
-		}
-
-		if err := json.Unmarshal(metadataJSON, &article.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		article, err := pg.ScanArticle(rows, &rawScore)
+		if err != nil {
+			return nil, err
 		}
 
 		searchResult := dto.ArticleSearchResult{
-			Article:         article,
+			Article:         *article,
 			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
 			ScoreNormalized: utils.RoundFloat64(rawScore/globalMaxScore, dquery.ScoreDecimalPlaces),
 		}
@@ -197,7 +179,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s
@@ -208,7 +190,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s
@@ -229,32 +211,15 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	var rawScores []float64
 
 	for rows.Next() {
-		var metadataJSON []byte
 		var rawScore float64
-		var article dto.Article
 
-		if err := rows.Scan(
-			&article.ID,
-			&article.Title,
-			&article.Subtitle,
-			&article.Content,
-			&article.Author,
-			&article.Description,
-			&article.URL,
-			&article.Language,
-			&article.CreatedAt,
-			&metadataJSON,
-			&rawScore,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan article: %w", err)
-		}
-
-		if err := json.Unmarshal(metadataJSON, &article.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		article, err := pg.ScanArticle(rows, &rawScore)
+		if err != nil {
+			return nil, err
 		}
 
 		searchResult := dto.ArticleSearchResult{
-			Article:         article,
+			Article:         *article,
 			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
 			ScoreNormalized: utils.RoundFloat64(rawScore/globalMaxScore, dquery.ScoreDecimalPlaces),
 		}
@@ -353,7 +318,7 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s
@@ -364,7 +329,7 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s
@@ -385,32 +350,15 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	var rawScores []float64
 
 	for rows.Next() {
-		var metadataJSON []byte
 		var rawScore float64
-		var article dto.Article
 
-		if err := rows.Scan(
-			&article.ID,
-			&article.Title,
-			&article.Subtitle,
-			&article.Content,
-			&article.Author,
-			&article.Description,
-			&article.URL,
-			&article.Language,
-			&article.CreatedAt,
-			&metadataJSON,
-			&rawScore,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan article: %w", err)
-		}
-
-		if err := json.Unmarshal(metadataJSON, &article.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		article, err := pg.ScanArticle(rows, &rawScore)
+		if err != nil {
+			return nil, err
 		}
 
 		searchResult := dto.ArticleSearchResult{
-			Article:         article,
+			Article:         *article,
 			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
 			ScoreNormalized: utils.RoundFloat64(rawScore/globalMaxScore, dquery.ScoreDecimalPlaces),
 		}
@@ -557,7 +505,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		if cursor == nil {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, created_at, metadata,
+					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 					%s as rank
 				FROM articles
 				WHERE %s
@@ -568,7 +516,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		} else {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, created_at, metadata,
+					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 					%s as rank
 				FROM articles
 				WHERE %s
@@ -583,7 +531,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		if cursor == nil {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, created_at, metadata,
+					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 					%s as rank
 				FROM articles
 				WHERE %s
@@ -594,7 +542,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		} else {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, created_at, metadata,
+					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 					%s as rank
 				FROM articles
 				WHERE %s
@@ -616,32 +564,15 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 	var rawScores []float64
 
 	for rows.Next() {
-		var metadataJSON []byte
 		var rawScore float64
-		var article dto.Article
 
-		if err := rows.Scan(
-			&article.ID,
-			&article.Title,
-			&article.Subtitle,
-			&article.Content,
-			&article.Author,
-			&article.Description,
-			&article.URL,
-			&article.Language,
-			&article.CreatedAt,
-			&metadataJSON,
-			&rawScore,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan article: %w", err)
-		}
-
-		if err := json.Unmarshal(metadataJSON, &article.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		article, err := pg.ScanArticle(rows, &rawScore)
+		if err != nil {
+			return nil, err
 		}
 
 		searchResult := dto.ArticleSearchResult{
-			Article:         article,
+			Article:         *article,
 			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
 			ScoreNormalized: utils.RoundFloat64(rawScore/globalMaxScore, dquery.ScoreDecimalPlaces),
 		}
@@ -727,7 +658,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s
@@ -738,7 +669,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s
@@ -759,32 +690,15 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 	var rawScores []float64
 
 	for rows.Next() {
-		var metadataJSON []byte
 		var rawScore float64
-		var article dto.Article
 
-		if err := rows.Scan(
-			&article.ID,
-			&article.Title,
-			&article.Subtitle,
-			&article.Content,
-			&article.Author,
-			&article.Description,
-			&article.URL,
-			&article.Language,
-			&article.CreatedAt,
-			&metadataJSON,
-			&rawScore,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan article: %w", err)
-		}
-
-		if err := json.Unmarshal(metadataJSON, &article.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		article, err := pg.ScanArticle(rows, &rawScore)
+		if err != nil {
+			return nil, err
 		}
 
 		searchResult := dto.ArticleSearchResult{
-			Article:         article,
+			Article:         *article,
 			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
 			ScoreNormalized: utils.RoundFloat64(rawScore/globalMaxScore, dquery.ScoreDecimalPlaces),
 		}

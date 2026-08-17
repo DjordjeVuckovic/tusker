@@ -7,6 +7,7 @@ CREATE TABLE articles
     content       text        NOT NULL,
     author        text                             default ''::text,
     url           text        NOT NULL,
+    published_at  timestamptz,
     metadata      jsonb                            DEFAULT '{}'::jsonb,
     created_at    timestamptz NOT NULL             DEFAULT now(),
     language      VARCHAR(10)                      DEFAULT 'english',
@@ -15,4 +16,5 @@ CREATE TABLE articles
 CREATE INDEX idx_articles_search ON articles
     USING bm25 (id, title, subtitle, content, description)
     WITH (key_field='id');
+CREATE INDEX idx_articles_published_at ON articles (published_at DESC NULLS LAST);
 COMMIT;

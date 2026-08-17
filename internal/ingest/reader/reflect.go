@@ -50,7 +50,28 @@ func setFieldValue(field reflect.Value, convertedValue interface{}) error {
 	return nil
 }
 
+// SetFlatField converts a raw source value and assigns it to the named field.
+func SetFlatField(obj reflect.Value, path string, value string, fieldType string, dateFormat string) error {
+	convertedValue, err := convertValueToType(value, fieldType, dateFormat)
+	if err != nil {
+		return err
+	}
+	return AssignField(obj, path, convertedValue)
+}
+
+// SetNestedField converts a raw source value and assigns it to a field reached
+// by walking a struct path.
 func SetNestedField(obj reflect.Value, path []string, value string, fieldType string, dateFormat string) error {
+	convertedValue, err := convertValueToType(value, fieldType, dateFormat)
+	if err != nil {
+		return err
+	}
+	return AssignNestedField(obj, path, convertedValue)
+}
+
+// AssignNestedField assigns an already-converted value to a field reached by
+// walking a struct path.
+func AssignNestedField(obj reflect.Value, path []string, convertedValue any) error {
 	for i := 0; i < len(path)-1; i++ {
 		obj = obj.FieldByName(path[i])
 		if !obj.IsValid() {
@@ -63,29 +84,15 @@ func SetNestedField(obj reflect.Value, path []string, value string, fieldType st
 			obj = obj.Elem()
 		}
 	}
-	field := obj.FieldByName(path[len(path)-1])
-	if !field.IsValid() {
-		return fmt.Errorf("invalid field path: %s", path[len(path)-1])
-	}
-	if !field.CanSet() {
-		return fmt.Errorf("cannot set field %s", path)
-	}
-
-	// Convert value to appropriate type
-	convertedValue, err := convertValueToType(value, fieldType, dateFormat)
-	if err != nil {
-		return err
-	}
-
-	// Set the field with the converted value
-	return setFieldValue(field, convertedValue)
+	return AssignField(obj, path[len(path)-1], convertedValue)
 }
 
-func SetFlatField(obj reflect.Value, path string, value string, fieldType string, dateFormat string) error {
-	field := obj.FieldByName(path)
+// AssignField assigns an already-converted value to the named field.
+func AssignField(obj reflect.Value, name string, convertedValue any) error {
+	field := obj.FieldByName(name)
 
 	if !field.IsValid() {
-		return fmt.Errorf("invalid field path: %s", path)
+		return fmt.Errorf("invalid field path: %s", name)
 	}
 	if field.Kind() == reflect.Pointer {
 		if field.IsNil() {
@@ -94,16 +101,9 @@ func SetFlatField(obj reflect.Value, path string, value string, fieldType string
 		field = field.Elem()
 	}
 	if !field.CanSet() {
-		return fmt.Errorf("cannot set field %s", path)
+		return fmt.Errorf("cannot set field %s", name)
 	}
 
-	// Convert value to appropriate type
-	convertedValue, err := convertValueToType(value, fieldType, dateFormat)
-	if err != nil {
-		return err
-	}
-
-	// Set the field with the converted value
 	return setFieldValue(field, convertedValue)
 }
 

@@ -141,7 +141,7 @@ func newMapper(cfg *ArticlesConfig) (reader.Mapper, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load mapping config: %w", err)
 	}
-	return reader.NewArticleMapper(mappingCfg), nil
+	return reader.NewArticleMapper(mappingCfg)
 }
 
 func newPipeline(

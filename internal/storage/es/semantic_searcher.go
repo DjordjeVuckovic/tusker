@@ -132,12 +132,12 @@ func (s *SemanticSearcher) mapToArticles(hits []types.Hit) ([]dto.Article, error
 			URL:         doc.URL,
 			Language:    doc.Language,
 			CreatedAt:   doc.CreatedAt,
+			PublishedAt: optionalTime(doc.PublishedAt),
 			Metadata: dto.ArticleMetadata{
-				SourceId:    doc.SourceId,
-				SourceName:  doc.SourceName,
-				PublishedAt: doc.PublishedAt,
-				Category:    doc.Category,
-				ImportedAt:  doc.ImportedAt,
+				SourceId:   doc.SourceId,
+				SourceName: doc.SourceName,
+				Category:   doc.Category,
+				ImportedAt: optionalTime(doc.ImportedAt),
 			},
 		})
 	}

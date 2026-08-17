@@ -19,7 +19,7 @@ GOARCH ?= $(shell go env GOARCH)
 ARGS ?=
 
 # Build commands
-.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments migrate-up migrate-down migrate-up-parade migrate-down-parade migrate-up-tiger migrate-down-tiger migrate-up-all db-refresh-collation db-volumes run-datapipe-preprocess run-datapipe-articles-pg run-datapipe-articles-parade run-datapipe-articles-tiger run-datapipe-articles-es run-datapipe-articles-all
+.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments migrate-up migrate-down migrate-up-parade migrate-down-parade migrate-up-tiger migrate-down-tiger migrate-up-all migrate-down-all db-refresh-collation db-volumes run-datapipe-preprocess run-datapipe-articles-pg run-datapipe-articles-parade run-datapipe-articles-tiger run-datapipe-articles-es run-datapipe-articles-all
 
 migrate-up:
 	@echo "Running database migrations up (native pg)..."
@@ -47,6 +47,9 @@ migrate-down-tiger:
 
 # Apply migrations to all Postgres backends (native + ParadeDB + pg_textsearch).
 migrate-up-all: migrate-up migrate-up-parade migrate-up-tiger
+
+# Roll back every Postgres backend. `migrate down` prompts for confirmation.
+migrate-down-all: migrate-down migrate-down-parade migrate-down-tiger
 
 # Clears the collation version mismatch warning. Re-run the FTS track afterwards
 # and confirm the metrics are unchanged.
@@ -82,7 +85,7 @@ build-schemagen:
 # Generate schemas from Go structs
 schema-gen: build-schemagen
 	@echo "Generating schemas..."
-	@./$(BIN_DIR)/schemagen -output=api
+	@./$(BIN_DIR)/schemagen -output=api/mapping-spec
 	@echo "Schemas generated in api/ directory"
 
 # Development commands
@@ -135,7 +138,7 @@ deps:
 
 run-schemagen: build-schemagen
 	@echo "Running schema generator..."
-	@./$(BIN_DIR)/schemagen -output=api
+	@./$(BIN_DIR)/schemagen -output=api/mapping-spec
 
 # Dataset selection for datapipe. Each engine target composes the dataset env
 # with an engine env, so a corpus is swapped by overriding one variable:

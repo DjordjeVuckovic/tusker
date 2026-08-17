@@ -28,6 +28,15 @@ type ArticleDocument struct {
 	IndexedAt   time.Time `json:"indexed_at"`
 }
 
+// optionalTime maps the zero time to an absent value on the wire, so the API
+// never reports a year-1 publication date.
+func optionalTime(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
 type IndexBuilder struct {
 	defaultLanguage string
 }
@@ -54,7 +63,7 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) ArticleDocument
 		CreatedAt:   article.CreatedAt,
 		SourceId:    article.Metadata.SourceId,
 		SourceName:  article.Metadata.SourceName,
-		PublishedAt: article.Metadata.PublishedAt,
+		PublishedAt: article.PublishedAt,
 		Category:    article.Metadata.Category,
 		ImportedAt:  article.Metadata.ImportedAt,
 		IndexedAt:   time.Now(),

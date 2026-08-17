@@ -58,7 +58,7 @@
             "default": "string"
           },
           "target": {
-            "description": "Target field name in Article struct",
+            "description": "Target field in the Article struct, or Metadata.Extra.\u003ckey\u003e for a dataset-specific field",
             "type": "string",
             "enum": [
               "ID",
@@ -68,11 +68,11 @@
               "Author",
               "Description",
               "Language",
-              "CreatedAt",
               "URL",
+              "PublishedAt",
+              "CreatedAt",
               "Metadata.SourceId",
               "Metadata.SourceName",
-              "Metadata.PublishedAt",
               "Metadata.Category",
               "Metadata.ImportedAt"
             ]

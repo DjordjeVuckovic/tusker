@@ -30,7 +30,8 @@ func (r *ArticleReader) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]docume
 	}
 
 	const q = `
-		SELECT id, title, subtitle, content, author, description, language, created_at
+		SELECT id, title, COALESCE(subtitle, ''), content, COALESCE(author, ''),
+		       COALESCE(description, ''), COALESCE(language, ''), created_at
 		FROM articles
 		WHERE id = ANY($1)
 	`

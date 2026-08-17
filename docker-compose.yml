@@ -79,14 +79,14 @@ services:
 
 volumes:
   pg_news_data:
-    name: ${NEWS_VOLUME_NS:-news-hunter}_pg_news_data
+    name: ${NEWS_VOLUME_NS:-tusker}_pg_news_data
     driver: local
   es_news_data:
-    name: ${NEWS_VOLUME_NS:-news-hunter}_es_news_data
+    name: ${NEWS_VOLUME_NS:-tusker}_es_news_data
     driver: local
   pg_news_parade_data:
-    name: ${NEWS_VOLUME_NS:-news-hunter}_pg_news_parade_data
+    name: ${NEWS_VOLUME_NS:-tusker}_pg_news_parade_data
     driver: local
   pg_news_tiger_data:
-    name: ${NEWS_VOLUME_NS:-news-hunter}_pg_news_tiger_data
+    name: ${NEWS_VOLUME_NS:-tusker}_pg_news_tiger_data
     driver: local

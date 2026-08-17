@@ -28,7 +28,7 @@ fieldMappings:
     required: false
   - source: "date"
     sourceType: "datetime"
-    target: "Metadata.PublishedAt"
+    target: "PublishedAt"
     targetType: "datetime"
     required: false
   - source: "domain"

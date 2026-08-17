@@ -17,57 +17,97 @@ type ArticleMapper struct {
 	cfg *datamapping.DataMapper
 }
 
-func NewArticleMapper(cfg *datamapping.DataMapper) *ArticleMapper {
-	return &ArticleMapper{
-		cfg: cfg,
+func NewArticleMapper(cfg *datamapping.DataMapper) (*ArticleMapper, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
+	return &ArticleMapper{cfg: cfg}, nil
 }
 
 func (m *ArticleMapper) Map(record map[string]string) (document.Article, error) {
-	if err := m.cfg.Validate(); err != nil {
-		return document.Article{}, err
-	}
-
 	article := document.Article{ID: document.NewArticleID()}
 	val := reflect.ValueOf(&article).Elem()
 
 	for _, fm := range m.cfg.FieldMappings {
-		sourceVal := record[fm.Source]
+		raw, present := record[fm.Source]
+		if !present {
+			if fm.Required {
+				return document.Article{}, &MappingDropError{
+					Reason: ReasonMissingColumn,
+					Source: fm.Source,
+					Target: fm.Target,
+				}
+			}
+			continue
+		}
 
-		if sourceVal == "" && !fm.Required {
+		if strings.TrimSpace(raw) == "" {
+			if fm.Required {
+				return document.Article{}, &MappingDropError{
+					Reason: ReasonEmptyValue,
+					Source: fm.Source,
+					Target: fm.Target,
+				}
+			}
 			slog.Debug("skipping empty field", "field", fm.Source)
 			continue
 		}
 
-		path := strings.Split(fm.Target, ".")
-
-		if len(path) > 1 {
-			err := SetNestedField(val, path, sourceVal, fm.SourceType, m.cfg.DateFormat)
-			if err != nil {
-				if fm.Required {
-					slog.Error("failed to set nested field", "field", fm.Target, "error", err)
-					return document.Article{}, err
-				}
-				slog.Warn("skipping optional nested field", "field", fm.Target, "error", err)
-				continue
-			}
-
-			continue
+		converted, err := convertValueToType(raw, fm.SourceType, m.cfg.DateFormat)
+		if err == nil && isBlank(converted) {
+			// An unparsable URL normalizes to "" instead of erroring, so a
+			// blank result has to fail the required check on its own.
+			err = fmt.Errorf("value %q converted to an empty %s", raw, fm.SourceType)
 		}
-
-		err := SetFlatField(val, path[0], sourceVal, fm.SourceType, m.cfg.DateFormat)
+		if err == nil {
+			err = m.assign(val, &article, fm.Target, converted)
+		}
 		if err != nil {
 			if fm.Required {
-				slog.Error("failed to set flat field", "field", fm.Target, "error", err)
-				return document.Article{}, err
+				return document.Article{}, &MappingDropError{
+					Reason: ReasonConversion,
+					Source: fm.Source,
+					Target: fm.Target,
+					Err:    err,
+				}
 			}
 			slog.Warn("skipping optional field", "field", fm.Target, "error", err)
-			continue
 		}
 	}
+
 	return article, nil
 }
 
+// assign routes a converted value to its target. Metadata.Extra.<key> is a
+// struct hop then a map key, which reflection cannot walk in one pass, so it is
+// matched by prefix ahead of the ordinary struct paths.
+func (m *ArticleMapper) assign(val reflect.Value, article *document.Article, target string, converted any) error {
+	if key, ok := strings.CutPrefix(target, datamapping.ExtraTargetPrefix); ok {
+		if article.Metadata.Extra == nil {
+			article.Metadata.Extra = make(map[string]any)
+		}
+		article.Metadata.Extra[key] = converted
+		return nil
+	}
+
+	if path := strings.Split(target, "."); len(path) > 1 {
+		return AssignNestedField(val, path, converted)
+	}
+	return AssignField(val, target, converted)
+}
+
+func isBlank(converted any) bool {
+	switch v := converted.(type) {
+	case string:
+		return v == ""
+	case time.Time:
+		return v.IsZero()
+	default:
+		return false
+	}
+}
+
+// ArticleDirectMapper reads records that are already canonical
 type ArticleDirectMapper struct{}
 
 func NewArticleDirectMapper() *ArticleDirectMapper {
@@ -85,13 +125,6 @@ func (m *ArticleDirectMapper) Map(record map[string]string) (document.Article, e
 		createdAt = time.Now()
 	}
 
-	title := record["title"]
-	subtitle := record["subtitle"]
-	content := record["content"]
-	author := record["author"]
-	description := record["description"]
-	language := record["language"]
-
 	articleURL, _ := NormalizeURL(record["url"])
 
 	var publishedAt time.Time
@@ -106,20 +139,20 @@ func (m *ArticleDirectMapper) Map(record map[string]string) (document.Article, e
 
 	return document.Article{
 		ID:          id,
-		Title:       title,
-		Subtitle:    subtitle,
-		Content:     content,
-		Author:      author,
-		Description: description,
-		Language:    language,
-		CreatedAt:   createdAt,
+		Title:       record["title"],
+		Subtitle:    record["subtitle"],
+		Content:     record["content"],
+		Author:      record["author"],
+		Description: record["description"],
+		Language:    record["language"],
 		URL:         articleURL,
+		PublishedAt: publishedAt,
+		CreatedAt:   createdAt,
 		Metadata: document.ArticleMetadata{
-			SourceId:    record["sourceId"],
-			SourceName:  record["sourceName"],
-			PublishedAt: publishedAt,
-			ImportedAt:  importedAt,
-			Category:    record["category"],
+			SourceId:   record["sourceId"],
+			SourceName: record["sourceName"],
+			Category:   record["category"],
+			ImportedAt: importedAt,
 		},
 		SearchVector: record["search_vector"],
 	}, nil

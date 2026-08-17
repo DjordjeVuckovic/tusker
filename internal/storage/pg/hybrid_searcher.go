@@ -2,7 +2,6 @@ package pg
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -80,14 +79,13 @@ func (s *HybridSearcher) SearchHybrid(ctx context.Context, query *dquery.Hybrid,
 			FROM lexical l
 			FULL OUTER JOIN vector v ON l.article_id = v.article_id
 		)
-		SELECT a.id, a.title, a.subtitle, a.content, a.author, a.description,
-			   a.url, a.language, a.created_at, a.metadata, f.rrf_score,
+		SELECT %[2]s, f.rrf_score,
 			   COUNT(*) OVER () AS total_matches
 		FROM fused f
 		INNER JOIN articles a ON a.id = f.article_id
 		ORDER BY f.rrf_score DESC, a.id DESC
 		LIMIT $6
-	`, lang)
+	`, lang, ArticleColumnList("a"))
 
 	rows, err := s.db.Query(
 		ctx,
@@ -109,33 +107,15 @@ func (s *HybridSearcher) SearchHybrid(ctx context.Context, query *dquery.Hybrid,
 	var totalMatches int64
 
 	for rows.Next() {
-		var metadataJSON []byte
 		var rawScore float64
-		var article dto.Article
 
-		if err := rows.Scan(
-			&article.ID,
-			&article.Title,
-			&article.Subtitle,
-			&article.Content,
-			&article.Author,
-			&article.Description,
-			&article.URL,
-			&article.Language,
-			&article.CreatedAt,
-			&metadataJSON,
-			&rawScore,
-			&totalMatches,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan article: %w", err)
-		}
-
-		if err := json.Unmarshal(metadataJSON, &article.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		article, err := ScanArticle(rows, &rawScore, &totalMatches)
+		if err != nil {
+			return nil, err
 		}
 
 		articles = append(articles, dto.ArticleSearchResult{
-			Article: article,
+			Article: *article,
 			Score:   utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
 		})
 		rawScores = append(rawScores, rawScore)

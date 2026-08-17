@@ -39,8 +39,8 @@ func (ar *Article) ToCanonical() CanonicalArticle {
 	if !ar.CreatedAt.IsZero() {
 		rec.CreatedAt = ar.CreatedAt.Format(time.RFC3339)
 	}
-	if !ar.Metadata.PublishedAt.IsZero() {
-		rec.PublishedAt = ar.Metadata.PublishedAt.Format(time.RFC3339)
+	if !ar.PublishedAt.IsZero() {
+		rec.PublishedAt = ar.PublishedAt.Format(time.RFC3339)
 	}
 	if !ar.Metadata.ImportedAt.IsZero() {
 		rec.ImportedAt = ar.Metadata.ImportedAt.Format(time.RFC3339)

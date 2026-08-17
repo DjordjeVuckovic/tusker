@@ -2,6 +2,7 @@ package pg
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
@@ -33,17 +34,8 @@ func (s *SemanticSearcher) SearchSemantic(ctx context.Context, query *query.Sema
 	}
 	vecEncoded := pgvector.NewVector(vec.Embedding)
 
-	cmd := `
-		SELECT a.id,
-			   a.title,
-			   a.subtitle,
-			   a.content,
-			   a.description,
-			   a.author,
-			   a.url,
-			   a.language,
-			   a.created_at,
-			   a.metadata,
+	cmd := fmt.Sprintf(`
+		SELECT %s,
 			   e.distance
 		FROM (
 			SELECT article_id,
@@ -55,7 +47,7 @@ func (s *SemanticSearcher) SearchSemantic(ctx context.Context, query *query.Sema
 		) e
 		INNER JOIN articles a ON a.id = e.article_id
 		ORDER BY e.distance;
-	`
+	`, ArticleColumnList("a"))
 
 	threshold := query.Threshold
 	if threshold == 0 {

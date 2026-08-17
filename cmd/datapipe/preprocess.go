@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -69,11 +70,31 @@ func validateFileExt(path string, supported map[FileExt]struct{}) error {
 type PreprocessReport struct {
 	TotalRecords      int       `json:"total_records"`
 	ProcessedRecords  int       `json:"processed_records"`
+	DroppedRecords    int       `json:"dropped_records"`
 	DuplicatesRemoved int       `json:"duplicates_removed"`
 	InvalidURLs       int       `json:"invalid_urls"`
 	ProcessingTime    float64   `json:"processing_time_seconds"`
 	OutputFile        string    `json:"output_file"`
 	Timestamp         time.Time `json:"timestamp"`
+
+	// Drops counts rejects per "reason/field" so a mapping that empties a
+	// dataset reads as a number, not as N identical warnings. Unreadable rows
+	// count under "read_failed".
+	Drops map[string]int `json:"drops,omitempty"`
+}
+
+func (r *PreprocessReport) recordDrop(err error) {
+	r.DroppedRecords++
+	if r.Drops == nil {
+		r.Drops = make(map[string]int)
+	}
+
+	var drop *reader.MappingDropError
+	if !errors.As(err, &drop) {
+		r.Drops["read_failed"]++
+		return
+	}
+	r.Drops[fmt.Sprintf("%s/%s", drop.Reason, drop.Target)]++
 }
 
 func newPreprocessCmd() *cobra.Command {
@@ -155,7 +176,10 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to load mapping config: %w", err)
 	}
-	mapper := reader.NewArticleMapper(mappingCfg)
+	mapper, err := reader.NewArticleMapper(mappingCfg)
+	if err != nil {
+		return fmt.Errorf("invalid mapping config: %w", err)
+	}
 
 	// Source field mapped to URL, used to detect invalid URLs that get blanked.
 	urlSourceKey := ""
@@ -219,12 +243,14 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 
 		if result.Err != nil {
 			slog.Warn("failed to read record", "error", result.Err)
+			report.recordDrop(result.Err)
 			continue
 		}
 
 		article, err := mapper.Map(result.Record)
 		if err != nil {
-			slog.Warn("failed to map record", "error", err)
+			slog.Debug("dropped record", "error", err)
+			report.recordDrop(err)
 			continue
 		}
 
@@ -246,6 +272,12 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 	}
 
 	report.ProcessingTime = time.Since(start).Seconds()
+
+	// A mistyped `source:` drops every record; without this the run would
+	// succeed with an empty output file.
+	if report.TotalRecords > 0 && report.ProcessedRecords == 0 {
+		return fmt.Errorf("every one of %d records was dropped: %v", report.TotalRecords, report.Drops)
+	}
 
 	if cfg.WriteReport != nil && *cfg.WriteReport {
 		if err := writeReport(
@@ -313,8 +345,13 @@ func logSummary(report *PreprocessReport) {
 	slog.Info("preprocessing summary",
 		"total_records", report.TotalRecords,
 		"processed_records", report.ProcessedRecords,
+		"dropped_records", report.DroppedRecords,
 		"duplicates_removed", report.DuplicatesRemoved,
 		"invalid_urls", report.InvalidURLs,
 		"processing_time", fmt.Sprintf("%.2fs", report.ProcessingTime),
 	)
+
+	for reason, count := range report.Drops {
+		slog.Warn("records dropped", "reason", reason, "count", count)
+	}
 }

@@ -38,7 +38,7 @@ fieldMappings:
    required: false
  - source: "published_at"
    sourceType: "datetime"
-   target: "Metadata.PublishedAt"
+   target: "PublishedAt"
    targetType: "datetime"
    required: false
  - source: "source_id"
