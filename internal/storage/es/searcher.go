@@ -185,12 +185,12 @@ func (r *Searcher) mapToResult(hits []types.Hit, maxScore float64) ([]dto.Articl
 			URL:         doc.URL,
 			Language:    doc.Language,
 			CreatedAt:   doc.CreatedAt,
-			PublishedAt: optionalTime(doc.PublishedAt),
+			PublishedAt: doc.PublishedAt,
 			Metadata: dto.ArticleMetadata{
 				SourceId:   doc.SourceId,
 				SourceName: doc.SourceName,
 				Category:   doc.Category,
-				ImportedAt: optionalTime(doc.ImportedAt),
+				ImportedAt: doc.ImportedAt,
 			},
 		}
 

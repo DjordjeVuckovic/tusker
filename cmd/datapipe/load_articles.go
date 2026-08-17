@@ -52,9 +52,10 @@ func loadArticlesConfig() (*ArticlesConfig, error) {
 		return nil, fmt.Errorf("load storage config: %w", err)
 	}
 
-	// Mapping is enabled by default. Set MAPPING_ENABLED=false to ingest an
-	// already-canonical dataset (produced by datapipe preprocess) via the direct mapper.
-	mappingEnabled := os.Getenv("MAPPING_ENABLED") != "false"
+	// The core path is preprocess -> load -> embed, so the dataset is assumed to
+	// be canonical. Set MAPPING_ENABLED=true to map a raw dataset inline instead,
+	// which skips preprocess and mints new article IDs on every run.
+	mappingEnabled := os.Getenv("MAPPING_ENABLED") == "true"
 
 	mappingPath := os.Getenv("MAPPING_CONFIG_PATH")
 	if mappingEnabled && mappingPath == "" {
@@ -122,14 +123,16 @@ func runArticles(ctx context.Context, cfg *ArticlesConfig) error {
 	return nil
 }
 
-// newMapper selects the record-to-Article mapper. When mapping is disabled the
-// dataset is assumed to already be canonical (produced by datapipe preprocess), so
-// the direct mapper is used and no YAML config is required.
+// newMapper selects the record-to-Article mapper. The default reads a canonical
+// dataset and needs no YAML config; inline mapping is the opt-in path.
 func newMapper(cfg *ArticlesConfig) (reader.Mapper, error) {
 	if !cfg.MappingEnabled {
-		slog.Info("Mapping disabled — using direct mapper (expects canonical dataset)")
+		slog.Info("Using direct mapper (expects canonical dataset)")
 		return reader.NewArticleDirectMapper(), nil
 	}
+
+	slog.Warn("MAPPING_ENABLED=true — mapping a raw dataset inline; article IDs " +
+		"are regenerated, so corpora loaded this way are not comparable across engines")
 
 	file, err := os.Open(cfg.DataMappingPath)
 	if err != nil {

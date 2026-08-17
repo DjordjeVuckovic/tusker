@@ -2,6 +2,7 @@ package datamapping
 
 import (
 	"fmt"
+	"strings"
 )
 
 // DataMapper defines field mapping configuration for data imports
@@ -73,8 +74,47 @@ func (dm *DataMapper) Validate() error {
 		if fm.Source == "" {
 			return fmt.Errorf("fieldMappings[%d] must have source defined", i)
 		}
+		if err := validateTarget(fm.Target); err != nil {
+			return fmt.Errorf("fieldMappings[%d]: %w", i, err)
+		}
 	}
 	return nil
+}
+
+// ExtraTargetPrefix marks a target that lands in Metadata.Extra rather than a
+// schema field. Anything after the prefix is the key.
+const ExtraTargetPrefix = "Metadata.Extra."
+
+var articleTargets = map[string]struct{}{
+	"ID": {}, "Title": {}, "Subtitle": {}, "Content": {}, "Author": {},
+	"Description": {}, "Language": {}, "URL": {}, "PublishedAt": {},
+	"CreatedAt": {}, "Metadata.SourceId": {}, "Metadata.SourceName": {},
+	"Metadata.Category": {}, "Metadata.ImportedAt": {},
+}
+
+// renamedTargets maps retired target names to their replacement, so a stale
+// mapping fails at load instead of silently diverting into Metadata.Extra.
+var renamedTargets = map[string]string{
+	"Metadata.PublishedAt": "PublishedAt",
+}
+
+func validateTarget(target string) error {
+	if target == "" {
+		return fmt.Errorf("must have target defined")
+	}
+	if renamed, ok := renamedTargets[target]; ok {
+		return fmt.Errorf("target %q moved, use %q", target, renamed)
+	}
+	if _, ok := articleTargets[target]; ok {
+		return nil
+	}
+	if key, ok := strings.CutPrefix(target, ExtraTargetPrefix); ok {
+		if key == "" {
+			return fmt.Errorf("target %q needs a key after %q", target, ExtraTargetPrefix)
+		}
+		return nil
+	}
+	return fmt.Errorf("unknown target %q", target)
 }
 
 type MappingError struct {

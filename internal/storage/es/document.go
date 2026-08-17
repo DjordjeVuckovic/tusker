@@ -11,21 +11,21 @@ import (
 
 // ArticleDocument ESDocument represents the document structure for Elasticsearch
 type ArticleDocument struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	Subtitle    string    `json:"subtitle"`
-	Description string    `json:"description"`
-	Content     string    `json:"content"`
-	Author      string    `json:"author"`
-	URL         string    `json:"url"`
-	Language    string    `json:"language"`
-	CreatedAt   time.Time `json:"created_at"`
-	SourceId    string    `json:"source_id"`
-	SourceName  string    `json:"source_name"`
-	PublishedAt time.Time `json:"published_at"`
-	Category    string    `json:"category"`
-	ImportedAt  time.Time `json:"imported_at"`
-	IndexedAt   time.Time `json:"indexed_at"`
+	ID          string     `json:"id"`
+	Title       string     `json:"title"`
+	Subtitle    string     `json:"subtitle"`
+	Description string     `json:"description"`
+	Content     string     `json:"content"`
+	Author      string     `json:"author"`
+	URL         string     `json:"url"`
+	Language    string     `json:"language"`
+	CreatedAt   time.Time  `json:"created_at"`
+	SourceId    string     `json:"source_id"`
+	SourceName  string     `json:"source_name"`
+	PublishedAt *time.Time `json:"published_at"`
+	Category    string     `json:"category"`
+	ImportedAt  *time.Time `json:"imported_at"`
+	IndexedAt   time.Time  `json:"indexed_at"`
 }
 
 // optionalTime maps the zero time to an absent value on the wire, so the API
@@ -63,9 +63,9 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) ArticleDocument
 		CreatedAt:   article.CreatedAt,
 		SourceId:    article.Metadata.SourceId,
 		SourceName:  article.Metadata.SourceName,
-		PublishedAt: article.PublishedAt,
+		PublishedAt: optionalTime(article.PublishedAt),
 		Category:    article.Metadata.Category,
-		ImportedAt:  article.Metadata.ImportedAt,
+		ImportedAt:  optionalTime(article.Metadata.ImportedAt),
 		IndexedAt:   time.Now(),
 	}
 }

@@ -33,9 +33,9 @@ This project is part of a master thesis research that explores PostgreSQL's comp
 The project follows a layered architecture pattern:
 
 - **cmd/**: Entry points for different operations
-    - `datapipe/`: Unified data-pipeline CLI with three stages:
+    - `datapipe/`: Unified data-pipeline CLI. The core path is **preprocess → load → embed**; every stage after the first reads the canonical file, which is what keeps article IDs identical across engines.
         - `datapipe preprocess`: Cleans and maps a raw dataset (`.csv`, `.jsonl`, `.parquet`) into a canonical JSONL file
-        - `datapipe load articles`: Imports News datasets into the database (optional inline embedding generation via Ollama, `EMBEDDING_SOURCE=online`)
+        - `datapipe load articles`: Imports the canonical dataset into the database (optional inline embedding generation via Ollama, `EMBEDDING_SOURCE=online`). `MAPPING_ENABLED=true` opts into mapping a raw dataset inline instead — it skips preprocess and mints new article IDs each run, so corpora loaded that way are not comparable across engines.
         - `datapipe load embeddings`: Loads precomputed embeddings (Parquet from Colab) from an S3-compatible store into `article_embeddings` (`EMBEDDING_SOURCE=file`) — see [docs/embeddings.md](docs/embeddings.md)
     - `news_api/`: HTTP API server for search functionality
     - `schemagen/`: Schema generation utilities
