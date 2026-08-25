@@ -16,7 +16,7 @@ const defaultBatchSize = 1_000
 
 // Pipeline defines the interface for data processing pipelines
 type Pipeline interface {
-	Run(ctx context.Context) error
+	Run(ctx context.Context) (Outcome, error)
 
 	Stop()
 }
@@ -94,7 +94,7 @@ func NewPipeline(c Collector[document.Article], storer storage.Indexer, opts ...
 }
 
 // Run executes the pipeline
-func (p *ArticlePipeline) Run(ctx context.Context) error {
+func (p *ArticlePipeline) Run(ctx context.Context) (Outcome, error) {
 	start := time.Now()
 	slog.Info("🛫 Starting pipeline run",
 		"pipeline", p.config.Name,
@@ -106,42 +106,35 @@ func (p *ArticlePipeline) Run(ctx context.Context) error {
 	results, err := p.collector.Collect(ctx)
 	if err != nil {
 		slog.Error("Error collecting articles", "error", err, "pipeline", p.config.Name)
-		return err
+		return Outcome{Duration: time.Since(start)}, err
 	}
 
-	var outcome ingestOutcome
+	var outcome Outcome
 	var runErr error
 	if p.config.Bulk.Enabled {
 		outcome, runErr = p.processBatch(ctx, results)
 	} else {
 		outcome, runErr = p.processBasic(ctx, results)
 	}
+	outcome.Duration = time.Since(start)
 	if runErr == nil {
 		runErr = outcome.err()
 	}
 
-	slog.Info("Pipeline run completed",
-		"pipeline", p.config.Name,
-		"duration", time.Since(start),
-		"processed", outcome.Processed,
-		"errors", outcome.Errors,
-		"error", runErr,
-	)
-
-	return runErr
+	return outcome, runErr
 }
 
-// ingestOutcome records what a run actually persisted. Every per-record failure
-// is logged and skipped, so the only way to tell a real load from one that
-// stored nothing is to count.
-type ingestOutcome struct {
+// Outcome records what a run actually persisted. Per-record failures are logged
+// and skipped, so only a count separates a real load from an empty one.
+type Outcome struct {
 	Processed int
 	Errors    int
+	Duration  time.Duration
 }
 
 // err reports a load that persisted nothing. Without it a run whose mapping
 // matches no source column finishes with a nil error over an empty table.
-func (o ingestOutcome) err() error {
+func (o Outcome) err() error {
 	if o.Processed > 0 {
 		return nil
 	}
@@ -191,19 +184,21 @@ func (p *ArticlePipeline) embedBatch(ctx context.Context, articles []document.Ar
 	if len(embeds) == 0 {
 		return nil
 	}
-	if err := p.embedIndexer.SaveBulk(ctx, embeds); err != nil {
+	res, err := p.embedIndexer.SaveBulk(ctx, embeds)
+	if err != nil {
 		return fmt.Errorf("save %d embeddings: %w", len(embeds), err)
 	}
 	slog.Info("Vec embeddings saved successfully",
-		"count", len(embeds),
+		"stored", res.Stored,
+		"skipped", res.Skipped,
 		"pipeline", p.config.Name,
 	)
 	return nil
 }
 
 // processBasic handles individual article processing
-func (p *ArticlePipeline) processBasic(ctx context.Context, results <-chan Result[document.Article]) (ingestOutcome, error) {
-	var outcome ingestOutcome
+func (p *ArticlePipeline) processBasic(ctx context.Context, results <-chan Result[document.Article]) (Outcome, error) {
+	var outcome Outcome
 
 	for {
 		select {
@@ -252,9 +247,9 @@ func (p *ArticlePipeline) processBasic(ctx context.Context, results <-chan Resul
 // processBatch handles bulk article processing. A batch that fails to store
 // aborts the run: continuing would write the remaining batches over a corpus
 // already known to be incomplete, and report success at the end.
-func (p *ArticlePipeline) processBatch(ctx context.Context, results <-chan Result[document.Article]) (ingestOutcome, error) {
+func (p *ArticlePipeline) processBatch(ctx context.Context, results <-chan Result[document.Article]) (Outcome, error) {
 	var articles []document.Article
-	var outcome ingestOutcome
+	var outcome Outcome
 
 	for {
 		select {

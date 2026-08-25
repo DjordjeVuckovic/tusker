@@ -34,5 +34,12 @@ func (e StorerError) Error() string {
 
 type EmbedIndexer interface {
 	Save(ctx context.Context, article *embedding.Vec) (uuid.UUID, error)
-	SaveBulk(ctx context.Context, article []*embedding.Vec) error
+	SaveBulk(ctx context.Context, article []*embedding.Vec) (EmbedWriteResult, error)
+}
+
+// EmbedWriteResult reports what a bulk write stored. Both backends skip vectors
+// whose article is absent, so a run can succeed and store nothing.
+type EmbedWriteResult struct {
+	Stored  int
+	Skipped int
 }

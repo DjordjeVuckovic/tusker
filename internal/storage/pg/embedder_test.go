@@ -69,8 +69,13 @@ func TestEmbedder_SaveBulk_UpsertAndSkipOrphans(t *testing.T) {
 		{ID: orphan, Model: model, Embedding: vec(1024, 0.3)},
 	}
 
-	if err := embedder.SaveBulk(testCtx, batch); err != nil {
+	res, err := embedder.SaveBulk(testCtx, batch)
+	if err != nil {
 		t.Fatalf("SaveBulk: %v", err)
+	}
+	if res.Stored != 2 || res.Skipped != 1 {
+		t.Errorf("stored=%d skipped=%d, want 2 and 1: the orphan must be reported, not just logged",
+			res.Stored, res.Skipped)
 	}
 
 	if got := countEmbeddings(t, pool); got != 2 {
@@ -79,7 +84,7 @@ func TestEmbedder_SaveBulk_UpsertAndSkipOrphans(t *testing.T) {
 
 	// Re-run with a changed vector for a1 → upsert, no duplicate.
 	batch[0].Embedding = vec(1024, 0.9)
-	if err := embedder.SaveBulk(testCtx, batch); err != nil {
+	if _, err := embedder.SaveBulk(testCtx, batch); err != nil {
 		t.Fatalf("SaveBulk re-run: %v", err)
 	}
 	if got := countEmbeddings(t, pool); got != 2 {
@@ -87,14 +92,14 @@ func TestEmbedder_SaveBulk_UpsertAndSkipOrphans(t *testing.T) {
 	}
 
 	var dist float64
-	err := pool.GetConn().QueryRow(testCtx, `
+	err = pool.GetConn().QueryRow(testCtx, `
 		SELECT embedding <-> $1 FROM article_embeddings WHERE article_id = $2
 	`, pgvector.NewVector(vec(1024, 0.9)), a1).Scan(&dist)
 	if err != nil {
 		t.Fatalf("failed to read updated embedding: %v", err)
 	}
 	if dist > 1e-4 {
-		t.Errorf("expected upserted embedding to match, got L2 distance %v", dist)
+		t.Errorf("expected stored embedding to match, got L2 distance %v", dist)
 	}
 }
 
@@ -111,7 +116,7 @@ func TestEmbedder_SaveBulk_DuplicateIDsInBatch(t *testing.T) {
 		{ID: a1, Model: model, Embedding: vec(1024, 0.2)},
 	}
 
-	if err := embedder.SaveBulk(testCtx, batch); err != nil {
+	if _, err := embedder.SaveBulk(testCtx, batch); err != nil {
 		t.Fatalf("SaveBulk with duplicate ids: %v", err)
 	}
 

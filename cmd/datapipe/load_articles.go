@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strconv"
+	"time"
+
+	"github.com/DjordjeVuckovic/tusker/internal/cli"
 
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/ingest"
@@ -35,7 +39,7 @@ func newLoadArticlesCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return runArticles(cmd.Context(), cfg)
+			return runArticles(cmd.Context(), cmd.OutOrStdout(), cfg)
 		},
 	}
 }
@@ -111,7 +115,7 @@ func loadArticlesConfig() (*ArticlesConfig, error) {
 	}, nil
 }
 
-func runArticles(ctx context.Context, cfg *ArticlesConfig) error {
+func runArticles(ctx context.Context, out io.Writer, cfg *ArticlesConfig) error {
 	articleReader, dataset, err := OpenDatasetReader(cfg.DatasetPath)
 	if err != nil {
 		return fmt.Errorf("create dataset reader: %w", err)
@@ -130,8 +134,18 @@ func runArticles(ctx context.Context, cfg *ArticlesConfig) error {
 		return fmt.Errorf("create pipeline: %w", err)
 	}
 
-	if err := pipeline.Run(ctx); err != nil {
+	outcome, err := pipeline.Run(ctx)
+	if err != nil {
 		return fmt.Errorf("run pipeline: %w", err)
+	}
+
+	cli.Summary(out, "Article load complete",
+		cli.IntField("processed", outcome.Processed),
+		cli.IntField("failed", outcome.Errors),
+		cli.Field{Label: "duration", Value: outcome.Duration.Round(time.Millisecond).String()},
+	)
+	if outcome.Errors > 0 {
+		cli.Warn(out, fmt.Sprintf("%d records were skipped and are not in the corpus", outcome.Errors))
 	}
 	return nil
 }

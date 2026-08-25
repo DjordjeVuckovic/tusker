@@ -85,7 +85,7 @@ func TestRun_StoringNothingIsAnError(t *testing.T) {
 			}
 			p := NewPipeline(&stubCollector{results: tt.results}, idx, opts...)
 
-			err := p.Run(context.Background())
+			_, err := p.Run(context.Background())
 
 			require.Error(t, err, "a load that persisted nothing must not report success")
 			assert.Contains(t, err.Error(), "stored 0 articles")
@@ -99,7 +99,7 @@ func TestRun_BulkFailureStopsTheLoad(t *testing.T) {
 	idx := &recordingIndexer{failBulkOn: 2}
 	p := NewPipeline(&stubCollector{results: articles(6)}, idx, WithBulk(2))
 
-	err := p.Run(context.Background())
+	_, err := p.Run(context.Background())
 
 	require.Error(t, err, "a batch that never landed must fail the run, not just log")
 	assert.Contains(t, err.Error(), "save 2 articles")
@@ -111,8 +111,11 @@ func TestRun_TrailingPartialBatchIsStored(t *testing.T) {
 	idx := &recordingIndexer{}
 	p := NewPipeline(&stubCollector{results: articles(7)}, idx, WithBulk(5))
 
-	require.NoError(t, p.Run(context.Background()))
+	outcome, err := p.Run(context.Background())
+
+	require.NoError(t, err)
 	assert.Len(t, idx.saved, 7, "the articles left over after the last full batch must still be stored")
+	assert.Equal(t, 7, outcome.Processed, "the count the CLI reports must match what was stored")
 }
 
 func TestRun_PartialFailuresStillSucceed(t *testing.T) {
@@ -120,7 +123,10 @@ func TestRun_PartialFailuresStillSucceed(t *testing.T) {
 	mixed := append(articles(2), failures(1)...)
 	p := NewPipeline(&stubCollector{results: mixed}, idx, WithBulk(2))
 
-	require.NoError(t, p.Run(context.Background()),
-		"a run that stored something is a success even with skipped records")
+	outcome, err := p.Run(context.Background())
+
+	require.NoError(t, err, "a run that stored something is a success even with skipped records")
 	assert.Len(t, idx.saved, 2)
+	assert.Equal(t, 2, outcome.Processed)
+	assert.Equal(t, 1, outcome.Errors, "skipped records must reach the caller so the CLI can warn")
 }
