@@ -83,6 +83,26 @@ func executeRun(cmd *cobra.Command, f runFlags, args []string) error {
 	})
 }
 
+// newRunConfig resolves the measurement knobs for a run: an explicit flag beats
+// the spec default, and both parallelism axes stay serial. Serial is the whole
+// point of bench run — a job's engines share a host, so any fan-out measures
+// them under contention they would never see in isolation.
+func newRunConfig(f runFlags, bs *spec.BenchSpec, ks []int, kFromFlag bool) runner.Config {
+	cfg := runner.Config{
+		KValues:            ks,
+		MaxK:               firstNonZero(f.maxK, bs.Metrics.MaxK),
+		RelevanceThreshold: bs.Metrics.RelevanceThreshold,
+		WarmupRuns:         firstNonZero(f.warmup, bs.Runs.Warmup),
+		Runs:               firstNonZero(f.iters, bs.Runs.Iterations),
+		QueryParallelism:   runner.QueryParallelismSerial,
+		EngineParallelism:  runner.EngineParallelismSerial,
+	}
+	if len(bs.Metrics.KValues) > 0 && !kFromFlag {
+		cfg.KValues = bs.Metrics.KValues
+	}
+	return cfg
+}
+
 func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) error {
 	bs, err := spec.LoadFromFile(tr.Spec)
 	if err != nil {
@@ -105,18 +125,8 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		return err
 	}
 
-	runCfg := runner.Config{
-		KValues:            ks,
-		MaxK:               firstNonZero(f.maxK, bs.Metrics.MaxK),
-		RelevanceThreshold: bs.Metrics.RelevanceThreshold,
-		WarmupRuns:         firstNonZero(f.warmup, bs.Runs.Warmup),
-		Runs:               firstNonZero(f.iters, bs.Runs.Iterations),
-		Judgments:          judgmentsMap,
-		QueryParallelism:   runner.QueryParallelismSerial,
-	}
-	if len(bs.Metrics.KValues) > 0 && !cmd.Flags().Changed("k") {
-		runCfg.KValues = bs.Metrics.KValues
-	}
+	runCfg := newRunConfig(f, bs, ks, cmd.Flags().Changed("k"))
+	runCfg.Judgments = judgmentsMap
 
 	printSpecWarnings(cmd.OutOrStdout(), bs)
 

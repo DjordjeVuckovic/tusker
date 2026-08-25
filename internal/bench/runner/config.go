@@ -20,6 +20,16 @@ const (
 	// bench pool and bench validate where latency measurement doesn't matter
 	// and throughput does.
 	QueryParallelismUnlimited = 0
+
+	// EngineParallelismSerial runs one engine at a time within a query. Use for
+	// bench run: the engines in a job share a host, and often a single
+	// Postgres instance, so fanning out lands one engine's warmup in the same
+	// window as another's measured iterations.
+	EngineParallelismSerial = 1
+
+	// EngineParallelismUnlimited fans out to every engine in the job at once.
+	// Use for bench pool, where only the returned doc IDs matter.
+	EngineParallelismUnlimited = 0
 )
 
 type Config struct {
@@ -32,7 +42,8 @@ type Config struct {
 	// = one at a time; QueryParallelismUnlimited (0) = all at once.
 	QueryParallelism int
 	// EngineParallelism bounds concurrent engine calls within a single query.
-	// 0 = unlimited (fan out to all engines simultaneously).
+	// EngineParallelismSerial (1) = one at a time; EngineParallelismUnlimited
+	// (0) = fan out to all engines simultaneously.
 	EngineParallelism int
 	// Judgments[queryID][docID]grade — pre-loaded by the CLI from the
 	// resolved annotations file. When nil, queries are scored without
