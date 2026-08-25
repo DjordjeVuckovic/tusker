@@ -89,6 +89,14 @@ The type system is organized into bounded contexts, each with its own package:
 ### Data Mapping System
 The project uses YAML configuration files to map source data fields to internal Article structure. Configuration files follow the DataMapping schema with fieldMappings that specify source/target fields and their types.
 
+`idStrategy` decides how article ids are produced. The default `random` mints a UUIDv4 per record, so the canonical file is what identifies a corpus and re-running preprocess renumbers it. `{ kind: uuidv5, source: <field> }` derives the id by hashing that field instead, so the same input always yields the same ids and preprocess can be re-run without orphaning pools, qrels, or embeddings. A mapping that targets `ID` overrides both, which is how a dataset carrying its own ids keeps them.
+
+```yaml
+idStrategy:
+  kind: uuidv5
+  source: url
+```
+
 ### Storage Layer
 Follows idiomatic Go patterns with sub-package organization:
 - **Interfaces**: Storage contracts define clear responsibilities

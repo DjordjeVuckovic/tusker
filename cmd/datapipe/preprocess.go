@@ -73,6 +73,7 @@ func validateFileExt(path string, supported map[FileExt]struct{}) error {
 type PreprocessReport struct {
 	CorpusId          string    `json:"corpus_id"`
 	SHA256            string    `json:"sha256"`
+	IdStrategy        string    `json:"id_strategy"`
 	TotalRecords      int       `json:"total_records"`
 	ProcessedRecords  int       `json:"processed_records"`
 	DroppedRecords    int       `json:"dropped_records"`
@@ -212,6 +213,12 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 	if report.CorpusId == "" {
 		report.CorpusId = mappingCfg.Dataset
 	}
+
+	idKind, err := mappingCfg.IdStrategy.ResolvedKind()
+	if err != nil {
+		return err
+	}
+	report.IdStrategy = string(idKind)
 
 	rawReader, err := NewRawReader(dataFile, fileExt(cfg.InputPath))
 	if err != nil {
@@ -394,6 +401,7 @@ func logSummary(report *PreprocessReport) {
 	slog.Info("preprocessing summary",
 		"corpus_id", report.CorpusId,
 		"sha256", report.SHA256,
+		"id_strategy", report.IdStrategy,
 		"total_records", report.TotalRecords,
 		"processed_records", report.ProcessedRecords,
 		"dropped_records", report.DroppedRecords,

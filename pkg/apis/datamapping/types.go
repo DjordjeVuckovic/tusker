@@ -25,8 +25,65 @@ type DataMapper struct {
 	// DateFormat specifies the Go time format for parsing dates
 	DateFormat string `json:"dateFormat,omitempty" yaml:"dateFormat,omitempty" schema:"default=2006-01-02T15:04:05Z" description:"Go time format for parsing date/datetime fields"`
 
+	// IdStrategy decides how article ids are produced
+	IdStrategy IdStrategy `json:"idStrategy,omitempty" yaml:"idStrategy,omitempty" description:"How article ids are produced"`
+
 	// FieldMappings defines the field mapping rules
 	FieldMappings []FieldMapping `json:"fieldMappings" yaml:"fieldMappings" schema:"required,minItems=1" description:"Array of field mapping definitions"`
+}
+
+// IdStrategyKind names the ways an article id can be produced.
+type IdStrategyKind string
+
+const (
+	// IdStrategyRandom mints a UUIDv4 per record, so a corpus is identified by
+	// the canonical file it was written to and re-running preprocess renumbers it.
+	IdStrategyRandom IdStrategyKind = "random"
+
+	// IdStrategyUuidV5 derives the id from a source field, so the same input
+	// always yields the same ids.
+	IdStrategyUuidV5 IdStrategyKind = "uuidv5"
+)
+
+func ParseIdStrategyKind(v string) (IdStrategyKind, error) {
+	switch IdStrategyKind(v) {
+	case IdStrategyRandom:
+		return IdStrategyRandom, nil
+	case IdStrategyUuidV5:
+		return IdStrategyUuidV5, nil
+	default:
+		return "", fmt.Errorf("unknown id strategy kind %q", v)
+	}
+}
+
+type IdStrategy struct {
+	// Kind is the id generation strategy
+	Kind string `json:"kind,omitempty" yaml:"kind,omitempty" schema:"enum=random|uuidv5,default=random" description:"Id generation strategy"`
+
+	// Source is the source field hashed by a derived strategy
+	Source string `json:"source,omitempty" yaml:"source,omitempty" description:"Source field hashed by a derived strategy"`
+}
+
+// ResolvedKind reports the strategy to apply, defaulting to random.
+func (s IdStrategy) ResolvedKind() (IdStrategyKind, error) {
+	if s.Kind == "" {
+		return IdStrategyRandom, nil
+	}
+	return ParseIdStrategyKind(s.Kind)
+}
+
+func (s IdStrategy) validate() error {
+	kind, err := s.ResolvedKind()
+	if err != nil {
+		return err
+	}
+	if kind == IdStrategyUuidV5 && s.Source == "" {
+		return fmt.Errorf("id strategy %q needs a source field", kind)
+	}
+	if kind == IdStrategyRandom && s.Source != "" {
+		return fmt.Errorf("id strategy %q ignores source %q", kind, s.Source)
+	}
+	return nil
 }
 
 type Metadata struct {
@@ -69,6 +126,9 @@ func (dm *DataMapper) Validate() error {
 	}
 	if len(dm.FieldMappings) == 0 {
 		return fmt.Errorf("at least one field mapping is required")
+	}
+	if err := dm.IdStrategy.validate(); err != nil {
+		return fmt.Errorf("idStrategy: %w", err)
 	}
 	for i, fm := range dm.FieldMappings {
 		if fm.Source == "" {
