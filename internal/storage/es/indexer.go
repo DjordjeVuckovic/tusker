@@ -8,9 +8,11 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esutil"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/google/uuid"
 )
 
@@ -157,3 +159,17 @@ func (e *Indexer) EnsureIndex(ctx context.Context) error {
 	slog.Info("Index created successfully", "index", e.indexName)
 	return nil
 }
+
+// CountEmbedded reports how many documents already carry a vector.
+func (e *Indexer) CountEmbedded(ctx context.Context) (int64, error) {
+	res, err := e.client.Count().
+		Index(e.indexName).
+		Query(&types.Query{Exists: &types.ExistsQuery{Field: "embedding"}}).
+		Do(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count embedded documents: %w", err)
+	}
+	return res.Count, nil
+}
+
+var _ storage.EmbeddedDocumentCounter = (*Indexer)(nil)

@@ -32,6 +32,12 @@ func (e StorerError) Error() string {
 	return string(e)
 }
 
+// EmbeddedDocumentCounter is an optional capability for backends that keep vectors on
+// the article document, where an article write overwrites them. Postgres does not.
+type EmbeddedDocumentCounter interface {
+	CountEmbedded(ctx context.Context) (int64, error)
+}
+
 type EmbedIndexer interface {
 	Save(ctx context.Context, article *embedding.Vec) (uuid.UUID, error)
 	SaveBulk(ctx context.Context, article []*embedding.Vec) (EmbedWriteResult, error)
