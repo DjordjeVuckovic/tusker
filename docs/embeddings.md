@@ -45,10 +45,6 @@ Colab needs a notebook because there is no API for running a script on a free
 Colab GPU; the browser cell is the only way onto that machine. Kaggle accepts a
 plain `.py` as a script kernel, so it needs no notebook at all.
 
-`scripts/embed_qwen3.ipynb` is the original self-contained Colab notebook that
-produced the gl-news vectors. It is kept for provenance. Do not use it for
-cc-news, since it loads the entire corpus into memory before embedding anything.
-
 #### Kaggle script kernel
 
 Kaggle runs plain `.py` files, so this path needs no notebook. `kaggle kernels
@@ -143,10 +139,13 @@ documents. Length sorting happens inside a shard and is undone before the vector
 are saved, which keeps resume exact while still cutting padding waste (2.2x on an
 M4 Pro).
 
-`--batch-size` defaults to 64, measured on Apple Silicon where wide batches thrash
-unified memory (64 beat 128, and 256 fell off a cliff). A dedicated GPU usually
-wants more, so `--auto-batch-size` times a 2,000-doc slice at 64, 256 and 512 and
-uses the fastest. Both cloud paths turn it on.
+`--batch-size` defaults to 64. Wider batches have measured slower on every device
+tried so far: on an M4 Pro 64 beat 128 and 256 fell off a cliff, and on a Colab
+CUDA GPU the fall-off was monotonic (64 at 199 docs/s, 256 at 158, 512 at 128).
+The length sort is why. It groups each batch by document length, so more, smaller
+batches pad less than a few wide ones. `--auto-batch-size` times a 2,000-doc slice
+at 64, 256 and 512 and uses the fastest rather than assuming; both cloud paths
+turn it on.
 
 ### Embedded fields
 
