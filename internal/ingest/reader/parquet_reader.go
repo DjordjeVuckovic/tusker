@@ -2,6 +2,7 @@ package reader
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -130,7 +131,7 @@ func (p *ParquetReader) eachRecord(rg parquet.RowGroup, fn func(map[string]strin
 			}
 		}
 
-		if readErr == io.EOF {
+		if errors.Is(readErr, io.EOF) {
 			return nil
 		}
 		if readErr != nil {

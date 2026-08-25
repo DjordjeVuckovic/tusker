@@ -39,7 +39,36 @@ or CPU, so the same script backs every path below:
 |-------|--------|-------|
 | Laptop | `uv run scripts/embed_corpus.py <corpus>` | No GPU rental, but slow and hot |
 | Colab | `scripts/embed_colab.ipynb` | Payload on Drive, checkpoints too |
-| Kaggle | `scripts/embed_kaggle.ipynb` | Headless round trip via the `kaggle` CLI |
+| Kaggle | `scripts/embed_corpus.py` as a script kernel | Headless round trip via the `kaggle` CLI |
+
+Colab needs a notebook because there is no API for running a script on a free
+Colab GPU; the browser cell is the only way onto that machine. Kaggle accepts a
+plain `.py` as a script kernel, so it needs no notebook at all.
+
+#### Kaggle script kernel
+
+`kaggle kernels push` uploads exactly one `code_file`, so `embed_corpus.py` is
+the kernel itself and the dataset payload is just the corpus. Kernels run with no
+argv, so omitting the corpus argument switches the script to Kaggle conventions:
+it looks under `/kaggle/input`, writes to `/kaggle/working`, removes checkpoints
+after the merge, and sweeps `--batch-size` instead of trusting a default tuned on
+other hardware. Passing a corpus path disables all of that.
+
+```bash
+mkdir -p /tmp/tusker-payload
+cp datasets/cc-news/canonical-dataset-slim.jsonl.gz /tmp/tusker-payload/
+kaggle datasets init -p /tmp/tusker-payload     # then set id and title
+kaggle datasets create -p /tmp/tusker-payload
+
+# scripts/kernel-metadata.json: replace INSERT_YOUR_USERNAME_HERE first
+kaggle kernels push -p scripts
+kaggle kernels status <your-username>/tusker-embed
+kaggle kernels output <your-username>/tusker-embed -p datasets/cc-news/
+```
+
+Kernels have internet off by default, and this one needs it for the model
+weights. The kernel relies on the Kaggle image's preinstalled transformers,
+which has to be at least 4.51 for Qwen3.
 
 `scripts/embed_qwen3.ipynb` is the original self-contained Colab notebook that
 produced the gl-news vectors. It is kept for provenance. Do not use it for

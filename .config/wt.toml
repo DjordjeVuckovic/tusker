@@ -1,6 +1,6 @@
 [step.copy-ignored]
 exclude = [
-  "dataset/",
+  "datasets/",
   "bin/",
   "benchmark_results/",
   "*.test",

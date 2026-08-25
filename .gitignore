@@ -41,6 +41,9 @@ datasets/**/*.parquet
 datasets/**/*.npz
 datasets/**/*.gz
 
+__pycache__/
+.ruff_cache/
+
 # Regenerable bench exports (bench export --format html|markdown); the .json
 # reports next to them are provenance and stay tracked.
 tracks/**/reports/*.html
