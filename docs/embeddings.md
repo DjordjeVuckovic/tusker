@@ -3,11 +3,11 @@
 Document embeddings power the semantic and hybrid search tracks. There are two
 ways to produce them, selected by `EMBEDDING_SOURCE`:
 
-| `EMBEDDING_SOURCE` | How | Where |
-|--------------------|-----|-------|
-| `online` (default) | Generated inline during ingestion via Ollama | `datapipe load articles` (gated by `EMBEDDING_ENABLED=true`) |
-| `file`             | Precomputed offline, loaded from an object store | `datapipe load embeddings` |
-| `none`             | No embeddings | — |
+| `EMBEDDING_SOURCE` | How                                              | Where                                                        |
+|--------------------|--------------------------------------------------|--------------------------------------------------------------|
+| `online` (default) | Generated inline during ingestion via Ollama     | `datapipe load articles` (gated by `EMBEDDING_ENABLED=true`) |
+| `file`             | Precomputed offline, loaded from an object store | `datapipe load embeddings`                                   |
+| `none`             | No embeddings                                    | —                                                            |
 
 The `file` path exists because embedding generation is a one-time, GPU-bound job.
 
@@ -35,44 +35,82 @@ docker compose exec -T pg-news-native psql -U news_user -d news_db -c "select co
 `scripts/embed_corpus.py` is the whole implementation. It auto-detects CUDA, MPS
 or CPU, so the same script backs every path below:
 
-| Where | Driver | Notes |
-|-------|--------|-------|
-| Laptop | `uv run scripts/embed_corpus.py <corpus>` | No GPU rental, but slow and hot |
-| Colab | `scripts/embed_colab.ipynb` | Payload on Drive, checkpoints too |
+| Where  | Driver                                       | Notes                                    |
+|--------|----------------------------------------------|------------------------------------------|
+| Laptop | `uv run scripts/embed_corpus.py <corpus>`    | No GPU rental, but slow and hot          |
+| Colab  | `scripts/embed_colab.ipynb`                  | Payload on Drive, checkpoints too        |
 | Kaggle | `scripts/embed_corpus.py` as a script kernel | Headless round trip via the `kaggle` CLI |
 
 Colab needs a notebook because there is no API for running a script on a free
 Colab GPU; the browser cell is the only way onto that machine. Kaggle accepts a
 plain `.py` as a script kernel, so it needs no notebook at all.
 
+`scripts/embed_qwen3.ipynb` is the original self-contained Colab notebook that
+produced the gl-news vectors. It is kept for provenance. Do not use it for
+cc-news, since it loads the entire corpus into memory before embedding anything.
+
 #### Kaggle script kernel
 
-`kaggle kernels push` uploads exactly one `code_file`, so `embed_corpus.py` is
-the kernel itself and the dataset payload is just the corpus. Kernels run with no
-argv, so omitting the corpus argument switches the script to Kaggle conventions:
-it looks under `/kaggle/input`, writes to `/kaggle/working`, removes checkpoints
-after the merge, and sweeps `--batch-size` instead of trusting a default tuned on
-other hardware. Passing a corpus path disables all of that.
+Kaggle runs plain `.py` files, so this path needs no notebook. `kaggle kernels
+push` uploads exactly one `code_file`, which is `embed_corpus.py` itself, and the
+dataset payload is just the corpus. The kernel config lives at
+`datasets/<corpus>/kernel-metadata.json`, since the kernel slug and its
+`dataset_sources` are per corpus, and `code_file` points back at the shared
+script.
+
+Kernels run with no argv, so omitting the corpus argument switches the script to
+Kaggle conventions: it reads `/kaggle/input`, writes to `/kaggle/working`, removes
+checkpoints after the merge, and sweeps batch size. Passing a corpus path disables
+all of that.
+
+**0. Verify your phone** at kaggle.com/settings. The CLI sends `enable_gpu` and
+`enable_internet`, but the server drops both on unverified accounts, silently. You
+get a CPU box with no network and the run dies fetching the model. This is the
+first thing to check when a kernel logs `device : cpu`.
+
+**1. Install and authenticate.**
+
+```bash
+pip install kaggle          # token from kaggle.com/settings/api -> ~/.kaggle/kaggle.json
+```
+
+**2. Upload the corpus as a dataset.**
 
 ```bash
 mkdir -p /tmp/tusker-payload
 cp datasets/cc-news/canonical-dataset-slim.jsonl.gz /tmp/tusker-payload/
-kaggle datasets init -p /tmp/tusker-payload     # then set id and title
+kaggle datasets init -p /tmp/tusker-payload
+# edit /tmp/tusker-payload/dataset-metadata.json: set title and id
 kaggle datasets create -p /tmp/tusker-payload
-
-# scripts/kernel-metadata.json: replace INSERT_YOUR_USERNAME_HERE first
-kaggle kernels push -p scripts
-kaggle kernels status <your-username>/tusker-embed
-kaggle kernels output <your-username>/tusker-embed -p datasets/cc-news/
 ```
 
-Kernels have internet off by default, and this one needs it for the model
-weights. The kernel relies on the Kaggle image's preinstalled transformers,
-which has to be at least 4.51 for Qwen3.
+`create` fails with "Please upload at least one file" if only the metadata is in
+the folder. Kaggle decompresses `.gz` during processing, which is fine, the script
+reads either form.
 
-`scripts/embed_qwen3.ipynb` is the original self-contained Colab notebook that
-produced the gl-news vectors. It is kept for provenance. Do not use it for
-cc-news, since it loads the entire corpus into memory before embedding anything.
+**3. Push the kernel.** Set your username in
+`datasets/cc-news/kernel-metadata.json` first. Pushing also starts the run.
+
+```bash
+kaggle kernels push -p datasets/cc-news
+```
+
+**4. Watch it.**
+
+```bash
+kaggle kernels status djordjevuckovic/tusker-embed
+kaggle kernels logs   djordjevuckovic/tusker-embed
+```
+
+**5. Collect the Parquet.**
+
+```bash
+kaggle kernels output djordjevuckovic/tusker-embed -p datasets/cc-news/
+```
+
+Only `/kaggle/working` is downloadable. The kernel relies on the Kaggle image's
+preinstalled transformers, which has to be at least 4.51 for Qwen3, since a script
+kernel has no `pip install` step.
 
 ### Shrink the upload first
 
@@ -107,8 +145,8 @@ M4 Pro).
 
 `--batch-size` defaults to 64, measured on Apple Silicon where wide batches thrash
 unified memory (64 beat 128, and 256 fell off a cliff). A dedicated GPU usually
-wants more, so both cloud notebooks sweep it against a 2,000-doc slice before
-committing to the full corpus.
+wants more, so `--auto-batch-size` times a 2,000-doc slice at 64, 256 and 512 and
+uses the fastest. Both cloud paths turn it on.
 
 ### Embedded fields
 

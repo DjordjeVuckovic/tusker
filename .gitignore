@@ -41,6 +41,9 @@ datasets/**/*.parquet
 datasets/**/*.npz
 datasets/**/*.gz
 
+# Kaggle kernel config is per corpus and is committed, unlike the payloads above.
+!datasets/**/kernel-metadata.json
+
 __pycache__/
 .ruff_cache/
 
