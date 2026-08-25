@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +27,7 @@ type preprocessConfig struct {
 	InputPath   string
 	OutputPath  string
 	MappingPath string
+	CorpusId    string
 	Workers     int
 	WriteReport *bool
 }
@@ -68,6 +71,8 @@ func validateFileExt(path string, supported map[FileExt]struct{}) error {
 }
 
 type PreprocessReport struct {
+	CorpusId          string    `json:"corpus_id"`
+	SHA256            string    `json:"sha256"`
 	TotalRecords      int       `json:"total_records"`
 	ProcessedRecords  int       `json:"processed_records"`
 	DroppedRecords    int       `json:"dropped_records"`
@@ -129,6 +134,7 @@ func newPreprocessCmd() *cobra.Command {
 	f.StringVar(&cfg.InputPath, "input", "", "Path to the input dataset file (.csv, .jsonl, .parquet)")
 	f.StringVar(&cfg.OutputPath, "output", "", "Output file for canonical dataset")
 	f.StringVar(&cfg.MappingPath, "mapping", "", "Path to the YAML field-mapping config")
+	f.StringVar(&cfg.CorpusId, "corpus-id", "", "Corpus identifier recorded in the report (defaults to the mapping's dataset)")
 	f.IntVar(&cfg.Workers, "workers", 16, "Number of parallel workers")
 	f.BoolVar(&writeReport, "report", false, "Write validation report")
 	return cmd
@@ -148,6 +154,9 @@ func applyPreprocessEnvDefaults(cfg *preprocessConfig) {
 	}
 	if cfg.MappingPath == "" {
 		cfg.MappingPath = os.Getenv("MAPPING_CONFIG_PATH")
+	}
+	if cfg.CorpusId == "" {
+		cfg.CorpusId = os.Getenv("CORPUS_ID")
 	}
 
 	if cfg.WriteReport == nil {
@@ -195,15 +204,13 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 	}
 	defer dataFile.Close()
 
-	outFile, err := os.Create(cfg.OutputPath)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer outFile.Close()
-
 	report := &PreprocessReport{
+		CorpusId:   cfg.CorpusId,
 		Timestamp:  time.Now(),
 		OutputFile: outFilename,
+	}
+	if report.CorpusId == "" {
+		report.CorpusId = mappingCfg.Dataset
 	}
 
 	rawReader, err := NewRawReader(dataFile, fileExt(cfg.InputPath))
@@ -216,59 +223,15 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 		return fmt.Errorf("failed to create parallel reader: %w", err)
 	}
 
-	writer, err := NewOutWriter(outFile, fileExt(cfg.OutputPath))
+	report.SHA256, err = writeCanonical(canonicalWriteOptions{
+		OutputPath:   cfg.OutputPath,
+		Mapper:       mapper,
+		Records:      resultsChan,
+		URLSourceKey: urlSourceKey,
+		Report:       report,
+	})
 	if err != nil {
 		return err
-	}
-	defer func() {
-		if cerr := writer.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("close writer: %w", cerr)
-		}
-	}()
-
-	arBuff := make([]document.CanonicalArticle, 0, flushBatchSize)
-	flush := func() error {
-		if len(arBuff) == 0 {
-			return nil
-		}
-		if err := writer.Write(arBuff); err != nil {
-			return err
-		}
-		arBuff = arBuff[:0]
-		return nil
-	}
-
-	for result := range resultsChan {
-		report.TotalRecords++
-
-		if result.Err != nil {
-			slog.Warn("failed to read record", "error", result.Err)
-			report.recordDrop(result.Err)
-			continue
-		}
-
-		article, err := mapper.Map(result.Record)
-		if err != nil {
-			slog.Debug("dropped record", "error", err)
-			report.recordDrop(err)
-			continue
-		}
-
-		if urlSourceKey != "" && result.Record[urlSourceKey] != "" && article.URL == "" {
-			report.InvalidURLs++
-		}
-
-		arBuff = append(arBuff, article.ToCanonical())
-		report.ProcessedRecords++
-
-		if len(arBuff) >= flushBatchSize {
-			if err := flush(); err != nil {
-				return fmt.Errorf("failed to write batch: %w", err)
-			}
-		}
-	}
-	if err := flush(); err != nil {
-		return fmt.Errorf("failed to write final batch: %w", err)
 	}
 
 	report.ProcessingTime = time.Since(start).Seconds()
@@ -290,6 +253,92 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 
 	logSummary(report)
 	return nil
+}
+
+type canonicalWriteOptions struct {
+	OutputPath   string
+	Mapper       reader.Mapper
+	Records      <-chan reader.ParallelReaderResult
+	URLSourceKey string
+	Report       *PreprocessReport
+}
+
+// writeCanonical streams mapped records to the canonical file and returns its
+// SHA-256. The digest reads the bytes as they are written, and is only complete
+// once the writer flushes, which for parquet is where the footer lands.
+func writeCanonical(opts canonicalWriteOptions) (checksum string, err error) {
+	outFile, err := os.Create(opts.OutputPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer outFile.Close()
+
+	digest := sha256.New()
+	writer, err := NewOutWriter(io.MultiWriter(outFile, digest), fileExt(opts.OutputPath))
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if writer == nil {
+			return
+		}
+		if cerr := writer.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close writer: %w", cerr)
+		}
+	}()
+
+	report := opts.Report
+	arBuff := make([]document.CanonicalArticle, 0, flushBatchSize)
+	flush := func() error {
+		if len(arBuff) == 0 {
+			return nil
+		}
+		if err := writer.Write(arBuff); err != nil {
+			return err
+		}
+		arBuff = arBuff[:0]
+		return nil
+	}
+
+	for result := range opts.Records {
+		report.TotalRecords++
+
+		if result.Err != nil {
+			slog.Warn("failed to read record", "error", result.Err)
+			report.recordDrop(result.Err)
+			continue
+		}
+
+		article, err := opts.Mapper.Map(result.Record)
+		if err != nil {
+			slog.Debug("dropped record", "error", err)
+			report.recordDrop(err)
+			continue
+		}
+
+		if opts.URLSourceKey != "" && result.Record[opts.URLSourceKey] != "" && article.URL == "" {
+			report.InvalidURLs++
+		}
+
+		arBuff = append(arBuff, article.ToCanonical())
+		report.ProcessedRecords++
+
+		if len(arBuff) >= flushBatchSize {
+			if err := flush(); err != nil {
+				return "", fmt.Errorf("failed to write batch: %w", err)
+			}
+		}
+	}
+	if err := flush(); err != nil {
+		return "", fmt.Errorf("failed to write final batch: %w", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		return "", fmt.Errorf("close writer: %w", err)
+	}
+	writer = nil
+
+	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
 // NewRawReader takes *os.File rather than io.Reader because parquet needs the
@@ -343,6 +392,8 @@ func writeReport(outDir, basename string, report *PreprocessReport) error {
 
 func logSummary(report *PreprocessReport) {
 	slog.Info("preprocessing summary",
+		"corpus_id", report.CorpusId,
+		"sha256", report.SHA256,
 		"total_records", report.TotalRecords,
 		"processed_records", report.ProcessedRecords,
 		"dropped_records", report.DroppedRecords,
