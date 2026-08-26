@@ -16,6 +16,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var articlesDatasetExtensions = map[FileExt]struct{}{
+	ExtCSV:     {},
+	ExtJSONL:   {},
+	ExtParquet: {},
+}
+
+var articlesMappingExtensions = map[FileExt]struct{}{
+	ExtYAML: {},
+}
+
 func newLoadArticlesCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "articles",
@@ -58,13 +68,21 @@ func loadArticlesConfig() (*ArticlesConfig, error) {
 	mappingEnabled := os.Getenv("MAPPING_ENABLED") == "true"
 
 	mappingPath := os.Getenv("MAPPING_CONFIG_PATH")
-	if mappingEnabled && mappingPath == "" {
-		return nil, fmt.Errorf("MAPPING_CONFIG_PATH environment variable is not set")
+	if mappingEnabled {
+		if mappingPath == "" {
+			return nil, fmt.Errorf("MAPPING_CONFIG_PATH environment variable is not set")
+		}
+		if err := validateFileExt(mappingPath, articlesMappingExtensions); err != nil {
+			return nil, fmt.Errorf("invalid MAPPING_CONFIG_PATH: %w", err)
+		}
 	}
 
 	dsPath := os.Getenv("DATASET_PATH")
 	if dsPath == "" {
 		return nil, fmt.Errorf("DATASET_PATH environment variable is not set")
+	}
+	if err := validateFileExt(dsPath, articlesDatasetExtensions); err != nil {
+		return nil, fmt.Errorf("invalid DATASET_PATH: %w", err)
 	}
 
 	bulkSizeNum, err := strconv.Atoi(os.Getenv("BULK_SIZE"))
@@ -94,16 +112,11 @@ func loadArticlesConfig() (*ArticlesConfig, error) {
 }
 
 func runArticles(ctx context.Context, cfg *ArticlesConfig) error {
-	dataFile, err := os.Open(cfg.DatasetPath)
-	if err != nil {
-		return fmt.Errorf("open dataset: %w", err)
-	}
-	defer dataFile.Close()
-
-	articleReader, err := NewRawReader(dataFile, fileExt(cfg.DatasetPath))
+	articleReader, dataset, err := OpenDatasetReader(cfg.DatasetPath)
 	if err != nil {
 		return fmt.Errorf("create dataset reader: %w", err)
 	}
+	defer dataset.Close()
 
 	mapper, err := newMapper(cfg)
 	if err != nil {

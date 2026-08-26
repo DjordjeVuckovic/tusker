@@ -24,7 +24,7 @@ Stages:
 
 Typical flow:
   datapipe preprocess --input datasets/<name>/dataset.csv \
-      --output datasets/<name>/canonical --mapping m.yaml
+      --output datasets/<name>/canonical.jsonl --mapping m.yaml
   datapipe load articles
   datapipe load embeddings
 `

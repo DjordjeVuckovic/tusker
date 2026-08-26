@@ -6,11 +6,6 @@ metadata:
 dataset: kaggle
 dateFormat: "2006-01-02 15:04:05.000000"
 fieldMappings:
- - source: "id"
-   sourceType: "uuid"
-   target: "ID"
-   targetType: "uuid"
-   required: false
  - source: "title"
    sourceType: "string"
    target: "Title"
@@ -20,7 +15,7 @@ fieldMappings:
    sourceType: "string"
    target: "Author"
    targetType: "string"
-   required: true
+   required: false
  - source: "description"
    sourceType: "string"
    target: "Description"

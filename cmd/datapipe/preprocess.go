@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/ingest"
 	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
@@ -32,42 +31,19 @@ type preprocessConfig struct {
 	WriteReport *bool
 }
 
-type FileExt string
-
-const (
-	ExtCSV     FileExt = ".csv"
-	ExtJSONL   FileExt = ".jsonl"
-	ExtParquet FileExt = ".parquet"
-	ExtYAML    FileExt = ".yaml"
-)
-
-var supportedInputExtensions = map[FileExt]struct{}{
+var preprocessInputExtensions = map[FileExt]struct{}{
 	ExtCSV:     {},
 	ExtJSONL:   {},
 	ExtParquet: {},
 }
 
-var supportedOutputExtensions = map[FileExt]struct{}{
+var preprocessOutputExtensions = map[FileExt]struct{}{
 	ExtJSONL:   {},
 	ExtParquet: {},
 }
 
-var supportedMappingExtensions = map[FileExt]struct{}{
+var preprocessMappingExtensions = map[FileExt]struct{}{
 	ExtYAML: {},
-}
-
-func fileExt(path string) FileExt {
-	return FileExt(strings.ToLower(filepath.Ext(path)))
-}
-
-func validateFileExt(path string, supported map[FileExt]struct{}) error {
-	ext := fileExt(path)
-
-	if _, ok := supported[ext]; !ok {
-		return fmt.Errorf("unsupported file extension %q", ext)
-	}
-
-	return nil
 }
 
 type PreprocessReport struct {
@@ -117,13 +93,13 @@ func newPreprocessCmd() *cobra.Command {
 			if cfg.InputPath == "" || cfg.OutputPath == "" || cfg.MappingPath == "" {
 				return fmt.Errorf("--input, --output and --mapping are required")
 			}
-			if err := validateFileExt(cfg.InputPath, supportedInputExtensions); err != nil {
+			if err := validateFileExt(cfg.InputPath, preprocessInputExtensions); err != nil {
 				return fmt.Errorf("invalid input file ext: %w", err)
 			}
-			if err := validateFileExt(cfg.OutputPath, supportedOutputExtensions); err != nil {
+			if err := validateFileExt(cfg.OutputPath, preprocessOutputExtensions); err != nil {
 				return fmt.Errorf("invalid output file ext: %w", err)
 			}
-			if err := validateFileExt(cfg.MappingPath, supportedMappingExtensions); err != nil {
+			if err := validateFileExt(cfg.MappingPath, preprocessMappingExtensions); err != nil {
 				return fmt.Errorf("invalid mapping file ext: %w", err)
 			}
 
@@ -199,12 +175,6 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 		}
 	}
 
-	dataFile, err := os.Open(cfg.InputPath)
-	if err != nil {
-		return fmt.Errorf("failed to open input file: %w", err)
-	}
-	defer dataFile.Close()
-
 	report := &PreprocessReport{
 		CorpusId:   cfg.CorpusId,
 		Timestamp:  time.Now(),
@@ -220,10 +190,11 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 	}
 	report.IdStrategy = string(idKind)
 
-	rawReader, err := NewRawReader(dataFile, fileExt(cfg.InputPath))
+	rawReader, dataset, err := OpenDatasetReader(cfg.InputPath)
 	if err != nil {
 		return err
 	}
+	defer dataset.Close()
 
 	resultsChan, err := rawReader.ReadParallel(ctx, cfg.Workers)
 	if err != nil {
@@ -281,7 +252,7 @@ func writeCanonical(opts canonicalWriteOptions) (checksum string, err error) {
 	defer outFile.Close()
 
 	digest := sha256.New()
-	writer, err := NewOutWriter(io.MultiWriter(outFile, digest), fileExt(opts.OutputPath))
+	writer, err := NewCanonicalWriter(io.MultiWriter(outFile, digest), fileExt(opts.OutputPath))
 	if err != nil {
 		return "", err
 	}
@@ -346,36 +317,6 @@ func writeCanonical(opts canonicalWriteOptions) (checksum string, err error) {
 	writer = nil
 
 	return hex.EncodeToString(digest.Sum(nil)), nil
-}
-
-// NewRawReader takes *os.File rather than io.Reader because parquet needs the
-// file size and random access to reach its trailing footer.
-func NewRawReader(f *os.File, ext FileExt) (reader.RawParallelReader, error) {
-	switch ext {
-	case ExtCSV:
-		return reader.NewCSVReader(f), nil
-	case ExtJSONL:
-		return reader.NewJSONLReader(f), nil
-	case ExtParquet:
-		info, err := f.Stat()
-		if err != nil {
-			return nil, fmt.Errorf("failed to stat input file: %w", err)
-		}
-		return reader.NewParquetReader(f, info.Size())
-	default:
-		return nil, fmt.Errorf("unknown input format: %s", ext)
-	}
-}
-
-func NewOutWriter(w io.Writer, ext FileExt) (ingest.CanonicalWriter, error) {
-	switch ext {
-	case ExtJSONL:
-		return ingest.NewJsonlCanonicalWriter(w), nil
-	case ExtParquet:
-		return ingest.NewParquetCanonicalWriter(w), nil
-	default:
-		return nil, fmt.Errorf("unknown output format: %s", ext)
-	}
 }
 
 func writeReport(outDir, basename string, report *PreprocessReport) error {

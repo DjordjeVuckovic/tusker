@@ -25,6 +25,10 @@ const (
 	defaultBatchSize = 5_000
 )
 
+var embeddingsFileExtensions = map[FileExt]struct{}{
+	ExtParquet: {},
+}
+
 func newLoadEmbeddingsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "embeddings",
@@ -67,6 +71,16 @@ func loadEmbeddingsConfig() (*EmbeddingsConfig, error) {
 	store := embedCfg.ObjectStore
 	if store.LocalPath == "" && (store.Bucket == "" || store.Key == "") {
 		return nil, fmt.Errorf("set EMBEDDING_FILE_PATH or EMBEDDING_S3_BUCKET + EMBEDDING_S3_KEY")
+	}
+
+	// The S3 key is validated here rather than the downloaded path, which
+	// resolveFile always names *.parquet.
+	embeddingsPath, envVariable := store.LocalPath, "EMBEDDING_FILE_PATH"
+	if embeddingsPath == "" {
+		embeddingsPath, envVariable = store.Key, "EMBEDDING_S3_KEY"
+	}
+	if err := validateFileExt(embeddingsPath, embeddingsFileExtensions); err != nil {
+		return nil, fmt.Errorf("invalid %s: %w", envVariable, err)
 	}
 
 	batchSize := defaultBatchSize

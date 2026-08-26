@@ -331,7 +331,7 @@ func isPath(s string) bool {
 	if s == "" {
 		return false
 	}
-	return filepath.IsAbs(s) || containsSeparator(s) || hasYAMLExt(s)
+	return filepath.IsAbs(s) || containsSeparator(s) || hasArtifactExtension(s)
 }
 
 func containsSeparator(s string) bool {
@@ -343,9 +343,13 @@ func containsSeparator(s string) bool {
 	return false
 }
 
-func hasYAMLExt(s string) bool {
-	ext := filepath.Ext(s)
-	return ext == ".yaml" || ext == ".yml" || ext == ".tsv" || ext == ".json"
+func hasArtifactExtension(s string) bool {
+	switch filepath.Ext(s) {
+	case ".yaml", ".yml", ".tsv", ".json":
+		return true
+	default:
+		return false
+	}
 }
 
 func firstNonEmpty(a, b string) string {
