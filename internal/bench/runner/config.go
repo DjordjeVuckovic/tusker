@@ -22,9 +22,8 @@ const (
 	QueryParallelismUnlimited = 0
 
 	// EngineParallelismSerial runs one engine at a time within a query. Use for
-	// bench run: the engines in a job share a host, and often a single
-	// Postgres instance, so fanning out lands one engine's warmup in the same
-	// window as another's measured iterations.
+	// bench run: a job's engines share a host, so a fan-out lands one engine's
+	// warmup in the same window as another's measured iterations.
 	EngineParallelismSerial = 1
 
 	// EngineParallelismUnlimited fans out to every engine in the job at once.

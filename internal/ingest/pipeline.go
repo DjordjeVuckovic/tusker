@@ -131,16 +131,14 @@ func (p *ArticlePipeline) Run(ctx context.Context) error {
 	return runErr
 }
 
-// ingestOutcome records what a run actually persisted. Every per-record failure
-// is logged and skipped, so the only way to tell a real load from one that
-// stored nothing is to count.
+// ingestOutcome records what a run actually persisted. Per-record failures are
+// logged and skipped, so only a count separates a real load from an empty one.
 type ingestOutcome struct {
 	Processed int
 	Errors    int
 }
 
-// err reports a load that persisted nothing. Without it a run whose mapping
-// matches no source column finishes with a nil error over an empty table.
+// err reports a load that persisted nothing, which the per-record skips hide.
 func (o ingestOutcome) err() error {
 	if o.Processed > 0 {
 		return nil
@@ -151,9 +149,8 @@ func (o ingestOutcome) err() error {
 	return errors.New("stored 0 articles: the source yielded no records")
 }
 
-// saveBatch persists one batch and, when embedding is enabled, its vectors.
-// The size-triggered flush and the trailing partial batch both go through here
-// so they cannot drift apart.
+// saveBatch persists one batch and, when embedding is enabled, its vectors. The
+// size-triggered flush and the trailing partial batch share it so they cannot drift.
 func (p *ArticlePipeline) saveBatch(ctx context.Context, articles []document.Article) error {
 	if len(articles) == 0 {
 		return nil
@@ -171,9 +168,8 @@ func (p *ArticlePipeline) saveBatch(ctx context.Context, articles []document.Art
 	return p.embedBatch(ctx, articles)
 }
 
-// embedBatch generates and stores vectors for articles already persisted. A
-// single article that cannot be embedded is skipped rather than failing the
-// load; a failure to store the batch is not.
+// embedBatch stores vectors for articles already persisted. One article that
+// cannot be embedded is skipped; a failure to store the batch is not.
 func (p *ArticlePipeline) embedBatch(ctx context.Context, articles []document.Article) error {
 	embeds := make([]*embedding.Vec, 0, len(articles))
 	for _, a := range articles {
@@ -250,8 +246,7 @@ func (p *ArticlePipeline) processBasic(ctx context.Context, results <-chan Resul
 }
 
 // processBatch handles bulk article processing. A batch that fails to store
-// aborts the run: continuing would write the remaining batches over a corpus
-// already known to be incomplete, and report success at the end.
+// aborts the run rather than writing the rest over a corpus known to be incomplete.
 func (p *ArticlePipeline) processBatch(ctx context.Context, results <-chan Result[document.Article]) (ingestOutcome, error) {
 	var articles []document.Article
 	var outcome ingestOutcome
