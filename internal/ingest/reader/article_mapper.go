@@ -14,18 +14,47 @@ import (
 )
 
 type ArticleMapper struct {
-	cfg *datamapping.DataMapper
+	cfg      *datamapping.DataMapper
+	idKind   datamapping.IdStrategyKind
+	idSource string
 }
 
 func NewArticleMapper(cfg *datamapping.DataMapper) (*ArticleMapper, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	return &ArticleMapper{cfg: cfg}, nil
+	idKind, err := cfg.IdStrategy.ResolvedKind()
+	if err != nil {
+		return nil, err
+	}
+	return &ArticleMapper{cfg: cfg, idKind: idKind, idSource: cfg.IdStrategy.Source}, nil
+}
+
+// newID produces the id a record starts with. A mapping that also targets ID
+// overwrites it, which is how a dataset carrying its own ids keeps them.
+func (m *ArticleMapper) newID(record map[string]string) (uuid.UUID, error) {
+	if m.idKind != datamapping.IdStrategyUuidV5 {
+		return document.NewArticleID(), nil
+	}
+
+	name := strings.TrimSpace(record[m.idSource])
+	if name == "" {
+		return uuid.Nil, &MappingDropError{
+			Reason: ReasonEmptyValue,
+			Source: m.idSource,
+			Target: "ID",
+		}
+	}
+	return document.DeriveArticleID(name), nil
 }
 
 func (m *ArticleMapper) Map(record map[string]string) (document.Article, error) {
-	article := document.Article{ID: document.NewArticleID()}
+	id, err := m.newID(record)
+	if err != nil {
+		return document.Article{}, err
+	}
+
+	article := document.Article{ID: id}
 	val := reflect.ValueOf(&article).Elem()
 
 	for _, fm := range m.cfg.FieldMappings {

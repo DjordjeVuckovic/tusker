@@ -97,6 +97,25 @@
       },
       "minItems": 1
     },
+    "idStrategy": {
+      "description": "How article ids are produced",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "Id generation strategy",
+          "type": "string",
+          "enum": [
+            "random",
+            "uuidv5"
+          ],
+          "default": "random"
+        },
+        "source": {
+          "description": "Source field hashed by a derived strategy",
+          "type": "string"
+        }
+      }
+    },
     "kind": {
       "description": "Resource type identifier",
       "type": "string",
