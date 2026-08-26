@@ -130,6 +130,13 @@ func runArticles(ctx context.Context, out io.Writer, cfg *ArticlesConfig) error 
 	}
 	defer dataset.Close()
 
+	fields := datasetFields(cfg.DatasetPath, articleReader)
+	fields = append(fields,
+		cli.Field{Label: "target", Value: storageTarget(cfg.StorageConfig)},
+		cli.Field{Label: "bulk", Value: bulkLabel(cfg.BulkOptions.Enabled, cfg.BulkOptions.Size)},
+	)
+	cli.Header(out, "tusker load articles", fields...)
+
 	mapper, err := newMapper(cfg)
 	if err != nil {
 		return fmt.Errorf("create mapper: %w", err)
@@ -168,7 +175,7 @@ func runArticles(ctx context.Context, out io.Writer, cfg *ArticlesConfig) error 
 		cli.Field{Label: "duration", Value: outcome.Duration.Round(time.Millisecond).String()},
 	)
 	if outcome.Errors > 0 {
-		cli.Warn(out, fmt.Sprintf("%d records were skipped and are not in the corpus", outcome.Errors))
+		cli.Warn(out, fmt.Sprintf("%d skipped — not in the corpus", outcome.Errors))
 	}
 	return nil
 }
@@ -291,4 +298,11 @@ func resetConfirmer(opts promptOptions) confirmReset {
 		answer = strings.ToLower(strings.TrimSpace(answer))
 		return answer == "y" || answer == "yes", nil
 	}
+}
+
+func bulkLabel(enabled bool, size int) string {
+	if !enabled {
+		return "off"
+	}
+	return fmt.Sprintf("%d per batch", size)
 }

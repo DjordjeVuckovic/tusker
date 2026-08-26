@@ -4,8 +4,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,7 +41,7 @@ func writeFixture(t *testing.T, dir, name, content string) string {
 
 func runFixturePreprocess(t *testing.T, cfg preprocessConfig) PreprocessReport {
 	t.Helper()
-	require.NoError(t, runPreprocess(t.Context(), cfg))
+	require.NoError(t, runPreprocess(t.Context(), io.Discard, cfg))
 
 	base := filepath.Base(cfg.OutputPath)
 	reportPath := filepath.Join(filepath.Dir(cfg.OutputPath),
@@ -99,4 +101,15 @@ func TestPreprocessCorpusId(t *testing.T) {
 			assert.Equal(t, tt.want, runFixturePreprocess(t, cfg).CorpusId)
 		})
 	}
+}
+
+func TestDropBreakdown_IsStablyOrdered(t *testing.T) {
+	drops := map[string]int{"read_failed": 289, "missing/title": 42, "invalid_url": 7}
+
+	first := dropBreakdown(drops)
+	for range 20 {
+		assert.Equal(t, first, dropBreakdown(drops), "map order is random; the line is compared across runs")
+	}
+	assert.Less(t, strings.Index(first, "invalid_url"), strings.Index(first, "missing/title"))
+	assert.Less(t, strings.Index(first, "missing/title"), strings.Index(first, "read_failed"))
 }

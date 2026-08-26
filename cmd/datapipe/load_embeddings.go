@@ -102,13 +102,13 @@ func loadEmbeddingsConfig() (*EmbeddingsConfig, error) {
 func runEmbeddings(ctx context.Context, out io.Writer, cfg *EmbeddingsConfig) error {
 	start := time.Now()
 
-	path, cleanup, err := resolveFile(ctx, cfg.Embedding.ObjectStore)
+	file, err := resolveFile(ctx, cfg.Embedding.ObjectStore)
 	if err != nil {
 		return err
 	}
-	defer cleanup()
+	defer file.Cleanup()
 
-	reader, err := embedfile.Open(path)
+	reader, err := embedfile.Open(file.Path)
 	if err != nil {
 		return err
 	}
@@ -135,14 +135,22 @@ func runEmbeddings(ctx context.Context, out io.Writer, cfg *EmbeddingsConfig) er
 		return errors.New("embeddings file has no model metadata; set EMBEDDING_MODEL")
 	}
 
-	slog.Info("🛫 Loading precomputed embeddings",
-		"file", path,
-		"model", model,
-		"dim", meta.Dim,
+	// The header carries file, model, dim and rows; these are the recipe fields
+	// it does not, and a mixed corpus is only diagnosable from them.
+	slog.Info("embeddings file metadata",
 		"pooling", meta.Pooling,
 		"normalized", meta.Normalized,
-		"row_count", meta.RowCount,
 		"created_at", meta.CreatedAt,
+	)
+
+	cli.Header(out, "tusker load embeddings",
+		cli.Field{Label: "source", Value: file.Display},
+		cli.ByteField("size", fileSize(file.Path)),
+		cli.IntField("rows", meta.RowCount),
+		cli.Field{Label: "model", Value: model},
+		cli.Field{Label: "dimensions", Value: dimensionLabel(meta.Dim)},
+		cli.Field{Label: "target", Value: storageTarget(cfg.StorageConfig)},
+		cli.IntField("batch", cfg.BatchSize),
 	)
 
 	indexer, err := factory.NewEmbedderIndexer(ctx, cfg.StorageConfig)
@@ -177,7 +185,7 @@ func runEmbeddings(ctx context.Context, out io.Writer, cfg *EmbeddingsConfig) er
 		cli.Field{Label: "duration", Value: time.Since(start).Round(time.Millisecond).String()},
 	)
 	if stats.Skipped > 0 {
-		cli.Warn(out, fmt.Sprintf("%d embeddings had no matching article and were not stored", stats.Skipped))
+		cli.Warn(out, fmt.Sprintf("%d skipped — no matching article", stats.Skipped))
 	}
 	return nil
 }
@@ -270,9 +278,18 @@ func (e embedIngest) run(ctx context.Context) (stats embedIngestStats, err error
 
 // resolveFile returns a local path to the embeddings file, downloading from the
 // object store when no local path is configured.
-func resolveFile(ctx context.Context, cfg embedding.ObjectStoreConfig) (string, func(), error) {
+// resolvedFile is the embeddings file on disk plus the name worth showing. They
+// differ on the object-store path, where the local copy is a temp file that
+// identifies nothing.
+type resolvedFile struct {
+	Path    string
+	Display string
+	Cleanup func()
+}
+
+func resolveFile(ctx context.Context, cfg embedding.ObjectStoreConfig) (resolvedFile, error) {
 	if cfg.LocalPath != "" {
-		return cfg.LocalPath, func() {}, nil
+		return resolvedFile{Path: cfg.LocalPath, Display: cfg.LocalPath, Cleanup: func() {}}, nil
 	}
 
 	client, err := objectstore.New(ctx, objectstore.Config{
@@ -284,12 +301,12 @@ func resolveFile(ctx context.Context, cfg embedding.ObjectStoreConfig) (string, 
 		UsePathStyle: cfg.UsePathStyle,
 	})
 	if err != nil {
-		return "", func() {}, err
+		return resolvedFile{}, err
 	}
 
 	tmpFile, err := os.CreateTemp("", "embeddings-*.parquet")
 	if err != nil {
-		return "", func() {}, fmt.Errorf("create temp file: %w", err)
+		return resolvedFile{}, fmt.Errorf("create temp file: %w", err)
 	}
 	tmp := tmpFile.Name()
 	_ = tmpFile.Close()
@@ -299,9 +316,22 @@ func resolveFile(ctx context.Context, cfg embedding.ObjectStoreConfig) (string, 
 	n, err := client.Download(ctx, cfg.Key, tmp)
 	if err != nil {
 		cleanup()
-		return "", func() {}, err
+		return resolvedFile{}, err
 	}
 	slog.Info("Downloaded embeddings file", "bytes", n)
 
-	return tmp, cleanup, nil
+	return resolvedFile{
+		Path:    tmp,
+		Display: fmt.Sprintf("s3://%s/%s", cfg.Bucket, cfg.Key),
+		Cleanup: cleanup,
+	}, nil
+}
+
+// dimensionLabel distinguishes a file that declares its width from one that does
+// not; both are accepted, and only the declared case has been checked.
+func dimensionLabel(dim int) string {
+	if dim == 0 {
+		return fmt.Sprintf("%d (assumed; file declares none)", expectedDim)
+	}
+	return strconv.Itoa(dim)
 }

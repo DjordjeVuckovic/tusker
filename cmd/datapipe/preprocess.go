@@ -11,8 +11,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/DjordjeVuckovic/tusker/internal/cli"
 
 	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
@@ -103,7 +106,7 @@ func newPreprocessCmd() *cobra.Command {
 				return fmt.Errorf("invalid mapping file ext: %w", err)
 			}
 
-			return runPreprocess(cmd.Context(), cfg)
+			return runPreprocess(cmd.Context(), cmd.OutOrStdout(), cfg)
 		},
 	}
 
@@ -142,7 +145,7 @@ func applyPreprocessEnvDefaults(cfg *preprocessConfig) {
 	}
 }
 
-func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
+func runPreprocess(ctx context.Context, out io.Writer, cfg preprocessConfig) (err error) {
 	start := time.Now()
 
 	outDir, outFilename := filepath.Split(cfg.OutputPath)
@@ -196,6 +199,16 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 	}
 	defer dataset.Close()
 
+	fields := datasetFields(cfg.InputPath, rawReader)
+	fields = append(fields,
+		cli.Field{Label: "mapping", Value: cfg.MappingPath},
+		cli.Field{Label: "id strategy", Value: report.IdStrategy},
+		cli.Field{Label: "corpus id", Value: report.CorpusId},
+		cli.Field{Label: "output", Value: cfg.OutputPath},
+		cli.IntField("workers", cfg.Workers),
+	)
+	cli.Header(out, "tusker preprocess", fields...)
+
 	resultsChan, err := rawReader.ReadParallel(ctx, cfg.Workers)
 	if err != nil {
 		return fmt.Errorf("failed to create parallel reader: %w", err)
@@ -229,7 +242,7 @@ func runPreprocess(ctx context.Context, cfg preprocessConfig) (err error) {
 		}
 	}
 
-	logSummary(report)
+	renderSummary(out, cfg, report)
 	return nil
 }
 
@@ -338,20 +351,35 @@ func writeReport(outDir, basename string, report *PreprocessReport) error {
 	return nil
 }
 
-func logSummary(report *PreprocessReport) {
-	slog.Info("preprocessing summary",
-		"corpus_id", report.CorpusId,
-		"sha256", report.SHA256,
-		"id_strategy", report.IdStrategy,
-		"total_records", report.TotalRecords,
-		"processed_records", report.ProcessedRecords,
-		"dropped_records", report.DroppedRecords,
-		"duplicates_removed", report.DuplicatesRemoved,
-		"invalid_urls", report.InvalidURLs,
-		"processing_time", fmt.Sprintf("%.2fs", report.ProcessingTime),
+func renderSummary(w io.Writer, cfg preprocessConfig, report *PreprocessReport) {
+	cli.Summary(w, "Preprocess complete",
+		cli.IntField("read", report.TotalRecords),
+		cli.IntField("written", report.ProcessedRecords),
+		cli.IntField("dropped", report.DroppedRecords),
+		cli.IntField("invalid urls", report.InvalidURLs),
+		cli.Field{Label: "corpus id", Value: report.CorpusId},
+		cli.Field{Label: "sha256", Value: report.SHA256},
+		cli.Field{Label: "output", Value: cfg.OutputPath},
+		cli.Field{Label: "duration", Value: fmt.Sprintf("%.2fs", report.ProcessingTime)},
 	)
 
-	for reason, count := range report.Drops {
-		slog.Warn("records dropped", "reason", reason, "count", count)
+	if len(report.Drops) > 0 {
+		cli.Warn(w, fmt.Sprintf("%d dropped — %s", report.DroppedRecords, dropBreakdown(report.Drops)))
 	}
+}
+
+// dropBreakdown renders drop reasons in a stable order; map iteration is random
+// and this line ends up in a report someone compares across runs.
+func dropBreakdown(drops map[string]int) string {
+	reasons := make([]string, 0, len(drops))
+	for reason := range drops {
+		reasons = append(reasons, reason)
+	}
+	slices.Sort(reasons)
+
+	parts := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		parts = append(parts, fmt.Sprintf("%d %s", drops[reason], reason))
+	}
+	return strings.Join(parts, ", ")
 }
