@@ -84,9 +84,7 @@ func executeRun(cmd *cobra.Command, f runFlags, args []string) error {
 }
 
 // newRunConfig resolves the measurement knobs for a run: an explicit flag beats
-// the spec default, and both parallelism axes stay serial. Serial is the whole
-// point of bench run — a job's engines share a host, so any fan-out measures
-// them under contention they would never see in isolation.
+// the spec default, and both parallelism axes stay serial.
 func newRunConfig(f runFlags, bs *spec.BenchSpec, ks []int, kFromFlag bool) runner.Config {
 	cfg := runner.Config{
 		KValues:            ks,
