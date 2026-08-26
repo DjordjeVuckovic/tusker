@@ -1,19 +1,24 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DjordjeVuckovic/tusker/internal/cli"
+	"github.com/mattn/go-isatty"
 
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/ingest"
 	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
@@ -54,6 +59,8 @@ type ArticlesConfig struct {
 	}
 	factory.StorageConfig
 	Embedding embedding.Config
+	// AllowEmbeddingReset skips the confirmation before a load drops stored vectors.
+	AllowEmbeddingReset bool
 }
 
 func loadArticlesConfig() (*ArticlesConfig, error) {
@@ -110,8 +117,9 @@ func loadArticlesConfig() (*ArticlesConfig, error) {
 			Enabled: os.Getenv("BULK_ENABLED") == "true",
 			Size:    bulkSizeNum,
 		},
-		StorageConfig: *storageCfg,
-		Embedding:     *embed,
+		StorageConfig:       *storageCfg,
+		Embedding:           *embed,
+		AllowEmbeddingReset: os.Getenv("ALLOW_EMBEDDING_RESET") == "true",
 	}, nil
 }
 
@@ -129,7 +137,22 @@ func runArticles(ctx context.Context, out io.Writer, cfg *ArticlesConfig) error 
 
 	collector := ingest.NewArticleCollector(articleReader, mapper)
 
-	pipeline, err := newPipeline(ctx, cfg, collector)
+	storer, err := factory.NewIndexer(ctx, cfg.StorageConfig)
+	if err != nil {
+		return fmt.Errorf("create storer: %w", err)
+	}
+
+	confirm := resetConfirmer(promptOptions{
+		AllowAlways: cfg.AllowEmbeddingReset,
+		Interactive: isatty.IsTerminal(os.Stdin.Fd()),
+		In:          os.Stdin,
+		Out:         os.Stdout,
+	})
+	if err := guardStoredEmbeddings(ctx, storer, confirm); err != nil {
+		return err
+	}
+
+	pipeline, err := newPipeline(ctx, cfg, storer, collector)
 	if err != nil {
 		return fmt.Errorf("create pipeline: %w", err)
 	}
@@ -177,14 +200,10 @@ func newMapper(cfg *ArticlesConfig) (reader.Mapper, error) {
 func newPipeline(
 	ctx context.Context,
 	cfg *ArticlesConfig,
+	storer storage.Indexer,
 	coll ingest.Collector[document.Article],
 ) (ingest.Pipeline, error) {
 	slog.Info("Creating pipeline", "storageType", cfg.StorageConfig.Type)
-
-	storer, err := factory.NewIndexer(ctx, cfg.StorageConfig)
-	if err != nil {
-		return nil, fmt.Errorf("create storer: %w", err)
-	}
 
 	var opts []ingest.PipelineOption
 	if cfg.BulkOptions.Enabled {
@@ -205,4 +224,71 @@ func newPipeline(
 	}
 
 	return ingest.NewPipeline(coll, storer, opts...), nil
+}
+
+// confirmReset decides whether an article load may drop stored vectors.
+type confirmReset func(embedded int64) (bool, error)
+
+// guardStoredEmbeddings checks whether an article load would drop vectors that
+// live on the documents it overwrites, and asks before it does.
+func guardStoredEmbeddings(ctx context.Context, storer storage.Indexer, confirm confirmReset) error {
+	counter, ok := storer.(storage.EmbeddedDocumentCounter)
+	if !ok {
+		return nil
+	}
+
+	embedded, err := counter.CountEmbedded(ctx)
+	if err != nil {
+		return fmt.Errorf("count stored embeddings: %w", err)
+	}
+	if embedded == 0 {
+		return nil
+	}
+
+	confirmed, err := confirm(embedded)
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		return errEmbeddingResetDeclined
+	}
+
+	slog.Warn("article load drops stored embeddings; re-run `datapipe load embeddings` to restore them",
+		"embeddings", embedded)
+	return nil
+}
+
+// errEmbeddingResetDeclined is a deliberate answer, not a failure, so callers
+// can report it without wrapping it as a broken pipeline.
+var errEmbeddingResetDeclined = errors.New("aborted: this load would drop stored embeddings")
+
+// promptOptions configures how the reset confirmation is asked.
+type promptOptions struct {
+	AllowAlways bool
+	Interactive bool
+	In          io.Reader
+	Out         io.Writer
+}
+
+// resetConfirmer picks how to ask. A scripted run proceeds rather than block on
+// a stdin nobody is watching.
+func resetConfirmer(opts promptOptions) confirmReset {
+	if opts.AllowAlways || !opts.Interactive {
+		return func(int64) (bool, error) { return true, nil }
+	}
+	reader := bufio.NewReader(opts.In)
+	return func(embedded int64) (bool, error) {
+		fmt.Fprintf(opts.Out,
+			"%d documents already carry embeddings and this load will drop them.\n"+
+				"Re-run `datapipe load embeddings` afterwards to restore them. Continue? [y/N]: ",
+			embedded)
+		answer, err := reader.ReadString('\n')
+		// A line ending in EOF rather than a newline still carries the answer;
+		// ctrl-D on an empty line reads as a decline, not a failure.
+		if err != nil && !errors.Is(err, io.EOF) {
+			return false, fmt.Errorf("read confirmation: %w", err)
+		}
+		answer = strings.ToLower(strings.TrimSpace(answer))
+		return answer == "y" || answer == "yes", nil
+	}
 }

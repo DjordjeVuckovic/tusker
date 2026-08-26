@@ -113,3 +113,30 @@ func TestEmbedder_SaveBulk_UpdatesDocAndSkipsOrphans(t *testing.T) {
 		t.Errorf("expected upserted embedding[0]=0.9, got %v", emb[:1])
 	}
 }
+
+// The document exists either way; only the embedding may move the count.
+func TestIndexer_CountEmbedded(t *testing.T) {
+	ctx := context.Background()
+	_, indexer, embedder := newEmbedderTestEnv(t)
+
+	id := uuid.New()
+	if _, err := indexer.Save(ctx, document.Article{ID: id, Title: "first", Language: "english"}); err != nil {
+		t.Fatalf("index article: %v", err)
+	}
+	refresh(t, embedder)
+
+	if n, err := indexer.CountEmbedded(ctx); err != nil || n != 0 {
+		t.Fatalf("CountEmbedded before embedding = %d, %v; want 0, nil", n, err)
+	}
+
+	if _, err := embedder.SaveBulk(ctx, []*embedding.Vec{
+		{ID: id, Model: "qwen3-embedding:0.6b", Embedding: vec(EmbeddingDims, 0.1)},
+	}); err != nil {
+		t.Fatalf("save embedding: %v", err)
+	}
+	refresh(t, embedder)
+
+	if n, err := indexer.CountEmbedded(ctx); err != nil || n != 1 {
+		t.Fatalf("CountEmbedded after embedding = %d, %v; want 1, nil", n, err)
+	}
+}
