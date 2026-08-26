@@ -24,9 +24,14 @@ func NewESContainer(ctx context.Context, tb testing.TB) *ESContainer {
 		tb.Skip("skipping testcontainer-backed test in -short mode")
 	}
 
+	// Elasticsearch 8 enables security, and with it TLS, by default; the
+	// readiness probe below speaks plaintext and would poll until it times out.
 	esContainer, err := elasticsearch.Run(ctx,
 		"docker.elastic.co/elasticsearch/elasticsearch:8.12.0",
-		elasticsearch.WithPassword(""),
+		testcontainers.WithEnv(map[string]string{
+			"xpack.security.enabled": "false",
+			"discovery.type":         "single-node",
+		}),
 		testcontainers.WithWaitStrategy(
 			wait.ForHTTP("/").
 				WithPort("9200").

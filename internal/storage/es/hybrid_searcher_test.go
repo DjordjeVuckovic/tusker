@@ -45,6 +45,12 @@ func TestHybridSearcher_SearchHybrid_RanksBothSignalsFirst(t *testing.T) {
 
 	near := vec(EmbeddingDims, 0.9)
 	far := vec(EmbeddingDims, -0.9)
+	// Not a scaled copy of near: cosine ignores magnitude, so the two would tie
+	// and the kNN leg would order them arbitrarily. RRF margins here are ~1e-5.
+	midway := vec(EmbeddingDims, 0.9)
+	for i := range midway[:EmbeddingDims/4] {
+		midway[i] = -0.9
+	}
 
 	indexer, embIndexer, searcher := newHybridTestEnv(t, near)
 
@@ -69,7 +75,7 @@ func TestHybridSearcher_SearchHybrid_RanksBothSignalsFirst(t *testing.T) {
 	batch := []*embedding.Vec{
 		{ID: bothID, Model: embedding.DefaultModel, Embedding: near},
 		{ID: lexicalOnlyID, Model: embedding.DefaultModel, Embedding: far},
-		{ID: vectorOnlyID, Model: embedding.DefaultModel, Embedding: near},
+		{ID: vectorOnlyID, Model: embedding.DefaultModel, Embedding: midway},
 	}
 	if err := embIndexer.SaveBulk(ctx, batch); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
