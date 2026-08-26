@@ -77,7 +77,7 @@ func TestHybridSearcher_SearchHybrid_RanksBothSignalsFirst(t *testing.T) {
 		{ID: lexicalOnlyID, Model: embedding.DefaultModel, Embedding: far},
 		{ID: vectorOnlyID, Model: embedding.DefaultModel, Embedding: midway},
 	}
-	if err := embIndexer.SaveBulk(ctx, batch); err != nil {
+	if _, err := embIndexer.SaveBulk(ctx, batch); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
 	}
 	refresh(t, embIndexer)

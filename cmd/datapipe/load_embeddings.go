@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/cli"
+
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/embedding/embedfile"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
@@ -38,7 +40,7 @@ func newLoadEmbeddingsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return runEmbeddings(cmd.Context(), cfg)
+			return runEmbeddings(cmd.Context(), cmd.OutOrStdout(), cfg)
 		},
 	}
 }
@@ -97,7 +99,7 @@ func loadEmbeddingsConfig() (*EmbeddingsConfig, error) {
 	}, nil
 }
 
-func runEmbeddings(ctx context.Context, cfg *EmbeddingsConfig) error {
+func runEmbeddings(ctx context.Context, out io.Writer, cfg *EmbeddingsConfig) error {
 	start := time.Now()
 
 	path, cleanup, err := resolveFile(ctx, cfg.Embedding.ObjectStore)
@@ -148,72 +150,106 @@ func runEmbeddings(ctx context.Context, cfg *EmbeddingsConfig) error {
 		return err
 	}
 
-	processed, badIDs, badDim, err := ingestEmbeddings(ctx, reader, indexer, model, cfg.BatchSize)
+	stats, err := embedIngest{
+		Reader:    reader,
+		Indexer:   indexer,
+		Model:     model,
+		BatchSize: cfg.BatchSize,
+	}.run(ctx)
 	if err != nil {
 		return err
 	}
 
-	if processed == 0 && badIDs+badDim > 0 {
-		return fmt.Errorf("ingested 0 embeddings: %d parse failures, %d dim mismatches", badIDs, badDim)
+	// Both backends attach the vector to an existing article, so orphans are skipped, not raised.
+	if stats.Stored == 0 {
+		return fmt.Errorf(
+			"stored 0 embeddings: %d sent, %d skipped (no matching article), %d parse failures, %d dim mismatches\n"+
+				"  • load articles before embeddings",
+			stats.Sent, stats.Skipped, stats.BadIDs, stats.BadDim)
 	}
 
-	slog.Info("✅ Embedding ingest complete",
-		"processed", processed,
-		"parse_failures", badIDs,
-		"dim_mismatches", badDim,
-		"duration", time.Since(start),
+	cli.Summary(out, "Embedding load complete",
+		cli.IntField("sent", stats.Sent),
+		cli.IntField("stored", stats.Stored),
+		cli.IntField("skipped", stats.Skipped),
+		cli.IntField("parse failures", stats.BadIDs),
+		cli.IntField("dim mismatches", stats.BadDim),
+		cli.Field{Label: "duration", Value: time.Since(start).Round(time.Millisecond).String()},
 	)
+	if stats.Skipped > 0 {
+		cli.Warn(out, fmt.Sprintf("%d embeddings had no matching article and were not stored", stats.Skipped))
+	}
 	return nil
 }
 
-func ingestEmbeddings(
-	ctx context.Context,
-	reader *embedfile.Reader,
-	indexer storage.EmbedIndexer,
-	model string,
-	batchSize int,
-) (processed, badIDs, badDim int, err error) {
-	buf := make([]embedfile.Record, batchSize)
-	batch := make([]*embedding.Vec, 0, batchSize)
+// embedIngestStats separates rows sent from rows the indexer confirmed it wrote.
+type embedIngestStats struct {
+	Sent    int
+	Stored  int
+	Skipped int
+	BadIDs  int
+	BadDim  int
+}
+
+// recordReader is the slice of *embedfile.Reader the ingest needs, so the batch
+// and counting logic can be exercised without a Parquet file.
+type recordReader interface {
+	Read(records []embedfile.Record) (int, error)
+}
+
+type embedIngest struct {
+	Reader    recordReader
+	Indexer   storage.EmbedIndexer
+	Model     string
+	BatchSize int
+}
+
+func (e embedIngest) run(ctx context.Context) (stats embedIngestStats, err error) {
+	buf := make([]embedfile.Record, e.BatchSize)
+	batch := make([]*embedding.Vec, 0, e.BatchSize)
 
 	flush := func() error {
 		if len(batch) == 0 {
 			return nil
 		}
-		if err := indexer.SaveBulk(ctx, batch); err != nil {
+		res, err := e.Indexer.SaveBulk(ctx, batch)
+		if err != nil {
 			return err
 		}
-		processed += len(batch)
-		slog.Info("Saved embedding batch", "count", len(batch), "total", processed)
+		stats.Sent += len(batch)
+		stats.Stored += res.Stored
+		stats.Skipped += res.Skipped
+		slog.Info("Saved embedding batch",
+			"sent", len(batch), "stored", res.Stored, "total_stored", stats.Stored)
 		batch = batch[:0]
 		return nil
 	}
 
 	for {
 		if ctx.Err() != nil {
-			return processed, badIDs, badDim, ctx.Err()
+			return stats, ctx.Err()
 		}
 
-		n, readErr := reader.Read(buf)
+		n, readErr := e.Reader.Read(buf)
 		for i := 0; i < n; i++ {
 			rec := buf[i]
 			id, parseErr := uuid.Parse(rec.ID)
 			if parseErr != nil {
-				badIDs++
+				stats.BadIDs++
 				continue
 			}
 			if len(rec.Embedding) != expectedDim {
-				badDim++
+				stats.BadDim++
 				continue
 			}
 			batch = append(batch, &embedding.Vec{
 				ID:        id,
-				Model:     model,
+				Model:     e.Model,
 				Embedding: rec.Embedding,
 			})
-			if len(batch) >= batchSize {
+			if len(batch) >= e.BatchSize {
 				if err := flush(); err != nil {
-					return processed, badIDs, badDim, err
+					return stats, err
 				}
 			}
 		}
@@ -222,14 +258,14 @@ func ingestEmbeddings(
 			break
 		}
 		if readErr != nil {
-			return processed, badIDs, badDim, readErr
+			return stats, readErr
 		}
 	}
 
 	if err := flush(); err != nil {
-		return processed, badIDs, badDim, err
+		return stats, err
 	}
-	return processed, badIDs, badDim, nil
+	return stats, nil
 }
 
 // resolveFile returns a local path to the embeddings file, downloading from the

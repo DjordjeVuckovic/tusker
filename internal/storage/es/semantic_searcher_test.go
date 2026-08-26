@@ -75,7 +75,7 @@ func TestSemanticSearcher_SearchSemantic_ReturnsNearest(t *testing.T) {
 		{ID: nearID, Model: embedding.DefaultModel, Embedding: near},
 		{ID: farID, Model: embedding.DefaultModel, Embedding: far},
 	}
-	if err := embIndexer.SaveBulk(ctx, batch); err != nil {
+	if _, err := embIndexer.SaveBulk(ctx, batch); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
 	}
 	refresh(t, embIndexer)

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -50,14 +51,14 @@ func (e *Embedder) Save(ctx context.Context, article *embedding.Vec) (uuid.UUID,
 // logged) with ON CONFLICT upsert, making the operation re-runnable. DISTINCT ON
 // collapses duplicate (article_id, model_name) rows within the batch, which would
 // otherwise abort the upsert (Postgres forbids hitting a conflict row twice).
-func (e *Embedder) SaveBulk(ctx context.Context, vecs []*embedding.Vec) error {
+func (e *Embedder) SaveBulk(ctx context.Context, vecs []*embedding.Vec) (storage.EmbedWriteResult, error) {
 	if len(vecs) == 0 {
-		return nil
+		return storage.EmbedWriteResult{}, nil
 	}
 
 	tx, err := e.db.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to begin tx: %w", err)
+		return storage.EmbedWriteResult{}, fmt.Errorf("failed to begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
@@ -69,12 +70,24 @@ func (e *Embedder) SaveBulk(ctx context.Context, vecs []*embedding.Vec) error {
 		) ON COMMIT DROP
 	`)
 	if err != nil {
-		return fmt.Errorf("failed to create staging table: %w", err)
+		return storage.EmbedWriteResult{}, fmt.Errorf("failed to create staging table: %w", err)
 	}
 
-	rows := make([][]any, len(vecs))
-	for i, v := range vecs {
-		rows[i] = []any{v.ID, v.Model, pgvector.NewVector(v.Embedding)}
+	// Deduplicate before counting so Skipped means the same thing here as it
+	// does on Elasticsearch: a vector whose article is absent. The staging
+	// insert collapses repeats anyway; counting them as skipped would report a
+	// missing article that is not missing.
+	rows := make([][]any, 0, len(vecs))
+	seen := make(map[[2]string]int, len(vecs))
+	for _, v := range vecs {
+		key := [2]string{v.ID.String(), v.Model}
+		row := []any{v.ID, v.Model, pgvector.NewVector(v.Embedding)}
+		if i, dup := seen[key]; dup {
+			rows[i] = row
+			continue
+		}
+		seen[key] = len(rows)
+		rows = append(rows, row)
 	}
 
 	_, err = tx.CopyFrom(
@@ -84,7 +97,7 @@ func (e *Embedder) SaveBulk(ctx context.Context, vecs []*embedding.Vec) error {
 		pgx.CopyFromRows(rows),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to copy embeddings to staging: %w", err)
+		return storage.EmbedWriteResult{}, fmt.Errorf("failed to copy embeddings to staging: %w", err)
 	}
 
 	tag, err := tx.Exec(ctx, `
@@ -98,20 +111,23 @@ func (e *Embedder) SaveBulk(ctx context.Context, vecs []*embedding.Vec) error {
 		SET embedding = EXCLUDED.embedding
 	`)
 	if err != nil {
-		return fmt.Errorf("failed to upsert article embeddings: %w", err)
+		return storage.EmbedWriteResult{}, fmt.Errorf("failed to upsert article embeddings: %w", err)
 	}
 
-	// Skipped = orphan article_id (no matching article) and/or in-batch duplicates.
-	if skipped := int64(len(vecs)) - tag.RowsAffected(); skipped > 0 {
+	result := storage.EmbedWriteResult{
+		Stored:  int(tag.RowsAffected()),
+		Skipped: len(rows) - int(tag.RowsAffected()),
+	}
+	if result.Skipped > 0 {
 		slog.Warn("skipped embeddings (orphan article or duplicate id)",
-			"skipped", skipped,
-			"upserted", tag.RowsAffected(),
+			"skipped", result.Skipped,
+			"stored", result.Stored,
 		)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit embeddings: %w", err)
+		return storage.EmbedWriteResult{}, fmt.Errorf("failed to commit embeddings: %w", err)
 	}
 
-	return nil
+	return result, nil
 }

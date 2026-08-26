@@ -79,8 +79,13 @@ func TestEmbedder_SaveBulk_UpdatesDocAndSkipsOrphans(t *testing.T) {
 		{ID: orphan, Model: model, Embedding: vec(EmbeddingDims, 0.2)},
 	}
 
-	if err := embedder.SaveBulk(ctx, batch); err != nil {
+	res, err := embedder.SaveBulk(ctx, batch)
+	if err != nil {
 		t.Fatalf("SaveBulk: %v", err)
+	}
+	if res.Stored != 1 || res.Skipped != 1 {
+		t.Errorf("stored=%d skipped=%d, want 1 and 1: the orphan must be reported, not just logged",
+			res.Stored, res.Skipped)
 	}
 	refresh(t, embedder)
 
@@ -98,7 +103,7 @@ func TestEmbedder_SaveBulk_UpdatesDocAndSkipsOrphans(t *testing.T) {
 
 	// Idempotent re-run with a changed vector → no error, value updated.
 	batch[0].Embedding = vec(EmbeddingDims, 0.9)
-	if err := embedder.SaveBulk(ctx, batch); err != nil {
+	if _, err := embedder.SaveBulk(ctx, batch); err != nil {
 		t.Fatalf("SaveBulk re-run: %v", err)
 	}
 	refresh(t, embedder)

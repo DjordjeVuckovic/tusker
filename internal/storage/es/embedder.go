@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esutil"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
@@ -54,15 +55,19 @@ type embeddingDoc struct {
 }
 
 func (e *Embedder) Save(ctx context.Context, vec *embedding.Vec) (uuid.UUID, error) {
-	if err := e.SaveBulk(ctx, []*embedding.Vec{vec}); err != nil {
+	res, err := e.SaveBulk(ctx, []*embedding.Vec{vec})
+	if err != nil {
 		return uuid.Nil, err
+	}
+	if res.Stored == 0 {
+		return uuid.Nil, fmt.Errorf("embedding not stored: no article %s", vec.ID)
 	}
 	return vec.ID, nil
 }
 
-func (e *Embedder) SaveBulk(ctx context.Context, vecs []*embedding.Vec) error {
+func (e *Embedder) SaveBulk(ctx context.Context, vecs []*embedding.Vec) (storage.EmbedWriteResult, error) {
 	if len(vecs) == 0 {
-		return nil
+		return storage.EmbedWriteResult{}, nil
 	}
 
 	bi, err := esutil.NewBulkIndexer(esutil.BulkIndexerConfig{
@@ -73,7 +78,7 @@ func (e *Embedder) SaveBulk(ctx context.Context, vecs []*embedding.Vec) error {
 		FlushInterval: 30 * time.Second,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create bulk indexer: %w", err)
+		return storage.EmbedWriteResult{}, fmt.Errorf("failed to create bulk indexer: %w", err)
 	}
 
 	var orphans, otherFailures int64
@@ -111,17 +116,27 @@ func (e *Embedder) SaveBulk(ctx context.Context, vecs []*embedding.Vec) error {
 	}
 
 	if err := bi.Close(ctx); err != nil {
-		return fmt.Errorf("failed to close bulk indexer: %w", err)
+		return storage.EmbedWriteResult{}, fmt.Errorf("failed to close bulk indexer: %w", err)
 	}
 
 	stats := bi.Stats()
+	result := storage.EmbedWriteResult{
+		Stored:  int(stats.NumUpdated),
+		Skipped: int(orphans),
+	}
 	if orphans > 0 {
 		slog.Warn("skipped embeddings with no matching article", "skipped", orphans, "updated", stats.NumUpdated)
 	}
 	if otherFailures > 0 {
-		return fmt.Errorf("failed to update %d embeddings", otherFailures)
+		return result, fmt.Errorf("failed to update %d embeddings", otherFailures)
 	}
-	return nil
+	// A flush that fails at the transport level, or on a non-2xx, counts its
+	// whole batch in NumFailed without ever calling the per-item OnFailure. Left
+	// unchecked those rows would be reported as skipped, with a nil error.
+	if unattributed := int64(stats.NumFailed) - orphans - otherFailures; unattributed > 0 {
+		return result, fmt.Errorf("elasticsearch rejected %d embeddings in a failed bulk request", unattributed)
+	}
+	return result, nil
 }
 
 // ensureEmbeddingField adds the dense_vector field to an existing index when it
