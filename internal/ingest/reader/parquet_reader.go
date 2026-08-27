@@ -22,6 +22,16 @@ type ParquetReader struct {
 	columns []string
 }
 
+// NumRows reports the row count recorded in the file footer, without reading
+// any data.
+func (p *ParquetReader) NumRows() int64 {
+	var n int64
+	for _, rg := range p.file.RowGroups() {
+		n += rg.NumRows()
+	}
+	return n
+}
+
 func NewParquetReader(r io.ReaderAt, size int64) (*ParquetReader, error) {
 	f, err := parquet.OpenFile(r, size)
 	if err != nil {
