@@ -148,7 +148,7 @@ func runEmbeddings(ctx context.Context, out io.Writer, cfg *EmbeddingsConfig) er
 		cli.ByteField("size", fileSize(file.Path)),
 		cli.IntField("rows", meta.RowCount),
 		cli.Field{Label: "model", Value: model},
-		cli.Field{Label: "dimensions", Value: dimensionLabel(meta.Dim)},
+		cli.IntField("dimensions", meta.Dim),
 		cli.Field{Label: "target", Value: storageTarget(cfg.StorageConfig)},
 		cli.IntField("batch", cfg.BatchSize),
 	)
@@ -325,13 +325,4 @@ func resolveFile(ctx context.Context, cfg embedding.ObjectStoreConfig) (resolved
 		Display: fmt.Sprintf("s3://%s/%s", cfg.Bucket, cfg.Key),
 		Cleanup: cleanup,
 	}, nil
-}
-
-// dimensionLabel distinguishes a file that declares its width from one that does
-// not; both are accepted, and only the declared case has been checked.
-func dimensionLabel(dim int) string {
-	if dim == 0 {
-		return fmt.Sprintf("%d (assumed; file declares none)", expectedDim)
-	}
-	return strconv.Itoa(dim)
 }

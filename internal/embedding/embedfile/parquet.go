@@ -5,7 +5,9 @@
 package embedfile
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 
@@ -62,11 +64,37 @@ func Open(path string) (*Reader, error) {
 		return nil, fmt.Errorf("parse parquet file: %w", err)
 	}
 
-	return &Reader{
-		file: f,
-		pr:   parquet.NewGenericReader[parquetRow](f),
-		meta: metaFrom(pf),
-	}, nil
+	pr := parquet.NewGenericReader[parquetRow](f)
+	meta := metaFrom(pf)
+	if meta.Dim == 0 {
+		dim, err := peekDim(pr)
+		if err != nil {
+			pr.Close()
+			f.Close()
+			return nil, fmt.Errorf("read first embedding: %w", err)
+		}
+		meta.Dim = dim
+	}
+
+	return &Reader{file: f, pr: pr, meta: meta}, nil
+}
+
+// peekDim reads the width off the first row for files that do not declare it,
+// then rewinds. Without it an undeclared dimension reads as 0 and the caller
+// has to assume one.
+func peekDim(pr *parquet.GenericReader[parquetRow]) (int, error) {
+	rows := make([]parquetRow, 1)
+	n, err := pr.Read(rows)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return 0, err
+	}
+	if err := pr.SeekToRow(0); err != nil {
+		return 0, fmt.Errorf("rewind after reading first row: %w", err)
+	}
+	if n == 0 {
+		return 0, nil
+	}
+	return len(rows[0].Embedding), nil
 }
 
 // Meta returns the file-level metadata.
@@ -96,13 +124,14 @@ func metaFrom(pf *parquet.File) Meta {
 		return v
 	}
 	dim, _ := strconv.Atoi(lookup("dim"))
-	rowCount, _ := strconv.Atoi(lookup("row_count"))
 	return Meta{
 		Model:      lookup("model"),
 		Dim:        dim,
 		Pooling:    lookup("pooling"),
 		Normalized: lookup("normalized"),
-		RowCount:   rowCount,
-		CreatedAt:  lookup("created_at"),
+		// The footer always carries the row count; the key-value block is
+		// optional and absent from files the notebook did not stamp.
+		RowCount:  int(pf.NumRows()),
+		CreatedAt: lookup("created_at"),
 	}
 }
