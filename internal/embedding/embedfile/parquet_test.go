@@ -103,3 +103,74 @@ func TestReadRecordsAndMeta(t *testing.T) {
 		}
 	}
 }
+
+// The Colab notebook stamps key-value metadata; other writers do not, and the
+// file still has to describe itself.
+func TestMetaWithoutKeyValueBlock(t *testing.T) {
+	rows := []fixtureRow{
+		{ID: "11111111-1111-1111-1111-111111111111", Embedding: []float32{0.1, 0.2, 0.3, 0.4}},
+		{ID: "22222222-2222-2222-2222-222222222222", Embedding: []float32{0.5, 0.6, 0.7, 0.8}},
+	}
+	path := writeFixture(t, rows, nil)
+
+	r, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	meta := r.Meta()
+	if meta.RowCount != 2 {
+		t.Errorf("row_count = %d, want 2 — the footer carries it even with no metadata block", meta.RowCount)
+	}
+	if meta.Dim != 4 {
+		t.Errorf("dim = %d, want 4 — derived from the first row", meta.Dim)
+	}
+	if meta.Model != "" {
+		t.Errorf("model = %q, want empty; only the file can claim a model", meta.Model)
+	}
+}
+
+// Deriving the dimension must not consume the row it read.
+func TestDimPeekDoesNotSwallowTheFirstRow(t *testing.T) {
+	rows := []fixtureRow{
+		{ID: "11111111-1111-1111-1111-111111111111", Embedding: []float32{0.1, 0.2}},
+		{ID: "22222222-2222-2222-2222-222222222222", Embedding: []float32{0.3, 0.4}},
+	}
+	r, err := Open(writeFixture(t, rows, nil))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	var got []Record
+	buf := make([]Record, 8)
+	for {
+		n, err := r.Read(buf)
+		got = append(got, buf[:n]...)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("Read: %v", err)
+		}
+	}
+	if len(got) != 2 {
+		t.Fatalf("read %d records, want 2", len(got))
+	}
+	if got[0].ID != rows[0].ID {
+		t.Errorf("first record = %q, want %q", got[0].ID, rows[0].ID)
+	}
+}
+
+func TestEmptyFileHasNoDimensionAndNoRows(t *testing.T) {
+	r, err := Open(writeFixture(t, nil, nil))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	if meta := r.Meta(); meta.RowCount != 0 || meta.Dim != 0 {
+		t.Errorf("meta = %+v, want zero rows and zero dim", meta)
+	}
+}
