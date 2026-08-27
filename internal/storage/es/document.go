@@ -3,8 +3,10 @@ package es
 import (
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorindexoptionstype"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorsimilarity"
 	"github.com/google/uuid"
 )
@@ -109,14 +111,26 @@ func (b *IndexBuilder) buildMapping() types.TypeMapping {
 
 // denseVectorProperty defines the kNN-searchable embedding field. The Qwen
 // vectors are L2-normalised, so cosine similarity is the right metric.
+//
+// index_options is declared rather than left to the product default, so the HNSW
+// graph here and the one pgvector builds are the same graph — see
+// storage.HNSWM. Elasticsearch does not echo an unset index_options back in
+// _mapping, so declaring it is also what makes the values readable.
 func (b *IndexBuilder) denseVectorProperty() *types.DenseVectorProperty {
 	p := types.NewDenseVectorProperty()
 	dims := EmbeddingDims
 	indexed := true
 	sim := densevectorsimilarity.Cosine
+	m := storage.HNSWM
+	efConstruction := storage.HNSWEfConstruction
 	p.Dims = &dims
 	p.Index = &indexed
 	p.Similarity = &sim
+	p.IndexOptions = &types.DenseVectorIndexOptions{
+		Type:           densevectorindexoptionstype.Hnsw,
+		M:              &m,
+		EfConstruction: &efConstruction,
+	}
 	return p
 }
 
