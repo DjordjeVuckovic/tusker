@@ -80,8 +80,9 @@ is not a spec setting: Postgres declares it in the `CREATE INDEX` of `db/migrati
 `db/parade_migrations` and `db/tiger_migrations`, and Elasticsearch in the `index_options` of
 its `dense_vector` mapping, both at the values in `internal/storage/vector.go`. Left undeclared
 the products disagree (pgvector builds at `ef_construction = 64`, Elasticsearch at `100`),
-which puts part of any recall gap in the graph rather than the engine. Changing either value
-rebuilds the graph and is therefore a new run.
+which puts part of any recall gap in the graph rather than the engine. Both are held to 64,
+pgvector's default, so the loaded Postgres graphs stand as built. Changing the value rebuilds
+the graph and is therefore a new run.
 
 ## Pipeline
 

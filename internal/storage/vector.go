@@ -26,6 +26,12 @@ type VectorStore interface {
 // and not of the graph it was handed. Left undeclared the two disagree: pgvector
 // defaults ef_construction to 64, Elasticsearch to 100.
 //
+// 64 is pgvector's default, which is what the loaded Postgres corpora were built
+// at. Declaring that value rather than Elasticsearch's lets those graphs stand
+// and moves the one index that has to be rebuilt to the engine whose recall the
+// thesis is not arguing about. Query-time effort is tuned separately through
+// hnsw.ef_search, which needs no rebuild.
+//
 // The Postgres side is SQL, so it repeats the values in the CREATE INDEX of
 // db/migrations, db/parade_migrations and db/tiger_migrations rather than
 // importing them; the container tests on both sides assert against these
@@ -35,5 +41,5 @@ type VectorStore interface {
 // recorded number is comparable with one measured after the change.
 const (
 	HNSWM              = 16
-	HNSWEfConstruction = 100
+	HNSWEfConstruction = 64
 )
