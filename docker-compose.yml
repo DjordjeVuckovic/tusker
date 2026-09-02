@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: news_password
       POSTGRES_DB: news_db
     command: postgres -c maintenance_work_mem=1GB
-    shm_size: 2gb
+    shm_size: 5gb
     ports:
       - "54320:5432"
     volumes:
@@ -21,7 +21,7 @@ services:
       POSTGRES_PASSWORD: news_password
       POSTGRES_DB: news_db
     command: postgres -c maintenance_work_mem=1GB
-    shm_size: 2gb
+    shm_size: 5gb
     ports:
       - "54321:5432"
     volumes:
@@ -35,7 +35,7 @@ services:
       POSTGRES_PASSWORD: news_password
       POSTGRES_DB: news_db
     command: postgres -c maintenance_work_mem=1GB
-    shm_size: 2gb
+    shm_size: 5gb
     ports:
       - "54322:5432"
     volumes:

@@ -19,7 +19,7 @@ GOARCH ?= $(shell go env GOARCH)
 ARGS ?=
 
 # Build commands
-.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments migrate-up migrate-down migrate-up-parade migrate-down-parade migrate-up-tiger migrate-down-tiger migrate-up-all migrate-down-all db-refresh-collation db-volumes run-datapipe-preprocess run-datapipe-articles-pg run-datapipe-articles-parade run-datapipe-articles-tiger run-datapipe-articles-es run-datapipe-articles-all
+.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments migrate-up migrate-down migrate-up-parade migrate-down-parade migrate-up-tiger migrate-down-tiger migrate-up-all migrate-down-all db-refresh-collation db-volumes run-datapipe-preprocess run-datapipe-articles-pg run-datapipe-articles-parade run-datapipe-articles-tiger run-datapipe-articles-es run-datapipe-articles-all run-datapipe-embeddings-pg run-datapipe-embeddings-parade run-datapipe-embeddings-tiger run-datapipe-embeddings-es run-datapipe-embeddings-all
 
 migrate-up:
 	@echo "Running database migrations up (native pg)..."
@@ -181,10 +181,24 @@ run-datapipe-embeddings-pg: build-datapipe
 	@echo "Running datapipe load embeddings (pg)..."
 	@ENV_PATHS="cmd/datapipe/embeddings.env,cmd/datapipe/pg.env" ./$(BIN_DIR)/datapipe load embeddings
 
+# Load precomputed embeddings into the article_embeddings store (ParadeDB)
+run-datapipe-embeddings-parade: build-datapipe
+	@echo "Running datapipe load embeddings (ParadeDB)..."
+	@ENV_PATHS="cmd/datapipe/embeddings.env,cmd/datapipe/parade.env" ./$(BIN_DIR)/datapipe load embeddings
+
+# Load precomputed embeddings into the article_embeddings store (pg_textsearch)
+run-datapipe-embeddings-tiger: build-datapipe
+	@echo "Running datapipe load embeddings (pg_textsearch)..."
+	@ENV_PATHS="cmd/datapipe/embeddings.env,cmd/datapipe/tiger.env" ./$(BIN_DIR)/datapipe load embeddings
+
 # Load precomputed embeddings into the article_embeddings store (Elasticsearch)
 run-datapipe-embeddings-es: build-datapipe
 	@echo "Running datapipe load embeddings (es)..."
 	@ENV_PATHS="cmd/datapipe/embeddings.env,cmd/datapipe/es.env" ./$(BIN_DIR)/datapipe load embeddings
+
+# Load the same Parquet into every engine. Embeddings key on article_id, so this
+# only lands where the articles were already loaded.
+run-datapipe-embeddings-all: run-datapipe-embeddings-pg run-datapipe-embeddings-parade run-datapipe-embeddings-tiger run-datapipe-embeddings-es
 
 run-api: build-news-api
 	@echo "Running news search service..."

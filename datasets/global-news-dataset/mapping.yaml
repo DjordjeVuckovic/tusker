@@ -21,6 +21,11 @@ fieldMappings:
    target: "Description"
    targetType: "string"
    required: true
+ - source: "full_content"
+   sourceType: "string"
+   target: "Content"
+   targetType: "string"
+   required: false
  - source: "content"
    sourceType: "string"
    target: "Content"
@@ -44,11 +49,6 @@ fieldMappings:
  - source: "source_name"
    sourceType: "string"
    target: "Metadata.SourceName"
-   targetType: "string"
-   required: false
- - source: "description"
-   sourceType: "string"
-   target: "Description"
    targetType: "string"
    required: false
  - source: "category"

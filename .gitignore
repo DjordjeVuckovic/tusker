@@ -69,3 +69,5 @@ CLAUDE.local.md
 .notes
 
 tracks/**/trec/qrels.*.tsv
+
+.issues
