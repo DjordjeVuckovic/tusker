@@ -62,64 +62,78 @@ func (eq *EngineQuery) UnmarshalYAML(value *yaml.Node) error {
 	return value.Decode((*plain)(eq))
 }
 
-// Resolve renders the engine query. extra supplies run-time params (e.g. the
-// live query vector under ReservedQueryVectorParam) that aren't in the suite:
-// they are merged into template params and substituted into inline/file
-// queries. extra may be nil.
-func (eq *EngineQuery) Resolve(registry *TemplateRegistry, suiteDir string, extra TemplateParams) (*ResolvedQuery, error) {
+// ResolveOptions addresses one engine's query inside a suite query and carries
+// the three param layers, widest first: engine Defaults, the query's own
+// params, then Extra.
+type ResolveOptions struct {
+	// Engine names the per-query block to read. Under engine aliasing this is
+	// the engine that owns the queries, which need not be the one being
+	// measured.
+	Engine   string
+	Registry *TemplateRegistry
+	SuiteDir string
+	// Defaults are the running engine's declared params, the widest layer.
+	Defaults TemplateParams
+	// Extra are run-time params absent from the suite, chiefly the live query
+	// vector under ReservedQueryVectorParam.
+	Extra TemplateParams
+}
+
+// Resolve renders the engine query, merging the param layers so a narrower one
+// wins: engine defaults, then the query's own params, then run-time extras.
+func (eq *EngineQuery) Resolve(opts ResolveOptions) (*ResolvedQuery, error) {
+	params := mergeParams(opts.Defaults, eq.Params, opts.Extra)
 	if eq.Template != "" {
-		if registry == nil {
+		if opts.Registry == nil {
 			return nil, fmt.Errorf("template %q referenced but no registry available", eq.Template)
 		}
-		return registry.RenderQuery(eq.Template, mergeParams(eq.Params, extra), suiteDir)
+		return opts.Registry.RenderQuery(eq.Template, params, opts.SuiteDir)
 	}
 	if eq.File != "" {
 		path := eq.File
 		if !filepath.IsAbs(path) {
-			path = filepath.Join(suiteDir, path)
+			path = filepath.Join(opts.SuiteDir, path)
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("read query file %q: %w", eq.File, err)
 		}
-		return resolveInline(string(data), extra)
+		return resolveInline(string(data), params)
 	}
-	return resolveInline(eq.Query, extra)
+	return resolveInline(eq.Query, params)
 }
 
-// resolveInline substitutes extra into an inline/file query and rejects any
+// resolveInline substitutes params into an inline/file query and rejects any
 // {{...}} left unresolved. Without this, an un-injected placeholder (e.g.
 // {{precomputed}} when no embedder ran) ships verbatim to the engine — ES then
 // parses the literal "{" as an object and returns a cryptic START_OBJECT 400.
 // Templates already fail loudly via Render; this gives inline queries parity.
-func resolveInline(s string, extra TemplateParams) (*ResolvedQuery, error) {
-	s = substituteExtra(s, extra)
+func resolveInline(s string, params TemplateParams) (*ResolvedQuery, error) {
+	s = substituteParams(s, params)
 	if missing := findMissingPlaceholders(s); len(missing) > 0 {
 		return nil, fmt.Errorf("query has unresolved placeholders: %v", missing)
 	}
 	return &ResolvedQuery{Query: s}, nil
 }
 
-// mergeParams overlays extra onto base without mutating either.
-func mergeParams(base, extra TemplateParams) TemplateParams {
-	if len(extra) == 0 {
-		return base
-	}
-	out := make(TemplateParams, len(base)+len(extra))
-	for k, v := range base {
-		out[k] = v
-	}
-	for k, v := range extra {
-		out[k] = v
+// mergeParams overlays layers left to right into a fresh map, so a narrower
+// layer wins and no caller's map is aliased — engine params are owned by the
+// spec and shared by every query the engine runs.
+func mergeParams(layers ...TemplateParams) TemplateParams {
+	out := TemplateParams{}
+	for _, layer := range layers {
+		for k, v := range layer {
+			out[k] = v
+		}
 	}
 	return out
 }
 
-// substituteExtra replaces {{key}} for each key in extra. Inline/file queries
-// aren't template-rendered, so this is how they receive run-time params; only
-// the provided keys are touched, leaving any other braces untouched.
-func substituteExtra(s string, extra TemplateParams) string {
-	for k, v := range extra {
+// substituteParams replaces {{key}} for each key in params. Inline/file queries
+// aren't template-rendered, so this is how they receive params; only the
+// provided keys are touched, leaving any other braces untouched.
+func substituteParams(s string, params TemplateParams) string {
+	for k, v := range params {
 		s = strings.ReplaceAll(s, "{{"+k+"}}", formatValue(v))
 	}
 	return s
@@ -153,12 +167,14 @@ func (ls *LoadedSuite) InjectJudgments(byQuery map[string][]RelevanceJudgment) {
 	}
 }
 
-func (q *Query) ResolveEngineQuery(engine string, registry *TemplateRegistry, suiteDir string, extra TemplateParams) (*ResolvedQuery, error) {
-	eq, ok := q.Engines[engine]
+// ResolveEngineQuery renders the block named by opts.Engine, or returns a nil
+// query when the suite declares none for it.
+func (q *Query) ResolveEngineQuery(opts ResolveOptions) (*ResolvedQuery, error) {
+	eq, ok := q.Engines[opts.Engine]
 	if !ok {
 		return nil, nil
 	}
-	return eq.Resolve(registry, suiteDir, extra)
+	return eq.Resolve(opts)
 }
 
 // NeedsQueryVector reports whether any engine query references the reserved

@@ -29,6 +29,8 @@ func (r *Runner) RunAll(
 ) (*BenchmarkResult, error) {
 	br := &BenchmarkResult{Config: r.config}
 
+	bindings := queryBindings(bs)
+
 	// Cache suite loads — multiple jobs commonly share a suite.
 	suiteCache := map[string]*suite.LoadedSuite{}
 	for _, job := range bs.Jobs {
@@ -42,7 +44,12 @@ func (r *Runner) RunAll(
 			loaded = ls
 		}
 
-		jr, err := r.RunJob(ctx, job, loaded, executors)
+		jr, err := r.RunJob(ctx, JobRequest{
+			Job:       job,
+			Suite:     loaded,
+			Executors: executors,
+			Bindings:  bindings,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("run job %q: %w", job.Name, err)
 		}
@@ -52,15 +59,29 @@ func (r *Runner) RunAll(
 	return br, nil
 }
 
-func (r *Runner) RunJob(
-	ctx context.Context,
-	job spec.Job,
-	loaded *suite.LoadedSuite,
-	executors map[string]engine.Executor,
-) (*JobResult, error) {
+// queryBindings resolves every engine's query block and declared params once,
+// so the per-query fan-out never reaches back into the spec.
+func queryBindings(bs *spec.BenchSpec) map[string]spec.QueryBinding {
+	bindings := make(map[string]spec.QueryBinding, len(bs.Engines))
+	for name := range bs.Engines {
+		bindings[name] = bs.QueryBinding(name)
+	}
+	return bindings
+}
+
+// JobRequest is everything one job needs to run: its declaration, the loaded
+// suite, the executors to drive, and how each engine reaches its queries.
+type JobRequest struct {
+	Job       spec.Job
+	Suite     *suite.LoadedSuite
+	Executors map[string]engine.Executor
+	Bindings  map[string]spec.QueryBinding
+}
+
+func (r *Runner) RunJob(ctx context.Context, req JobRequest) (*JobResult, error) {
 	jobExecutors := make(map[string]engine.Executor)
-	for _, engName := range job.Engines {
-		exec, ok := executors[engName]
+	for _, engName := range req.Job.Engines {
+		exec, ok := req.Executors[engName]
 		if !ok {
 			return nil, fmt.Errorf("executor %q not found", engName)
 		}
@@ -68,24 +89,20 @@ func (r *Runner) RunJob(
 	}
 
 	jr := &JobResult{
-		JobName:     job.Name,
+		JobName:     req.Job.Name,
 		Results:     make(map[string]map[string]QueryResult),
-		EngineNames: job.Engines,
+		EngineNames: req.Job.Engines,
 	}
 
-	r.runQueries(ctx, jr, loaded.Suite.Queries, loaded.Registry, jobExecutors, loaded.Dir)
+	jobReq := req
+	jobReq.Executors = jobExecutors
+	r.runQueries(ctx, jr, jobReq)
 
 	return jr, nil
 }
 
-func (r *Runner) runQueries(
-	ctx context.Context,
-	jr *JobResult,
-	queries []suite.Query,
-	registry *suite.TemplateRegistry,
-	executors map[string]engine.Executor,
-	suiteDir string,
-) {
+func (r *Runner) runQueries(ctx context.Context, jr *JobResult, req JobRequest) {
+	queries := req.Suite.Suite.Queries
 	// Pre-populate order and result maps sequentially before launching any
 	// goroutines. Goroutines only READ the outer jr.Results map (to get their
 	// inner map pointer) and write only to their own inner map — no races.
@@ -119,7 +136,7 @@ func (r *Runner) runQueries(
 			defer wg.Done()
 			querySem <- struct{}{}
 			defer func() { <-querySem }()
-			r.runEnginesForQuery(ctx, jr, q, registry, executors, suiteDir, engineSem)
+			r.runEnginesForQuery(ctx, jr, q, req, engineSem)
 		}()
 	}
 	wg.Wait()
@@ -128,15 +145,7 @@ func (r *Runner) runQueries(
 // runEnginesForQuery fans out to all engines for a single query concurrently.
 // Each goroutine writes only to its own index in the slots slice (no mutex),
 // and the merge into jr.Results happens after all goroutines finish.
-func (r *Runner) runEnginesForQuery(
-	ctx context.Context,
-	jr *JobResult,
-	q *suite.Query,
-	registry *suite.TemplateRegistry,
-	executors map[string]engine.Executor,
-	suiteDir string,
-	engineSem chan struct{},
-) {
+func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite.Query, req JobRequest, engineSem chan struct{}) {
 	judgments := r.judgmentsFor(q)
 	extra := r.queryVectorParams(ctx, q)
 
@@ -152,7 +161,7 @@ func (r *Runner) runEnginesForQuery(
 
 	var wg sync.WaitGroup
 	for idx, engName := range jr.EngineNames {
-		exec, ok := executors[engName]
+		exec, ok := req.Executors[engName]
 		if !ok {
 			continue
 		}
@@ -163,7 +172,19 @@ func (r *Runner) runEnginesForQuery(
 			engineSem <- struct{}{}
 			defer func() { <-engineSem }()
 
-			resolved, err := q.ResolveEngineQuery(engName, registry, suiteDir, extra)
+			// An engine with no declared binding reads its own block; an empty
+			// QuerySource would instead match nothing and drop the query silently.
+			binding, declared := req.Bindings[engName]
+			if !declared {
+				binding = spec.QueryBinding{QuerySource: engName}
+			}
+			resolved, err := q.ResolveEngineQuery(suite.ResolveOptions{
+				Engine:   binding.QuerySource,
+				Registry: req.Suite.Registry,
+				SuiteDir: req.Suite.Dir,
+				Defaults: binding.Params,
+				Extra:    extra,
+			})
 			if err != nil {
 				slots[idx] = slot{
 					engName: engName,

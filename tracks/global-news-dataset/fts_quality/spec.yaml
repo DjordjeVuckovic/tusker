@@ -16,6 +16,17 @@ engines:
   pg-gin:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
+    params:
+      rank_norm: "0"
+  # The length-normalised arm: same instance, column and queries as pg-gin, only
+  # ts_rank's normalisation differs. Isolates how much of the gap to the BM25
+  # engines is document-length normalisation rather than IDF.
+  pg-gin-norm:
+    type: postgres
+    connection: "postgresql://news_user:news_password@localhost:54320/news_db"
+    queries_from: pg-gin
+    params:
+      rank_norm: "1"
   # The unindexed arm: same column and query as pg-gin, only index access
   # differs. Rankings must come out identical; only latency may move.
   pg-noindex:
@@ -24,6 +35,8 @@ engines:
     connection_settings:
       enable_indexscan: "off"
       enable_bitmapscan: "off"
+    params:
+      rank_norm: "0"
   paradedb:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54321/news_db"
@@ -54,7 +67,7 @@ jobs:
 
   - name: "pg-gin-vs-paradedb-vs-es"
     suite: suite.yaml
-    engines: [pg-gin, paradedb, elasticsearch]
+    engines: [pg-gin, pg-gin-norm, paradedb, elasticsearch]
 
   - name: "bm25-engines"
     suite: suite.yaml
@@ -62,7 +75,7 @@ jobs:
 
   - name: "all-engines"
     suite: suite.yaml
-    engines: [pg-seq, pg-gin, paradedb, elasticsearch]
+    engines: [pg-seq, pg-gin, pg-gin-norm, paradedb, elasticsearch]
 
   # tiger runs alone: it cannot filter, so it always fills the LIMIT and its AP
   # would compare list lengths against the filtered engines. NDCG@10 stays

@@ -84,6 +84,46 @@ which puts part of any recall gap in the graph rather than the engine. Both are 
 pgvector's default, so the loaded Postgres graphs stand as built. Changing the value rebuilds
 the graph and is therefore a new run.
 
+### Engine params and shared query blocks
+
+An engine may declare template params of its own, and may take its per-query block from
+another engine:
+
+```yaml
+engines:
+  pg-gin:
+    type: postgres
+    connection: "postgresql://…"
+    params:
+      rank_norm: "0"
+  pg-gin-norm:
+    type: postgres
+    connection: "postgresql://…"
+    queries_from: pg-gin
+    params:
+      rank_norm: "1"
+```
+
+Params merge widest first — engine defaults, then the query's own `params:`, then run-time
+values such as the injected query vector — so an engine default fills what a query omits and
+never overrides what it states.
+
+`queries_from` is why the two arms above stay comparable. Written out per query, an arm that
+differs only in a ranking argument is 30 duplicated blocks, and the first one edited on its
+own stops isolating the argument under test without anything erroring. Aliasing is one level
+deep: an alias must name a real engine that is not itself an alias, and the spec fails to
+load otherwise. `bench validate` still dry-runs every engine separately, so both arms are
+checked even though one block backs them.
+
+An alias borrows the query block, not the params — it contributes only what it declares
+itself, which is what lets `pg-gin-norm` set `rank_norm` without inheriting `pg-gin`'s. So an
+alias states the full set it needs; omitting one the template requires fails the render rather
+than falling back.
+
+An arm has to exist before `bench pool`, not just before `bench run`. Each engine contributes
+its own top-K to the pool; added afterwards, the documents only it ranks highly come back
+Unjudged and its NDCG reads low for a reason that has nothing to do with its ranking.
+
 ## Pipeline
 
 ```

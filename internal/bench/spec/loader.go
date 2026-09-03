@@ -120,6 +120,9 @@ func validate(s *BenchSpec) error {
 		if eng.Connection == "" {
 			return fmt.Errorf("engine %q has no connection", name)
 		}
+		if err := validateQueriesFrom(s, name, eng); err != nil {
+			return err
+		}
 	}
 	if err := validateDefaults(s); err != nil {
 		return err
@@ -138,6 +141,28 @@ func validate(s *BenchSpec) error {
 	}
 	if s.Runs.Iterations <= 0 {
 		s.Runs.Iterations = 3
+	}
+	return nil
+}
+
+// validateQueriesFrom checks an engine alias points at a declared engine other
+// than itself, and that the target is not an alias in turn. Aliasing is
+// deliberately one level: resolution never walks a chain, so a chain declared
+// here would silently resolve to the wrong query block.
+func validateQueriesFrom(s *BenchSpec, name string, eng Engine) error {
+	if eng.QueriesFrom == "" {
+		return nil
+	}
+	if eng.QueriesFrom == name {
+		return fmt.Errorf("engine %q has queries_from pointing at itself", name)
+	}
+	target, ok := s.Engines[eng.QueriesFrom]
+	if !ok {
+		return fmt.Errorf("engine %q has queries_from %q, which is not a declared engine", name, eng.QueriesFrom)
+	}
+	if target.QueriesFrom != "" {
+		return fmt.Errorf("engine %q has queries_from %q, which is itself an alias of %q — queries_from does not chain",
+			name, eng.QueriesFrom, target.QueriesFrom)
 	}
 	return nil
 }

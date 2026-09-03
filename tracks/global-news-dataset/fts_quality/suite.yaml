@@ -128,32 +128,36 @@ templates:
       LIMIT {{limit}}
 
   # --- Pre-computed search_vector (GIN-indexed) templates ---
+  # {{rank_norm}} is ts_rank's normalisation bitmask, declared per engine in
+  # spec.yaml: 0 ignores document length (the PostgreSQL default), 1 divides by
+  # 1 + log(length), which is the length normalisation BM25 applies. It is the
+  # only difference between the pg-gin and pg-gin-norm arms.
   - id: pg_idx_multi_field
     query: |
       SELECT id FROM articles
       WHERE search_vector @@ plainto_tsquery('english', '{{terms}}')
-      ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}')) DESC
+      ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}'), {{rank_norm}}) DESC
       LIMIT {{limit}}
 
   - id: pg_idx_phrase
     query: |
       SELECT id FROM articles
       WHERE search_vector @@ phraseto_tsquery('english', '{{terms}}')
-      ORDER BY ts_rank(search_vector, phraseto_tsquery('english', '{{terms}}')) DESC
+      ORDER BY ts_rank(search_vector, phraseto_tsquery('english', '{{terms}}'), {{rank_norm}}) DESC
       LIMIT {{limit}}
 
   - id: pg_idx_boolean
     query: |
       SELECT id FROM articles
       WHERE search_vector @@ to_tsquery('english', '{{tsquery_expr}}')
-      ORDER BY ts_rank(search_vector, to_tsquery('english', '{{tsquery_expr}}')) DESC
+      ORDER BY ts_rank(search_vector, to_tsquery('english', '{{tsquery_expr}}'), {{rank_norm}}) DESC
       LIMIT {{limit}}
 
   - id: pg_idx_weighted
     query: |
       SELECT id FROM articles
       WHERE search_vector @@ plainto_tsquery('english', '{{terms}}')
-      ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}')) DESC
+      ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}'), {{rank_norm}}) DESC
       LIMIT {{limit}}
 
 queries:

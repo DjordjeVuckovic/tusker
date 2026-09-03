@@ -158,7 +158,7 @@ func TestQuery_ResolveEngineQuery_Template(t *testing.T) {
 		},
 	}
 
-	result, err := q.ResolveEngineQuery("pg", reg, "", nil)
+	result, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg", Registry: reg})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "SELECT * FROM articles WHERE term = 'climate'", result.Query)
@@ -173,12 +173,12 @@ func TestQuery_ResolveEngineQuery_Inline(t *testing.T) {
 		},
 	}
 
-	pgResult, err := q.ResolveEngineQuery("pg", nil, "", nil)
+	pgResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg"})
 	require.NoError(t, err)
 	require.NotNil(t, pgResult)
 	assert.Equal(t, "SELECT 1", pgResult.Query)
 
-	esResult, err := q.ResolveEngineQuery("es", nil, "", nil)
+	esResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es"})
 	require.NoError(t, err)
 	require.NotNil(t, esResult)
 	assert.Equal(t, `{"query": "test"}`, esResult.Query)
@@ -192,7 +192,7 @@ func TestQuery_ResolveEngineQuery_NotFound(t *testing.T) {
 		},
 	}
 
-	result, err := q.ResolveEngineQuery("unknown", nil, "", nil)
+	result, err := q.ResolveEngineQuery(ResolveOptions{Engine: "unknown"})
 	require.NoError(t, err)
 	assert.Nil(t, result)
 }
@@ -210,12 +210,12 @@ func TestQuery_ResolveEngineQuery_MixedEngines(t *testing.T) {
 		},
 	}
 
-	pgResult, err := q.ResolveEngineQuery("pg", reg, "", nil)
+	pgResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg", Registry: reg})
 	require.NoError(t, err)
 	require.NotNil(t, pgResult)
 	assert.Equal(t, "SELECT * WHERE term = 'climate'", pgResult.Query)
 
-	esResult, err := q.ResolveEngineQuery("es", reg, "", nil)
+	esResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es", Registry: reg})
 	require.NoError(t, err)
 	require.NotNil(t, esResult)
 	assert.Equal(t, `{"query":"climate"}`, esResult.Query)

@@ -116,7 +116,7 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 				seen[key] = struct{}{}
 
 				row := validateRow{queryID: q.ID, engine: engName}
-				row = validateOne(cmd.Context(), row, q, engName, ls, executors[engName], vectorStore)
+				row = validateOne(cmd.Context(), row, q, bs.QueryBinding(engName), ls, executors[engName], vectorStore)
 				rows = append(rows, row)
 				if row.status != "OK" && row.status != "SKIP" {
 					failures++
@@ -143,7 +143,7 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 	return nil
 }
 
-func validateOne(ctx context.Context, row validateRow, q suite.Query, engName string, ls *suite.LoadedSuite, exec engine.Executor, store storage.VectorStore) validateRow {
+func validateOne(ctx context.Context, row validateRow, q suite.Query, binding spec.QueryBinding, ls *suite.LoadedSuite, exec engine.Executor, store storage.VectorStore) validateRow {
 	var extra suite.TemplateParams
 	if q.NeedsQueryVector() {
 		if store != nil {
@@ -163,7 +163,13 @@ func validateOne(ctx context.Context, row validateRow, q suite.Query, engName st
 			row.detail = "stubbed vector"
 		}
 	}
-	resolved, err := q.ResolveEngineQuery(engName, ls.Registry, ls.Dir, extra)
+	resolved, err := q.ResolveEngineQuery(suite.ResolveOptions{
+		Engine:   binding.QuerySource,
+		Registry: ls.Registry,
+		SuiteDir: ls.Dir,
+		Defaults: binding.Params,
+		Extra:    extra,
+	})
 	if err != nil {
 		row.status = "TEMPLATE_ERR"
 		row.detail = err.Error()
