@@ -111,11 +111,8 @@ func (b *IndexBuilder) buildMapping() types.TypeMapping {
 
 // denseVectorProperty defines the kNN-searchable embedding field. The Qwen
 // vectors are L2-normalised, so cosine similarity is the right metric.
-//
-// index_options is declared rather than left to the product default, so the HNSW
-// graph here and the one pgvector builds are the same graph — see
-// storage.HNSWM. Elasticsearch does not echo an unset index_options back in
-// _mapping, so declaring it is also what makes the values readable.
+// index_options is declared because an unset one is neither shared with pgvector
+// nor echoed back in _mapping.
 func (b *IndexBuilder) denseVectorProperty() *types.DenseVectorProperty {
 	p := types.NewDenseVectorProperty()
 	dims := EmbeddingDims

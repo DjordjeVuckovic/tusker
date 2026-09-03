@@ -8,11 +8,6 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 )
 
-// TestArticleEmbeddingIndex_DeclaresHNSWBuildParams reads the build parameters
-// back out of the catalog. pgvector reports nothing here for an index created
-// without a WITH clause — it builds at its own defaults, which differ from the
-// ones Elasticsearch picks, so the two engines would be compared on differently
-// built graphs.
 func TestArticleEmbeddingIndex_DeclaresHNSWBuildParams(t *testing.T) {
 	var options []string
 	err := testPool.GetConn().QueryRow(testCtx,
@@ -37,7 +32,6 @@ func TestArticleEmbeddingIndex_DeclaresHNSWBuildParams(t *testing.T) {
 	}
 }
 
-// reloption picks one "name=value" entry out of a pg_class.reloptions array.
 func reloption(options []string, name string) (int, bool) {
 	for _, opt := range options {
 		key, value, found := strings.Cut(opt, "=")

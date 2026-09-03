@@ -158,11 +158,10 @@ func (e *Embedder) ensureEmbeddingField(ctx context.Context) error {
 	return nil
 }
 
-// checkVectorBuildParams stops a load that would fill a graph built at HNSW
-// parameters other than the declared ones. Elasticsearch refuses to change
-// index_options on a field that already exists, and even if it accepted the edit
-// the graph is assembled at write time, so the only way to move an index to a
-// new build point is to drop it and reload.
+// checkVectorBuildParams stops a load into a graph built at other HNSW
+// parameters. Elasticsearch will not change index_options on an existing field,
+// and the graph is assembled as documents are written, so such an index has to
+// be dropped and reloaded.
 func (e *Embedder) checkVectorBuildParams(ctx context.Context) error {
 	res, err := e.client.Indices.GetMapping().Index(e.indexName).Do(ctx)
 	if err != nil {
@@ -174,7 +173,6 @@ func (e *Embedder) checkVectorBuildParams(ctx context.Context) error {
 	}
 	vector, ok := record.Mappings.Properties["embedding"].(*types.DenseVectorProperty)
 	if !ok {
-		// No vector field yet — the PUT mapping adds it with the declared options.
 		return nil
 	}
 	if buildParamsMatchDeclared(vector.IndexOptions) {

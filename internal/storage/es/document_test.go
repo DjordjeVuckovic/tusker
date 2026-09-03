@@ -29,9 +29,6 @@ func TestIndexBuilder_DenseVectorDeclaresHNSWBuildParams(t *testing.T) {
 	}
 }
 
-// TestEnsureIndex_MappingReportsHNSWBuildParams reads the parameters back out of
-// Elasticsearch. An index whose index_options is left unset reports nothing here
-// — declaring the values is what makes them auditable after a run.
 func TestEnsureIndex_MappingReportsHNSWBuildParams(t *testing.T) {
 	ctx := context.Background()
 	container := pkgtesting.NewESContainer(ctx, t)
@@ -48,11 +45,6 @@ func TestEnsureIndex_MappingReportsHNSWBuildParams(t *testing.T) {
 	assertDeclaredBuildParams(t, client, cfg.IndexName)
 }
 
-// TestEmbedder_RejectsAnIndexBuiltAtOtherBuildParams covers the indices loaded
-// before the parameters were declared: their embedding field carries no
-// index_options, and Elasticsearch refuses to add one to a field that exists. A
-// load into such an index would fill a graph nobody chose the build point of, so
-// it has to stop and say what to do instead.
 func TestEmbedder_RejectsAnIndexBuiltAtOtherBuildParams(t *testing.T) {
 	ctx := context.Background()
 	container := pkgtesting.NewESContainer(ctx, t)
@@ -77,9 +69,8 @@ func TestEmbedder_RejectsAnIndexBuiltAtOtherBuildParams(t *testing.T) {
 	}
 }
 
-// createIndexWithDefaultedVectorField builds the embedding field the way it was
-// shaped before the build parameters were declared: indexed and cosine, with
-// index_options left to Elasticsearch.
+// createIndexWithDefaultedVectorField shapes the field the way it was before the
+// build parameters were declared: indexed and cosine, index_options unset.
 func createIndexWithDefaultedVectorField(t *testing.T, client *elasticsearch.TypedClient, index string) {
 	t.Helper()
 
