@@ -16,16 +16,27 @@ Queries are designed to require semantic understanding beyond keyword overlap �
 ## Prerequisites
 
 ```sql
--- PostgreSQL
+-- PostgreSQL — owned by db/migrations, repeated here because the build point is
+-- part of what this track measures.
 CREATE EXTENSION IF NOT EXISTS vector;
-ALTER TABLE articles ADD COLUMN IF NOT EXISTS embedding vector(1536);
-CREATE INDEX articles_emb_hnsw_idx ON articles
-  USING hnsw(embedding vector_cosine_ops)
+CREATE INDEX idx_article_embedding ON article_embeddings
+  USING hnsw (embedding vector_cosine_ops)
   WITH (m = 16, ef_construction = 64);
 
--- Elasticsearch: dense_vector field in index mapping
--- "embedding": { "type": "dense_vector", "dims": 1536, "index": true, "similarity": "cosine" }
+-- Elasticsearch — built by internal/storage/es at the same point.
+-- "embedding": {
+--   "type": "dense_vector", "dims": 1024, "index": true, "similarity": "cosine",
+--   "index_options": { "type": "hnsw", "m": 16, "ef_construction": 64 }
+-- }
 ```
+
+Both graphs are built at the same `m` and `ef_construction`. Left to the products they would
+not be — pgvector builds at `ef_construction = 64` and Elasticsearch at `100` — and part of any
+recall gap between the two engines would be that parameter rather than the engine. 64 is the
+value both are held to because it is pgvector's default, so the Postgres graphs stand as built
+and only the Elasticsearch index is reconstructed. Query-time effort is a separate knob,
+`hnsw.ef_search`, tuned without touching the graph. Changing the build value rebuilds the graph,
+so it is a new run and earlier numbers no longer compare.
 
 ## Embedding generation
 

@@ -143,6 +143,10 @@ func (e *Embedder) SaveBulk(ctx context.Context, vecs []*embedding.Vec) (storage
 // is missing (PUT mapping is a no-op when the field already matches). New
 // indices already get it via Indexer.EnsureIndex.
 func (e *Embedder) ensureEmbeddingField(ctx context.Context) error {
+	if err := e.checkVectorBuildParams(ctx); err != nil {
+		return err
+	}
+
 	builder := NewIndexBuilder()
 	props := map[string]types.Property{
 		"embedding":       builder.denseVectorProperty(),
@@ -152,4 +156,56 @@ func (e *Embedder) ensureEmbeddingField(ctx context.Context) error {
 		return fmt.Errorf("failed to add embedding field to index %q: %w", e.indexName, err)
 	}
 	return nil
+}
+
+// checkVectorBuildParams stops a load into a graph built at other HNSW
+// parameters. Elasticsearch will not change index_options on an existing field,
+// and the graph is assembled as documents are written, so such an index has to
+// be dropped and reloaded.
+func (e *Embedder) checkVectorBuildParams(ctx context.Context) error {
+	res, err := e.client.Indices.GetMapping().Index(e.indexName).Do(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to read mapping of index %q: %w", e.indexName, err)
+	}
+	record, ok := res[e.indexName]
+	if !ok {
+		return nil
+	}
+	vector, ok := record.Mappings.Properties["embedding"].(*types.DenseVectorProperty)
+	if !ok {
+		return nil
+	}
+	if buildParamsMatchDeclared(vector.IndexOptions) {
+		return nil
+	}
+	return &VectorIndexMismatchError{Index: e.indexName, Options: vector.IndexOptions}
+}
+
+func buildParamsMatchDeclared(opts *types.DenseVectorIndexOptions) bool {
+	if opts == nil || opts.M == nil || opts.EfConstruction == nil {
+		return false
+	}
+	return *opts.M == storage.HNSWM && *opts.EfConstruction == storage.HNSWEfConstruction
+}
+
+// VectorIndexMismatchError reports an index whose vector field was built at
+// different HNSW parameters than the ones this build declares.
+type VectorIndexMismatchError struct {
+	Index   string
+	Options *types.DenseVectorIndexOptions
+}
+
+func (e *VectorIndexMismatchError) Error() string {
+	return fmt.Sprintf(
+		"index %q holds a vector field built with %s, but this build declares m=%d, ef_construction=%d: "+
+			"elasticsearch cannot change index_options on an existing field, and the HNSW graph is assembled "+
+			"as documents are written — delete the index and reload it",
+		e.Index, describeBuildParams(e.Options), storage.HNSWM, storage.HNSWEfConstruction)
+}
+
+func describeBuildParams(opts *types.DenseVectorIndexOptions) string {
+	if opts == nil || opts.M == nil || opts.EfConstruction == nil {
+		return "undeclared index_options, so at the elasticsearch defaults"
+	}
+	return fmt.Sprintf("m=%d, ef_construction=%d", *opts.M, *opts.EfConstruction)
 }

@@ -20,3 +20,12 @@ type VectorStore interface {
 	// an error (the caller decides how to treat un-embedded documents).
 	DocVectors(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]float32, error)
 }
+
+// HNSW build parameters, declared so both engines index at the same point
+// rather than at their own defaults (pgvector 64, Elasticsearch 100). The
+// CREATE INDEX in db/*migrations repeats them; the container tests check both
+// engines against these. Changing either is a new run.
+const (
+	HNSWM              = 16
+	HNSWEfConstruction = 64
+)
