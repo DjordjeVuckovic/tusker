@@ -19,6 +19,13 @@ type VectorStore interface {
 	// Ids without a stored vector are simply absent from the map — that is not
 	// an error (the caller decides how to treat un-embedded documents).
 	DocVectors(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]float32, error)
+
+	// Model names the embedding model this store embeds queries with and filters
+	// document vectors by. Callers that reach the document vectors by some other
+	// route — a benchmark template reading article_embeddings directly — check
+	// their own model against it, since a query vector compared against another
+	// model's document vectors is valid arithmetic and meaningless ranking.
+	Model() string
 }
 
 // HNSW build parameters, declared so both engines index at the same point

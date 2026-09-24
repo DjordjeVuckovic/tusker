@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
@@ -82,6 +83,12 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 	if err := requireEmbedder(bs, vectorStore); err != nil {
 		return err
 	}
+	// The declared model reaches the SQL as a literal; the store embeds the
+	// query. A dry run that renders them apart would report OK on queries that
+	// rank across two vector spaces.
+	if err := runner.VerifyEmbeddingModel(bs.Engines, vectorStore); err != nil {
+		return err
+	}
 
 	executors, cleanup, err := createExecutors(cmd.Context(), bs)
 	if err != nil {
@@ -115,8 +122,14 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 				}
 				seen[key] = struct{}{}
 
-				row := validateRow{queryID: q.ID, engine: engName}
-				row = validateOne(cmd.Context(), row, q, bs.QueryBinding(engName), ls, executors[engName], vectorStore)
+				row := validateOne(cmd.Context(), validateInput{
+					query:      q,
+					engineName: engName,
+					binding:    bs.QueryBinding(engName),
+					loaded:     ls,
+					executor:   executors[engName],
+					store:      vectorStore,
+				})
 				rows = append(rows, row)
 				if row.status != "OK" && row.status != "SKIP" {
 					failures++
@@ -143,13 +156,27 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 	return nil
 }
 
-func validateOne(ctx context.Context, row validateRow, q suite.Query, binding spec.QueryBinding, ls *suite.LoadedSuite, exec engine.Executor, store storage.VectorStore) validateRow {
+// validateInput is one (query, engine) pair to dry-run, with everything needed
+// to resolve and check it.
+type validateInput struct {
+	query      suite.Query
+	engineName string
+	binding    spec.QueryBinding
+	loaded     *suite.LoadedSuite
+	executor   engine.Executor
+	store      storage.VectorStore
+}
+
+func validateOne(ctx context.Context, in validateInput) validateRow {
+	q, exec := in.query, in.executor
+	row := validateRow{queryID: q.ID, engine: in.engineName}
+
 	var extra suite.TemplateParams
 	if q.NeedsQueryVector() {
-		if store != nil {
+		if in.store != nil {
 			// Embed the real query so dimensionality (a 1-dim stub vs VECTOR(1024))
 			// is exercised here, not deferred to pool/run.
-			vec, err := store.QueryVector(ctx, q.Description)
+			vec, err := in.store.QueryVector(ctx, q.Description)
 			if err != nil {
 				row.status = "EMBED_ERR"
 				row.detail = truncate(err.Error(), 120)
@@ -164,10 +191,10 @@ func validateOne(ctx context.Context, row validateRow, q suite.Query, binding sp
 		}
 	}
 	resolved, err := q.ResolveEngineQuery(suite.ResolveOptions{
-		Engine:   binding.QuerySource,
-		Registry: ls.Registry,
-		SuiteDir: ls.Dir,
-		Defaults: binding.Params,
+		Engine:   in.binding.QuerySource,
+		Registry: in.loaded.Registry,
+		SuiteDir: in.loaded.Dir,
+		Defaults: in.binding.Params,
 		Extra:    extra,
 	})
 	if err != nil {

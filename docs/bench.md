@@ -124,6 +124,30 @@ An arm has to exist before `bench pool`, not just before `bench run`. Each engin
 its own top-K to the pool; added afterwards, the documents only it ranks highly come back
 Unjudged and its NDCG reads low for a reason that has nothing to do with its ranking.
 
+#### `embedding_model`
+
+`embedding_model` is the param a vector track has to declare:
+
+```yaml
+engines:
+  pgvector-cosine:
+    type: postgres
+    connection: "postgresql://…"
+    params:
+      embedding_model: "qwen3-embedding:0.6b"
+```
+
+`article_embeddings` is keyed `(article_id, model_name)`, so vectors from two models coexist
+in it by design, and the vector templates filter with `WHERE model_name = '{{embedding_model}}'`
+rather than ranking across both spaces. The declared value is checked against the model that
+embeds the query (`EMBEDDING_MODEL`, defaulting to `qwen3-embedding:0.6b`) before `validate`,
+`pool` or `run` touches an engine, and a disagreement fails: comparing vectors from two models
+is arithmetic that succeeds and ranks nothing.
+
+The Elasticsearch arm needs no such filter — its vector is a `dense_vector` field on the
+article document, so re-embedding overwrites rather than accumulates — but it declares
+`embedding_model` too, so the spec records what every arm was measured against.
+
 ## Pipeline
 
 ```

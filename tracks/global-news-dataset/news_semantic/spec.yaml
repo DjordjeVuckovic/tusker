@@ -11,12 +11,18 @@ defaults:
 
 # pgvector defaults hnsw.ef_search to 40, below the LIMIT of 50 this suite asks
 # for. 200 matches the num_candidates Elasticsearch is given.
+#
+# embedding_model states which model's vectors each arm was measured against.
+# The PG templates filter article_embeddings by it; every arm is checked against
+# the model that embeds the query, and a disagreement fails the run.
 engines:
   pgvector-cosine:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
     connection_settings:
       hnsw.ef_search: "200"
+    params:
+      embedding_model: "qwen3-embedding:0.6b"
   # Ground truth for the ANN arm: same query, same operator, no index, so it
   # returns the true nearest neighbours. Recall of pgvector-cosine against this
   # is what the HNSW speedup costs.
@@ -25,10 +31,14 @@ engines:
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
     connection_settings:
       enable_indexscan: "off"
+    params:
+      embedding_model: "qwen3-embedding:0.6b"
   elasticsearch:
     type: elasticsearch
     connection: "http://localhost:9200"
     index: articles
+    params:
+      embedding_model: "qwen3-embedding:0.6b"
 
 metrics:
   k_values: [3, 5, 10]

@@ -12,6 +12,11 @@ import (
 type fakeVectorStore struct {
 	query []float32
 	docs  map[uuid.UUID][]float32
+	model string
+}
+
+func (f fakeVectorStore) Model() string {
+	return f.model
 }
 
 func (f fakeVectorStore) QueryVector(context.Context, string) ([]float32, error) {

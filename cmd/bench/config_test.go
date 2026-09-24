@@ -11,12 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type stubVectorStore struct{}
+type stubVectorStore struct{ model string }
 
 func (stubVectorStore) QueryVector(context.Context, string) ([]float32, error) { return nil, nil }
 func (stubVectorStore) DocVectors(context.Context, []uuid.UUID) (map[uuid.UUID][]float32, error) {
 	return nil, nil
 }
+func (s stubVectorStore) Model() string { return s.model }
 
 func TestRequireEmbedder(t *testing.T) {
 	t.Run("semantic without store fails", func(t *testing.T) {

@@ -18,11 +18,18 @@ corpus:
 #
 # Every ES block sets "size" to knn.k. Without it ES returns its default of 10
 # hits regardless of k, capping AP and Bpref at 10/R.
+#
+# article_embeddings is keyed (article_id, model_name), so two models coexist in
+# it by design and an unfiltered scan would rank across both vector spaces.
+# {{embedding_model}} comes from the engine's params in spec.yaml. The ES arm
+# needs no equivalent: the vector is a field on the article document, so a second
+# model overwrites rather than joins.
 
 templates:
   - id: pgvector_cosine
     query: |
       SELECT article_id AS id FROM article_embeddings
+      WHERE model_name = '{{embedding_model}}'
       ORDER BY embedding <=> '{{embedding}}'::vector
       LIMIT {{limit}}
 
