@@ -9,5 +9,6 @@ CREATE TABLE article_embeddings
     created_at TIMESTAMP WITH TIME ZONE          DEFAULT now(),
     UNIQUE (article_id, model_name)
 );
-CREATE INDEX idx_article_embedding ON article_embeddings USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_article_embedding ON article_embeddings USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
 COMMIT;
