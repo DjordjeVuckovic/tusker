@@ -92,3 +92,7 @@ func (s *VectorStore) DocVectors(ctx context.Context, ids []uuid.UUID) (map[uuid
 
 	return out, nil
 }
+
+func (s *VectorStore) Model() string {
+	return s.model
+}

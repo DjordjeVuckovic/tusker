@@ -22,6 +22,13 @@ corpus:
 #   paradedb-hybrid (db/parade_migrations):
 #     - articles + BM25 index on (id, title, subtitle, content, description) -> @@@ component
 #     - article_embeddings (VECTOR(1024)) with an HNSW cosine idx            -> vector component
+#
+# The table is keyed (article_id, model_name), so two models coexist in it by
+# design and an unfiltered vec_ranked would fuse across both vector spaces.
+# {{embedding_model}} comes from the engine's params in spec.yaml, and since the
+# two PG engines are separate instances each declares what was loaded into it.
+# The ES arm needs no equivalent: its vector is a field on the article document,
+# so a second model overwrites rather than joins.
 
 templates:
   # pg-rrf: Reciprocal Rank Fusion of FTS + vector using CTEs.
@@ -37,6 +44,7 @@ templates:
       vec_ranked AS (
         SELECT article_id AS id, ROW_NUMBER() OVER (ORDER BY embedding <=> '{{embedding}}'::vector) AS rank
         FROM article_embeddings
+        WHERE model_name = '{{embedding_model}}'
         LIMIT {{pool_size}}
       ),
       rrf AS (
@@ -62,6 +70,7 @@ templates:
       vec_ranked AS (
         SELECT article_id AS id, ROW_NUMBER() OVER (ORDER BY embedding <=> '{{embedding}}'::vector) AS rank
         FROM article_embeddings
+        WHERE model_name = '{{embedding_model}}'
         LIMIT {{pool_size}}
       ),
       rrf AS (

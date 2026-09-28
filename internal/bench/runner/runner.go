@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/google/uuid"
 )
 
@@ -27,6 +30,10 @@ func (r *Runner) RunAll(
 	bs *spec.BenchSpec,
 	executors map[string]engine.Executor,
 ) (*BenchmarkResult, error) {
+	if err := VerifyEmbeddingModel(bs.Engines, r.config.VectorStore); err != nil {
+		return nil, err
+	}
+
 	br := &BenchmarkResult{Config: r.config}
 
 	bindings := queryBindings(bs)
@@ -57,6 +64,28 @@ func (r *Runner) RunAll(
 	}
 
 	return br, nil
+}
+
+// VerifyEmbeddingModel rejects an engine that declares a different embedding
+// model from the one the store embeds queries with. A vector template filters
+// document vectors by the declared model while the query is embedded by the
+// store, so a disagreement means every cosine distance is computed across two
+// vector spaces — arithmetic that succeeds and ranks nothing. Engines that
+// declare no model, and tracks with no store at all, are left alone.
+func VerifyEmbeddingModel(engines map[string]spec.Engine, store storage.VectorStore) error {
+	if store == nil {
+		return nil
+	}
+	for _, name := range slices.Sorted(maps.Keys(engines)) {
+		declared, _ := engines[name].Params[suite.EmbeddingModelParam].(string)
+		if declared == "" || declared == store.Model() {
+			continue
+		}
+		return fmt.Errorf(
+			"engine %q declares %s %q but queries are embedded with %q: set EMBEDDING_MODEL to the declared model or fix the spec",
+			name, suite.EmbeddingModelParam, declared, store.Model())
+	}
+	return nil
 }
 
 // queryBindings resolves every engine's query block and declared params once,

@@ -18,6 +18,12 @@ import (
 // as a JSON array.
 const ReservedQueryVectorParam = "precomputed"
 
+// EmbeddingModelParam names the engine-level param carrying the embedding model
+// an arm is measured against. article_embeddings is keyed (article_id,
+// model_name), so a vector template filters on it and the runner refuses to run
+// an engine whose declared value disagrees with the model embedding the query.
+const EmbeddingModelParam = "embedding_model"
+
 type TestSuite struct {
 	SchemaVersion int              `yaml:"schema_version"`
 	ID            string           `yaml:"id"`
