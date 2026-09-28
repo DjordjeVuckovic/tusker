@@ -5,12 +5,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/DjordjeVuckovic/tusker/internal/bench/version"
 )
 
 func WriteJSON(r *Report, path string) error {
 	data, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal report: %w", err)
+	}
+	if dir := filepath.Dir(path); dir != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("mkdir %s: %w", dir, err)
+		}
 	}
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return fmt.Errorf("write report: %w", err)
@@ -26,6 +33,9 @@ func ReadJSON(path string) (*Report, error) {
 	var r Report
 	if err := json.Unmarshal(data, &r); err != nil {
 		return nil, fmt.Errorf("parse report %s: %w", path, err)
+	}
+	if err := version.CheckSchema(r.SchemaVersion, "report"); err != nil {
+		return nil, fmt.Errorf("read report %s: %w", path, err)
 	}
 	return &r, nil
 }

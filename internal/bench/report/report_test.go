@@ -536,3 +536,26 @@ func TestGenerate_ByCategoryEmptyForSingleCategory(t *testing.T) {
 		t.Errorf("len(ByCategory) = %d, want 0 when every query shares one category", got)
 	}
 }
+
+func TestWriteJSON_CreatesMissingReportsDirectory(t *testing.T) {
+	br := makeBenchmarkResult([]string{"pg"}, []string{"q1"}, nil)
+	path := filepath.Join(t.TempDir(), "reports", "2026-05-28T00-00-00-run-test01.json")
+
+	if err := WriteJSON(Generate(br, nil), path); err != nil {
+		t.Fatalf("WriteJSON into a track with no reports/ directory: %v", err)
+	}
+	if _, err := ReadJSON(path); err != nil {
+		t.Fatalf("ReadJSON: %v", err)
+	}
+}
+
+func TestReadJSON_RejectsReportWithoutSchemaVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "report.json")
+	if err := os.WriteFile(path, []byte(`{"provenance":{"spec_id":"x"}}`), 0644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	if _, err := ReadJSON(path); err == nil {
+		t.Fatal("ReadJSON accepted a report with no schema_version")
+	}
+}
