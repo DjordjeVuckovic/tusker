@@ -71,6 +71,39 @@ type Engine struct {
 	// ConnectionSettings are GUCs pinning the operating point a postgres engine
 	// is measured at, e.g. hnsw.ef_search. See docs/bench.md.
 	ConnectionSettings map[string]string `yaml:"connection_settings,omitempty"`
+	// Params are template defaults for every query this engine runs, overridden
+	// by the query's own params. Two engines differing only in a ranking
+	// argument declare it here instead of in every query block.
+	//
+	// Typed as map[string]any rather than suite.TemplateParams so spec keeps no
+	// dependency on suite; the two are identical and convert at the call site.
+	Params map[string]any `yaml:"params,omitempty"`
+	// QueriesFrom names the engine whose per-query engines: block this engine
+	// reuses, so an A/B arm cannot drift from the arm it is compared against.
+	QueriesFrom string `yaml:"queries_from,omitempty"`
+}
+
+// QueryBinding is how one engine reaches its queries: the engine whose
+// per-query block supplies the query text, and the params that engine
+// contributes as template defaults.
+type QueryBinding struct {
+	QuerySource string
+	Params      map[string]any
+}
+
+// QueryBinding resolves engine aliasing for the named engine. Aliasing is one
+// level deep — validate rejects a chain — so this never walks a graph. An
+// undeclared engine binds to itself, leaving the "unknown engine" error to the
+// caller that owns it.
+func (s *BenchSpec) QueryBinding(name string) QueryBinding {
+	eng, ok := s.Engines[name]
+	if !ok {
+		return QueryBinding{QuerySource: name}
+	}
+	if eng.QueriesFrom != "" {
+		return QueryBinding{QuerySource: eng.QueriesFrom, Params: eng.Params}
+	}
+	return QueryBinding{QuerySource: name, Params: eng.Params}
 }
 
 type MetricsConfig struct {

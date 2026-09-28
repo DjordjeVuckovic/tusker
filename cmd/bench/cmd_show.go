@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
@@ -304,10 +305,11 @@ func showJudgments(w io.Writer, jf *judgment.File) {
 func showSpec(w io.Writer, bs *spec.BenchSpec) {
 	fmt.Fprintln(w, "Engines:")
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "  NAME\tTYPE\tCONNECTION\tINDEX")
+	fmt.Fprintln(tw, "  NAME\tTYPE\tCONNECTION\tINDEX\tQUERIES FROM\tPARAMS")
 	for _, name := range sortedSpecKeys(bs.Engines) {
 		e := bs.Engines[name]
-		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\n", name, e.Type, maskConn(e.Connection), e.Index)
+		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n",
+			name, e.Type, maskConn(e.Connection), e.Index, e.QueriesFrom, formatEngineParams(e.Params))
 	}
 	tw.Flush()
 
@@ -379,6 +381,24 @@ func sortedSpecKeys(m map[string]spec.Engine) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// formatEngineParams renders engine params key-sorted so two arms of an A/B can
+// be compared line by line.
+func formatEngineParams(params map[string]any) string {
+	if len(params) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(params))
+	for k := range params {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	pairs := make([]string, len(keys))
+	for i, k := range keys {
+		pairs[i] = fmt.Sprintf("%s=%v", k, params[k])
+	}
+	return strings.Join(pairs, " ")
 }
 
 func maskConn(s string) string {
