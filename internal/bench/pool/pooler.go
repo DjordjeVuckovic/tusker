@@ -1,6 +1,9 @@
 package pool
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/google/uuid"
@@ -55,4 +58,47 @@ func PoolResults(results map[string]*engine.Execution, depth int) []PooledDoc {
 		docs = append(docs, *seen[id])
 	}
 	return docs
+}
+
+// ShallowEngine is an engine whose deepest contribution to the pool fell short
+// of the requested depth.
+type ShallowEngine struct {
+	Name        string
+	MaxReturned int
+}
+
+// ShallowEngines reports the largest number of documents each engine
+// contributed to any one query, for engines that never reached depth. A pool
+// stamped meta.pool_depth: D overstates those engines: nothing they ranked
+// went D deep.
+//
+// It reports the count and nothing more. A template capping its LIMIT below D
+// and a query that genuinely matches few documents are indistinguishable here,
+// and which one it is belongs to the reader.
+func ShallowEngines(pf *PoolFile, depth int) []ShallowEngine {
+	if pf == nil || depth <= 0 {
+		return nil
+	}
+	maxByEngine := map[string]int{}
+	for _, entry := range pf.Queries {
+		perQuery := map[string]int{}
+		for _, doc := range entry.Docs {
+			for _, src := range doc.Sources {
+				perQuery[src]++
+			}
+		}
+		for name, n := range perQuery {
+			if n > maxByEngine[name] {
+				maxByEngine[name] = n
+			}
+		}
+	}
+
+	var shallow []ShallowEngine
+	for _, name := range slices.Sorted(maps.Keys(maxByEngine)) {
+		if maxByEngine[name] < depth {
+			shallow = append(shallow, ShallowEngine{Name: name, MaxReturned: maxByEngine[name]})
+		}
+	}
+	return shallow
 }
