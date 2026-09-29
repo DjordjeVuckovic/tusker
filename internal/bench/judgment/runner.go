@@ -148,7 +148,10 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 	}
 
 	q := GradingQuery{ID: entry.QueryID, Description: entry.QueryDesc, Category: entry.Category}
-	gradedByID := r.dispatch(ctx, q, todo, docs)
+	gradedByID, err := r.dispatch(ctx, q, todo, docs)
+	if err != nil {
+		return ge, prog, err
+	}
 
 	// Append in original pool order — keeps doc ordering stable across runs.
 	for _, pd := range todo {
@@ -169,7 +172,7 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 // Per-doc path uses bounded concurrency. Batched path uses sequential calls
 // because each call is already a large LLM operation — parallelising buys
 // little and increases the rate-limit risk.
-func (r *Runner) dispatch(ctx context.Context, q GradingQuery, todo []pool.PooledDoc, docs map[uuid.UUID]GradingDoc) map[uuid.UUID]int {
+func (r *Runner) dispatch(ctx context.Context, q GradingQuery, todo []pool.PooledDoc, docs map[uuid.UUID]GradingDoc) (map[uuid.UUID]int, error) {
 	gradedByID := make(map[uuid.UUID]int, len(todo))
 
 	gradables := make([]GradingDoc, 0, len(todo))
@@ -184,14 +187,16 @@ func (r *Runner) dispatch(ctx context.Context, q GradingQuery, todo []pool.Poole
 	}
 
 	if bs, ok := r.cfg.Strategy.(BatchStrategy); ok {
-		r.runBatched(ctx, bs, q, gradables, gradedByID)
+		if err := r.runBatched(ctx, bs, q, gradables, gradedByID); err != nil {
+			return nil, err
+		}
 	} else {
 		r.runPerDoc(ctx, r.cfg.Strategy, q, gradables, gradedByID)
 	}
-	return gradedByID
+	return gradedByID, nil
 }
 
-func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuery, gradables []GradingDoc, into map[uuid.UUID]int) {
+func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuery, gradables []GradingDoc, into map[uuid.UUID]int) error {
 	size := r.cfg.BatchSize
 	if size <= 0 {
 		size = bs.PreferredBatchSize()
@@ -202,11 +207,19 @@ func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuer
 
 	batches := chunk(gradables, size)
 	for i, batch := range batches {
-		if ctx.Err() != nil {
-			return
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		histo := map[int]int{}
 		results, err := bs.GradeBatch(ctx, q, batch)
+
+		// A width mismatch is a property of the models, not of this batch, so
+		// every remaining document would fail the same way. Retrying per-doc
+		// would bury it and still write a complete annotations file.
+		var width *VectorWidthError
+		if errors.As(err, &width) {
+			return err
+		}
 
 		// Partial batch — keep what came back, retry the missing IDs per-doc.
 		var partial *PartialBatchError
@@ -246,6 +259,7 @@ func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuer
 			})
 		}
 	}
+	return nil
 }
 
 func (r *Runner) runPerDoc(ctx context.Context, s Strategy, q GradingQuery, docs []GradingDoc, into map[uuid.UUID]int) {

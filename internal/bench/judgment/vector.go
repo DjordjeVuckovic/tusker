@@ -97,7 +97,49 @@ func (s VectorStrategy) vectors(ctx context.Context, q GradingQuery, docs []Grad
 	if err != nil {
 		return nil, nil, fmt.Errorf("fetch doc vectors: %w", err)
 	}
+	if err := checkVectorWidths(q.ID, qVec, docs, vecs); err != nil {
+		return nil, nil, err
+	}
 	return qVec, vecs, nil
+}
+
+// VectorWidthError reports a query vector and a stored document vector of
+// different widths. Cosine over them is meaningless, and because the widths
+// come from the models rather than the document, every remaining document
+// fails the same way — so the judge runner stops on this instead of falling
+// back per-doc and writing an annotations file in which nothing is relevant.
+type VectorWidthError struct {
+	QueryID    string
+	DocID      uuid.UUID
+	QueryWidth int
+	DocWidth   int
+}
+
+func (e *VectorWidthError) Error() string {
+	if e.QueryWidth == 0 {
+		return fmt.Sprintf("query %q embedded to an empty vector: the embedding endpoint returned no dimensions", e.QueryID)
+	}
+	return fmt.Sprintf(
+		"query %q embeds to %d dimensions but document %s is stored with %d: the query embedder and the stored vectors are different models",
+		e.QueryID, e.QueryWidth, e.DocID, e.DocWidth)
+}
+
+// checkVectorWidths walks the documents in pool order so the error names the
+// same document on every run.
+func checkVectorWidths(queryID string, qVec []float32, docs []GradingDoc, vecs map[uuid.UUID][]float32) error {
+	if len(qVec) == 0 {
+		return &VectorWidthError{QueryID: queryID}
+	}
+	for _, d := range docs {
+		dv, ok := vecs[d.ID]
+		if !ok {
+			continue
+		}
+		if len(dv) != len(qVec) {
+			return &VectorWidthError{QueryID: queryID, DocID: d.ID, QueryWidth: len(qVec), DocWidth: len(dv)}
+		}
+	}
+	return nil
 }
 
 func errNoVectorStore(kind StrategyKind) error {

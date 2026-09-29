@@ -117,6 +117,12 @@ func poolTrack(cmd *cobra.Command, f poolFlags, tr *trackctx.Track) error {
 	if outPath == "" {
 		outPath = tr.Pool
 	}
+	for _, se := range pool.ShallowEngines(pf, depth) {
+		printWarn(cmd.OutOrStdout(), fmt.Sprintf(
+			"engine %s contributed at most %d documents to any query; its pool is %d deep, not the %d stamped on meta.pool_depth",
+			se.Name, se.MaxReturned, se.MaxReturned, depth))
+	}
+
 	if err := pool.WritePoolFile(pf, outPath); err != nil {
 		return fmt.Errorf("write pool: %w", err)
 	}
