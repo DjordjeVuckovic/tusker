@@ -168,6 +168,10 @@ func (p *ArticlePipeline) embedBatch(ctx context.Context, articles []document.Ar
 	embeds := make([]*embedding.Vec, 0, len(articles))
 	for _, a := range articles {
 		embed, err := p.embedder.EmbedDoc(ctx, a)
+		if errors.Is(err, embedding.ErrNothingToEmbed) {
+			slog.Info("Skipping article with nothing to embed", "article_id", a.ID, "pipeline", p.config.Name)
+			continue
+		}
 		if err != nil {
 			slog.Error("Error generating embedding for article",
 				"error", err,
