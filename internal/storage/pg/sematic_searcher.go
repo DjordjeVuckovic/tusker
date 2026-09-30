@@ -42,6 +42,7 @@ func (s *SemanticSearcher) SearchSemantic(ctx context.Context, query *query.Sema
 				   embedding <=> $1 AS distance
 			FROM article_embeddings
 			WHERE embedding <=> $1 < $2
+			  AND model_name = $4
 			ORDER BY embedding <=> $1
 			LIMIT $3
 		) e
@@ -60,9 +61,10 @@ func (s *SemanticSearcher) SearchSemantic(ctx context.Context, query *query.Sema
 		vecEncoded,
 		threshold,
 		baseOpts.Size,
+		vec.Model,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to execute semantic search query: %w", err)
 	}
 	defer rows.Close()
 

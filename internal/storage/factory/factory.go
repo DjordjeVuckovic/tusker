@@ -110,7 +110,7 @@ func NewReader(ctx context.Context, cfg StorageConfig) (storage.Reader, error) {
 	return pg.NewArticleReader(pool), nil
 }
 
-func NewSemanticSearcher(ctx context.Context, cfg StorageConfig, client embedding.Client) (storage.SemanticSearcher, error) {
+func NewSemanticSearcher(ctx context.Context, cfg StorageConfig, embedder *embedding.Embedder) (storage.SemanticSearcher, error) {
 	switch cfg.Type {
 	case storage.PG:
 		pgConfig := pg.PoolConfig{
@@ -123,8 +123,6 @@ func NewSemanticSearcher(ctx context.Context, cfg StorageConfig, client embeddin
 			return nil, fmt.Errorf("failed to create PostgreSQL connection pool: %w", err)
 		}
 
-		embedder := embedding.NewEmbedder(client, embedding.WithExecutorMaxLength(1024))
-
 		return pg.NewSemanticSearcher(embedder, pool), nil
 
 	case storage.ES:
@@ -132,13 +130,7 @@ func NewSemanticSearcher(ctx context.Context, cfg StorageConfig, client embeddin
 			return nil, fmt.Errorf("elasticsearch config is not set")
 		}
 
-		model := embedding.DefaultModel
-		embedder := embedding.NewEmbedder(client,
-			embedding.WithExecutorMaxLength(1024),
-			embedding.WithExecutorModel(model),
-		)
-
-		return es.NewSemanticSearcher(*cfg.Es, embedder, model)
+		return es.NewSemanticSearcher(*cfg.Es, embedder, embedder.Model())
 
 	case storage.Solr:
 		return nil, fmt.Errorf("solr semantic searcher not yet implemented")
@@ -151,7 +143,7 @@ func NewSemanticSearcher(ctx context.Context, cfg StorageConfig, client embeddin
 	}
 }
 
-func NewHybridSearcher(ctx context.Context, cfg StorageConfig, client embedding.Client) (storage.HybridSearcher, error) {
+func NewHybridSearcher(ctx context.Context, cfg StorageConfig, embedder *embedding.Embedder) (storage.HybridSearcher, error) {
 	switch cfg.Type {
 	case storage.PG:
 		pgConfig := pg.PoolConfig{
@@ -164,8 +156,6 @@ func NewHybridSearcher(ctx context.Context, cfg StorageConfig, client embedding.
 			return nil, fmt.Errorf("failed to create PostgreSQL connection pool: %w", err)
 		}
 
-		embedder := embedding.NewEmbedder(client, embedding.WithExecutorMaxLength(1024))
-
 		return pg.NewHybridSearcher(embedder, pool), nil
 
 	case storage.ES:
@@ -173,13 +163,7 @@ func NewHybridSearcher(ctx context.Context, cfg StorageConfig, client embedding.
 			return nil, fmt.Errorf("elasticsearch config is not set")
 		}
 
-		model := embedding.DefaultModel
-		embedder := embedding.NewEmbedder(client,
-			embedding.WithExecutorMaxLength(1024),
-			embedding.WithExecutorModel(model),
-		)
-
-		return es.NewHybridSearcher(*cfg.Es, embedder, model)
+		return es.NewHybridSearcher(*cfg.Es, embedder, embedder.Model())
 
 	case storage.Solr:
 		return nil, fmt.Errorf("solr hybrid searcher not yet implemented")

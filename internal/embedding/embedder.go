@@ -2,13 +2,19 @@ package embedding
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
+	"unicode"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
 )
+
+// ErrNothingToEmbed marks an article whose title and description are both empty.
+// Its vector would be the same for every such article and match any query alike.
+var ErrNothingToEmbed = errors.New("article has no title or description to embed")
 
 type Embedder struct {
 	maxLength *int
@@ -50,8 +56,15 @@ func WithExecutorMaxLength(length int) EmbedderOption {
 	}
 }
 
+func (e *Embedder) Model() string {
+	return e.model
+}
+
 func (e *Embedder) EmbedDoc(ctx context.Context, ar document.Article) (*Vec, error) {
 	prompt := mapDocToPrompt(ar)
+	if prompt == "" {
+		return nil, ErrNothingToEmbed
+	}
 
 	slog.Debug("Embedding document", "title", ar.Title, "content_length", len(ar.Content))
 
@@ -111,17 +124,22 @@ func (e *Embedder) EmbedQuery(ctx context.Context, query string) (*Vec, error) {
 	}, nil
 }
 
+// EmbedDocs skips articles with nothing to embed, so the result can be shorter
+// than docs; each Vec carries the ID of its article.
 func (e *Embedder) EmbedDocs(ctx context.Context, docs []document.Article) ([]Vec, error) {
-	if len(docs) == 0 {
+	embeddable := make([]document.Article, 0, len(docs))
+	prompts := make([]string, 0, len(docs))
+	for _, doc := range docs {
+		if prompt := mapDocToPrompt(doc); prompt != "" {
+			embeddable = append(embeddable, doc)
+			prompts = append(prompts, prompt)
+		}
+	}
+	if len(embeddable) == 0 {
 		return nil, nil
 	}
 
-	prompts := make([]string, len(docs))
-	for i, doc := range docs {
-		prompts[i] = mapDocToPrompt(doc)
-	}
-
-	slog.Debug("Bulk embedding documents", "count", len(docs))
+	slog.Debug("Bulk embedding documents", "count", len(embeddable), "skipped", len(docs)-len(embeddable))
 
 	resp, err := e.client.GenerateBatch(ctx, BatchRequest{
 		Model:   e.model,
@@ -131,11 +149,11 @@ func (e *Embedder) EmbedDocs(ctx context.Context, docs []document.Article) ([]Ve
 		return nil, err
 	}
 
-	if len(resp.Embeddings) != len(docs) {
-		return nil, fmt.Errorf("expected %d embeddings, got %d", len(docs), len(resp.Embeddings))
+	if len(resp.Embeddings) != len(embeddable) {
+		return nil, fmt.Errorf("expected %d embeddings, got %d", len(embeddable), len(resp.Embeddings))
 	}
 
-	vecs := make([]Vec, len(docs))
+	vecs := make([]Vec, len(embeddable))
 	for i, emb := range resp.Embeddings {
 		embedding := emb
 		if e.maxLength != nil && len(embedding) > *e.maxLength {
@@ -145,7 +163,7 @@ func (e *Embedder) EmbedDocs(ctx context.Context, docs []document.Article) ([]Ve
 		vecs[i] = Vec{
 			Embedding: embedding,
 			Model:     e.model,
-			ID:        docs[i].ID,
+			ID:        embeddable[i].ID,
 		}
 	}
 
@@ -153,10 +171,21 @@ func (e *Embedder) EmbedDocs(ctx context.Context, docs []document.Article) ([]Ve
 	return vecs, nil
 }
 
+// mapDocToPrompt must produce the same text as build_text in scripts/embed_corpus.py:
+// both paths store vectors under the same model name.
 func mapDocToPrompt(ar document.Article) string {
-	content, title := strings.TrimSpace(ar.Title), strings.TrimSpace(ar.Content)
-	// prop with higher weight must be at the end(qwen)
-	return fmt.Sprintf("%s\n%s", content, title)
+	parts := make([]string, 0, 2)
+	for _, field := range []string{ar.Title, ar.Description} {
+		if trimmed := strings.TrimFunc(field, isPythonSpace); trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// isPythonSpace matches str.isspace, which also counts the \x1c-\x1f separators.
+func isPythonSpace(r rune) bool {
+	return unicode.IsSpace(r) || (r >= 0x1c && r <= 0x1f)
 }
 
 func wrapWithInstruct(task, query string) string {

@@ -96,7 +96,11 @@ func (oc *OllamaClient) GenerateBatch(ctx context.Context, req BatchRequest) (*B
 		return nil, apperr.ValidationError{Err: fmt.Errorf("missing model name")}
 	}
 
-	oReq := OllamaBatchRequest(req)
+	oReq := OllamaBatchRequest{
+		Model:   req.Model,
+		Input:   req.Prompts,
+		Options: req.Options,
+	}
 
 	var resp BatchResponse
 	if err := oc.do(ctx, http.MethodPost, "/api/embed", oReq, &resp); err != nil {
@@ -108,7 +112,7 @@ func (oc *OllamaClient) GenerateBatch(ctx context.Context, req BatchRequest) (*B
 
 type OllamaBatchRequest struct {
 	Model   string         `json:"model"`
-	Prompts []string       `json:"prompts"`
+	Input   []string       `json:"input"`
 	Options map[string]any `json:"options,omitempty"`
 }
 
