@@ -124,18 +124,26 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 		return nil, fmt.Errorf("failed to execute search: %w", err)
 	}
 
-	maxScore := dquery.CalcSafeScore((*float64)(res.Hits.MaxScore))
-
-	articles, rawScores, err := r.mapToResult(res.Hits.Hits, maxScore)
+	page, err := searchResultPage(res.Hits, size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map search results to types: %w", err)
 	}
 
 	slog.Info("Es search results fetched",
-		"total_matches", res.Hits.Total.Value,
-		"returned_count", len(articles),
-		"max_score", *res.Hits.MaxScore,
-		"normalized_max", maxScore)
+		"total_matches", page.TotalMatches,
+		"returned_count", len(page.Hits),
+		"max_score", page.MaxScore)
+
+	return page, nil
+}
+
+// searchResultPage expects hits fetched with size+1: the extra hit only signals
+// that another page exists.
+func searchResultPage(hits types.HitsMetadata, size int) (*storage.SearchResult, error) {
+	articles, rawScores, err := mapToResult(hits.Hits, dquery.CalcSafeScore((*float64)(hits.MaxScore)))
+	if err != nil {
+		return nil, err
+	}
 
 	hasMore := len(articles) > size
 	if hasMore {
@@ -143,31 +151,31 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 		rawScores = rawScores[:size]
 	}
 
-	var nextCursor *dquery.Cursor
+	page := &storage.SearchResult{
+		Hits:    articles,
+		HasMore: hasMore,
+	}
+	if hits.Total != nil {
+		page.TotalMatches = hits.Total.Value
+	}
+	if hits.MaxScore != nil {
+		page.MaxScore = utils.RoundFloat64(float64(*hits.MaxScore), dquery.ScoreDecimalPlaces)
+	}
+	if len(articles) > 0 {
+		page.PageMaxScore = utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces)
+	}
 	if hasMore && len(articles) > 0 {
-		nextCursor = &dquery.Cursor{
+		page.NextCursor = &dquery.Cursor{
 			Score: rawScores[len(rawScores)-1],
 			ID:    articles[len(articles)-1].Article.ID,
 		}
 	}
-
-	return &storage.SearchResult{
-		Hits:         articles,
-		NextCursor:   nextCursor,
-		HasMore:      hasMore,
-		MaxScore:     utils.RoundFloat64(float64(*res.Hits.MaxScore), dquery.ScoreDecimalPlaces),
-		PageMaxScore: utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces),
-		TotalMatches: res.Hits.Total.Value,
-	}, nil
+	return page, nil
 }
 
-func (r *Searcher) mapToResult(hits []types.Hit, maxScore float64) ([]dto.ArticleSearchResult, []float64, error) {
-	if hits == nil {
-		return make([]dto.ArticleSearchResult, 0), make([]float64, 0), nil
-	}
-
-	var articles []dto.ArticleSearchResult
-	var rawScores []float64
+func mapToResult(hits []types.Hit, maxScore float64) ([]dto.ArticleSearchResult, []float64, error) {
+	articles := make([]dto.ArticleSearchResult, 0, len(hits))
+	rawScores := make([]float64, 0, len(hits))
 
 	for _, hit := range hits {
 		var doc ArticleDocument
@@ -175,8 +183,16 @@ func (r *Searcher) mapToResult(hits []types.Hit, maxScore float64) ([]dto.Articl
 			return nil, nil, fmt.Errorf("failed to unmarshal document: %w", err)
 		}
 
+		id, err := uuid.Parse(doc.ID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse document id %q: %w", doc.ID, err)
+		}
+		if hit.Score_ == nil {
+			return nil, nil, fmt.Errorf("document %s has no _score", doc.ID)
+		}
+
 		article := dto.Article{
-			ID:          uuid.MustParse(doc.ID),
+			ID:          id,
 			Title:       doc.Title,
 			Subtitle:    doc.Subtitle,
 			Content:     doc.Content,
@@ -195,15 +211,11 @@ func (r *Searcher) mapToResult(hits []types.Hit, maxScore float64) ([]dto.Articl
 		}
 
 		rawScore := float64(*hit.Score_)
-		normalizedRank := rawScore / maxScore
-
-		searchResult := dto.ArticleSearchResult{
+		articles = append(articles, dto.ArticleSearchResult{
 			Article:         article,
-			ScoreNormalized: normalizedRank,
-			Score:           float64(*hit.Score_),
-		}
-
-		articles = append(articles, searchResult)
+			ScoreNormalized: rawScore / maxScore,
+			Score:           rawScore,
+		})
 		rawScores = append(rawScores, rawScore)
 	}
 
@@ -286,41 +298,17 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 		return nil, fmt.Errorf("failed to execute match search: %w", err)
 	}
 
-	maxScore := dquery.CalcSafeScore((*float64)(res.Hits.MaxScore))
-
-	articles, rawScores, err := r.mapToResult(res.Hits.Hits, maxScore)
+	page, err := searchResultPage(res.Hits, size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map search results to types: %w", err)
 	}
 
 	slog.Info("ES match search results fetched",
-		"total_matches", res.Hits.Total.Value,
-		"returned_count", len(articles),
-		"max_score", *res.Hits.MaxScore,
-		"normalized_max", maxScore)
+		"total_matches", page.TotalMatches,
+		"returned_count", len(page.Hits),
+		"max_score", page.MaxScore)
 
-	hasMore := len(articles) > size
-	if hasMore {
-		articles = articles[:size]
-		rawScores = rawScores[:size]
-	}
-
-	var nextCursor *dquery.Cursor
-	if hasMore && len(articles) > 0 {
-		nextCursor = &dquery.Cursor{
-			Score: rawScores[len(rawScores)-1],
-			ID:    articles[len(articles)-1].Article.ID,
-		}
-	}
-
-	return &storage.SearchResult{
-		Hits:         articles,
-		NextCursor:   nextCursor,
-		HasMore:      hasMore,
-		MaxScore:     utils.RoundFloat64(float64(*res.Hits.MaxScore), dquery.ScoreDecimalPlaces),
-		PageMaxScore: utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces),
-		TotalMatches: res.Hits.Total.Value,
-	}, nil
+	return page, nil
 }
 
 // SearchFields implements storage.MultiMatchSearcher interface
@@ -401,41 +389,17 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 		return nil, fmt.Errorf("failed to execute multi_match search: %w", err)
 	}
 
-	maxScore := dquery.CalcSafeScore((*float64)(res.Hits.MaxScore))
-
-	articles, rawScores, err := r.mapToResult(res.Hits.Hits, maxScore)
+	page, err := searchResultPage(res.Hits, size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map search results to types: %w", err)
 	}
 
 	slog.Info("ES multi_match search results fetched",
-		"total_matches", res.Hits.Total.Value,
-		"returned_count", len(articles),
-		"max_score", *res.Hits.MaxScore,
-		"normalized_max", maxScore)
+		"total_matches", page.TotalMatches,
+		"returned_count", len(page.Hits),
+		"max_score", page.MaxScore)
 
-	hasMore := len(articles) > size
-	if hasMore {
-		articles = articles[:size]
-		rawScores = rawScores[:size]
-	}
-
-	var nextCursor *dquery.Cursor
-	if hasMore && len(articles) > 0 {
-		nextCursor = &dquery.Cursor{
-			Score: rawScores[len(rawScores)-1],
-			ID:    articles[len(articles)-1].Article.ID,
-		}
-	}
-
-	return &storage.SearchResult{
-		Hits:         articles,
-		NextCursor:   nextCursor,
-		HasMore:      hasMore,
-		MaxScore:     utils.RoundFloat64(float64(*res.Hits.MaxScore), dquery.ScoreDecimalPlaces),
-		PageMaxScore: utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces),
-		TotalMatches: res.Hits.Total.Value,
-	}, nil
+	return page, nil
 }
 
 // SearchPhrase implements storage.FtsSearcher interface
@@ -520,51 +484,17 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		return nil, fmt.Errorf("failed to execute phrase search: %w", err)
 	}
 
-	maxScore := dquery.CalcSafeScore((*float64)(res.Hits.MaxScore))
-
-	articles, rawScores, err := r.mapToResult(res.Hits.Hits, maxScore)
+	page, err := searchResultPage(res.Hits, size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map search results to types: %w", err)
 	}
 
 	slog.Info("ES phrase search results fetched",
-		"total_matches", res.Hits.Total.Value,
-		"returned_count", len(articles),
-		"max_score", res.Hits.MaxScore,
-		"normalized_max", maxScore)
+		"total_matches", page.TotalMatches,
+		"returned_count", len(page.Hits),
+		"max_score", page.MaxScore)
 
-	hasMore := len(articles) > size
-	if hasMore {
-		articles = articles[:size]
-		rawScores = rawScores[:size]
-	}
-
-	var nextCursor *dquery.Cursor
-	if hasMore && len(articles) > 0 {
-		nextCursor = &dquery.Cursor{
-			Score: rawScores[len(rawScores)-1],
-			ID:    articles[len(articles)-1].Article.ID,
-		}
-	}
-
-	// Handle case where no results found
-	var maxScoreValue float64
-	var pageMaxScore float64
-	if res.Hits.MaxScore != nil {
-		maxScoreValue = utils.RoundFloat64(float64(*res.Hits.MaxScore), dquery.ScoreDecimalPlaces)
-	}
-	if len(rawScores) > 0 {
-		pageMaxScore = utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces)
-	}
-
-	return &storage.SearchResult{
-		Hits:         articles,
-		NextCursor:   nextCursor,
-		HasMore:      hasMore,
-		MaxScore:     maxScoreValue,
-		PageMaxScore: pageMaxScore,
-		TotalMatches: res.Hits.Total.Value,
-	}, nil
+	return page, nil
 }
 
 func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
@@ -630,50 +560,17 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 		return nil, fmt.Errorf("failed to execute boolean search: %w", err)
 	}
 
-	maxScore := dquery.CalcSafeScore((*float64)(res.Hits.MaxScore))
-
-	articles, rawScores, err := r.mapToResult(res.Hits.Hits, maxScore)
+	page, err := searchResultPage(res.Hits, size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map search results to types: %w", err)
 	}
 
 	slog.Info("ES boolean search results fetched",
-		"total_matches", res.Hits.Total.Value,
-		"returned_count", len(articles),
-		"max_score", res.Hits.MaxScore,
-		"normalized_max", maxScore)
+		"total_matches", page.TotalMatches,
+		"returned_count", len(page.Hits),
+		"max_score", page.MaxScore)
 
-	hasMore := len(articles) > size
-	if hasMore {
-		articles = articles[:size]
-		rawScores = rawScores[:size]
-	}
-
-	var nextCursor *dquery.Cursor
-	if hasMore && len(articles) > 0 {
-		nextCursor = &dquery.Cursor{
-			Score: rawScores[len(rawScores)-1],
-			ID:    articles[len(articles)-1].Article.ID,
-		}
-	}
-
-	var maxScoreValue float64
-	var pageMaxScore float64
-	if res.Hits.MaxScore != nil {
-		maxScoreValue = utils.RoundFloat64(float64(*res.Hits.MaxScore), dquery.ScoreDecimalPlaces)
-	}
-	if len(rawScores) > 0 {
-		pageMaxScore = utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces)
-	}
-
-	return &storage.SearchResult{
-		Hits:         articles,
-		NextCursor:   nextCursor,
-		HasMore:      hasMore,
-		MaxScore:     maxScoreValue,
-		PageMaxScore: pageMaxScore,
-		TotalMatches: res.Hits.Total.Value,
-	}, nil
+	return page, nil
 }
 
 // Compile-time interface assertions
