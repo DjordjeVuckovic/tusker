@@ -56,6 +56,10 @@ func WithExecutorMaxLength(length int) EmbedderOption {
 	}
 }
 
+func (e *Embedder) Model() string {
+	return e.model
+}
+
 func (e *Embedder) EmbedDoc(ctx context.Context, ar document.Article) (*Vec, error) {
 	prompt := mapDocToPrompt(ar)
 	if prompt == "" {

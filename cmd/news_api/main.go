@@ -22,6 +22,8 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+const defaultQueryVectorLength = 1024
+
 func main() {
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 
@@ -67,7 +69,10 @@ func main() {
 			os.Exit(1)
 			return
 		}
-		semanticSearcher, err := factory.NewSemanticSearcher(s.Context(), cfg.StorageConfig, embedClient)
+		queryEmbedder := newQueryEmbedder(embedClient, cfg.EmbeddingConfig)
+		slog.Info("Embedding queries", "model", queryEmbedder.Model())
+
+		semanticSearcher, err := factory.NewSemanticSearcher(s.Context(), cfg.StorageConfig, queryEmbedder)
 		if err != nil {
 			slog.Error("Failed to create semantic searcher", "error", err)
 			os.Exit(1)
@@ -76,7 +81,7 @@ func main() {
 		routerOpts = append(routerOpts, router.WithSemanticSearcher(semanticSearcher))
 		slog.Info("Semantic search enabled")
 
-		hybridSearcher, err := factory.NewHybridSearcher(s.Context(), cfg.StorageConfig, embedClient)
+		hybridSearcher, err := factory.NewHybridSearcher(s.Context(), cfg.StorageConfig, queryEmbedder)
 		if err != nil {
 			slog.Warn("Hybrid search disabled: failed to create hybrid searcher", "error", err)
 		} else {
@@ -100,4 +105,19 @@ func main() {
 		s.Echo.Logger.Error("Failed to start server: ", err)
 		os.Exit(1)
 	}
+}
+
+// newQueryEmbedder embeds queries with the model the corpus was loaded with
+// (EMBEDDING_MODEL), since the searchers only compare against stored vectors
+// tagged with that model.
+func newQueryEmbedder(client embedding.Client, cfg embedding.Config) *embedding.Embedder {
+	maxLength := defaultQueryVectorLength
+	if cfg.MaxLength != nil {
+		maxLength = *cfg.MaxLength
+	}
+	opts := []embedding.EmbedderOption{embedding.WithExecutorMaxLength(maxLength)}
+	if cfg.Model != "" {
+		opts = append(opts, embedding.WithExecutorModel(cfg.Model))
+	}
+	return embedding.NewEmbedder(client, opts...)
 }
