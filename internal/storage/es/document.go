@@ -54,6 +54,9 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) ArticleDocument
 	if article.ID == uuid.Nil {
 		article.ID = uuid.New()
 	}
+	if article.Language == "" {
+		article.Language = b.defaultLanguage
+	}
 	return ArticleDocument{
 		ID:          article.ID.String(),
 		Title:       article.Title,

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
@@ -116,5 +117,24 @@ func assertDeclaredBuildParams(t *testing.T, client *elasticsearch.TypedClient, 
 	}
 	if vector.IndexOptions.EfConstruction == nil || *vector.IndexOptions.EfConstruction != storage.HNSWEfConstruction {
 		t.Errorf("index_options.ef_construction = %v, want %d", vector.IndexOptions.EfConstruction, storage.HNSWEfConstruction)
+	}
+}
+
+func TestIndexBuilder_MapsArticleLanguage(t *testing.T) {
+	tests := []struct {
+		name     string
+		language string
+		want     string
+	}{
+		{name: "empty language indexes as english like postgres", language: "", want: "english"},
+		{name: "explicit language is kept", language: "serbian", want: "serbian"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := NewIndexBuilder().mapToESDocument(document.Article{Title: "t", Language: tt.language})
+			if doc.Language != tt.want {
+				t.Errorf("language = %q, want %q", doc.Language, tt.want)
+			}
+		})
 	}
 }
