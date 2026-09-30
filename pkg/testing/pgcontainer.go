@@ -37,6 +37,7 @@ type postgresEngine struct {
 var (
 	nativeEngine   = postgresEngine{image: "pgvector/pgvector:pg18", migrationsDir: "migrations"}
 	paradeDBEngine = postgresEngine{image: "paradedb/paradedb:latest-pg18", migrationsDir: "parade_migrations"}
+	tigerEngine    = postgresEngine{image: "timescale/timescaledb-ha:pg18", migrationsDir: "tiger_migrations"}
 )
 
 func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
@@ -52,6 +53,12 @@ func NewPGContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer 
 func NewParadeDBContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer {
 	tb.Helper()
 	return newContainerWithCleanup(ctx, tb, paradeDBEngine)
+}
+
+// NewTigerContainerWithCleanup starts TimescaleDB with db/tiger_migrations applied.
+func NewTigerContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer {
+	tb.Helper()
+	return newContainerWithCleanup(ctx, tb, tigerEngine)
 }
 
 func newContainerWithCleanup(ctx context.Context, tb testing.TB, engine postgresEngine) *PGContainer {

@@ -2,6 +2,7 @@ package pg
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -28,23 +29,18 @@ var paradeCorpus = []paradeArticle{
 func newParadeDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	ctx := context.Background()
-	container := pkgtesting.NewParadeDBContainerWithCleanup(ctx, t)
-	pool, err := NewConnectionPool(ctx, PoolConfig{ConnStr: container.ConnString})
-	if err != nil {
-		t.Fatalf("connect to paradedb: %v", err)
-	}
-	t.Cleanup(pool.Close)
+	db := connectTo(t, pkgtesting.NewParadeDBContainerWithCleanup(ctx, t))
 
 	for i, a := range paradeCorpus {
-		_, err := pool.GetConn().Exec(ctx, `
+		_, err := db.Exec(ctx, `
 			INSERT INTO articles (title, description, content, url, published_at, metadata)
 			VALUES ($1, $2, $3, $4, $5::timestamptz, jsonb_build_object('sourceName', $6::text))`,
-			a.title, a.description, a.content, "https://example.com/"+string(rune('a'+i)), a.publishedAt, a.sourceName)
+			a.title, a.description, a.content, fmt.Sprintf("https://example.com/%d", i), a.publishedAt, a.sourceName)
 		if err != nil {
 			t.Fatalf("seed article %q: %v", a.title, err)
 		}
 	}
-	return pool.GetConn()
+	return db
 }
 
 func matchingTitles(t *testing.T, db *pgxpool.Pool, query string, args ...any) []string {
@@ -154,22 +150,8 @@ func TestParadeDBSearchIndex(t *testing.T) {
 	}
 
 	t.Run("source name filter runs inside the bm25 scan", func(t *testing.T) {
-		rows, err := db.Query(context.Background(), `EXPLAIN
-			SELECT id FROM articles
+		plan := explain(t, db, `SELECT id FROM articles
 			WHERE id @@@ paradedb.match('title', 'skies') AND metadata->>'sourceName' = 'bbc.com'`)
-		if err != nil {
-			t.Fatalf("explain: %v", err)
-		}
-		var lines []string
-		for rows.Next() {
-			var line string
-			if err := rows.Scan(&line); err != nil {
-				t.Fatalf("scan plan line: %v", err)
-			}
-			lines = append(lines, line)
-		}
-		rows.Close()
-		plan := strings.Join(lines, "\n")
 		if !strings.Contains(plan, `"field":"metadata.sourceName"`) {
 			t.Errorf("sourceName filter was not pushed into the bm25 index; plan:\n%s", plan)
 		}

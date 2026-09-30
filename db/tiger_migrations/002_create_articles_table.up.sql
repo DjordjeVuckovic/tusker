@@ -27,4 +27,5 @@ CREATE INDEX idx_articles_bm25 ON articles
     USING bm25 (search_text)
     WITH (text_config='english');
 CREATE INDEX idx_articles_published_at ON articles (published_at DESC NULLS LAST);
+CREATE INDEX idx_articles_source_name ON articles ((metadata->>'sourceName'));
 COMMIT;

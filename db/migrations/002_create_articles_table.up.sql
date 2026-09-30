@@ -17,4 +17,5 @@ CREATE TABLE articles
 CREATE INDEX idx_articles_search_vector ON articles
     USING gin (search_vector);
 CREATE INDEX idx_articles_published_at ON articles (published_at DESC NULLS LAST);
+CREATE INDEX idx_articles_source_name ON articles ((metadata->>'sourceName'));
 COMMIT;

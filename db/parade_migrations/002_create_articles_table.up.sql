@@ -30,4 +30,5 @@ CREATE INDEX idx_articles_search ON articles
     )
     WITH (key_field='id');
 CREATE INDEX idx_articles_published_at ON articles (published_at DESC NULLS LAST);
+CREATE INDEX idx_articles_source_name ON articles ((metadata->>'sourceName'));
 COMMIT;
