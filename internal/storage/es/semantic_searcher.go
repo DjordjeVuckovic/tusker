@@ -68,6 +68,9 @@ func (s *SemanticSearcher) SearchSemantic(ctx context.Context, query *dquery.Sem
 		K:             &k,
 		NumCandidates: &numCandidates,
 		Similarity:    &sim,
+		Filter: []types.Query{{
+			Term: map[string]types.TermQuery{"embedding_model": {Value: vec.Model}},
+		}},
 	}
 
 	slog.Info("Executing es semantic kNN search",
