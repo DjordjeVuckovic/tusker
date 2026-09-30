@@ -57,7 +57,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 	slog.Info("Computed global max score", "max_score", globalMaxScore, "total_matches", count)
 
 	var searchSQL string
-	var args []interface{}
+	var args []any
 
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
@@ -69,7 +69,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
 		`, rankExpr, whereClause)
-		args = []interface{}{query.Query, size + 1}
+		args = []any{query.Query, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
@@ -81,66 +81,16 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
 		`, rankExpr, whereClause, rankExpr)
-		args = []interface{}{query.Query, cursor.Score, cursor.ID, size + 1}
+		args = []any{query.Query, cursor.Score, cursor.ID, size + 1}
 	}
 
-	rows, err := r.db.Query(ctx, searchSQL, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute search query: %w", err)
-	}
-	defer rows.Close()
-
-	var articles []dto.ArticleSearchResult
-	var rawScores []float64
-
-	for rows.Next() {
-		var rawScore float64
-
-		article, err := pg.ScanArticle(rows, &rawScore)
-		if err != nil {
-			return nil, err
-		}
-
-		searchResult := dto.ArticleSearchResult{
-			Article:         *article,
-			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
-			ScoreNormalized: normalizedScore(rawScore, globalMaxScore),
-		}
-
-		articles = append(articles, searchResult)
-		rawScores = append(rawScores, rawScore)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
-	}
-
-	slog.Info("PG search results fetched",
-		"total_page_matches", len(articles),
-		"global_max_score", globalMaxScore)
-
-	hasMore := len(articles) > size
-	if hasMore {
-		articles = articles[:size]
-		rawScores = rawScores[:size]
-	}
-
-	var nextCursor *dquery.Cursor
-	if hasMore && len(articles) > 0 {
-		nextCursor = &dquery.Cursor{
-			Score: rawScores[len(rawScores)-1],
-			ID:    articles[len(articles)-1].Article.ID,
-		}
-	}
-
-	return &storage.SearchResult{
-		Hits:         articles,
-		NextCursor:   nextCursor,
-		HasMore:      hasMore,
-		MaxScore:     utils.RoundFloat64(globalMaxScore, dquery.ScoreDecimalPlaces),
-		PageMaxScore: utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces),
-		TotalMatches: count,
-	}, nil
+	return r.fetchPage(ctx, pageQuery{
+		sql:          searchSQL,
+		args:         args,
+		size:         size,
+		maxScore:     globalMaxScore,
+		totalMatches: count,
+	})
 }
 
 // SearchField implements storage.SingleMatchSearcher interface
@@ -186,7 +136,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	slog.Info("Computed global max score", "max_score", globalMaxScore, "total_matches", count)
 
 	var searchSQL string
-	var args []interface{}
+	var args []any
 
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
@@ -198,7 +148,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
 		`, rankExpr, whereClause)
-		args = []interface{}{query.Query, size + 1}
+		args = []any{query.Query, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
@@ -210,66 +160,16 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
 		`, rankExpr, whereClause, rankExpr)
-		args = []interface{}{query.Query, cursor.Score, cursor.ID, size + 1}
+		args = []any{query.Query, cursor.Score, cursor.ID, size + 1}
 	}
 
-	rows, err := r.db.Query(ctx, searchSQL, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute match search query: %w", err)
-	}
-	defer rows.Close()
-
-	var articles []dto.ArticleSearchResult
-	var rawScores []float64
-
-	for rows.Next() {
-		var rawScore float64
-
-		article, err := pg.ScanArticle(rows, &rawScore)
-		if err != nil {
-			return nil, err
-		}
-
-		searchResult := dto.ArticleSearchResult{
-			Article:         *article,
-			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
-			ScoreNormalized: normalizedScore(rawScore, globalMaxScore),
-		}
-
-		articles = append(articles, searchResult)
-		rawScores = append(rawScores, rawScore)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
-	}
-
-	slog.Info("PG match search results fetched",
-		"total_page_matches", len(articles),
-		"global_max_score", globalMaxScore)
-
-	hasMore := len(articles) > size
-	if hasMore {
-		articles = articles[:size]
-		rawScores = rawScores[:size]
-	}
-
-	var nextCursor *dquery.Cursor
-	if hasMore && len(articles) > 0 {
-		nextCursor = &dquery.Cursor{
-			Score: rawScores[len(rawScores)-1],
-			ID:    articles[len(articles)-1].Article.ID,
-		}
-	}
-
-	return &storage.SearchResult{
-		Hits:         articles,
-		NextCursor:   nextCursor,
-		HasMore:      hasMore,
-		MaxScore:     utils.RoundFloat64(globalMaxScore, dquery.ScoreDecimalPlaces),
-		PageMaxScore: utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces),
-		TotalMatches: count,
-	}, nil
+	return r.fetchPage(ctx, pageQuery{
+		sql:          searchSQL,
+		args:         args,
+		size:         size,
+		maxScore:     globalMaxScore,
+		totalMatches: count,
+	})
 }
 
 // SearchFields implements storage.MultiMatchSearcher interface
@@ -325,7 +225,7 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	slog.Info("Computed global max score", "max_score", globalMaxScore, "total_matches", count)
 
 	var searchSQL string
-	var args []interface{}
+	var args []any
 
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
@@ -337,7 +237,7 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
 		`, rankExpr, whereClause)
-		args = []interface{}{query.Query, size + 1}
+		args = []any{query.Query, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
@@ -349,66 +249,16 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
 		`, rankExpr, whereClause, rankExpr)
-		args = []interface{}{query.Query, cursor.Score, cursor.ID, size + 1}
+		args = []any{query.Query, cursor.Score, cursor.ID, size + 1}
 	}
 
-	rows, err := r.db.Query(ctx, searchSQL, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute multi_match search query: %w", err)
-	}
-	defer rows.Close()
-
-	var articles []dto.ArticleSearchResult
-	var rawScores []float64
-
-	for rows.Next() {
-		var rawScore float64
-
-		article, err := pg.ScanArticle(rows, &rawScore)
-		if err != nil {
-			return nil, err
-		}
-
-		searchResult := dto.ArticleSearchResult{
-			Article:         *article,
-			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
-			ScoreNormalized: normalizedScore(rawScore, globalMaxScore),
-		}
-
-		articles = append(articles, searchResult)
-		rawScores = append(rawScores, rawScore)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
-	}
-
-	slog.Info("PG multi_match search results fetched",
-		"total_page_matches", len(articles),
-		"global_max_score", globalMaxScore)
-
-	hasMore := len(articles) > size
-	if hasMore {
-		articles = articles[:size]
-		rawScores = rawScores[:size]
-	}
-
-	var nextCursor *dquery.Cursor
-	if hasMore && len(articles) > 0 {
-		nextCursor = &dquery.Cursor{
-			Score: rawScores[len(rawScores)-1],
-			ID:    articles[len(articles)-1].Article.ID,
-		}
-	}
-
-	return &storage.SearchResult{
-		Hits:         articles,
-		NextCursor:   nextCursor,
-		HasMore:      hasMore,
-		MaxScore:     utils.RoundFloat64(globalMaxScore, dquery.ScoreDecimalPlaces),
-		PageMaxScore: utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces),
-		TotalMatches: count,
-	}, nil
+	return r.fetchPage(ctx, pageQuery{
+		sql:          searchSQL,
+		args:         args,
+		size:         size,
+		maxScore:     globalMaxScore,
+		totalMatches: count,
+	})
 }
 
 // SearchPhrase implements storage.FtsSearcher interface
@@ -489,7 +339,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 			FROM articles
 			WHERE %s
 		`, rankExpr, whereClause)
-		maxArgs = []interface{}{query.Query}
+		maxArgs = []any{query.Query}
 	} else {
 		// For slop>0, query is already embedded in the expression
 		maxSQL = fmt.Sprintf(`
@@ -497,7 +347,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 			FROM articles
 			WHERE %s
 		`, rankExpr, whereClause)
-		maxArgs = []interface{}{}
+		maxArgs = []any{}
 	}
 
 	if err := r.db.QueryRow(ctx, maxSQL, maxArgs...).Scan(&globalMaxScore, &count); err != nil {
@@ -510,7 +360,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 	slog.Info("Computed global max score", "max_score", globalMaxScore, "total_matches", count)
 
 	var searchSQL string
-	var args []interface{}
+	var args []any
 
 	if slop == 0 {
 		// Exact phrase - use parameterized query
@@ -524,7 +374,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 				ORDER BY rank DESC, id DESC
 				LIMIT $2
 			`, rankExpr, whereClause)
-			args = []interface{}{query.Query, size + 1}
+			args = []any{query.Query, size + 1}
 		} else {
 			searchSQL = fmt.Sprintf(`
 				SELECT
@@ -536,7 +386,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 				ORDER BY rank DESC, id DESC
 				LIMIT $4
 			`, rankExpr, whereClause, rankExpr)
-			args = []interface{}{query.Query, cursor.Score, cursor.ID, size + 1}
+			args = []any{query.Query, cursor.Score, cursor.ID, size + 1}
 		}
 	} else {
 		// Slop > 0 - query is embedded in expression
@@ -550,7 +400,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 				ORDER BY rank DESC, id DESC
 				LIMIT $1
 			`, rankExpr, whereClause)
-			args = []interface{}{size + 1}
+			args = []any{size + 1}
 		} else {
 			searchSQL = fmt.Sprintf(`
 				SELECT
@@ -562,67 +412,17 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 				ORDER BY rank DESC, id DESC
 				LIMIT $3
 			`, rankExpr, whereClause, rankExpr)
-			args = []interface{}{cursor.Score, cursor.ID, size + 1}
+			args = []any{cursor.Score, cursor.ID, size + 1}
 		}
 	}
 
-	rows, err := r.db.Query(ctx, searchSQL, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute phrase search query: %w", err)
-	}
-	defer rows.Close()
-
-	var articles []dto.ArticleSearchResult
-	var rawScores []float64
-
-	for rows.Next() {
-		var rawScore float64
-
-		article, err := pg.ScanArticle(rows, &rawScore)
-		if err != nil {
-			return nil, err
-		}
-
-		searchResult := dto.ArticleSearchResult{
-			Article:         *article,
-			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
-			ScoreNormalized: normalizedScore(rawScore, globalMaxScore),
-		}
-
-		articles = append(articles, searchResult)
-		rawScores = append(rawScores, rawScore)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
-	}
-
-	slog.Info("PG phrase search results fetched",
-		"total_page_matches", len(articles),
-		"global_max_score", globalMaxScore)
-
-	hasMore := len(articles) > size
-	if hasMore {
-		articles = articles[:size]
-		rawScores = rawScores[:size]
-	}
-
-	var nextCursor *dquery.Cursor
-	if hasMore && len(articles) > 0 {
-		nextCursor = &dquery.Cursor{
-			Score: rawScores[len(rawScores)-1],
-			ID:    articles[len(articles)-1].Article.ID,
-		}
-	}
-
-	return &storage.SearchResult{
-		Hits:         articles,
-		NextCursor:   nextCursor,
-		HasMore:      hasMore,
-		MaxScore:     utils.RoundFloat64(globalMaxScore, dquery.ScoreDecimalPlaces),
-		PageMaxScore: utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces),
-		TotalMatches: count,
-	}, nil
+	return r.fetchPage(ctx, pageQuery{
+		sql:          searchSQL,
+		args:         args,
+		size:         size,
+		maxScore:     globalMaxScore,
+		totalMatches: count,
+	})
 }
 
 func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
@@ -665,7 +465,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 	slog.Info("Computed global max score", "max_score", globalMaxScore, "total_matches", count)
 
 	var searchSQL string
-	var args []interface{}
+	var args []any
 
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
@@ -677,7 +477,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
 		`, rankExpr, whereClause)
-		args = []interface{}{tsqueryStr, size + 1}
+		args = []any{tsqueryStr, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
@@ -689,66 +489,78 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
 		`, rankExpr, whereClause, rankExpr)
-		args = []interface{}{tsqueryStr, cursor.Score, cursor.ID, size + 1}
+		args = []any{tsqueryStr, cursor.Score, cursor.ID, size + 1}
 	}
 
-	rows, err := r.db.Query(ctx, searchSQL, args...)
+	return r.fetchPage(ctx, pageQuery{
+		sql:          searchSQL,
+		args:         args,
+		size:         size,
+		maxScore:     globalMaxScore,
+		totalMatches: count,
+	})
+}
+
+// pageQuery is a page of a ranked search whose SQL fetches size+1 rows: the
+// extra row only signals that another page exists. maxScore and totalMatches
+// describe every match, not just this page.
+type pageQuery struct {
+	sql          string
+	args         []any
+	size         int
+	maxScore     float64
+	totalMatches int64
+}
+
+// fetchPage returns an empty page when the cursor sits past every match, which
+// the match count, computed without the cursor, cannot tell.
+func (r *Searcher) fetchPage(ctx context.Context, q pageQuery) (*storage.SearchResult, error) {
+	rows, err := r.db.Query(ctx, q.sql, q.args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute boolean search query: %w", err)
+		return nil, fmt.Errorf("failed to execute search query: %w", err)
 	}
 	defer rows.Close()
 
-	var articles []dto.ArticleSearchResult
+	var hits []dto.ArticleSearchResult
 	var rawScores []float64
-
 	for rows.Next() {
 		var rawScore float64
-
 		article, err := pg.ScanArticle(rows, &rawScore)
 		if err != nil {
 			return nil, err
 		}
-
-		searchResult := dto.ArticleSearchResult{
+		hits = append(hits, dto.ArticleSearchResult{
 			Article:         *article,
 			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
-			ScoreNormalized: normalizedScore(rawScore, globalMaxScore),
-		}
-
-		articles = append(articles, searchResult)
+			ScoreNormalized: normalizedScore(rawScore, q.maxScore),
+		})
 		rawScores = append(rawScores, rawScore)
 	}
-
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
-	slog.Info("PG boolean search results fetched",
-		"total_page_matches", len(articles),
-		"global_max_score", globalMaxScore)
-
-	hasMore := len(articles) > size
-	if hasMore {
-		articles = articles[:size]
-		rawScores = rawScores[:size]
+	page := &storage.SearchResult{
+		MaxScore:     utils.RoundFloat64(q.maxScore, dquery.ScoreDecimalPlaces),
+		TotalMatches: q.totalMatches,
+	}
+	if len(hits) == 0 {
+		return page, nil
 	}
 
-	var nextCursor *dquery.Cursor
-	if hasMore && len(articles) > 0 {
-		nextCursor = &dquery.Cursor{
+	page.HasMore = len(hits) > q.size
+	if page.HasMore {
+		hits, rawScores = hits[:q.size], rawScores[:q.size]
+		page.NextCursor = &dquery.Cursor{
 			Score: rawScores[len(rawScores)-1],
-			ID:    articles[len(articles)-1].Article.ID,
+			ID:    hits[len(hits)-1].Article.ID,
 		}
 	}
+	page.Hits = hits
+	page.PageMaxScore = utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces)
 
-	return &storage.SearchResult{
-		Hits:         articles,
-		NextCursor:   nextCursor,
-		HasMore:      hasMore,
-		MaxScore:     utils.RoundFloat64(globalMaxScore, dquery.ScoreDecimalPlaces),
-		PageMaxScore: utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces),
-		TotalMatches: count,
-	}, nil
+	slog.Info("PG search page fetched", "page_hits", len(hits), "total_matches", q.totalMatches)
+	return page, nil
 }
 
 // normalizedScore is 0 when every match ranks 0, where the ratio would be NaN.
