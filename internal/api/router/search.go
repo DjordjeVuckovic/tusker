@@ -112,37 +112,38 @@ func (r *SearchRouter) capabilitiesHandler(c echo.Context) error {
 // @Example Response: {"hits": [...], "next_cursor": "eyJ...", "has_more": true, "total_matches": 1523}
 func (r *SearchRouter) searchHandler(c echo.Context) error {
 	// Support both 'q' (preferred) and 'query' (legacy) parameters
-	query := c.QueryParam("q")
-	if query == "" {
-		query = c.QueryParam("query") // Backward compatibility
+	params := dto.StringQueryParams{
+		Query:    c.QueryParam("q"),
+		Language: c.QueryParam("lang"),
 	}
-	cursorStr := c.QueryParam("cursor")
-	sizeStr := c.QueryParam("size")
-
-	if query == "" {
-		return apperr.NewValidation("q parameter is required")
+	if params.Query == "" {
+		params.Query = c.QueryParam("query") // Backward compatibility
 	}
 
-	sizeInt, err := r.parseSize(sizeStr)
+	queryString, err := params.ToDomain()
+	if err != nil {
+		return err
+	}
+
+	sizeInt, err := r.parseSize(c.QueryParam("size"))
 	if err != nil {
 		return err
 	}
 
 	var cursor *dquery.Cursor
-	if cursorStr != "" {
+	if cursorStr := c.QueryParam("cursor"); cursorStr != "" {
 		cursor, err = dquery.DecodeCursor(cursorStr)
 		if err != nil {
 			return apperr.NewValidation("invalid cursor parameter")
 		}
 	}
 
-	queryString := dquery.NewQueryString(query)
 	searchResult, err := r.searcher.SearchStringQuery(c.Request().Context(), queryString, &dquery.BaseOptions{
 		Cursor: cursor,
 		Size:   sizeInt,
 	})
 	if err != nil {
-		slog.Error("Failed to execute full-text search", "error", err, "query", query)
+		slog.Error("Failed to execute full-text search", "error", err, "query", params.Query)
 		return err
 	}
 

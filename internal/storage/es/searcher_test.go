@@ -3,6 +3,7 @@ package es
 import (
 	"context"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -221,4 +222,72 @@ func TestSearcher_NonUUIDDocumentIDReturnsError(t *testing.T) {
 	if !strings.Contains(err.Error(), "not-a-uuid") {
 		t.Errorf("error = %v, want it to name the non-UUID id", err)
 	}
+}
+
+func TestSearcher_StringQueryRecallFollowsSearchContract(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Docker (testcontainers ES)")
+	}
+	ctx := context.Background()
+	indexer, searcher := newSearcherTestEnv(t)
+	articles, want := pkgtesting.SearchContractCorpus()
+	for _, article := range articles {
+		if _, err := indexer.Save(ctx, article); err != nil {
+			t.Fatalf("index %s: %v", article.ID, err)
+		}
+	}
+	refreshIndex(t, indexer)
+
+	res, err := searcher.SearchStringQuery(ctx, dquery.NewQueryString(pkgtesting.SearchContractQuery), &dquery.BaseOptions{Size: 100})
+	if err != nil {
+		t.Fatalf("SearchStringQuery: %v", err)
+	}
+
+	got := make([]uuid.UUID, 0, len(res.Hits))
+	for _, hit := range res.Hits {
+		got = append(got, hit.Article.ID)
+	}
+	if !slices.Equal(sortedIDs(got), sortedIDs(want)) {
+		t.Errorf("recall = %v, want %v", sortedIDs(got), sortedIDs(want))
+	}
+	if res.TotalMatches != int64(len(want)) {
+		t.Errorf("TotalMatches = %d, want %d", res.TotalMatches, len(want))
+	}
+}
+
+func TestSearcher_TotalMatchesIsExactPastTenThousand(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Docker (testcontainers ES)")
+	}
+	ctx := context.Background()
+	indexer, searcher := newSearcherTestEnv(t)
+
+	// Elasticsearch stops counting at 10,000 unless asked to track every hit.
+	const matching = 10_050
+	articles := make([]document.Article, matching)
+	for i := range articles {
+		articles[i] = document.Article{ID: uuid.New(), Title: "climate", Language: "english"}
+	}
+	if err := indexer.SaveBulk(ctx, articles); err != nil {
+		t.Fatalf("SaveBulk: %v", err)
+	}
+	refreshIndex(t, indexer)
+
+	for _, method := range searchMethods {
+		t.Run(method.name, func(t *testing.T) {
+			res, err := method.search(ctx, searcher, "climate", &dquery.BaseOptions{Size: 10})
+			if err != nil {
+				t.Fatalf("search: %v", err)
+			}
+			if res.TotalMatches != matching {
+				t.Errorf("TotalMatches = %d, want %d", res.TotalMatches, matching)
+			}
+		})
+	}
+}
+
+func sortedIDs(ids []uuid.UUID) []uuid.UUID {
+	out := slices.Clone(ids)
+	slices.SortFunc(out, func(a, b uuid.UUID) int { return slices.Compare(a[:], b[:]) })
+	return out
 }

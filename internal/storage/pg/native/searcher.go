@@ -21,20 +21,32 @@ func NewReader(pool *pg.ConnectionPool) (*Searcher, error) {
 	return &Searcher{db: pool.GetConn()}, nil
 }
 
-// SearchStringQuery implements storage.FtsSearcher interface
-// Performs simple string-based search using PostgreSQL's tsvector and plainto_tsquery
-// Application determines optimal fields and weights based on index configuration
+// SearchStringQuery matches the query's SearchContract against the weighted search_vector.
 func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	cursor, size := baseOpts.Cursor, baseOpts.Size
-	slog.Info("Executing pool query_string search", "query", query.Query, "has_cursor", cursor != nil, "size", size)
+	contract := query.Contract()
+	slog.Info("Executing pool query_string search",
+		"query", query.Query,
+		"fields", contract.Fields,
+		"operator", contract.Operator,
+		"language", contract.Language,
+		"has_cursor", cursor != nil,
+		"size", size)
+
+	fieldBoosts := make([]FieldWeight, 0, len(contract.Fields))
+	for _, f := range contract.Fields {
+		fieldBoosts = append(fieldBoosts, FieldWeight{Field: string(f.Field), Weight: f.Weight})
+	}
+	whereClause := buildTsWhereClause(fieldBoosts, contract.Language, contract.Operator, 1)
+	rankExpr := buildRankExpression(fieldBoosts, contract.Language, contract.Operator, 1)
 
 	var globalMaxScore float64
 	var count int64
-	maxSQL := `
-			SELECT COALESCE(MAX(ts_rank(search_vector, plainto_tsquery('english', $1))), 0.0) as max_score, COUNT(*)
-			FROM articles
-			WHERE search_vector @@ plainto_tsquery('english', $1)
-		`
+	maxSQL := fmt.Sprintf(`
+		SELECT COALESCE(MAX(%s), 0.0) as max_score, COUNT(*)
+		FROM articles
+		WHERE %s
+	`, rankExpr, whereClause)
 	if err := r.db.QueryRow(ctx, maxSQL, query.Query).Scan(&globalMaxScore, &count); err != nil {
 		slog.Error("Failed to fetch global max score", "error", err)
 		return nil, fmt.Errorf("cannot fetch global max score: %w", err)
@@ -48,27 +60,27 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 	var args []interface{}
 
 	if cursor == nil {
-		searchSQL = `
+		searchSQL = fmt.Sprintf(`
 			SELECT
 				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
-				ts_rank(search_vector, plainto_tsquery('english', $1)) as rank
+				%s as rank
 			FROM articles
-			WHERE search_vector @@ plainto_tsquery('english', $1)
+			WHERE %s
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
-		`
+		`, rankExpr, whereClause)
 		args = []interface{}{query.Query, size + 1}
 	} else {
-		searchSQL = `
+		searchSQL = fmt.Sprintf(`
 			SELECT
 				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
-				ts_rank(search_vector, plainto_tsquery('english', $1)) as rank
+				%s as rank
 			FROM articles
-			WHERE search_vector @@ plainto_tsquery('english', $1)
-			  AND (ts_rank(search_vector, plainto_tsquery('english', $1)), id) < ($2, $3)
+			WHERE %s
+			  AND (%s, id) < ($2, $3)
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
-		`
+		`, rankExpr, whereClause, rankExpr)
 		args = []interface{}{query.Query, cursor.Score, cursor.ID, size + 1}
 	}
 

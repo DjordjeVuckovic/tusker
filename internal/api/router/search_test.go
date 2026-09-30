@@ -123,3 +123,33 @@ func TestCapabilitiesHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchHandlerValidation(t *testing.T) {
+	tests := []struct {
+		name     string
+		target   string
+		wantCode int
+	}{
+		{name: "query only", target: "/v1/articles/search?q=climate", wantCode: http.StatusOK},
+		{name: "legacy query parameter", target: "/v1/articles/search?query=climate", wantCode: http.StatusOK},
+		{name: "supported language", target: "/v1/articles/search?q=climate&lang=serbian", wantCode: http.StatusOK},
+		{name: "unsupported language", target: "/v1/articles/search?q=climate&lang=klingon", wantCode: http.StatusBadRequest},
+		{name: "missing query", target: "/v1/articles/search", wantCode: http.StatusBadRequest},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+			e.HTTPErrorHandler = apperr.GlobalErrorHandler()
+			r := &SearchRouter{e: e, searcher: stubFtsSearcher{}}
+			r.Bind()
+
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.target, nil))
+
+			if rec.Code != tt.wantCode {
+				t.Fatalf("status = %d, want %d (body: %s)", rec.Code, tt.wantCode, rec.Body.String())
+			}
+		})
+	}
+}

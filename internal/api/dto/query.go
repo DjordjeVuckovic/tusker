@@ -107,6 +107,23 @@ type PhraseParams struct {
 	Language string   `json:"language,omitempty"`
 }
 
+// StringQueryParams are the parameters of the GET query-string search.
+type StringQueryParams struct {
+	Query    string
+	Language string
+}
+
+func (p *StringQueryParams) ToDomain() (*query.String, error) {
+	if p.Query == "" {
+		return nil, apperr.NewValidation("q parameter is required")
+	}
+	lang, err := parseLanguage(p.Language)
+	if err != nil {
+		return nil, err
+	}
+	return query.NewQueryString(p.Query, query.WithQueryStringLanguage(lang)), nil
+}
+
 // HybridParams represents hybrid (lexical FTS + vector) query parameters.
 type HybridParams struct {
 	Query    string `json:"query" validate:"required,min=1"`
