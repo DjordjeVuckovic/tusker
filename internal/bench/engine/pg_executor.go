@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	"github.com/google/uuid"
@@ -22,10 +23,10 @@ func NewPgExecutor(name string, pool *pg.ConnectionPool) *PgExecutor {
 	}
 }
 
-func (e *PgExecutor) Execute(ctx context.Context, rawQuery string, params []any) (*Execution, error) {
+func (e *PgExecutor) Execute(ctx context.Context, rawQuery string, args []any) (*Execution, error) {
 	start := time.Now()
 
-	result, err := e.executor.Exec(ctx, rawQuery, params, nil)
+	result, err := e.executor.Exec(ctx, rawQuery, args, nil)
 	if err != nil {
 		return nil, fmt.Errorf("pg exec: %w", err)
 	}
@@ -48,13 +49,15 @@ func (e *PgExecutor) Execute(ctx context.Context, rawQuery string, params []any)
 }
 
 func (e *PgExecutor) Name() string { return e.name }
-func (e *PgExecutor) Close() error { return nil }
+
+func (e *PgExecutor) Dialect() suite.Dialect { return suite.DialectPostgres }
+func (e *PgExecutor) Close() error           { return nil }
 
 // Validate runs EXPLAIN on the query. This catches syntax errors and missing
 // columns/tables/operators without scanning data. ParadeDB's pdb.* functions
 // also surface here, so it's a real correctness check for those queries too.
-func (e *PgExecutor) Validate(ctx context.Context, query string) error {
-	if _, err := e.executor.Exec(ctx, "EXPLAIN "+query, nil, nil); err != nil {
+func (e *PgExecutor) Validate(ctx context.Context, query string, args []any) error {
+	if _, err := e.executor.Exec(ctx, "EXPLAIN "+query, args, nil); err != nil {
 		return fmt.Errorf("pg explain: %w", err)
 	}
 	return nil

@@ -83,6 +83,8 @@ type ResolveOptions struct {
 	// Extra are run-time params absent from the suite, chiefly the live query
 	// vector under ReservedQueryVectorParam.
 	Extra TemplateParams
+	// Dialect is how the engine that runs the query receives {{$name}} values.
+	Dialect Dialect
 }
 
 // Resolve renders the engine query, merging the param layers so a narrower one
@@ -93,7 +95,7 @@ func (eq *EngineQuery) Resolve(opts ResolveOptions) (*ResolvedQuery, error) {
 		if opts.Registry == nil {
 			return nil, fmt.Errorf("template %q referenced but no registry available", eq.Template)
 		}
-		return opts.Registry.RenderQuery(eq.Template, params, opts.SuiteDir)
+		return opts.Registry.RenderQuery(eq.Template, params, opts.Dialect)
 	}
 	if eq.File != "" {
 		path := eq.File
@@ -104,9 +106,9 @@ func (eq *EngineQuery) Resolve(opts ResolveOptions) (*ResolvedQuery, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read query file %q: %w", eq.File, err)
 		}
-		return resolveInline(string(data), params)
+		return resolveInline(string(data), params, opts.Dialect)
 	}
-	return resolveInline(eq.Query, params)
+	return resolveInline(eq.Query, params, opts.Dialect)
 }
 
 // resolveInline substitutes params into an inline/file query and rejects any
@@ -114,12 +116,12 @@ func (eq *EngineQuery) Resolve(opts ResolveOptions) (*ResolvedQuery, error) {
 // {{precomputed}} when no embedder ran) ships verbatim to the engine — ES then
 // parses the literal "{" as an object and returns a cryptic START_OBJECT 400.
 // Templates already fail loudly via Render; this gives inline queries parity.
-func resolveInline(s string, params TemplateParams) (*ResolvedQuery, error) {
+func resolveInline(s string, params TemplateParams, dialect Dialect) (*ResolvedQuery, error) {
 	s = substituteParams(s, params)
 	if missing := findMissingPlaceholders(s); len(missing) > 0 {
 		return nil, fmt.Errorf("query has unresolved placeholders: %v", missing)
 	}
-	return &ResolvedQuery{Query: s}, nil
+	return bindValues(s, params, dialect)
 }
 
 // mergeParams overlays layers left to right into a fresh map, so a narrower
@@ -147,6 +149,8 @@ func substituteParams(s string, params TemplateParams) string {
 
 type ResolvedQuery struct {
 	Query string
+	// Args are the values behind the query's $N placeholders, in order.
+	Args []any
 }
 
 type RelevanceJudgment struct {

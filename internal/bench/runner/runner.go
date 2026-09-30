@@ -219,6 +219,7 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				SuiteDir: req.Suite.Dir,
 				Defaults: binding.Params,
 				Extra:    extra,
+				Dialect:  exec.Dialect(),
 			})
 			if err != nil {
 				slots[idx] = slot{
@@ -233,7 +234,7 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				return
 			}
 
-			result := r.executeWithRetries(ctx, exec, resolved.Query, nil, r.config.WarmupRuns, r.config.Runs)
+			result := r.executeWithRetries(ctx, exec, resolved.Query, resolved.Args, r.config.WarmupRuns, r.config.Runs)
 
 			var scores metrics.ScoreSet
 			if result.err == nil && len(judgments) > 0 {

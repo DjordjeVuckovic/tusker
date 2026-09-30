@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/google/uuid"
 )
 
@@ -104,7 +105,9 @@ func (e *EsExecutor) CorpusCount(ctx context.Context) (int64, error) {
 }
 
 func (e *EsExecutor) Name() string { return e.name }
-func (e *EsExecutor) Close() error { return nil }
+
+func (e *EsExecutor) Dialect() suite.Dialect { return suite.DialectJSON }
+func (e *EsExecutor) Close() error           { return nil }
 
 // Validate posts the query to <index>/_validate/query?explain=true. ES parses
 // the JSON, type-checks fields, and returns "valid: false" with an explanation
@@ -114,7 +117,7 @@ func (e *EsExecutor) Close() error { return nil }
 // validateKnnBody: _validate/query only understands the Query DSL and rejects
 // `knn` outright ("request does not support [knn]"), so the knn clause is
 // checked structurally instead.
-func (e *EsExecutor) Validate(ctx context.Context, rawQuery string) error {
+func (e *EsExecutor) Validate(ctx context.Context, rawQuery string, _ []any) error {
 	if hasKnn(rawQuery) {
 		return e.validateKnnBody(ctx, rawQuery)
 	}

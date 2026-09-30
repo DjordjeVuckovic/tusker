@@ -1,8 +1,10 @@
 package suite
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -14,9 +16,25 @@ type QueryTemplate struct {
 
 type TemplateParams map[string]any
 
-var placeholderRegex = regexp.MustCompile(`\{\{(\w+)\}\}`)
+// Dialect is how a bound {{$name}} value reaches an engine.
+type Dialect string
 
-func (t *QueryTemplate) Render(params TemplateParams, suiteDir string) (*ResolvedQuery, error) {
+const (
+	// DialectPostgres renders a bound value as a positional $N argument.
+	DialectPostgres Dialect = "postgres"
+	// DialectJSON inlines a bound value as a JSON-encoded string.
+	DialectJSON Dialect = "json"
+)
+
+var (
+	placeholderRegex      = regexp.MustCompile(`\{\{(\w+)\}\}`)
+	boundPlaceholderRegex = regexp.MustCompile(`\{\{\$(\w+)\}\}`)
+	anyPlaceholderRegex   = regexp.MustCompile(`\{\{\$?(\w+)\}\}`)
+)
+
+// Render substitutes structural {{name}} params as text and binds value
+// {{$name}} params the way dialect requires.
+func (t *QueryTemplate) Render(params TemplateParams, dialect Dialect) (*ResolvedQuery, error) {
 	// Substitute repeatedly so placeholders introduced by a param's value also
 	// resolve — e.g. a query maps `embedding: "{{precomputed}}"` and the run-time
 	// vector is supplied under `precomputed`. Bounded to avoid self-referential
@@ -41,14 +59,67 @@ func (t *QueryTemplate) Render(params TemplateParams, suiteDir string) (*Resolve
 		return nil, fmt.Errorf("template %q missing params: %v", t.ID, missing)
 	}
 
-	return &ResolvedQuery{Query: result}, nil
+	resolved, err := bindValues(result, params, dialect)
+	if err != nil {
+		return nil, fmt.Errorf("template %q: %w", t.ID, err)
+	}
+	return resolved, nil
+}
+
+// bindValues runs once, after every structural placeholder is resolved, so a
+// bound value is never scanned for placeholders of its own.
+func bindValues(query string, params TemplateParams, dialect Dialect) (*ResolvedQuery, error) {
+	if !boundPlaceholderRegex.MatchString(query) {
+		return &ResolvedQuery{Query: query}, nil
+	}
+	if dialect != DialectPostgres && dialect != DialectJSON {
+		return nil, fmt.Errorf("bound params need a dialect, got %q", dialect)
+	}
+
+	var (
+		args     []any
+		position = map[string]int{}
+		missing  []string
+		bindErr  error
+	)
+	bound := boundPlaceholderRegex.ReplaceAllStringFunc(query, func(match string) string {
+		name := match[3 : len(match)-2]
+		val, ok := params[name]
+		if !ok {
+			if !slices.Contains(missing, name) {
+				missing = append(missing, name)
+			}
+			return match
+		}
+		if dialect == DialectJSON {
+			encoded, err := json.Marshal(val)
+			if err != nil && bindErr == nil {
+				bindErr = fmt.Errorf("encode param %q: %w", name, err)
+			}
+			return string(encoded)
+		}
+		n, seen := position[name]
+		if !seen {
+			args = append(args, val)
+			n = len(args)
+			position[name] = n
+		}
+		return "$" + strconv.Itoa(n)
+	})
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("missing params: %v", missing)
+	}
+	if bindErr != nil {
+		return nil, bindErr
+	}
+	return &ResolvedQuery{Query: bound, Args: args}, nil
 }
 
 func (t *QueryTemplate) RequiredParams() []string {
 	seen := make(map[string]bool)
 	var params []string
 
-	matches := placeholderRegex.FindAllStringSubmatch(t.Query, -1)
+	matches := anyPlaceholderRegex.FindAllStringSubmatch(t.Query, -1)
 	for _, m := range matches {
 		if len(m) > 1 && !seen[m[1]] {
 			seen[m[1]] = true
@@ -137,12 +208,12 @@ func (r *TemplateRegistry) Get(id string) (*QueryTemplate, bool) {
 	return t, ok
 }
 
-func (r *TemplateRegistry) RenderQuery(templateID string, params TemplateParams, suiteDir string) (*ResolvedQuery, error) {
+func (r *TemplateRegistry) RenderQuery(templateID string, params TemplateParams, dialect Dialect) (*ResolvedQuery, error) {
 	t, ok := r.Get(templateID)
 	if !ok {
 		return nil, fmt.Errorf("template %q not found", templateID)
 	}
-	return t.Render(params, suiteDir)
+	return t.Render(params, dialect)
 }
 
 func (r *TemplateRegistry) List() []string {

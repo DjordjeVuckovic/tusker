@@ -9,24 +9,30 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type recordingExecutor struct {
-	name string
-	mu   sync.Mutex
-	seen []string
+	name     string
+	dialect  suite.Dialect
+	mu       sync.Mutex
+	seen     []string
+	lastArgs []any
 }
 
-func (e *recordingExecutor) Execute(_ context.Context, query string, _ []any) (*engine.Execution, error) {
+func (e *recordingExecutor) Execute(_ context.Context, query string, args []any) (*engine.Execution, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.seen = append(e.seen, query)
+	e.lastArgs = args
 	return &engine.Execution{}, nil
 }
 
 func (e *recordingExecutor) Name() string { return e.name }
+
+func (e *recordingExecutor) Dialect() suite.Dialect { return e.dialect }
 
 func (e *recordingExecutor) Close() error { return nil }
 
@@ -84,4 +90,38 @@ queries:
 
 	assert.Equal(t, "ORDER BY ts_rank(search_vector, q('climate change'), 0) DESC", gin.lastQuery())
 	assert.Equal(t, "ORDER BY ts_rank(search_vector, q('climate change'), 1) DESC", norm.lastQuery())
+}
+
+// The query text reaches Postgres as an argument, so an apostrophe in it can
+// neither break the statement nor be read as SQL.
+func TestRunAll_BindsQueryTextAsArgument(t *testing.T) {
+	dir := t.TempDir()
+	suitePath := filepath.Join(dir, "suite.yaml")
+	require.NoError(t, os.WriteFile(suitePath, []byte(`schema_version: 1
+id: bound_suite
+templates:
+  - id: pg_idx
+    query: "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', {{$terms}}) LIMIT {{limit}}"
+queries:
+  - id: qs-trust
+    engines:
+      pg:
+        template: pg_idx
+        params: { terms: "voters don't trust Ukraine's results", limit: 10 }
+`), 0644))
+
+	bs := &spec.BenchSpec{
+		Engines: map[string]spec.Engine{"pg": {}},
+		Jobs:    []spec.Job{{Name: "bound", Suite: suitePath, Engines: []string{"pg"}}},
+	}
+	pg := &recordingExecutor{name: "pg", dialect: suite.DialectPostgres}
+
+	cfg := DefaultConfig()
+	cfg.WarmupRuns = 0
+	cfg.Runs = 1
+	_, err := New(cfg).RunAll(context.Background(), bs, map[string]engine.Executor{"pg": pg})
+	require.NoError(t, err)
+
+	assert.Equal(t, "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', $1) LIMIT 10", pg.lastQuery())
+	assert.Equal(t, []any{"voters don't trust Ukraine's results"}, pg.lastArgs)
 }

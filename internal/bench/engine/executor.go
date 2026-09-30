@@ -4,11 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/google/uuid"
 )
 
 type Executor interface {
-	Execute(ctx context.Context, query string, params []any) (*Execution, error)
+	Execute(ctx context.Context, query string, args []any) (*Execution, error)
+	// Dialect is how a suite's bound {{$name}} values reach this engine.
+	Dialect() suite.Dialect
 	Name() string
 	Close() error
 }
@@ -18,7 +21,7 @@ type Executor interface {
 // _validate/query, API parses the request descriptor. The CLI's `validate`
 // subcommand uses this to fail fast on broken queries before a real run.
 type Validator interface {
-	Validate(ctx context.Context, query string) error
+	Validate(ctx context.Context, query string, args []any) error
 }
 
 // CorpusCounter is an optional capability for executors that can report it.

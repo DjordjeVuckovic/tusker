@@ -13,10 +13,10 @@ templates:
     query: |
       SELECT id FROM articles
       WHERE to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,''))
-            @@ plainto_tsquery('english', '{{`{{terms}}`}}')
+            @@ plainto_tsquery('english', {{`{{$terms}}`}})
       ORDER BY ts_rank(
         to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')),
-        plainto_tsquery('english', '{{`{{terms}}`}}')
+        plainto_tsquery('english', {{`{{$terms}}`}})
       ) DESC
       LIMIT {{`{{limit}}`}}
 

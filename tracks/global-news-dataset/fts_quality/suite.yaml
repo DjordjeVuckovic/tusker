@@ -13,28 +13,28 @@ templates:
     query: |
       SELECT id FROM articles
       WHERE to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,''))
-            @@ plainto_tsquery('english', '{{terms}}')
+            @@ plainto_tsquery('english', {{$terms}})
       ORDER BY ts_rank(
         to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')),
-        plainto_tsquery('english', '{{terms}}')
+        plainto_tsquery('english', {{$terms}})
       ) DESC
       LIMIT {{limit}}
 
   - id: pg_fts_single_field
     query: |
       SELECT id FROM articles
-      WHERE to_tsvector('english', {{field}}) @@ {{tsquery_fn}}('english', '{{terms}}')
-      ORDER BY ts_rank(to_tsvector('english', {{field}}), {{tsquery_fn}}('english', '{{terms}}')) DESC
+      WHERE to_tsvector('english', {{field}}) @@ {{tsquery_fn}}('english', {{$terms}})
+      ORDER BY ts_rank(to_tsvector('english', {{field}}), {{tsquery_fn}}('english', {{$terms}})) DESC
       LIMIT {{limit}}
 
   - id: pg_fts_phrase
     query: |
       SELECT id FROM articles
       WHERE to_tsvector('english', {{fields}})
-            @@ phraseto_tsquery('english', '{{terms}}')
+            @@ phraseto_tsquery('english', {{$terms}})
       ORDER BY ts_rank(
         to_tsvector('english', {{fields}}),
-        phraseto_tsquery('english', '{{terms}}')
+        phraseto_tsquery('english', {{$terms}})
       ) DESC
       LIMIT {{limit}}
 
@@ -42,10 +42,10 @@ templates:
     query: |
       SELECT id FROM articles
       WHERE to_tsvector('english', {{fields}})
-            @@ to_tsquery('english', '{{tsquery_expr}}')
+            @@ to_tsquery('english', {{$tsquery_expr}})
       ORDER BY ts_rank(
         to_tsvector('english', {{fields}}),
-        to_tsquery('english', '{{tsquery_expr}}')
+        to_tsquery('english', {{$tsquery_expr}})
       ) DESC
       LIMIT {{limit}}
 
@@ -53,12 +53,12 @@ templates:
     query: |
       SELECT id FROM articles
       WHERE to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,''))
-            @@ plainto_tsquery('english', '{{terms}}')
+            @@ plainto_tsquery('english', {{$terms}})
       ORDER BY ts_rank(
         setweight(to_tsvector('english', title), 'A') ||
         setweight(to_tsvector('english', coalesce(description,'')), 'B') ||
         setweight(to_tsvector('english', coalesce(content,'')), 'C'),
-        plainto_tsquery('english', '{{terms}}')
+        plainto_tsquery('english', {{$terms}})
       ) DESC
       LIMIT {{limit}}
 
@@ -67,7 +67,7 @@ templates:
   - id: pdb_multi_field
     query: |
       SELECT id FROM articles
-      WHERE id @@@ paradedb.parse('{{terms}}')
+      WHERE id @@@ paradedb.parse({{$terms}})
       ORDER BY pdb.score(id) DESC
       LIMIT {{limit}}
 
@@ -80,9 +80,9 @@ templates:
       SELECT id FROM articles
       WHERE id @@@ paradedb.boolean(
         should => ARRAY[
-          paradedb.boost(3.0, paradedb.match('title', '{{terms}}')),
-          paradedb.boost(2.0, paradedb.match('description', '{{terms}}')),
-          paradedb.match('content', '{{terms}}')
+          paradedb.boost(3.0, paradedb.match('title', {{$terms}})),
+          paradedb.boost(2.0, paradedb.match('description', {{$terms}})),
+          paradedb.match('content', {{$terms}})
         ]
       )
       ORDER BY pdb.score(id) DESC
@@ -91,7 +91,7 @@ templates:
   - id: pdb_single_field
     query: |
       SELECT id FROM articles
-      WHERE id @@@ paradedb.match('{{field}}', '{{terms}}')
+      WHERE id @@@ paradedb.match('{{field}}', {{$terms}})
       ORDER BY pdb.score(id) DESC
       LIMIT {{limit}}
 
@@ -99,14 +99,14 @@ templates:
   - id: pdb_phrase
     query: |
       SELECT id FROM articles
-      WHERE id @@@ paradedb.parse('"{{terms}}"')
+      WHERE id @@@ paradedb.parse('"' || {{$terms}} || '"')
       ORDER BY pdb.score(id) DESC
       LIMIT {{limit}}
 
   - id: pdb_phrase_slop
     query: |
       SELECT id FROM articles
-      WHERE id @@@ paradedb.parse('"{{terms}}"~{{slop}}')
+      WHERE id @@@ paradedb.parse('"' || {{$terms}} || '"~{{slop}}')
       ORDER BY pdb.score(id) DESC
       LIMIT {{limit}}
 
@@ -121,10 +121,13 @@ templates:
   # No WHERE either: v1.0 exposes no match predicate, so this ranks the whole
   # corpus and always fills the LIMIT. Hence the separate `tiger-rank-everything`
   # job in spec.yaml.
+  #
+  # A bound parameter resolves to `text <@> text`, which pg_textsearch (1.1.0) rejects outside a
+  # literal, so the query names its index the way a literal would implicitly.
   - id: tiger_bm25
     query: |
       SELECT id FROM articles
-      ORDER BY search_text <@> '{{terms}}'
+      ORDER BY search_text <@> to_bm25query({{$terms}}, 'idx_articles_bm25')
       LIMIT {{limit}}
 
   # --- Pre-computed search_vector (GIN-indexed) templates ---
@@ -135,29 +138,29 @@ templates:
   - id: pg_idx_multi_field
     query: |
       SELECT id FROM articles
-      WHERE search_vector @@ plainto_tsquery('english', '{{terms}}')
-      ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}'), {{rank_norm}}) DESC
+      WHERE search_vector @@ plainto_tsquery('english', {{$terms}})
+      ORDER BY ts_rank(search_vector, plainto_tsquery('english', {{$terms}}), {{rank_norm}}) DESC
       LIMIT {{limit}}
 
   - id: pg_idx_phrase
     query: |
       SELECT id FROM articles
-      WHERE search_vector @@ phraseto_tsquery('english', '{{terms}}')
-      ORDER BY ts_rank(search_vector, phraseto_tsquery('english', '{{terms}}'), {{rank_norm}}) DESC
+      WHERE search_vector @@ phraseto_tsquery('english', {{$terms}})
+      ORDER BY ts_rank(search_vector, phraseto_tsquery('english', {{$terms}}), {{rank_norm}}) DESC
       LIMIT {{limit}}
 
   - id: pg_idx_boolean
     query: |
       SELECT id FROM articles
-      WHERE search_vector @@ to_tsquery('english', '{{tsquery_expr}}')
-      ORDER BY ts_rank(search_vector, to_tsquery('english', '{{tsquery_expr}}'), {{rank_norm}}) DESC
+      WHERE search_vector @@ to_tsquery('english', {{$tsquery_expr}})
+      ORDER BY ts_rank(search_vector, to_tsquery('english', {{$tsquery_expr}}), {{rank_norm}}) DESC
       LIMIT {{limit}}
 
   - id: pg_idx_weighted
     query: |
       SELECT id FROM articles
-      WHERE search_vector @@ plainto_tsquery('english', '{{terms}}')
-      ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}'), {{rank_norm}}) DESC
+      WHERE search_vector @@ plainto_tsquery('english', {{$terms}})
+      ORDER BY ts_rank(search_vector, plainto_tsquery('english', {{$terms}}), {{rank_norm}}) DESC
       LIMIT {{limit}}
 
 queries:

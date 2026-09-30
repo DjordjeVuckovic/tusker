@@ -84,6 +84,28 @@ which puts part of any recall gap in the graph rather than the engine. Both are 
 pgvector's default, so the loaded Postgres graphs stand as built. Changing the value rebuilds
 the graph and is therefore a new run.
 
+### Template placeholders
+
+A suite query has two kinds of placeholder:
+
+- `{{name}}` is **structural**: its value is pasted into the query text. It is for SQL we write
+  ourselves, such as a column expression (`{{field}}`), a function name (`{{tsquery_fn}}`),
+  `{{limit}}` or `{{embedding_model}}`.
+- `{{$name}}` is a **bound value**: the text of a search query. A postgres engine receives it
+  as a `$N` argument, so the template leaves out the quotes:
+  `plainto_tsquery('english', {{$terms}})`. A name used twice binds one argument. An
+  elasticsearch or api block gets it inlined as a JSON string, quotes included:
+  `"query": {{$terms}}`.
+
+Query text always goes through `{{$name}}`. Pasted between SQL quotes, `don't` ends the
+string literal early and breaks the statement. The bound value still reaches the engine's own
+query language: `to_tsquery` and `paradedb.parse` parse it, so they reject input their syntax
+doesn't allow, such as a stray double quote inside a phrase.
+
+Binding changes how Postgres plans the query. Every query that uses a template now shares one
+prepared statement, and after five executions the planner may switch it to a generic plan. So
+latency from before the switch to bound values is not comparable with latency after it.
+
 ### Engine params and shared query blocks
 
 An engine may declare template params of its own, and may take its per-query block from

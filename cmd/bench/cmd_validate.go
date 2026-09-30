@@ -199,6 +199,7 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 		SuiteDir: in.loaded.Dir,
 		Defaults: in.binding.Params,
 		Extra:    extra,
+		Dialect:  exec.Dialect(),
 	})
 	if err != nil {
 		row.status = "TEMPLATE_ERR"
@@ -216,7 +217,7 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 		row.detail = "executor does not implement Validator"
 		return row
 	}
-	if err := v.Validate(ctx, resolved.Query); err != nil {
+	if err := v.Validate(ctx, resolved.Query, resolved.Args); err != nil {
 		row.status = "INVALID"
 		row.detail = truncate(err.Error(), 120)
 		return row

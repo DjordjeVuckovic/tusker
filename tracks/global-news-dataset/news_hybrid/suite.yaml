@@ -36,10 +36,10 @@ templates:
   - id: pg_rrf_fusion
     query: |
       WITH fts_ranked AS (
-        SELECT id, ROW_NUMBER() OVER (ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}')) DESC) AS rank
+        SELECT id, ROW_NUMBER() OVER (ORDER BY ts_rank(search_vector, plainto_tsquery('english', {{$terms}})) DESC) AS rank
         FROM articles
-        WHERE search_vector @@ plainto_tsquery('english', '{{terms}}')
-        ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}')) DESC
+        WHERE search_vector @@ plainto_tsquery('english', {{$terms}})
+        ORDER BY ts_rank(search_vector, plainto_tsquery('english', {{$terms}})) DESC
         LIMIT {{pool_size}}
       ),
       vec_ranked AS (
@@ -66,7 +66,7 @@ templates:
       WITH bm25_ranked AS (
         SELECT id, ROW_NUMBER() OVER (ORDER BY pdb.score(id) DESC) AS rank
         FROM articles
-        WHERE title @@@ '{{terms}}' OR description @@@ '{{terms}}' OR content @@@ '{{terms}}'
+        WHERE title @@@ {{$terms}} OR description @@@ {{$terms}} OR content @@@ {{$terms}}
         ORDER BY pdb.score(id) DESC
         LIMIT {{pool_size}}
       ),
