@@ -249,6 +249,8 @@ Commands expect environment variables (typically in `.env` files):
 - `PORT`: HTTP server port (default: 8080)
 - `USE_HTTP2`: Enable HTTP/2 support (`true`/`false`)
 - `CORS_ORIGINS`: Allowed CORS origins (comma-separated)
+- `HTTP_READ_HEADER_TIMEOUT`, `HTTP_READ_TIMEOUT`, `HTTP_WRITE_TIMEOUT`, `HTTP_IDLE_TIMEOUT`: Go durations (default 5s, 30s, 120s, 120s)
+- `HTTP_BODY_LIMIT`: Largest request body, e.g. `1M` (default); larger bodies get 413
 
 ## Testing
 Tests are located alongside source files with `_test.go` suffix. Use standard Go testing patterns:

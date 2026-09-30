@@ -37,9 +37,14 @@ type Server struct {
 }
 
 func New(cfg *Config, checker server.HealthChecker) *Server {
+	cfg = cfg.withDefaults()
 	e := echo.New()
 
 	e.DisableHTTP2 = !cfg.UseHttp2
+	e.Server.ReadHeaderTimeout = cfg.ReadHeaderTimeout
+	e.Server.ReadTimeout = cfg.ReadTimeout
+	e.Server.WriteTimeout = cfg.WriteTimeout
+	e.Server.IdleTimeout = cfg.IdleTimeout
 
 	s := &Server{
 		Echo:                    e,
@@ -97,6 +102,7 @@ func (s *Server) SetupMiddlewares() *Server {
 		AllowOrigins: s.cfg.CorsOrigins,
 		AllowMethods: []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},
 	}))
+	s.Echo.Use(middleware.BodyLimit(s.cfg.BodyLimit))
 
 	return s
 }
