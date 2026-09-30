@@ -98,7 +98,7 @@ func executeJudge(cmd *cobra.Command, f judgeFlags, args []string) error {
 	in := trackInputs(f.trackArg, args)
 	in.PoolPath = f.poolPath
 	in.OutputPath = f.output
-	return forEachTrack(cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
+	return forEachTrack(cmd.Context(), cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
 		return judgeTrack(cmd, f, tr)
 	})
 }

@@ -78,7 +78,7 @@ func executeRun(cmd *cobra.Command, f runFlags, args []string) error {
 	in.SpecPath = f.specPath
 	in.SuitePath = f.suitePath
 	in.OutputPath = f.output
-	return forEachTrack(cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
+	return forEachTrack(cmd.Context(), cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
 		return runTrack(cmd, f, ks, tr)
 	})
 }

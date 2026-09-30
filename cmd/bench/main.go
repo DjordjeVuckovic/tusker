@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
@@ -74,7 +77,12 @@ func main() {
 		newReportCmd(), // top-level alias for bench show report
 	)
 
-	if err := root.Execute(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+	if err := root.ExecuteContext(ctx); err != nil {
 		// Printed rather than logged: resolution errors carry indented hint
 		// lines, and slog would escape the newlines into one unreadable string.
 		fmt.Fprintf(os.Stderr, "%s %v\n", cFail.Sprint("Error:"), err)

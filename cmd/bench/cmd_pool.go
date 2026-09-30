@@ -51,7 +51,7 @@ func executePool(cmd *cobra.Command, f poolFlags, args []string) error {
 	in := trackInputs(f.trackArg, args)
 	in.SpecPath = f.specPath
 	in.OutputPath = f.output
-	return forEachTrack(cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
+	return forEachTrack(cmd.Context(), cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
 		return poolTrack(cmd, f, tr)
 	})
 }

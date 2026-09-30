@@ -126,6 +126,9 @@ func (r *Runner) RunJob(ctx context.Context, req JobRequest) (*JobResult, error)
 	jobReq := req
 	jobReq.Executors = jobExecutors
 	r.runQueries(ctx, jr, jobReq)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	return jr, nil
 }
@@ -165,6 +168,9 @@ func (r *Runner) runQueries(ctx context.Context, jr *JobResult, req JobRequest) 
 			defer wg.Done()
 			querySem <- struct{}{}
 			defer func() { <-querySem }()
+			if ctx.Err() != nil {
+				return
+			}
 			r.runEnginesForQuery(ctx, jr, q, req, engineSem)
 		}()
 	}
