@@ -104,7 +104,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 		searchResult := dto.ArticleSearchResult{
 			Article:         *article,
 			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
-			ScoreNormalized: utils.RoundFloat64(rawScore/globalMaxScore, dquery.ScoreDecimalPlaces),
+			ScoreNormalized: normalizedScore(rawScore, globalMaxScore),
 		}
 
 		articles = append(articles, searchResult)
@@ -233,7 +233,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 		searchResult := dto.ArticleSearchResult{
 			Article:         *article,
 			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
-			ScoreNormalized: utils.RoundFloat64(rawScore/globalMaxScore, dquery.ScoreDecimalPlaces),
+			ScoreNormalized: normalizedScore(rawScore, globalMaxScore),
 		}
 
 		articles = append(articles, searchResult)
@@ -372,7 +372,7 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 		searchResult := dto.ArticleSearchResult{
 			Article:         *article,
 			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
-			ScoreNormalized: utils.RoundFloat64(rawScore/globalMaxScore, dquery.ScoreDecimalPlaces),
+			ScoreNormalized: normalizedScore(rawScore, globalMaxScore),
 		}
 
 		articles = append(articles, searchResult)
@@ -586,7 +586,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		searchResult := dto.ArticleSearchResult{
 			Article:         *article,
 			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
-			ScoreNormalized: utils.RoundFloat64(rawScore/globalMaxScore, dquery.ScoreDecimalPlaces),
+			ScoreNormalized: normalizedScore(rawScore, globalMaxScore),
 		}
 
 		articles = append(articles, searchResult)
@@ -712,7 +712,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 		searchResult := dto.ArticleSearchResult{
 			Article:         *article,
 			Score:           utils.RoundFloat64(rawScore, dquery.ScoreDecimalPlaces),
-			ScoreNormalized: utils.RoundFloat64(rawScore/globalMaxScore, dquery.ScoreDecimalPlaces),
+			ScoreNormalized: normalizedScore(rawScore, globalMaxScore),
 		}
 
 		articles = append(articles, searchResult)
@@ -749,6 +749,14 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 		PageMaxScore: utils.RoundFloat64(rawScores[0], dquery.ScoreDecimalPlaces),
 		TotalMatches: count,
 	}, nil
+}
+
+// normalizedScore is 0 when every match ranks 0, where the ratio would be NaN.
+func normalizedScore(rawScore, maxScore float64) float64 {
+	if maxScore <= 0 {
+		return 0
+	}
+	return utils.RoundFloat64(rawScore/maxScore, dquery.ScoreDecimalPlaces)
 }
 
 // Compile-time interface assertions

@@ -1,7 +1,12 @@
 package dto
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
+	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 )
 
@@ -14,4 +19,60 @@ func parseLanguage(raw string) (query.Language, error) {
 		return "", apperr.NewValidationWrap("invalid language", err)
 	}
 	return lang, nil
+}
+
+func parseOperator(raw string) (operator.Operator, error) {
+	op, err := operator.Parse(raw)
+	if err != nil {
+		return "", apperr.NewValidationWrap("invalid operator", err)
+	}
+	return op, nil
+}
+
+// validateField rejects a field outside query.SearchableFields. Postgres would
+// otherwise search every field and Elasticsearch none.
+func validateField(raw string) error {
+	if _, err := query.ParseField(raw); err != nil {
+		return apperr.NewValidationWrap("invalid field", err)
+	}
+	return nil
+}
+
+func validateFields(raw []string) error {
+	for _, field := range raw {
+		if err := validateField(field); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateBoostedFields accepts "field" or "field^boost" with a positive boost.
+func validateBoostedFields(raw []string) error {
+	for _, spec := range raw {
+		name, boost, boosted := strings.Cut(strings.TrimSpace(spec), "^")
+		if err := validateField(name); err != nil {
+			return err
+		}
+		if !boosted {
+			continue
+		}
+		weight, err := strconv.ParseFloat(boost, 64)
+		if err != nil || weight <= 0 {
+			return apperr.NewValidation(fmt.Sprintf("invalid boost in %q: must be a positive number", spec))
+		}
+	}
+	return nil
+}
+
+// parseFuzziness returns "" when no fuzziness was asked for.
+func parseFuzziness(raw string) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+	fuzziness := query.Fuzziness(strings.ToUpper(raw))
+	if !query.SupportedFuzziness[fuzziness] {
+		return "", apperr.NewValidation(fmt.Sprintf("unsupported fuzziness: %q (must be AUTO, 0, 1 or 2)", raw))
+	}
+	return string(fuzziness), nil
 }

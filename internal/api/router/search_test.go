@@ -55,6 +55,56 @@ func TestStructuredSearchHandlerValidation(t *testing.T) {
 			body:     `{"query":{"match":{"field":"title","query":""}}}`,
 			wantCode: http.StatusBadRequest,
 		},
+		{
+			name:     "match on an unknown field",
+			body:     `{"query":{"match":{"field":"titel","query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "match with supported fuzziness",
+			body:     `{"query":{"match":{"field":"title","query":"climate","fuzziness":"auto"}}}`,
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "match with unsupported fuzziness",
+			body:     `{"query":{"match":{"field":"title","query":"climate","fuzziness":"7"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "multi_match on known fields",
+			body:     `{"query":{"multi_match":{"fields":["title^3","content"],"query":"climate"}}}`,
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "multi_match with one unknown field",
+			body:     `{"query":{"multi_match":{"fields":["title","body"],"query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "multi_match with an unknown boosted field",
+			body:     `{"query":{"multi_match":{"fields":["body^2"],"query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "multi_match with a malformed boost",
+			body:     `{"query":{"multi_match":{"fields":["title^high"],"query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "multi_match with a negative boost",
+			body:     `{"query":{"multi_match":{"fields":["title^-1"],"query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "phrase on an unknown field",
+			body:     `{"query":{"phrase":{"fields":["headline"],"query":"climate change"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "match with the NOT operator",
+			body:     `{"query":{"match":{"field":"title","query":"climate","operator":"not"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
 	}
 
 	for _, tt := range tests {

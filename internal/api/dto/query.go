@@ -2,10 +2,8 @@ package dto
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
-	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 )
 
@@ -138,13 +136,11 @@ func (p *HybridParams) ToDomain() (*query.Hybrid, error) {
 
 	var opts []query.HybridOption
 
-	if p.Language != "" {
-		lang := query.Language(p.Language)
-		if !query.SupportedLanguages[lang] {
-			return nil, apperr.NewValidation(fmt.Sprintf("unsupported language: %s", p.Language))
-		}
-		opts = append(opts, query.WithHybridLanguage(lang))
+	lang, err := parseLanguage(p.Language)
+	if err != nil {
+		return nil, err
 	}
+	opts = append(opts, query.WithHybridLanguage(lang))
 
 	if p.K > 0 {
 		opts = append(opts, query.WithHybridK(p.K))
@@ -160,46 +156,53 @@ func (p *MatchParams) ToDomain() (*query.Match, error) {
 	if p.Field == "" {
 		return nil, apperr.NewValidation("field is required")
 	}
+	if err := validateField(p.Field); err != nil {
+		return nil, err
+	}
 
 	var opts []query.MatchQueryOption
 
-	op, err := operator.Parse(p.Operator)
+	op, err := parseOperator(p.Operator)
 	if err != nil {
-		return nil, apperr.NewValidationWrap("invalid operator", err)
+		return nil, err
 	}
 	opts = append(opts, query.WithMatchOperator(op))
 
-	if p.Fuzziness != "" {
-		opts = append(opts, query.WithMatchFuzziness(p.Fuzziness))
+	fuzziness, err := parseFuzziness(p.Fuzziness)
+	if err != nil {
+		return nil, err
+	}
+	if fuzziness != "" {
+		opts = append(opts, query.WithMatchFuzziness(fuzziness))
 	}
 
-	if p.Language != "" {
-		lang := query.Language(p.Language)
-		if !query.SupportedLanguages[lang] {
-			return nil, apperr.NewValidation(fmt.Sprintf("unsupported language: %s", p.Language))
-		}
-		opts = append(opts, query.WithMatchLanguage(lang))
+	lang, err := parseLanguage(p.Language)
+	if err != nil {
+		return nil, err
 	}
+	opts = append(opts, query.WithMatchLanguage(lang))
 
 	return query.NewMatch(p.Field, p.Query, opts...), nil
 }
 
 func (p *MultiMatchParams) ToDomain() (*query.MultiMatch, error) {
+	if err := validateBoostedFields(p.Fields); err != nil {
+		return nil, err
+	}
+
 	var opts []query.MultiMatchQueryOption
 
-	op, err := operator.Parse(p.Operator)
+	op, err := parseOperator(p.Operator)
 	if err != nil {
-		return nil, apperr.NewValidationWrap("invalid operator", err)
+		return nil, err
 	}
 	opts = append(opts, query.WithMultiMatchOperator(op))
 
-	if p.Language != "" {
-		lang := query.Language(p.Language)
-		if !query.SupportedLanguages[lang] {
-			return nil, apperr.NewValidation(fmt.Sprintf("unsupported language: %s", p.Language))
-		}
-		opts = append(opts, query.WithMultiMatchLanguage(lang))
+	lang, err := parseLanguage(p.Language)
+	if err != nil {
+		return nil, err
 	}
+	opts = append(opts, query.WithMultiMatchLanguage(lang))
 
 	newQuery, err := query.NewMultiMatchQuery(p.Query, p.Fields, opts...)
 	if err != nil {
@@ -223,13 +226,11 @@ func (p *BooleanParams) ToDomain() (*query.Boolean, error) {
 		Expression: p.Expression,
 	}
 
-	if p.Language != "" {
-		lang := query.Language(p.Language)
-		if !query.SupportedLanguages[lang] {
-			return nil, apperr.NewValidation(fmt.Sprintf("unsupported language: %s", p.Language))
-		}
-		b.Language = lang
+	lang, err := parseLanguage(p.Language)
+	if err != nil {
+		return nil, err
 	}
+	b.Language = lang
 
 	return b, nil
 }
@@ -241,6 +242,9 @@ func (p *PhraseParams) ToDomain() (*query.Phrase, error) {
 	if len(p.Fields) == 0 {
 		return nil, apperr.NewValidation("fields are required (at least one field)")
 	}
+	if err := validateFields(p.Fields); err != nil {
+		return nil, err
+	}
 
 	var opts []query.PhraseOption
 
@@ -248,13 +252,11 @@ func (p *PhraseParams) ToDomain() (*query.Phrase, error) {
 		opts = append(opts, query.WithPhraseSlop(p.Slop))
 	}
 
-	if p.Language != "" {
-		lang := query.Language(p.Language)
-		if !query.SupportedLanguages[lang] {
-			return nil, apperr.NewValidation(fmt.Sprintf("unsupported language: %s", p.Language))
-		}
-		opts = append(opts, query.WithPhraseLanguage(lang))
+	lang, err := parseLanguage(p.Language)
+	if err != nil {
+		return nil, err
 	}
+	opts = append(opts, query.WithPhraseLanguage(lang))
 
 	newQuery, err := query.NewPhrase(p.Query, p.Fields, opts...)
 	if err != nil {

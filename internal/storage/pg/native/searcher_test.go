@@ -3,6 +3,7 @@ package native
 import (
 	"context"
 	"flag"
+	"math"
 	"os"
 	"slices"
 	"testing"
@@ -116,5 +117,28 @@ func TestSearcher_StringQueryOfOnlyStopwordsReturnsNoHits(t *testing.T) {
 
 	if got := hitIDs(t, s, dquery.NewQueryString("the")); len(got) != 0 {
 		t.Errorf("hits = %v, want none", got)
+	}
+}
+
+func TestSearcher_ScoreNormalizedStaysInUnitRangeWhenEveryRankIsZero(t *testing.T) {
+	s := newSearcher(t)
+	articles, _ := pkgtesting.SearchContractCorpus()
+	indexer, err := pg.NewIndexer(testPool)
+	if err != nil {
+		t.Fatalf("NewIndexer: %v", err)
+	}
+	if err := indexer.SaveBulk(testCtx, articles); err != nil {
+		t.Fatalf("SaveBulk: %v", err)
+	}
+
+	// A field no weight band covers ranks every match at zero.
+	res, err := s.SearchField(testCtx, dquery.NewMatch("no_such_field", "budget"), &dquery.BaseOptions{Size: 10})
+	if err != nil {
+		t.Fatalf("SearchField: %v", err)
+	}
+	for _, hit := range res.Hits {
+		if math.IsNaN(hit.ScoreNormalized) || hit.ScoreNormalized < 0 || hit.ScoreNormalized > 1 {
+			t.Errorf("article %s: ScoreNormalized = %v, want it in [0, 1]", hit.Article.ID, hit.ScoreNormalized)
+		}
 	}
 }
