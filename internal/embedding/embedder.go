@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"unicode"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
@@ -153,10 +154,21 @@ func (e *Embedder) EmbedDocs(ctx context.Context, docs []document.Article) ([]Ve
 	return vecs, nil
 }
 
+// mapDocToPrompt must produce the same text as build_text in scripts/embed_corpus.py:
+// both paths store vectors under the same model name.
 func mapDocToPrompt(ar document.Article) string {
-	content, title := strings.TrimSpace(ar.Title), strings.TrimSpace(ar.Content)
-	// prop with higher weight must be at the end(qwen)
-	return fmt.Sprintf("%s\n%s", content, title)
+	parts := make([]string, 0, 2)
+	for _, field := range []string{ar.Title, ar.Description} {
+		if trimmed := strings.TrimFunc(field, isPythonSpace); trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// isPythonSpace matches str.isspace, which also counts the \x1c-\x1f separators.
+func isPythonSpace(r rune) bool {
+	return unicode.IsSpace(r) || (r >= 0x1c && r <= 0x1f)
 }
 
 func wrapWithInstruct(task, query string) string {

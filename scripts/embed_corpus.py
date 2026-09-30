@@ -51,6 +51,7 @@ SWEEP_BATCH_SIZES = (64, 256, 512)
 SWEEP_DOCS = 2000
 
 
+# Without full_content, must match mapDocToPrompt in internal/embedding/embedder.go.
 def build_text(article: dict, full_content: bool) -> str:
     parts = [article.get("title") or "", article.get("description") or ""]
     if full_content:
