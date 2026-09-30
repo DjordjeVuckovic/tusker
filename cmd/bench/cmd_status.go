@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,15 +27,15 @@ you left off.`,
   bench status          # walk-up from CWD`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return executeStatus(cmd.OutOrStdout(), trackArg, args)
+			return executeStatus(cmd.Context(), cmd.OutOrStdout(), trackArg, args)
 		},
 	}
 	cmd.Flags().StringVar(&trackArg, "track", "", "Track path (relative to --track-root)")
 	return cmd
 }
 
-func executeStatus(w io.Writer, track string, args []string) error {
-	return forEachTrack(w, trackInputs(track, args), func(tr *trackctx.Track) error {
+func executeStatus(ctx context.Context, w io.Writer, track string, args []string) error {
+	return forEachTrack(ctx, w, trackInputs(track, args), func(tr *trackctx.Track) error {
 		return statusTrack(w, tr)
 	})
 }

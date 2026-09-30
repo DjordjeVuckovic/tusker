@@ -2,6 +2,7 @@ package embedding
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 )
@@ -57,23 +58,33 @@ func LoadConfigFromEnv() (*Config, error) {
 		return nil, errors.New("EMBEDDING_BASE_URL environment variable not set")
 	}
 
+	maxLength, err := parseMaxLength(maxLen)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
-		Enabled: enabled == "true",
-		Source:  source,
-		Model:   model,
-		MaxLength: func() *int {
-			if maxLen == "" {
-				return nil
-			}
-			val, err := strconv.Atoi(maxLen)
-			if err != nil {
-				return nil
-			}
-			return &val
-		}(),
+		Enabled:     enabled == "true",
+		Source:      source,
+		Model:       model,
+		MaxLength:   maxLength,
 		BaseURL:     baseUrl,
 		ObjectStore: loadObjectStoreFromEnv(),
 	}, nil
+}
+
+// parseMaxLength reads the width stored vectors are truncated to. Zero or a
+// negative width would store empty vectors or panic mid-load, after the batch's
+// articles are already written.
+func parseMaxLength(raw string) (*int, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	length, err := strconv.Atoi(raw)
+	if err != nil || length <= 0 {
+		return nil, fmt.Errorf("EMBEDDING_MAX_LENGTH must be a positive integer, got %q", raw)
+	}
+	return &length, nil
 }
 
 func loadObjectStoreFromEnv() ObjectStoreConfig {

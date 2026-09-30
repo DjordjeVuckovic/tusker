@@ -50,17 +50,16 @@ var preprocessMappingExtensions = map[FileExt]struct{}{
 }
 
 type PreprocessReport struct {
-	CorpusId          string    `json:"corpus_id"`
-	SHA256            string    `json:"sha256"`
-	IdStrategy        string    `json:"id_strategy"`
-	TotalRecords      int       `json:"total_records"`
-	ProcessedRecords  int       `json:"processed_records"`
-	DroppedRecords    int       `json:"dropped_records"`
-	DuplicatesRemoved int       `json:"duplicates_removed"`
-	InvalidURLs       int       `json:"invalid_urls"`
-	ProcessingTime    float64   `json:"processing_time_seconds"`
-	OutputFile        string    `json:"output_file"`
-	Timestamp         time.Time `json:"timestamp"`
+	CorpusId         string    `json:"corpus_id"`
+	SHA256           string    `json:"sha256"`
+	IdStrategy       string    `json:"id_strategy"`
+	TotalRecords     int       `json:"total_records"`
+	ProcessedRecords int       `json:"processed_records"`
+	DroppedRecords   int       `json:"dropped_records"`
+	InvalidURLs      int       `json:"invalid_urls"`
+	ProcessingTime   float64   `json:"processing_time_seconds"`
+	OutputFile       string    `json:"output_file"`
+	Timestamp        time.Time `json:"timestamp"`
 
 	// Drops counts rejects per "reason/field" so a mapping that empties a
 	// dataset reads as a number, not as N identical warnings. Unreadable rows

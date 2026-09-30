@@ -61,7 +61,7 @@ func executeValidate(cmd *cobra.Command, f validateFlags, args []string) error {
 	in := trackInputs(f.trackArg, args)
 	in.SpecPath = f.specPath
 	in.SuitePath = f.suitePath
-	return forEachTrack(cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
+	return forEachTrack(cmd.Context(), cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
 		return validateTrack(cmd, f, tr)
 	})
 }
@@ -130,6 +130,9 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 					executor:   executors[engName],
 					store:      vectorStore,
 				})
+				if err := cmd.Context().Err(); err != nil {
+					return err
+				}
 				rows = append(rows, row)
 				if row.status != "OK" && row.status != "SKIP" {
 					failures++

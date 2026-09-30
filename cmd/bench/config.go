@@ -132,7 +132,8 @@ func trackArg(flag string, args []string) string {
 // glob expands. Path overrides (--spec/--suite/--pool/--output) target one track,
 // so combining them with a glob is rejected. In group mode a per-track failure is
 // logged and the loop continues; the aggregate error names every track that failed.
-func forEachTrack(w io.Writer, in trackctx.Inputs, fn func(*trackctx.Track) error) error {
+// An interrupt stops the loop at the track it cut short.
+func forEachTrack(ctx context.Context, w io.Writer, in trackctx.Inputs, fn func(*trackctx.Track) error) error {
 	if !trackctx.IsPattern(in.TrackArg) {
 		tr, err := trackctx.Resolve(in)
 		if err != nil {
@@ -156,6 +157,9 @@ func forEachTrack(w io.Writer, in trackctx.Inputs, fn func(*trackctx.Track) erro
 	for _, tr := range tracks {
 		fmt.Fprintf(w, "\n%s %s\n", cBold.Sprint("━━"), cBold.Sprint(tr.Name()))
 		if err := fn(tr); err != nil {
+			if ctx.Err() != nil {
+				return err
+			}
 			printWarn(w, fmt.Sprintf("%s failed: %v", tr.Name(), err))
 			failed = append(failed, tr.Name())
 		}

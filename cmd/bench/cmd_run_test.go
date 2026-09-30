@@ -90,25 +90,22 @@ func TestNewRunConfig_MeasuresOneQueryAndOneEngineAtATime(t *testing.T) {
 
 func TestNewRunConfig_FlagBeatsSpecDefault(t *testing.T) {
 	bs := &spec.BenchSpec{}
-	bs.Metrics.MaxK = 100
 	bs.Runs.Warmup = 1
 	bs.Runs.Iterations = 3
 
 	tests := []struct {
 		name       string
 		flags      runFlags
-		wantMaxK   int
 		wantWarmup int
 		wantRuns   int
 	}{
-		{"spec defaults when flags unset", runFlags{}, 100, 1, 3},
-		{"flags win when set", runFlags{maxK: 50, warmup: 2, iters: 10}, 50, 2, 10},
-		{"partial flags fall back per field", runFlags{iters: 10}, 100, 1, 10},
+		{"spec defaults when flags unset", runFlags{}, 1, 3},
+		{"flags win when set", runFlags{warmup: 2, iters: 10}, 2, 10},
+		{"partial flags fall back per field", runFlags{iters: 10}, 1, 10},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := newRunConfig(tt.flags, bs, []int{10}, false)
-			assert.Equal(t, tt.wantMaxK, cfg.MaxK)
 			assert.Equal(t, tt.wantWarmup, cfg.WarmupRuns)
 			assert.Equal(t, tt.wantRuns, cfg.Runs)
 		})

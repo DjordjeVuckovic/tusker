@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
@@ -148,4 +149,41 @@ func TestResetConfirmer_ProceedsWithoutAsking(t *testing.T) {
 			assert.Empty(t, out.String(), "nothing should be printed when nothing is asked")
 		})
 	}
+}
+
+type fixedWidthClient struct{ width int }
+
+func (c fixedWidthClient) Generate(context.Context, embedding.Request) (*embedding.Response, error) {
+	return &embedding.Response{Embedding: make([]float32, c.width)}, nil
+}
+
+func (c fixedWidthClient) GenerateBatch(_ context.Context, req embedding.BatchRequest) (*embedding.BatchResponse, error) {
+	out := make([][]float32, len(req.Prompts))
+	for i := range out {
+		out[i] = make([]float32, c.width)
+	}
+	return &embedding.BatchResponse{Embeddings: out}, nil
+}
+
+// Stored vectors are tagged with the model that produced them, and bench looks
+// them up by EMBEDDING_MODEL, so the load must embed with and tag by that model.
+func TestEmbedderOptions_TagAndTruncateByConfig(t *testing.T) {
+	width := 768
+	cfg := embedding.Config{Model: "nomic-embed-text", MaxLength: &width}
+
+	vec, err := embedding.NewEmbedder(fixedWidthClient{width: 1024}, embedderOptions(cfg)...).
+		EmbedDoc(context.Background(), document.Article{ID: uuid.New(), Title: "t"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "nomic-embed-text", vec.Model)
+	assert.Len(t, vec.Embedding, 768)
+}
+
+func TestEmbedderOptions_UnsetKeepsDefaultModel(t *testing.T) {
+	vec, err := embedding.NewEmbedder(fixedWidthClient{width: 1024}, embedderOptions(embedding.Config{})...).
+		EmbedDoc(context.Background(), document.Article{ID: uuid.New(), Title: "t"})
+
+	require.NoError(t, err)
+	assert.Equal(t, embedding.DefaultModel, vec.Model)
+	assert.Len(t, vec.Embedding, 1024)
 }

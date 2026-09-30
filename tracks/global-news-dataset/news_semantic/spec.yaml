@@ -42,7 +42,6 @@ engines:
 
 metrics:
   k_values: [3, 5, 10]
-  max_k: 50
   # 2, not 1: ~90 % of this pool grades at least 1, which pinned P@3, P@5 and
   # MRR at 1.000 for every engine. Report the threshold beside the numbers.
   relevance_threshold: 2

@@ -193,6 +193,9 @@ func (r *Runner) dispatch(ctx context.Context, q GradingQuery, todo []pool.Poole
 	} else {
 		r.runPerDoc(ctx, r.cfg.Strategy, q, gradables, gradedByID)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return gradedByID, nil
 }
 

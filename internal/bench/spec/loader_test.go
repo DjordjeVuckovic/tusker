@@ -26,7 +26,6 @@ func TestParse(t *testing.T) {
 
 metrics:
   k_values: [3, 5, 10]
-  max_k: 100
   relevance_threshold: 1
 
 runs:
@@ -100,7 +99,6 @@ jobs:
 `
 		s, err := Parse([]byte(yaml))
 		require.NoError(t, err)
-		assert.Equal(t, 100, s.Metrics.MaxK)
 		assert.Equal(t, []int{3, 5, 10}, s.Metrics.KValues)
 		assert.Equal(t, 1, s.Metrics.RelevanceThreshold)
 		assert.Equal(t, 1, s.Runs.Warmup)
