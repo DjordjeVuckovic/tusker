@@ -27,11 +27,34 @@ type PGConfig struct {
 	Password string
 }
 
+// postgresEngine pairs a Postgres flavour's image with the migrations the live
+// stack applies to it.
+type postgresEngine struct {
+	image         string
+	migrationsDir string
+}
+
+var (
+	nativeEngine   = postgresEngine{image: "pgvector/pgvector:pg18", migrationsDir: "migrations"}
+	paradeDBEngine = postgresEngine{image: "paradedb/paradedb:latest-pg18", migrationsDir: "parade_migrations"}
+)
+
 func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
-	return createPGContainer(ctx, cfg)
+	return createPGContainer(ctx, cfg, nativeEngine)
 }
 
 func NewPGContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer {
+	tb.Helper()
+	return newContainerWithCleanup(ctx, tb, nativeEngine)
+}
+
+// NewParadeDBContainerWithCleanup starts ParadeDB with db/parade_migrations applied.
+func NewParadeDBContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer {
+	tb.Helper()
+	return newContainerWithCleanup(ctx, tb, paradeDBEngine)
+}
+
+func newContainerWithCleanup(ctx context.Context, tb testing.TB, engine postgresEngine) *PGContainer {
 	tb.Helper()
 	if testing.Short() {
 		tb.Skip("skipping testcontainer-backed test in -short mode")
@@ -41,7 +64,7 @@ func NewPGContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer 
 		Database: "news_test_db",
 		Username: "test",
 		Password: "test",
-	})
+	}, engine)
 	if err != nil {
 		tb.Fatalf("failed to create postgres container: %v", err)
 	}
@@ -55,10 +78,10 @@ func NewPGContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer 
 	return container
 }
 
-func createPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
+func createPGContainer(ctx context.Context, cfg PGConfig, engine postgresEngine) (*PGContainer, error) {
 	_, b, _, _ := runtime.Caller(0)
 	projectRoot := filepath.Join(filepath.Dir(b), "../..")
-	migrationsDir := filepath.Join(projectRoot, "db", "migrations")
+	migrationsDir := filepath.Join(projectRoot, "db", engine.migrationsDir)
 
 	migrationFiles, err := filepath.Glob(filepath.Join(migrationsDir, "*.up.sql"))
 	if err != nil {
@@ -92,7 +115,7 @@ func createPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) 
 	}
 
 	pgContainer, err := postgres.Run(ctx,
-		"pgvector/pgvector:pg18",
+		engine.image,
 		postgres.WithDatabase(cfg.Database),
 		postgres.WithUsername(cfg.Username),
 		postgres.WithPassword(cfg.Password),

@@ -13,8 +13,21 @@ CREATE TABLE articles
     language      VARCHAR(10)                      DEFAULT 'english',
     description   text                             DEFAULT ''
 );
+-- Text fields stem with Snowball English, as the english regconfig does on
+-- pg-native and tiger. ParadeDB takes no custom stopword list, so its english
+-- list stays smaller than PostgreSQL's. published_at and metadata sit in the
+-- index so structured filters are answered by the bm25 scan; metadata is a
+-- literal so metadata->>'sourceName' = ... pushes down as an exact term.
 CREATE INDEX idx_articles_search ON articles
-    USING bm25 (id, title, subtitle, content, description)
+    USING bm25 (
+        id,
+        (title::pdb.simple('stemmer=english', 'stopwords_language=english')),
+        (subtitle::pdb.simple('stemmer=english', 'stopwords_language=english')),
+        (content::pdb.simple('stemmer=english', 'stopwords_language=english')),
+        (description::pdb.simple('stemmer=english', 'stopwords_language=english')),
+        published_at,
+        (metadata::pdb.literal)
+    )
     WITH (key_field='id');
 CREATE INDEX idx_articles_published_at ON articles (published_at DESC NULLS LAST);
 COMMIT;
