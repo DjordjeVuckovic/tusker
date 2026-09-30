@@ -222,7 +222,7 @@ func newPipeline(
 		if err != nil {
 			return nil, fmt.Errorf("create embedder: %w", err)
 		}
-		embedder := embedding.NewEmbedder(ollama)
+		embedder := embedding.NewEmbedder(ollama, embedderOptions(cfg.Embedding)...)
 		storageEmbedder, err := factory.NewEmbedderIndexer(ctx, cfg.StorageConfig)
 		if err != nil {
 			return nil, fmt.Errorf("storer does not support embedding: %w", err)
@@ -305,4 +305,15 @@ func bulkLabel(enabled bool, size int) string {
 		return "off"
 	}
 	return fmt.Sprintf("%d per batch", size)
+}
+
+func embedderOptions(cfg embedding.Config) []embedding.EmbedderOption {
+	var opts []embedding.EmbedderOption
+	if cfg.Model != "" {
+		opts = append(opts, embedding.WithExecutorModel(cfg.Model))
+	}
+	if cfg.MaxLength != nil {
+		opts = append(opts, embedding.WithExecutorMaxLength(*cfg.MaxLength))
+	}
+	return opts
 }

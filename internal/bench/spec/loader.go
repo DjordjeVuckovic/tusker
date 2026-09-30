@@ -127,9 +127,6 @@ func validate(s *BenchSpec) error {
 	if err := validateDefaults(s); err != nil {
 		return err
 	}
-	if s.Metrics.MaxK <= 0 {
-		s.Metrics.MaxK = 100
-	}
 	if len(s.Metrics.KValues) == 0 {
 		s.Metrics.KValues = []int{3, 5, 10}
 	}

@@ -72,7 +72,6 @@ func poolTrack(cmd *cobra.Command, f poolFlags, tr *trackctx.Track) error {
 
 	runCfg := runner.Config{
 		KValues:          []int{depth},
-		MaxK:             depth,
 		Runs:             1,
 		QueryParallelism: runner.QueryParallelismUnlimited,
 	}

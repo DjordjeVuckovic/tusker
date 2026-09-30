@@ -27,7 +27,6 @@ type runFlags struct {
 	output    string
 	kValues   string
 	jobs      string // comma-separated job name filter
-	maxK      int
 	warmup    int
 	iters     int
 }
@@ -63,7 +62,6 @@ The judgments file used for scoring resolves in this order:
 	cmd.Flags().StringVar(&f.output, "output", "", "Override report path (default: <track>/reports/<run_id>.json)")
 	cmd.Flags().StringVar(&f.kValues, "k", "3,5,10", "K cut-offs for NDCG/P/R/F1")
 	cmd.Flags().StringVar(&f.jobs, "jobs", "", "Comma-separated job names to run (default: all jobs in spec)")
-	cmd.Flags().IntVar(&f.maxK, "max-k", 0, "Max docs retrieved per query (0 = spec.metrics.max_k)")
 	cmd.Flags().IntVar(&f.warmup, "warmup", 0, "Warmup iterations")
 	cmd.Flags().IntVar(&f.iters, "iterations", 0, "Measured iterations (0 = spec.runs.iterations)")
 	return cmd
@@ -88,7 +86,6 @@ func executeRun(cmd *cobra.Command, f runFlags, args []string) error {
 func newRunConfig(f runFlags, bs *spec.BenchSpec, ks []int, kFromFlag bool) runner.Config {
 	cfg := runner.Config{
 		KValues:            ks,
-		MaxK:               firstNonZero(f.maxK, bs.Metrics.MaxK),
 		RelevanceThreshold: bs.Metrics.RelevanceThreshold,
 		WarmupRuns:         firstNonZero(f.warmup, bs.Runs.Warmup),
 		Runs:               firstNonZero(f.iters, bs.Runs.Iterations),

@@ -108,7 +108,6 @@ func (s *BenchSpec) QueryBinding(name string) QueryBinding {
 
 type MetricsConfig struct {
 	KValues            []int `yaml:"k_values"`
-	MaxK               int   `yaml:"max_k"`
 	RelevanceThreshold int   `yaml:"relevance_threshold"`
 }
 

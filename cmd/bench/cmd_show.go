@@ -318,8 +318,8 @@ func showSpec(w io.Writer, bs *spec.BenchSpec) {
 		fmt.Fprintf(w, "  %s\n    suite:   %s\n    engines: %v\n", j.Name, j.Suite, j.Engines)
 	}
 
-	fmt.Fprintf(w, "\nMetrics: k=%v max_k=%d threshold=%d\n",
-		bs.Metrics.KValues, bs.Metrics.MaxK, bs.Metrics.RelevanceThreshold)
+	fmt.Fprintf(w, "\nMetrics: k=%v threshold=%d\n",
+		bs.Metrics.KValues, bs.Metrics.RelevanceThreshold)
 	fmt.Fprintf(w, "Runs: warmup=%d iterations=%d\n", bs.Runs.Warmup, bs.Runs.Iterations)
 }
 

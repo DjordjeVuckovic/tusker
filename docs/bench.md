@@ -241,7 +241,8 @@ Flags:
 - `--jobs pg,es` — run only the named job(s) from the spec (useful during development)
 - `--k 3,5,10` — NDCG/P cut-off values
 - `--warmup N`, `--iterations N` — override spec settings
-- `--max-k N` — docs retrieved per query
+
+Retrieval depth is the suite's own `limit` param (or ES `size`); there is no run flag for it.
 
 Elapsed time is printed after the results table.
 
