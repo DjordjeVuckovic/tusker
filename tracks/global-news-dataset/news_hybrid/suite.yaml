@@ -39,12 +39,14 @@ templates:
         SELECT id, ROW_NUMBER() OVER (ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}')) DESC) AS rank
         FROM articles
         WHERE search_vector @@ plainto_tsquery('english', '{{terms}}')
+        ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}')) DESC
         LIMIT {{pool_size}}
       ),
       vec_ranked AS (
         SELECT article_id AS id, ROW_NUMBER() OVER (ORDER BY embedding <=> '{{embedding}}'::vector) AS rank
         FROM article_embeddings
         WHERE model_name = '{{embedding_model}}'
+        ORDER BY embedding <=> '{{embedding}}'::vector
         LIMIT {{pool_size}}
       ),
       rrf AS (
@@ -65,12 +67,14 @@ templates:
         SELECT id, ROW_NUMBER() OVER (ORDER BY pdb.score(id) DESC) AS rank
         FROM articles
         WHERE title @@@ '{{terms}}' OR description @@@ '{{terms}}' OR content @@@ '{{terms}}'
+        ORDER BY pdb.score(id) DESC
         LIMIT {{pool_size}}
       ),
       vec_ranked AS (
         SELECT article_id AS id, ROW_NUMBER() OVER (ORDER BY embedding <=> '{{embedding}}'::vector) AS rank
         FROM article_embeddings
         WHERE model_name = '{{embedding_model}}'
+        ORDER BY embedding <=> '{{embedding}}'::vector
         LIMIT {{pool_size}}
       ),
       rrf AS (
