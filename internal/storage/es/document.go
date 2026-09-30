@@ -8,6 +8,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorindexoptionstype"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorsimilarity"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/snowballlanguage"
 	"github.com/google/uuid"
 )
 
@@ -72,13 +73,22 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) ArticleDocument
 	}
 }
 
+// buildSettings mirrors PostgreSQL's english regconfig: stopwords are removed
+// before stemming, and the stemmer is Snowball, not the Porter stemmer behind
+// the built-in english analyzer, which reduces "news" to "new".
 func (b *IndexBuilder) buildSettings() types.IndexSettings {
+	english := snowballlanguage.English
 	return types.IndexSettings{
 		Analysis: &types.IndexSettingsAnalysis{
 			Analyzer: map[string]types.Analyzer{
-				"multilingual_analyzer": types.StandardAnalyzer{
-					Stopwords: []string{"_none_"},
+				"multilingual_analyzer": types.CustomAnalyzer{
+					Tokenizer: "standard",
+					Filter:    []string{"lowercase", "postgres_english_stop", "english_snowball"},
 				},
+			},
+			Filter: map[string]types.TokenFilter{
+				"postgres_english_stop": types.StopTokenFilter{Stopwords: PostgresEnglishStopwords},
+				"english_snowball":      types.SnowballTokenFilter{Language: &english},
 			},
 		},
 	}
