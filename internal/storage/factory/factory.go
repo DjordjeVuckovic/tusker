@@ -69,12 +69,13 @@ func NewEmbedderIndexer(ctx context.Context, cfg StorageConfig) (storage.EmbedIn
 }
 
 // SearcherConfig selects the backend searchers read from. Every PG searcher
-// runs on Pool, so the caller owns and closes the one pool they share.
+// runs on Pool and every ES searcher on EsClient, so each backend's searchers
+// share one set of connections; the caller owns and closes the pool.
 // Embedder is required for semantic and hybrid searchers.
 type SearcherConfig struct {
 	Type     storage.Type
 	Pool     *pg.ConnectionPool
-	Es       *es.ClientConfig
+	EsClient *es.Client
 	Embedder *embedding.Embedder
 }
 
@@ -88,10 +89,10 @@ func NewSearcher(cfg SearcherConfig) (storage.FtsSearcher, error) {
 		return native.NewReader(cfg.Pool)
 
 	case storage.ES:
-		if cfg.Es == nil {
-			return nil, fmt.Errorf("elasticsearch config is not set")
+		if cfg.EsClient == nil {
+			return nil, fmt.Errorf("elasticsearch client is not set")
 		}
-		return es.NewSearcher(*cfg.Es)
+		return es.NewSearcher(cfg.EsClient), nil
 
 	case storage.Solr:
 		return nil, fmt.Errorf("solr reader not yet implemented")
@@ -127,10 +128,10 @@ func NewSemanticSearcher(cfg SearcherConfig) (storage.SemanticSearcher, error) {
 		return pg.NewSemanticSearcher(cfg.Embedder, cfg.Pool), nil
 
 	case storage.ES:
-		if cfg.Es == nil {
-			return nil, fmt.Errorf("elasticsearch config is not set")
+		if cfg.EsClient == nil {
+			return nil, fmt.Errorf("elasticsearch client is not set")
 		}
-		return es.NewSemanticSearcher(*cfg.Es, cfg.Embedder, cfg.Embedder.Model())
+		return es.NewSemanticSearcher(cfg.EsClient, cfg.Embedder, cfg.Embedder.Model()), nil
 
 	case storage.Solr:
 		return nil, fmt.Errorf("solr semantic searcher not yet implemented")
@@ -152,10 +153,10 @@ func NewHybridSearcher(cfg SearcherConfig) (storage.HybridSearcher, error) {
 		return pg.NewHybridSearcher(cfg.Embedder, cfg.Pool), nil
 
 	case storage.ES:
-		if cfg.Es == nil {
-			return nil, fmt.Errorf("elasticsearch config is not set")
+		if cfg.EsClient == nil {
+			return nil, fmt.Errorf("elasticsearch client is not set")
 		}
-		return es.NewHybridSearcher(*cfg.Es, cfg.Embedder, cfg.Embedder.Model())
+		return es.NewHybridSearcher(cfg.EsClient, cfg.Embedder, cfg.Embedder.Model()), nil
 
 	case storage.Solr:
 		return nil, fmt.Errorf("solr hybrid searcher not yet implemented")
@@ -178,10 +179,10 @@ func NewHealthChecker(cfg SearcherConfig) (server.HealthChecker, error) {
 		return pg.NewHealthChecker(cfg.Pool), nil
 
 	case storage.ES:
-		if cfg.Es == nil {
-			return nil, fmt.Errorf("elasticsearch config is not set")
+		if cfg.EsClient == nil {
+			return nil, fmt.Errorf("elasticsearch client is not set")
 		}
-		return es.NewHealthChecker(*cfg.Es)
+		return es.NewHealthChecker(cfg.EsClient), nil
 
 	default:
 		return nil, fmt.Errorf("no health check for storage type %s", cfg.Type)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	pkgserver "github.com/DjordjeVuckovic/tusker/pkg/server"
@@ -23,13 +24,11 @@ type searchBackend struct {
 }
 
 func openSearchBackend(ctx context.Context, cfg *NewsSearchConfig) (*searchBackend, error) {
-	searcherCfg := factory.SearcherConfig{
-		Type: cfg.StorageConfig.Type,
-		Es:   cfg.StorageConfig.Es,
-	}
+	searcherCfg := factory.SearcherConfig{Type: cfg.StorageConfig.Type}
 	backend := &searchBackend{close: func() {}}
 
-	if cfg.StorageConfig.Type == storage.PG {
+	switch cfg.StorageConfig.Type {
+	case storage.PG:
 		poolCfg := *cfg.StorageConfig.Pg
 		poolCfg.RegisterVecTypes = cfg.EmbeddingConfig.Enabled
 		pool, err := pg.NewConnectionPool(ctx, poolCfg)
@@ -38,6 +37,12 @@ func openSearchBackend(ctx context.Context, cfg *NewsSearchConfig) (*searchBacke
 		}
 		searcherCfg.Pool = pool
 		backend.close = pool.Close
+	case storage.ES:
+		client, err := es.NewClient(*cfg.StorageConfig.Es)
+		if err != nil {
+			return nil, fmt.Errorf("create Elasticsearch client: %w", err)
+		}
+		searcherCfg.EsClient = client
 	}
 
 	if err := backend.wire(searcherCfg, cfg.EmbeddingConfig); err != nil {

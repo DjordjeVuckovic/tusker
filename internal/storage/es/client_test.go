@@ -10,6 +10,15 @@ import (
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 )
 
+func newTestClient(t *testing.T, config ClientConfig) *Client {
+	t.Helper()
+	client, err := NewClient(config)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	return client
+}
+
 // unresponsiveCluster accepts connections and never answers, the way a paused
 // or wedged Elasticsearch node does.
 func unresponsiveCluster(t *testing.T) (address string, accepted *atomic.Int32) {
@@ -42,14 +51,11 @@ func unresponsiveCluster(t *testing.T) (address string, accepted *atomic.Int32) 
 
 func TestSearcher_UnresponsiveClusterFailsInsteadOfHanging(t *testing.T) {
 	address, accepted := unresponsiveCluster(t)
-	searcher, err := NewSearcher(ClientConfig{
+	searcher := NewSearcher(newTestClient(t, ClientConfig{
 		Addresses:             []string{address},
 		IndexName:             "articles",
 		ResponseHeaderTimeout: 100 * time.Millisecond,
-	})
-	if err != nil {
-		t.Fatalf("NewSearcher: %v", err)
-	}
+	}))
 
 	result := make(chan error, 1)
 	go func() {

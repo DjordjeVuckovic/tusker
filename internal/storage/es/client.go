@@ -2,6 +2,7 @@ package es
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -27,7 +28,22 @@ type ClientConfig struct {
 	ResponseHeaderTimeout time.Duration
 }
 
-func newClient(config ClientConfig) (*elasticsearch.TypedClient, error) {
+// Client is an Elasticsearch connection pool bound to one index. Searchers and
+// health checks built from the same Client share its connections.
+type Client struct {
+	typed     *elasticsearch.TypedClient
+	indexName string
+}
+
+func NewClient(config ClientConfig) (*Client, error) {
+	typed, err := newTypedClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("create Elasticsearch client: %w", err)
+	}
+	return &Client{typed: typed, indexName: config.IndexName}, nil
+}
+
+func newTypedClient(config ClientConfig) (*elasticsearch.TypedClient, error) {
 	cfg := elasticsearch.Config{
 		Addresses:    config.Addresses,
 		Transport:    newTransport(config),

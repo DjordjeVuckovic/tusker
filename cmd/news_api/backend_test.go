@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +17,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
+	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/jackc/pgx/v5"
 )
@@ -160,4 +164,75 @@ func unusedAddress(t *testing.T) string {
 		t.Fatalf("close listener: %v", err)
 	}
 	return address
+}
+
+// fakeElasticsearch answers every request as an Elasticsearch cluster with no
+// matching documents, and reports how many connections it has accepted.
+func fakeElasticsearch(t *testing.T) (url string, connections func() int64) {
+	t.Helper()
+	var accepted atomic.Int64
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Elastic-Product", "Elasticsearch")
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodHead {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		_, _ = io.WriteString(w, `{"took":1,"timed_out":false,"_shards":{"total":1,"successful":1,"skipped":0,"failed":0},"hits":{"total":{"value":0,"relation":"eq"},"max_score":null,"hits":[]}}`)
+	}))
+	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			accepted.Add(1)
+		}
+	}
+	srv.Start()
+	t.Cleanup(srv.Close)
+	return srv.URL, accepted.Load
+}
+
+func fakeOllama(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(embedding.Response{Embedding: make([]float32, defaultQueryVectorLength)})
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+func TestOpenSearchBackend_ElasticsearchSearchersShareOneClient(t *testing.T) {
+	esURL, connections := fakeElasticsearch(t)
+	cfg := &NewsSearchConfig{
+		StorageConfig: factory.StorageConfig{
+			Type: storage.ES,
+			Es:   &es.ClientConfig{Addresses: []string{esURL}, IndexName: "articles"},
+		},
+		EmbeddingConfig: embedding.Config{Enabled: true, BaseURL: fakeOllama(t)},
+	}
+	backend, err := openSearchBackend(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("openSearchBackend: %v", err)
+	}
+	t.Cleanup(backend.close)
+	if backend.semantic == nil || backend.hybrid == nil {
+		t.Fatalf("embeddings enabled but semantic=%v hybrid=%v", backend.semantic, backend.hybrid)
+	}
+
+	ctx := context.Background()
+	opts := &dquery.BaseOptions{Size: 10}
+	if !backend.health.Healthy(ctx) {
+		t.Fatal("health check failed against the fake cluster")
+	}
+	if _, err := backend.fts.SearchStringQuery(ctx, dquery.NewQueryString("climate"), opts); err != nil {
+		t.Fatalf("full-text search: %v", err)
+	}
+	if _, err := backend.semantic.SearchSemantic(ctx, dquery.NewSemantic("climate"), opts); err != nil {
+		t.Fatalf("semantic search: %v", err)
+	}
+	if _, err := backend.hybrid.SearchHybrid(ctx, dquery.NewHybrid("climate"), opts); err != nil {
+		t.Fatalf("hybrid search: %v", err)
+	}
+
+	if got := connections(); got > 1 {
+		t.Errorf("serial requests opened %d connections to Elasticsearch; searchers do not share one client", got)
+	}
 }
