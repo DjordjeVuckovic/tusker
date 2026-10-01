@@ -39,6 +39,8 @@ type EngineInfo struct {
 	Type       string `json:"type"`
 	Connection string `json:"connection"`
 	Version    string `json:"version,omitempty"`
+	// Index is nil in reports written before index provenance was recorded.
+	Index *IndexProvenance `json:"index,omitempty"`
 }
 
 type CorpusInfo struct {
