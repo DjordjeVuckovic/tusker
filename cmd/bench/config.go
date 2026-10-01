@@ -59,9 +59,8 @@ func buildQueryVectorStore(ctx context.Context, bs *spec.BenchSpec) (storage.Vec
 }
 
 // requireEmbedder fails when the track's kind needs a live query embedder but
-// none was built (EMBEDDING_BASE_URL unset or no postgres engine). This turns
-// what used to be N per-query "missing precomputed" warnings into one clear,
-// up-front error for semantic/hybrid tracks.
+// none was built (EMBEDDING_BASE_URL unset or no postgres engine), so a
+// semantic/hybrid track fails once up front instead of once per vector query.
 func requireEmbedder(bs *spec.BenchSpec, store storage.VectorStore) error {
 	if !bs.Kind.RequiresEmbedder() || store != nil {
 		return nil

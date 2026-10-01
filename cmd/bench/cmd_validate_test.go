@@ -92,60 +92,76 @@ func (v *recordingValidator) Validate(_ context.Context, req engine.Request) err
 	return nil
 }
 
-// Validate must see the query exactly as a run sends it: bound text as $N plus
-// args for postgres, inlined as a JSON string for elasticsearch.
-func TestValidateOne_PassesBoundQueryTextTheWayTheEngineTypeReceivesIt(t *testing.T) {
+// Validate must see the query exactly as a run sends it: the SQL as written
+// plus its args in declared order, engine params included.
+func TestValidateOne_PassesStatementAndOrderedArgs(t *testing.T) {
 	loaded, err := suite.Parse([]byte(`schema_version: 1
 id: validate_bound
+templates:
+  - id: pg_idx
+    args: [limit, terms, rank_norm]
+    query: "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', $2) ORDER BY ts_rank(search_vector, plainto_tsquery('english', $2), $3::int) DESC LIMIT $1::int"
 queries:
   - id: q-trust
     engines:
-      pg:
-        query: "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', {{$terms}})"
-        params: { terms: "voters don't trust" }
-      es:
-        query: '{"query": {"match": {"title": {{$terms}}}}}'
-        params: { terms: "voters don't trust" }
+      pg: { template: pg_idx, params: { terms: "voters don't trust", limit: 10 } }
 `))
 	require.NoError(t, err)
+	validator := &recordingValidator{}
 
-	tests := []struct {
-		engineType string
-		engineName string
-		assertSeen func(t *testing.T, v *recordingValidator)
-	}{
-		{
-			engineType: "postgres",
-			engineName: "pg",
-			assertSeen: func(t *testing.T, v *recordingValidator) {
-				assert.Equal(t, "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', $1)", v.query)
-				assert.Equal(t, []any{"voters don't trust"}, v.args)
-			},
-		},
-		{
-			engineType: "elasticsearch",
-			engineName: "es",
-			assertSeen: func(t *testing.T, v *recordingValidator) {
-				assert.JSONEq(t, `{"query": {"match": {"title": "voters don't trust"}}}`, v.query)
-				assert.Empty(t, v.args)
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.engineType, func(t *testing.T) {
-			validator := &recordingValidator{}
+	row := validateOne(context.Background(), validateInput{
+		query:      loaded.Suite.Queries[0],
+		engineName: "pg",
+		binding:    spec.QueryBinding{QuerySource: "pg", Params: map[string]any{"rank_norm": "1"}},
+		loaded:     loaded,
+		executor:   validator,
+	})
 
-			row := validateOne(context.Background(), validateInput{
-				query:      loaded.Suite.Queries[0],
-				engineName: tt.engineName,
-				engineType: tt.engineType,
-				binding:    spec.QueryBinding{QuerySource: tt.engineName},
-				loaded:     loaded,
-				executor:   validator,
-			})
+	require.Equal(t, "OK", row.status, row.detail)
+	assert.Equal(t, "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', $2) ORDER BY ts_rank(search_vector, plainto_tsquery('english', $2), $3::int) DESC LIMIT $1::int", validator.query)
+	assert.Equal(t, []any{"10", "voters don't trust", "1"}, validator.args)
+}
 
-			require.Equal(t, "OK", row.status, row.detail)
-			tt.assertSeen(t, validator)
-		})
-	}
+// A binding that cannot supply an arg fails the whole command before any pair
+// is validated, the way run and pool fail before any query runs.
+func TestValidate_UnsuppliedArgFailsBeforeValidating(t *testing.T) {
+	validated := false
+	es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		validated = true
+		_, _ = w.Write([]byte(`{"valid": true}`))
+	}))
+	defer es.Close()
+
+	root := t.TempDir()
+	dir := filepath.Join(root, "unsupplied")
+	writeValidateTrack(t, dir, es.URL)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "suite.yaml"), []byte(`schema_version: 1
+id: validate_unsupplied
+templates:
+  - id: es_match
+    args: [terms]
+    query: '{"query": {"match": {"title": "{{terms}}"}}}'
+queries:
+  - id: q-climate
+    engines:
+      es: { query: '{"query": {"match": {"title": "climate"}}}' }
+  - id: q-election
+    engines:
+      es: { template: es_match }
+`), 0o644))
+	prevRoot := trackRoot
+	trackRoot = root
+	t.Cleanup(func() { trackRoot = prevRoot })
+
+	var out bytes.Buffer
+	cmd := newValidateCmd()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"unsupplied"})
+	err := cmd.Execute()
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "q-election")
+	assert.ErrorContains(t, err, "terms")
+	assert.False(t, validated, "no pair may be validated once a binding is known to be broken")
 }

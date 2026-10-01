@@ -51,7 +51,8 @@ func TestRunAll_AliasedEngineRunsSourceBlockWithOwnParams(t *testing.T) {
 id: alias_suite
 templates:
   - id: pg_idx
-    query: "ORDER BY ts_rank(search_vector, q('{{terms}}'), {{rank_norm}}) DESC"
+    args: [terms, rank_norm]
+    query: "ORDER BY ts_rank(search_vector, plainto_tsquery($1), $2::int) DESC"
 queries:
   - id: qs-climate
     engines:
@@ -84,49 +85,54 @@ queries:
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "ORDER BY ts_rank(search_vector, q('climate change'), 0) DESC", gin.lastQuery())
-	assert.Equal(t, "ORDER BY ts_rank(search_vector, q('climate change'), 1) DESC", norm.lastQuery())
+	assert.Equal(t, gin.lastQuery(), norm.lastQuery())
+	assert.Equal(t, []any{"climate change", "0"}, gin.lastArgs)
+	assert.Equal(t, []any{"climate change", "1"}, norm.lastArgs)
 }
 
-// The spec's engine type decides how query text travels: a postgres engine
-// receives it as an argument, an elasticsearch engine as a JSON string.
-func TestRunAll_BindsQueryTextByEngineType(t *testing.T) {
+// A job whose engine is not given an arg its queries take fails before any
+// job runs, not once the run reaches it.
+func TestRunAll_UnsuppliedArgFailsBeforeAnyQueryRuns(t *testing.T) {
 	dir := t.TempDir()
 	suitePath := filepath.Join(dir, "suite.yaml")
 	require.NoError(t, os.WriteFile(suitePath, []byte(`schema_version: 1
-id: bound_suite
+id: unsupplied_suite
 templates:
   - id: pg_idx
-    query: "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', {{$terms}}) LIMIT {{limit}}"
+    args: [terms, rank_norm]
+    query: "SELECT id FROM articles ORDER BY ts_rank(search_vector, plainto_tsquery($1), $2::int) DESC"
 queries:
-  - id: qs-trust
+  - id: qs-climate
     engines:
-      pg:
+      pg-gin:
         template: pg_idx
-        params: { terms: "voters don't trust Ukraine's results", limit: 10 }
-      es:
-        query: '{"query": {"match": {"title": {{$terms}}}}}'
-        params: { terms: "voters don't trust Ukraine's results" }
+        params: { terms: "climate change" }
 `), 0644))
 
 	bs := &spec.BenchSpec{
 		Engines: map[string]spec.Engine{
-			"pg": {Type: "postgres"},
-			"es": {Type: "elasticsearch"},
+			"pg-gin":    {Type: "postgres", Params: map[string]any{"rank_norm": "0"}},
+			"pg-seq":    {Type: "postgres", QueriesFrom: "pg-gin"},
+			"pg-gin-ok": {Type: "postgres", QueriesFrom: "pg-gin", Params: map[string]any{"rank_norm": "1"}},
 		},
-		Jobs: []spec.Job{{Name: "bound", Suite: suitePath, Engines: []string{"pg", "es"}}},
+		Jobs: []spec.Job{
+			{Name: "first", Suite: suitePath, Engines: []string{"pg-gin", "pg-gin-ok"}},
+			{Name: "second", Suite: suitePath, Engines: []string{"pg-seq"}},
+		},
 	}
-	pg := &recordingExecutor{name: "pg"}
-	es := &recordingExecutor{name: "es"}
+	gin := &recordingExecutor{name: "pg-gin"}
 
 	cfg := DefaultConfig()
 	cfg.WarmupRuns = 0
 	cfg.Runs = 1
-	_, err := New(cfg).RunAll(context.Background(), bs, map[string]engine.Executor{"pg": pg, "es": es})
-	require.NoError(t, err)
+	_, err := New(cfg).RunAll(context.Background(), bs, map[string]engine.Executor{
+		"pg-gin":    gin,
+		"pg-gin-ok": &recordingExecutor{name: "pg-gin-ok"},
+		"pg-seq":    &recordingExecutor{name: "pg-seq"},
+	})
 
-	assert.Equal(t, "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', $1) LIMIT 10", pg.lastQuery())
-	assert.Equal(t, []any{"voters don't trust Ukraine's results"}, pg.lastArgs)
-	assert.JSONEq(t, `{"query": {"match": {"title": "voters don't trust Ukraine's results"}}}`, es.lastQuery())
-	assert.Empty(t, es.lastArgs)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "pg-seq")
+	assert.ErrorContains(t, err, "rank_norm")
+	assert.Empty(t, gin.lastQuery(), "the first job must not run once the second is known to be broken")
 }

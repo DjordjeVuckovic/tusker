@@ -65,7 +65,8 @@ queries:
 	t.Run("structured EngineQuery with template", func(t *testing.T) {
 		yaml := validHeader + `templates:
   - id: pg_fts
-    query: "SELECT id FROM articles WHERE term = '{{term}}' LIMIT {{limit}}"
+    args: [term, limit]
+    query: "SELECT id FROM articles WHERE term = $1 LIMIT $2::int"
 queries:
   - id: q1
     engines:
@@ -189,28 +190,30 @@ func TestEngineQuery_Resolve_File(t *testing.T) {
 	queryFile := filepath.Join(dir, "search.sql")
 	require.NoError(t, os.WriteFile(queryFile, []byte("SELECT id FROM articles WHERE id = $1"), 0644))
 
-	eq := EngineQuery{File: "search.sql"}
-	resolved, err := eq.Resolve(ResolveOptions{SuiteDir: dir, Dialect: DialectPostgres})
+	eq := EngineQuery{File: "search.sql", Args: []string{"id"}, Params: TemplateParams{"id": "42"}}
+	resolved, err := eq.Resolve(ResolveOptions{SuiteDir: dir})
 	require.NoError(t, err)
 	assert.Equal(t, "SELECT id FROM articles WHERE id = $1", resolved.Query)
+	assert.Equal(t, []any{"42"}, resolved.Args)
 }
 
 func TestEngineQuery_Resolve_Inline(t *testing.T) {
 	eq := EngineQuery{Query: "SELECT 1"}
-	resolved, err := eq.Resolve(ResolveOptions{Dialect: DialectPostgres})
+	resolved, err := eq.Resolve(ResolveOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, "SELECT 1", resolved.Query)
 }
 
 func TestEngineQuery_Resolve_Template(t *testing.T) {
 	reg := NewTemplateRegistry()
-	tmpl := &QueryTemplate{ID: "fts", Query: "SELECT * WHERE term = '{{term}}'"}
+	tmpl := &QueryTemplate{ID: "fts", Args: []string{"term"}, Query: "SELECT * WHERE term = $1"}
 	require.NoError(t, reg.Register(tmpl))
 
 	eq := EngineQuery{Template: "fts", Params: TemplateParams{"term": "climate"}}
-	resolved, err := eq.Resolve(ResolveOptions{Registry: reg, Dialect: DialectPostgres})
+	resolved, err := eq.Resolve(ResolveOptions{Registry: reg})
 	require.NoError(t, err)
-	assert.Equal(t, "SELECT * WHERE term = 'climate'", resolved.Query)
+	assert.Equal(t, "SELECT * WHERE term = $1", resolved.Query)
+	assert.Equal(t, []any{"climate"}, resolved.Args)
 }
 
 func TestLoadFromFile_SetsDir(t *testing.T) {

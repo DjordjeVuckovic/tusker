@@ -36,31 +36,18 @@ func (r *Runner) RunAll(
 
 	br := &BenchmarkResult{Config: r.config}
 
-	bindings := queryBindings(bs)
-	dialects, err := queryDialects(bs)
+	suites, err := LoadSuites(bs)
 	if err != nil {
 		return nil, err
 	}
+	bindings := queryBindings(bs)
 
-	// Cache suite loads — multiple jobs commonly share a suite.
-	suiteCache := map[string]*suite.LoadedSuite{}
 	for _, job := range bs.Jobs {
-		loaded, ok := suiteCache[job.Suite]
-		if !ok {
-			ls, err := suite.LoadFromFile(job.Suite)
-			if err != nil {
-				return nil, fmt.Errorf("load suite for job %q: %w", job.Name, err)
-			}
-			suiteCache[job.Suite] = ls
-			loaded = ls
-		}
-
 		jr, err := r.RunJob(ctx, JobRequest{
 			Job:       job,
-			Suite:     loaded,
+			Suite:     suites[job.Suite],
 			Executors: executors,
 			Bindings:  bindings,
-			Dialects:  dialects,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("run job %q: %w", job.Name, err)
@@ -103,30 +90,29 @@ func queryBindings(bs *spec.BenchSpec) map[string]spec.QueryBinding {
 	return bindings
 }
 
-func queryDialects(bs *spec.BenchSpec) (map[string]suite.Dialect, error) {
-	dialects := make(map[string]suite.Dialect, len(bs.Engines))
-	for name, eng := range bs.Engines {
-		dialect, err := DialectForEngineType(eng.Type)
-		if err != nil {
-			return nil, fmt.Errorf("engine %q: %w", name, err)
+// LoadSuites loads every job's suite once and checks that each job engine is
+// given every arg its queries take, so a broken binding fails before any query
+// runs rather than partway through the jobs.
+func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
+	suites := map[string]*suite.LoadedSuite{}
+	for _, job := range bs.Jobs {
+		loaded, ok := suites[job.Suite]
+		if !ok {
+			ls, err := suite.LoadFromFile(job.Suite)
+			if err != nil {
+				return nil, fmt.Errorf("load suite for job %q: %w", job.Name, err)
+			}
+			suites[job.Suite] = ls
+			loaded = ls
 		}
-		dialects[name] = dialect
+		for _, engName := range job.Engines {
+			binding := bs.QueryBinding(engName)
+			if err := loaded.CheckArgsSupplied(binding.QuerySource, binding.Params); err != nil {
+				return nil, fmt.Errorf("job %q engine %q: %w", job.Name, engName, err)
+			}
+		}
 	}
-	return dialects, nil
-}
-
-// DialectForEngineType is how an engine of a spec engine type receives a
-// suite's bound {{$name}} values: Postgres as $N arguments, Elasticsearch and
-// the API inlined into their JSON bodies.
-func DialectForEngineType(engineType string) (suite.Dialect, error) {
-	switch engineType {
-	case "postgres":
-		return suite.DialectPostgres, nil
-	case "elasticsearch", "api":
-		return suite.DialectJSON, nil
-	default:
-		return "", fmt.Errorf("engine type %q has no query dialect", engineType)
-	}
+	return suites, nil
 }
 
 // JobRequest is everything one job needs to run: its declaration, the loaded
@@ -136,7 +122,6 @@ type JobRequest struct {
 	Suite     *suite.LoadedSuite
 	Executors map[string]engine.Executor
 	Bindings  map[string]spec.QueryBinding
-	Dialects  map[string]suite.Dialect
 }
 
 func (r *Runner) RunJob(ctx context.Context, req JobRequest) (*JobResult, error) {
@@ -214,7 +199,7 @@ func (r *Runner) runQueries(ctx context.Context, jr *JobResult, req JobRequest) 
 // and the merge into jr.Results happens after all goroutines finish.
 func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite.Query, req JobRequest, engineSem chan struct{}) {
 	judgments := r.judgmentsFor(q)
-	extra := r.queryVectorParams(ctx, q)
+	queryVector := r.queryVector(ctx, req.Suite, q)
 
 	type slot struct {
 		engName string
@@ -246,12 +231,11 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				binding = spec.QueryBinding{QuerySource: engName}
 			}
 			resolved, err := q.ResolveEngineQuery(suite.ResolveOptions{
-				Engine:   binding.QuerySource,
-				Registry: req.Suite.Registry,
-				SuiteDir: req.Suite.Dir,
-				Defaults: binding.Params,
-				Extra:    extra,
-				Dialect:  req.Dialects[engName],
+				Engine:      binding.QuerySource,
+				Registry:    req.Suite.Registry,
+				SuiteDir:    req.Suite.Dir,
+				Defaults:    binding.Params,
+				QueryVector: queryVector,
 			})
 			if err != nil {
 				slots[idx] = slot{
@@ -302,13 +286,11 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 	}
 }
 
-// queryVectorParams embeds the query once (via the configured VectorStore) and
-// returns it under the reserved query-vector param, so resolution can inject it
-// into vector queries. Returns nil when there is no store or the query needs no
-// vector; an embedding failure is logged and the vector queries simply fail to
-// resolve (recorded per-engine, non-fatal).
-func (r *Runner) queryVectorParams(ctx context.Context, q *suite.Query) suite.TemplateParams {
-	if r.config.VectorStore == nil || !q.NeedsQueryVector() {
+// queryVector embeds the query once when any of its blocks takes the query
+// vector. Without a store, or when embedding fails, it returns nil and those
+// blocks fail to resolve, recorded per engine.
+func (r *Runner) queryVector(ctx context.Context, ls *suite.LoadedSuite, q *suite.Query) []float32 {
+	if r.config.VectorStore == nil || !ls.NeedsQueryVector(q) {
 		return nil
 	}
 	vec, err := r.config.VectorStore.QueryVector(ctx, q.Description)
@@ -317,7 +299,7 @@ func (r *Runner) queryVectorParams(ctx context.Context, q *suite.Query) suite.Te
 			"query", q.ID, "error", err)
 		return nil
 	}
-	return suite.TemplateParams{suite.ReservedQueryVectorParam: suite.FormatVector(vec)}
+	return vec
 }
 
 // judgmentsFor returns the relevance grades for a query. Priority: the
