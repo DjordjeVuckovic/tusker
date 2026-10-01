@@ -34,3 +34,12 @@ type Execution struct {
 	CorpusMatches *int64 // nil when the engine cannot report one
 	Latency       time.Duration
 }
+
+var (
+	_ Executor  = (*PgExecutor)(nil)
+	_ Executor  = (*EsExecutor)(nil)
+	_ Executor  = (*APIExecutor)(nil)
+	_ Validator = (*PgExecutor)(nil)
+	_ Validator = (*EsExecutor)(nil)
+	_ Validator = (*APIExecutor)(nil)
+)
