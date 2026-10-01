@@ -353,3 +353,43 @@ queries:
 		assert.Equal(t, want[q.ID], loaded.NeedsQueryVector(q), q.ID)
 	}
 }
+
+// A search template renders from named params, so a template query hands them
+// over as values with their own types, the query vector as numbers.
+func TestResolveEngineQuery_HandsTemplateParamsToASearchTemplate(t *testing.T) {
+	loaded, err := Parse([]byte(validHeader + `templates:
+  - id: es_knn
+    args: [terms, query_vector, size]
+    query: '{"query": {"match": {"title": "{{terms}}"}}, "knn": {"field": "embedding", "query_vector": {{#toJson}}query_vector{{/toJson}}}, "size": {{size}}}'
+queries:
+  - id: hybrid-1
+    engines:
+      elasticsearch: { template: es_knn, params: { terms: "don't", size: 50 } }
+`))
+	require.NoError(t, err)
+
+	resolved, err := loaded.Suite.Queries[0].ResolveEngineQuery(ResolveOptions{
+		Engine:      "elasticsearch",
+		Registry:    loaded.Registry,
+		Defaults:    TemplateParams{EmbeddingModelParam: "qwen3"},
+		QueryVector: []float32{0.5, -1},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "es_knn", resolved.Template)
+	assert.Equal(t, TemplateParams{
+		"terms":             "don't",
+		"size":              50,
+		QueryVectorArg:      []float32{0.5, -1},
+		EmbeddingModelParam: "qwen3",
+	}, resolved.Params)
+}
+
+func TestResolveEngineQuery_InlineQueryNamesNoTemplate(t *testing.T) {
+	q := Query{ID: "q1", Engines: map[string]EngineQuery{"es": {Query: `{"query": {"match_all": {}}}`}}}
+
+	resolved, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es"})
+
+	require.NoError(t, err)
+	assert.Empty(t, resolved.Template)
+}

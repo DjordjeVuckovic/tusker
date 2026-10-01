@@ -99,7 +99,7 @@ func (eq *EngineQuery) Resolve(opts ResolveOptions) (*ResolvedQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ResolvedQuery{Query: statement, Args: args}, nil
+	return &ResolvedQuery{Query: statement, Args: args, Template: eq.Template, Params: params}, nil
 }
 
 func (eq *EngineQuery) statement(registry *TemplateRegistry, suiteDir string) (string, []string, error) {
@@ -156,6 +156,12 @@ type ResolvedQuery struct {
 	Query string
 	// Args are the values behind the query's $N placeholders, in order.
 	Args []any
+	// Template is the suite template the query came from, empty for an inline
+	// or file query.
+	Template string
+	// Params are every value the query, its engine and the run supply, with the
+	// query vector as numbers, for an engine that renders the template itself.
+	Params TemplateParams
 }
 
 type RelevanceJudgment struct {

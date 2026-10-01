@@ -40,10 +40,14 @@ func (r *Runner) RunAll(
 	if err != nil {
 		return nil, err
 	}
+	if err := RegisterSearchTemplates(ctx, TemplateRegistration{Spec: bs, Suites: suites, Executors: executors}); err != nil {
+		return nil, err
+	}
 	bindings := queryBindings(bs)
 
 	for _, job := range bs.Jobs {
 		jr, err := r.RunJob(ctx, JobRequest{
+			Track:     bs.ID,
 			Job:       job,
 			Suite:     suites[job.Suite],
 			Executors: executors,
@@ -115,9 +119,82 @@ func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
 	return suites, nil
 }
 
+// TemplateRegistration is a loaded track whose search templates are to be
+// stored on the engines that render them.
+type TemplateRegistration struct {
+	Spec      *spec.BenchSpec
+	Suites    map[string]*suite.LoadedSuite
+	Executors map[string]engine.Executor
+}
+
+type templateOnEngine struct {
+	engine   string
+	template engine.SearchTemplate
+}
+
+// RegisterSearchTemplates stores each suite template a job engine's queries
+// use on that engine, when it renders templates itself. It fails before
+// storing anything when two different templates would share a stored id.
+func RegisterSearchTemplates(ctx context.Context, reg TemplateRegistration) error {
+	var pending []templateOnEngine
+	sourceByID := map[string]string{}
+	queued := map[templateOnEngine]bool{}
+	for _, job := range reg.Spec.Jobs {
+		ls := reg.Suites[job.Suite]
+		for _, engName := range job.Engines {
+			if _, stores := reg.Executors[engName].(engine.SearchTemplateRegistrar); !stores {
+				continue
+			}
+			source := reg.Spec.QueryBinding(engName).QuerySource
+			for _, q := range ls.Suite.Queries {
+				block, ok := q.Engines[source]
+				if !ok || block.Template == "" {
+					continue
+				}
+				tmpl, ok := ls.Registry.Get(block.Template)
+				if !ok {
+					return fmt.Errorf("query %q engine %q: template %q not found", q.ID, engName, block.Template)
+				}
+				stored := templateOnEngine{
+					engine:   engName,
+					template: engine.SearchTemplate{ID: engine.SearchTemplateID(reg.Spec.ID, tmpl.ID), Source: tmpl.Query},
+				}
+				if prev, seen := sourceByID[stored.template.ID]; seen && prev != tmpl.Query {
+					return fmt.Errorf("two different templates would be stored as %q: rename one", stored.template.ID)
+				}
+				sourceByID[stored.template.ID] = tmpl.Query
+				if !queued[stored] {
+					queued[stored] = true
+					pending = append(pending, stored)
+				}
+			}
+		}
+	}
+	for _, p := range pending {
+		registrar := reg.Executors[p.engine].(engine.SearchTemplateRegistrar)
+		if err := registrar.RegisterSearchTemplate(ctx, p.template); err != nil {
+			return fmt.Errorf("engine %q: %w", p.engine, err)
+		}
+	}
+	return nil
+}
+
+// EngineRequest is how exec receives a resolved query. An engine that stores
+// search templates runs a template query by its stored id and params.
+func EngineRequest(exec engine.Executor, track string, resolved *suite.ResolvedQuery) engine.Request {
+	req := engine.Request{Query: resolved.Query, Args: resolved.Args}
+	if _, stores := exec.(engine.SearchTemplateRegistrar); stores && resolved.Template != "" {
+		req.SearchTemplateID = engine.SearchTemplateID(track, resolved.Template)
+		req.Params = resolved.Params
+	}
+	return req
+}
+
 // JobRequest is everything one job needs to run: its declaration, the loaded
 // suite, the executors to drive, and how each engine reaches its queries.
 type JobRequest struct {
+	// Track is the spec id, which namespaces the job's stored search templates.
+	Track     string
 	Job       spec.Job
 	Suite     *suite.LoadedSuite
 	Executors map[string]engine.Executor
@@ -250,7 +327,7 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				return
 			}
 
-			result := r.executeWithRetries(ctx, exec, engine.Request{Query: resolved.Query, Args: resolved.Args}, r.config.WarmupRuns, r.config.Runs)
+			result := r.executeWithRetries(ctx, exec, EngineRequest(exec, req.Track, resolved), r.config.WarmupRuns, r.config.Runs)
 
 			var scores metrics.ScoreSet
 			if result.err == nil && len(judgments) > 0 {

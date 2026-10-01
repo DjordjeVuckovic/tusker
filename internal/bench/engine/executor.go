@@ -13,6 +13,29 @@ type Request struct {
 	Query string
 	// Args are the values behind a Postgres statement's $1 … $n, in order.
 	Args []any
+	// SearchTemplateID names a stored search template to run with Params in
+	// place of Query. Set only for an executor that stores templates.
+	SearchTemplateID string
+	Params           map[string]any
+}
+
+// SearchTemplate is a suite template stored on the engine under ID.
+type SearchTemplate struct {
+	ID     string
+	Source string
+}
+
+// SearchTemplateRegistrar is an optional capability for engines that render
+// suite templates themselves: each template is stored before any query runs it.
+type SearchTemplateRegistrar interface {
+	RegisterSearchTemplate(ctx context.Context, template SearchTemplate) error
+}
+
+// SearchTemplateID is the id a suite template is stored under. Stored templates
+// outlive a run and are shared by every track on the cluster, so the track
+// keeps two tracks' templates of the same name apart.
+func SearchTemplateID(track, template string) string {
+	return track + "-" + template
 }
 
 type Executor interface {
@@ -47,4 +70,6 @@ var (
 	_ Validator = (*PgExecutor)(nil)
 	_ Validator = (*EsExecutor)(nil)
 	_ Validator = (*APIExecutor)(nil)
+
+	_ SearchTemplateRegistrar = (*EsExecutor)(nil)
 )

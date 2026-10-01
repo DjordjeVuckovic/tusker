@@ -30,9 +30,11 @@ func newValidateCmd() *cobra.Command {
 		Short: "Dry-run every query through each engine and report broken ones",
 		Long: `Validates spec + suite ahead of a real pool/run:
 
-  - templates render with the params provided
-  - postgres queries pass EXPLAIN (syntax, columns, operators)
-  - elasticsearch queries pass _validate/query (JSON, fields, types)
+  - every query is given the args its statement takes
+  - postgres queries pass EXPLAIN with their args (syntax, columns, operators)
+  - elasticsearch search templates are stored, rendered with their params, and
+    the rendered body passes _validate/query (JSON, fields, types), as do
+    inline Query DSL bodies
   - api descriptors parse as {method, path, body?, params?}
 
 Returns non-zero exit if any query fails — wire it into CI.`,
@@ -100,6 +102,11 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 	if err != nil {
 		return err
 	}
+	if err := runner.RegisterSearchTemplates(cmd.Context(), runner.TemplateRegistration{
+		Spec: bs, Suites: suites, Executors: executors,
+	}); err != nil {
+		return err
+	}
 
 	var rows []validateRow
 	failures := 0
@@ -120,6 +127,7 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 
 				row := validateOne(cmd.Context(), validateInput{
 					query:      q,
+					track:      bs.ID,
 					engineName: engName,
 					binding:    bs.QueryBinding(engName),
 					loaded:     ls,
@@ -159,6 +167,7 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 // to resolve and check it.
 type validateInput struct {
 	query      suite.Query
+	track      string
 	engineName string
 	binding    spec.QueryBinding
 	loaded     *suite.LoadedSuite
@@ -212,7 +221,7 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 		row.detail = "executor does not implement Validator"
 		return row
 	}
-	if err := v.Validate(ctx, engine.Request{Query: resolved.Query, Args: resolved.Args}); err != nil {
+	if err := v.Validate(ctx, runner.EngineRequest(exec, in.track, resolved)); err != nil {
 		row.status = "INVALID"
 		row.detail = truncate(err.Error(), 120)
 		return row

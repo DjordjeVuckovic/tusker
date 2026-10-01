@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,8 +31,16 @@ func NewEsExecutor(name, baseURL, index string) *EsExecutor {
 
 func (e *EsExecutor) Execute(ctx context.Context, search Request) (*Execution, error) {
 	url := fmt.Sprintf("%s/%s/_search", e.baseURL, e.index)
+	body := []byte(search.Query)
+	if search.SearchTemplateID != "" {
+		url = fmt.Sprintf("%s/%s/_search/template", e.baseURL, e.index)
+		var err error
+		if body, err = storedTemplateCall(search); err != nil {
+			return nil, err
+		}
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBufferString(search.Query))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("es create request: %w", err)
 	}
@@ -45,17 +54,17 @@ func (e *EsExecutor) Execute(ctx context.Context, search Request) (*Execution, e
 	defer resp.Body.Close()
 	latency := time.Since(start)
 
-	body, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("es read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("es status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("es status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var esResp esSearchResponse
-	if err := json.Unmarshal(body, &esResp); err != nil {
+	if err := json.Unmarshal(respBody, &esResp); err != nil {
 		return nil, fmt.Errorf("es parse response: %w", err)
 	}
 
@@ -73,6 +82,71 @@ func (e *EsExecutor) Execute(ctx context.Context, search Request) (*Execution, e
 		CorpusMatches: esResp.Hits.Total.exactCount(),
 		Latency:       latency,
 	}, nil
+}
+
+func storedTemplateCall(search Request) ([]byte, error) {
+	body, err := json.Marshal(map[string]any{"id": search.SearchTemplateID, "params": search.Params})
+	if err != nil {
+		return nil, fmt.Errorf("es encode template %q params: %w", search.SearchTemplateID, err)
+	}
+	return body, nil
+}
+
+// RegisterSearchTemplate stores the template's Mustache source with
+// PUT _scripts/<id>, replacing any earlier version.
+func (e *EsExecutor) RegisterSearchTemplate(ctx context.Context, template SearchTemplate) error {
+	body, err := json.Marshal(map[string]any{
+		"script": map[string]string{"lang": "mustache", "source": template.Source},
+	})
+	if err != nil {
+		return fmt.Errorf("es encode template %q: %w", template.ID, err)
+	}
+	url := fmt.Sprintf("%s/_scripts/%s", e.baseURL, neturl.PathEscape(template.ID))
+	if _, err := e.send(ctx, http.MethodPut, url, body); err != nil {
+		return fmt.Errorf("es store template %q: %w", template.ID, err)
+	}
+	return nil
+}
+
+// renderTemplate returns the search body ES builds from a stored template and
+// its params, without running it.
+func (e *EsExecutor) renderTemplate(ctx context.Context, search Request) (string, error) {
+	body, err := storedTemplateCall(search)
+	if err != nil {
+		return "", err
+	}
+	respBody, err := e.send(ctx, http.MethodPost, e.baseURL+"/_render/template", body)
+	if err != nil {
+		return "", fmt.Errorf("es render template %q: %w", search.SearchTemplateID, err)
+	}
+	var rendered struct {
+		TemplateOutput json.RawMessage `json:"template_output"`
+	}
+	if err := json.Unmarshal(respBody, &rendered); err != nil {
+		return "", fmt.Errorf("es render template %q: %w", search.SearchTemplateID, err)
+	}
+	return string(rendered.TemplateOutput), nil
+}
+
+func (e *EsExecutor) send(ctx context.Context, method, url string, body []byte) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := e.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, string(respBody))
+	}
+	return respBody, nil
 }
 
 func (e *EsExecutor) CorpusCount(ctx context.Context) (int64, error) {
@@ -108,7 +182,8 @@ func (e *EsExecutor) Close() error { return nil }
 
 // Validate posts the query to <index>/_validate/query?explain=true. ES parses
 // the JSON, type-checks fields, and returns "valid: false" with an explanation
-// for malformed queries — no documents scanned.
+// for malformed queries — no documents scanned. A stored template is rendered
+// with its params first and the rendered body validated.
 //
 // Bodies that use top-level `knn` (vector search) are routed to
 // validateKnnBody: _validate/query only understands the Query DSL and rejects
@@ -116,6 +191,13 @@ func (e *EsExecutor) Close() error { return nil }
 // checked structurally instead.
 func (e *EsExecutor) Validate(ctx context.Context, search Request) error {
 	rawQuery := search.Query
+	if search.SearchTemplateID != "" {
+		rendered, err := e.renderTemplate(ctx, search)
+		if err != nil {
+			return err
+		}
+		rawQuery = rendered
+	}
 	if hasKnn(rawQuery) {
 		return e.validateKnnBody(ctx, rawQuery)
 	}
@@ -221,9 +303,8 @@ func hasKnn(raw string) bool {
 }
 
 // validateKnnBody validates a vector-search body. The `knn` clause is checked
-// structurally (shape, not data — the query_vector may still be an unresolved
-// placeholder at validate time); an accompanying `query` block, if present, is
-// validated against _validate/query as usual.
+// structurally; an accompanying `query` block, if present, is validated against
+// _validate/query as usual.
 func (e *EsExecutor) validateKnnBody(ctx context.Context, rawQuery string) error {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(rawQuery), &m); err != nil {
