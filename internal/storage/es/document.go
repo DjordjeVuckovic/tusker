@@ -40,6 +40,8 @@ func optionalTime(t time.Time) *time.Time {
 	return &t
 }
 
+const englishAnalyzer = "english_analyzer"
+
 type IndexBuilder struct {
 	defaultLanguage string
 }
@@ -84,7 +86,7 @@ func (b *IndexBuilder) buildSettings() types.IndexSettings {
 	return types.IndexSettings{
 		Analysis: &types.IndexSettingsAnalysis{
 			Analyzer: map[string]types.Analyzer{
-				"multilingual_analyzer": types.CustomAnalyzer{
+				englishAnalyzer: types.CustomAnalyzer{
 					Tokenizer: "standard",
 					Filter:    []string{"lowercase", "postgres_english_stop", "english_snowball"},
 				},
@@ -101,10 +103,10 @@ func (b *IndexBuilder) buildMapping() types.TypeMapping {
 	return types.TypeMapping{
 		Properties: map[string]types.Property{
 			"id":           types.NewKeywordProperty(),
-			"title":        b.createTextPropertyWithKeyword("multilingual_analyzer"),
-			"subtitle":     b.createTextProperty("multilingual_analyzer"),
-			"description":  b.createTextProperty("multilingual_analyzer"),
-			"content":      b.createTextProperty("multilingual_analyzer"),
+			"title":        b.createTextPropertyWithKeyword(englishAnalyzer),
+			"subtitle":     b.createTextProperty(englishAnalyzer),
+			"description":  b.createTextProperty(englishAnalyzer),
+			"content":      b.createTextProperty(englishAnalyzer),
 			"author":       b.createTextPropertyWithKeyword(""),
 			"url":          types.NewKeywordProperty(),
 			"language":     types.NewKeywordProperty(),
