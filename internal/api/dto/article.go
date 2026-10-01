@@ -17,6 +17,7 @@ type Article struct {
 	URL         string    `json:"url,omitempty" swaggertype:"string" format:"string"`
 
 	PublishedAt *time.Time `json:"publishedAt,omitempty"`
+	SourceName  string     `json:"sourceName,omitempty"`
 	CreatedAt   time.Time  `json:"createdAt"`
 
 	Metadata ArticleMetadata `json:"metadata,omitzero"`
@@ -24,7 +25,6 @@ type Article struct {
 
 type ArticleMetadata struct {
 	SourceId   string     `json:"sourceId,omitempty"`
-	SourceName string     `json:"sourceName,omitempty"`
 	Category   string     `json:"category,omitempty"`
 	ImportedAt *time.Time `json:"importedAt,omitempty"`
 

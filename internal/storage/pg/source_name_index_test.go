@@ -12,21 +12,40 @@ import (
 )
 
 func TestSourceNameFilter_PlansAsAnIndexScan(t *testing.T) {
+	const filter = `SELECT id FROM articles WHERE source_name = 'host7.com'`
+
 	engines := []struct {
 		name    string
 		connect func(t *testing.T) *ConnectionPool
+		query   string
+		inPlan  string
 	}{
-		{name: "pg-native", connect: func(t *testing.T) *ConnectionPool {
-			truncateTable(t)
-			t.Cleanup(func() { truncateTable(t) })
-			return testPool
-		}},
-		{name: "paradedb", connect: func(t *testing.T) *ConnectionPool {
-			return poolFor(t, pkgtesting.NewParadeDBContainerWithCleanup(context.Background(), t))
-		}},
-		{name: "tiger", connect: func(t *testing.T) *ConnectionPool {
-			return poolFor(t, pkgtesting.NewTigerContainerWithCleanup(context.Background(), t))
-		}},
+		{
+			name: "pg-native",
+			connect: func(t *testing.T) *ConnectionPool {
+				truncateTable(t)
+				t.Cleanup(func() { truncateTable(t) })
+				return testPool
+			},
+			query:  filter,
+			inPlan: "idx_articles_source_name",
+		},
+		{
+			name: "paradedb",
+			connect: func(t *testing.T) *ConnectionPool {
+				return poolFor(t, pkgtesting.NewParadeDBContainerWithCleanup(context.Background(), t))
+			},
+			query:  filter + ` AND id @@@ paradedb.match('title', 'title')`,
+			inPlan: `{"term":{"field":"source_name","value":"host7.com"`,
+		},
+		{
+			name: "tiger",
+			connect: func(t *testing.T) *ConnectionPool {
+				return poolFor(t, pkgtesting.NewTigerContainerWithCleanup(context.Background(), t))
+			},
+			query:  filter,
+			inPlan: "idx_articles_source_name",
+		},
 	}
 
 	for _, engine := range engines {
@@ -42,25 +61,23 @@ func TestSourceNameFilter_PlansAsAnIndexScan(t *testing.T) {
 				t.Fatalf("analyze articles: %v", err)
 			}
 
-			const filter = `SELECT id FROM articles WHERE metadata->>'sourceName' = 'host7.com'`
 			var matched int
-			if err := db.QueryRow(ctx, `SELECT count(*) FROM (`+filter+`) AS f`).Scan(&matched); err != nil {
+			if err := db.QueryRow(ctx, `SELECT count(*) FROM (`+engine.query+`) AS f`).Scan(&matched); err != nil {
 				t.Fatalf("count filtered articles: %v", err)
 			}
 			if matched == 0 {
-				t.Fatal("no article matches metadata->>'sourceName', so the loader writes another key")
+				t.Fatal("no article matches source_name, so the loader writes it elsewhere")
 			}
 
-			plan := explain(t, db, filter)
-			if !strings.Contains(plan, "idx_articles_source_name") {
-				t.Errorf("sourceName filter does not use idx_articles_source_name; plan:\n%s", plan)
+			if plan := explain(t, db, engine.query); !strings.Contains(plan, engine.inPlan) {
+				t.Errorf("source_name filter plan lacks %s; plan:\n%s", engine.inPlan, plan)
 			}
 		})
 	}
 }
 
 // seedArticlesAcrossSources loads 20,000 articles from 200 hosts through the
-// loader, so the index is checked against the metadata key the loader writes.
+// loader, so the index is checked against the column the loader writes.
 func seedArticlesAcrossSources(ctx context.Context, pool *ConnectionPool) error {
 	const articles, sources = 20000, 200
 	indexer, err := NewIndexer(pool)
@@ -70,10 +87,10 @@ func seedArticlesAcrossSources(ctx context.Context, pool *ConnectionPool) error 
 	batch := make([]document.Article, articles)
 	for i := range batch {
 		batch[i] = document.Article{
-			Title:    fmt.Sprintf("title %d", i),
-			Content:  fmt.Sprintf("content %d", i),
-			URL:      fmt.Sprintf("https://example.com/%d", i),
-			Metadata: document.ArticleMetadata{SourceName: fmt.Sprintf("host%d.com", i%sources)},
+			Title:      fmt.Sprintf("title %d", i),
+			Content:    fmt.Sprintf("content %d", i),
+			URL:        fmt.Sprintf("https://example.com/%d", i),
+			SourceName: fmt.Sprintf("host%d.com", i%sources),
 		}
 	}
 	return indexer.SaveBulk(ctx, batch)

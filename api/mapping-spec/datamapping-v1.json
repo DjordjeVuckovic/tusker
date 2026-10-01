@@ -70,9 +70,9 @@
               "Language",
               "URL",
               "PublishedAt",
+              "SourceName",
               "CreatedAt",
               "Metadata.SourceId",
-              "Metadata.SourceName",
               "Metadata.Category",
               "Metadata.ImportedAt"
             ]

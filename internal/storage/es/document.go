@@ -70,7 +70,7 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) ArticleDocument
 		Language:    article.Language,
 		CreatedAt:   article.CreatedAt,
 		SourceId:    article.Metadata.SourceId,
-		SourceName:  article.Metadata.SourceName,
+		SourceName:  article.SourceName,
 		PublishedAt: optionalTime(article.PublishedAt),
 		Category:    article.Metadata.Category,
 		ImportedAt:  optionalTime(article.Metadata.ImportedAt),

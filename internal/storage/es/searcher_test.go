@@ -128,6 +128,34 @@ func TestSearcher_NoMatchReturnsEmptyPage(t *testing.T) {
 	}
 }
 
+func TestSearcher_HitCarriesTheArticleSourceName(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Docker (testcontainers ES)")
+	}
+	ctx := context.Background()
+	indexer, searcher := newSearcherTestEnv(t)
+	id, err := indexer.Save(ctx, document.Article{ID: uuid.New(), Title: "harbour lights", Language: "english", SourceName: "bbc.com"})
+	if err != nil {
+		t.Fatalf("index article: %v", err)
+	}
+	refreshIndex(t, indexer)
+
+	for _, method := range searchMethods {
+		t.Run(method.name, func(t *testing.T) {
+			res, err := method.search(ctx, searcher, "harbour", &dquery.BaseOptions{Size: 10})
+			if err != nil {
+				t.Fatalf("search: %v", err)
+			}
+			if len(res.Hits) != 1 || res.Hits[0].ID != id {
+				t.Fatalf("hits = %+v, want only article %s", res.Hits, id)
+			}
+			if got := res.Hits[0].SourceName; got != "bbc.com" {
+				t.Errorf("SourceName = %q, want %q", got, "bbc.com")
+			}
+		})
+	}
+}
+
 func TestSearcher_MatchPagesThroughEveryHit(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Docker (testcontainers ES)")

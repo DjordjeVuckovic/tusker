@@ -48,7 +48,7 @@ fieldMappings:
    required: false
  - source: "source_name"
    sourceType: "string"
-   target: "Metadata.SourceName"
+   target: "SourceName"
    targetType: "string"
    required: false
  - source: "category"

@@ -9,6 +9,7 @@ CREATE TABLE articles
     search_vector tsvector,
     url           text        NOT NULL,
     published_at  timestamptz,
+    source_name   text        NOT NULL             DEFAULT '',
     metadata      jsonb                            DEFAULT '{}'::jsonb,
     created_at    timestamptz NOT NULL             DEFAULT now(),
     language      VARCHAR(10)                      DEFAULT 'english',
@@ -17,5 +18,5 @@ CREATE TABLE articles
 CREATE INDEX idx_articles_search_vector ON articles
     USING gin (search_vector);
 CREATE INDEX idx_articles_published_at ON articles (published_at DESC NULLS LAST);
-CREATE INDEX idx_articles_source_name ON articles ((metadata->>'sourceName'));
+CREATE INDEX idx_articles_source_name ON articles (source_name);
 COMMIT;

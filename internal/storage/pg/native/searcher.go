@@ -50,7 +50,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 	if cursor == nil {
 		searchSQL = `
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 				ts_rank(search_vector, plainto_tsquery('english', $1)) as rank
 			FROM articles
 			WHERE search_vector @@ plainto_tsquery('english', $1)
@@ -61,7 +61,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 	} else {
 		searchSQL = `
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 				ts_rank(search_vector, plainto_tsquery('english', $1)) as rank
 			FROM articles
 			WHERE search_vector @@ plainto_tsquery('english', $1)
@@ -179,7 +179,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s
@@ -190,7 +190,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s
@@ -318,7 +318,7 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s
@@ -329,7 +329,7 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s
@@ -505,7 +505,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		if cursor == nil {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+					id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 					%s as rank
 				FROM articles
 				WHERE %s
@@ -516,7 +516,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		} else {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+					id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 					%s as rank
 				FROM articles
 				WHERE %s
@@ -531,7 +531,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		if cursor == nil {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+					id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 					%s as rank
 				FROM articles
 				WHERE %s
@@ -542,7 +542,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		} else {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+					id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 					%s as rank
 				FROM articles
 				WHERE %s
@@ -658,7 +658,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s
@@ -669,7 +669,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				id, title, subtitle, content, author, description, url, language, published_at, source_name, created_at, metadata,
 				%s as rank
 			FROM articles
 			WHERE %s

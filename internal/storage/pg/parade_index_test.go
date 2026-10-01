@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"testing"
 
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
@@ -33,8 +32,8 @@ func newParadeDB(t *testing.T) *pgxpool.Pool {
 
 	for i, a := range paradeCorpus {
 		_, err := db.Exec(ctx, `
-			INSERT INTO articles (title, description, content, url, published_at, metadata)
-			VALUES ($1, $2, $3, $4, $5::timestamptz, jsonb_build_object('sourceName', $6::text))`,
+			INSERT INTO articles (title, description, content, url, published_at, source_name)
+			VALUES ($1, $2, $3, $4, $5::timestamptz, $6)`,
 			a.title, a.description, a.content, fmt.Sprintf("https://example.com/%d", i), a.publishedAt, a.sourceName)
 		if err != nil {
 			t.Fatalf("seed article %q: %v", a.title, err)
@@ -137,7 +136,7 @@ func TestParadeDBSearchIndex(t *testing.T) {
 		{
 			name: "source name next to a match",
 			query: `SELECT title FROM articles
-				WHERE id @@@ paradedb.match('title', 'skies news') AND metadata->>'sourceName' = 'bbc.com'`,
+				WHERE id @@@ paradedb.match('title', 'skies news') AND source_name = 'bbc.com'`,
 			want: []string{"Clear sky over harbour"},
 		},
 	}
@@ -148,12 +147,4 @@ func TestParadeDBSearchIndex(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("source name filter runs inside the bm25 scan", func(t *testing.T) {
-		plan := explain(t, db, `SELECT id FROM articles
-			WHERE id @@@ paradedb.match('title', 'skies') AND metadata->>'sourceName' = 'bbc.com'`)
-		if !strings.Contains(plan, `"field":"metadata.sourceName"`) {
-			t.Errorf("sourceName filter was not pushed into the bm25 index; plan:\n%s", plan)
-		}
-	})
 }

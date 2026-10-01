@@ -251,9 +251,9 @@ func (s *HybridSearcher) fetchDocs(ctx context.Context, candidates []fusedCandid
 			Language:    doc.Language,
 			CreatedAt:   doc.CreatedAt,
 			PublishedAt: doc.PublishedAt,
+			SourceName:  doc.SourceName,
 			Metadata: dto.ArticleMetadata{
 				SourceId:   doc.SourceId,
-				SourceName: doc.SourceName,
 				Category:   doc.Category,
 				ImportedAt: doc.ImportedAt,
 			},

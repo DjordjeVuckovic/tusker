@@ -20,6 +20,7 @@ type Article struct {
 	URL         string    `json:"url,omitempty" format:"uri"`
 
 	PublishedAt time.Time `json:"publishedAt,omitzero"`
+	SourceName  string    `json:"sourceName,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
 
 	Metadata     ArticleMetadata `json:"metadata,omitzero"`
@@ -28,7 +29,6 @@ type Article struct {
 
 type ArticleMetadata struct {
 	SourceId   string    `json:"sourceId,omitempty"`
-	SourceName string    `json:"sourceName,omitempty"`
 	Category   string    `json:"category,omitempty"`
 	ImportedAt time.Time `json:"importedAt,omitzero"`
 
