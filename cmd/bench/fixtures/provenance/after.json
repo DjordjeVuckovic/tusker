@@ -10,7 +10,7 @@
     "engines": {
       "pg-native": {
         "type": "postgres",
-        "connection": "postgresql://bench@localhost:54320/news_db",
+        "connection": "postgresql://localhost:54320/news_db",
         "version": "18.0 (Debian 18.0-1.pgdg13+3)",
         "index": {
           "postgres": {
