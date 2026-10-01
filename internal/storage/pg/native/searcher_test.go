@@ -368,3 +368,27 @@ func TestSearcher_PagesThroughEveryHit(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizedScore(t *testing.T) {
+	tests := []struct {
+		name     string
+		rawScore float64
+		maxScore float64
+		want     float64
+	}{
+		{name: "fraction of the max", rawScore: 0.5, maxScore: 2, want: 0.25},
+		{name: "rounded to four places", rawScore: 1, maxScore: 3, want: 0.3333},
+		{name: "the max itself", rawScore: 0.7, maxScore: 0.7, want: 1},
+		{name: "every match ranks zero", rawScore: 0, maxScore: 0, want: 0},
+		{name: "negative max", rawScore: 0.5, maxScore: -1, want: 0},
+		{name: "NaN max", rawScore: 0.5, maxScore: math.NaN(), want: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := normalizedScore(tt.rawScore, tt.maxScore); got != tt.want {
+				t.Errorf("normalizedScore(%v, %v) = %v, want %v", tt.rawScore, tt.maxScore, got, tt.want)
+			}
+		})
+	}
+}

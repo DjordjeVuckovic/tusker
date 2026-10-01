@@ -565,9 +565,10 @@ func (r *Searcher) fetchPage(ctx context.Context, q pageQuery) (*storage.SearchR
 	return page, nil
 }
 
-// normalizedScore is 0 when every match ranks 0, where the ratio would be NaN.
+// normalizedScore is 0 when maxScore is not positive, NaN included, where the
+// ratio would be NaN or out of range.
 func normalizedScore(rawScore, maxScore float64) float64 {
-	if maxScore <= 0 {
+	if !(maxScore > 0) {
 		return 0
 	}
 	return utils.RoundFloat64(rawScore/maxScore, dquery.ScoreDecimalPlaces)
