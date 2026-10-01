@@ -80,15 +80,23 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) ArticleDocument
 
 // buildSettings mirrors PostgreSQL's english regconfig: stopwords are removed
 // before stemming, and the stemmer is Snowball, not the Porter stemmer behind
-// the built-in english analyzer, which reduces "news" to "new".
+// the built-in english analyzer, which reduces "news" to "new". The standard
+// tokenizer keeps "don't" whole where PostgreSQL's parser splits it at the
+// apostrophe, so apostrophes become spaces before tokenizing.
 func (b *IndexBuilder) buildSettings() types.IndexSettings {
 	english := snowballlanguage.English
 	return types.IndexSettings{
 		Analysis: &types.IndexSettingsAnalysis{
 			Analyzer: map[string]types.Analyzer{
 				englishAnalyzer: types.CustomAnalyzer{
-					Tokenizer: "standard",
-					Filter:    []string{"lowercase", "postgres_english_stop", "english_snowball"},
+					CharFilter: []string{"apostrophe_to_space"},
+					Tokenizer:  "standard",
+					Filter:     []string{"lowercase", "postgres_english_stop", "english_snowball"},
+				},
+			},
+			CharFilter: map[string]types.CharFilter{
+				"apostrophe_to_space": types.MappingCharFilter{
+					Mappings: []string{"' => \\u0020", "’ => \\u0020"},
 				},
 			},
 			Filter: map[string]types.TokenFilter{
