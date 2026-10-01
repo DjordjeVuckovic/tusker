@@ -182,7 +182,7 @@ Built with Echo framework providing:
 - Field-level weight control for relevance tuning
 - Operator control (AND/OR) for term combination
 - Fuzziness support for typo tolerance (Elasticsearch)
-- Multi-language support (English, Serbian)
+- English language analysis only; any other language returns 400 until Serbian is implemented
 - Input validation and comprehensive error handling
 - PostgreSQL: tsvector with ts_rank scoring
 - Elasticsearch: match/multi_match queries with BM25 scoring

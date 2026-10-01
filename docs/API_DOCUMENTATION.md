@@ -28,7 +28,7 @@ The Search Router provides two complementary search APIs following Elasticsearch
 | `q`       | string | Yes      | Search query text                             | `climate change`  |
 | `size`    | int    | No       | Results per page (default: 100, max: 10000)   | `10`              |
 | `cursor`  | string | No       | Pagination cursor from previous response      | `eyJzY29yZSI6...` |
-| `lang`    | string | No       | Language: english, serbian (default: english) | `english`         |
+| `lang`    | string | No       | Language: english only (default); any other value returns 400 | `english` |
 
 **Example Request:**
 ```bash
@@ -120,7 +120,7 @@ GET /v1/articles/search?q=climate%20change&size=10&lang=english
 | `query` | string | Yes | Search text | `"climate change"` |
 | `operator` | string | No | "and" or "or" (default: "or") | `"and"` |
 | `fuzziness` | string | No | Typo tolerance: AUTO, 0, 1, 2 (ES only) | `"AUTO"` |
-| `language` | string | No | english, serbian (default: english) | `"english"` |
+| `language` | string | No | english only (default); any other value returns 400 | `"english"` |
 
 **Example Request:**
 ```json
@@ -150,9 +150,6 @@ POST /v1/articles/_search
 
 // Allow typos (Elasticsearch only)
 {"field": "title", "query": "climte changge", "fuzziness": "AUTO"}
-
-// Search in Serbian
-{"field": "content", "query": "obnovljiva energija", "language": "serbian"}
 ```
 
 ---
@@ -174,7 +171,7 @@ POST /v1/articles/_search
 | `fields`        | array  | Yes      | Fields to search                       | `["title", "content"]` |
 | `field_weights` | object | No       | Field boost multipliers (default: 1.0) | `{"title": 3.0}`       |
 | `operator`      | string | No       | "and" or "or" (default: "or")          | `"or"`                 |
-| `language`      | string | No       | english, serbian (default: english)    | `"english"`            |
+| `language`      | string | No       | english only (default); any other value returns 400 | `"english"` |
 
 **Example Request:**
 ```json
@@ -325,6 +322,7 @@ GET /v1/articles/search?q=climate&size=10&cursor=eyJzY29yZSI6...
 **Common causes:**
 - Missing required parameter (`q` or `query` field)
 - Invalid operator value
+- Unsupported language (anything but `english`)
 - Invalid size (exceeds max or negative)
 - Malformed cursor
 

@@ -4,24 +4,20 @@ import "fmt"
 
 type Language string
 
-const (
-	LanguageEnglish Language = "english"
-	LanguageSerbian Language = "serbian"
-)
+const LanguageEnglish Language = "english"
 
 var DefaultLanguage = LanguageEnglish
 
-var SupportedLanguages = map[Language]bool{
-	LanguageEnglish: true,
-	LanguageSerbian: true,
-}
-
+// Parse returns DefaultLanguage for an empty value and rejects every language
+// but English: the corpus is stemmed in English, so a query stemmed in another
+// language would match nothing rather than fail.
 func (l Language) Parse() (Language, error) {
-	if l == "" {
+	switch l {
+	case "":
 		return DefaultLanguage, nil
+	case LanguageEnglish:
+		return l, nil
+	default:
+		return "", fmt.Errorf("language %q is not supported yet (only %s is)", string(l), LanguageEnglish)
 	}
-	if _, ok := SupportedLanguages[l]; !ok {
-		return "", fmt.Errorf("unsupported language: %s", l)
-	}
-	return l, nil
 }

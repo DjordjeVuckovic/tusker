@@ -9,12 +9,14 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/token"
+	queryoperator "github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/DjordjeVuckovic/tusker/pkg/utils"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/operator"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/sortorder"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/textquerytype"
 	"github.com/google/uuid"
 )
 
@@ -38,54 +40,28 @@ func NewSearcher(config ClientConfig) (*Searcher, error) {
 	}, nil
 }
 
-// SearchStringQuery implements the storage.FtsSearcher interface.
-// Performs simple string-based search using Elasticsearch's multi_match query with BM25
-// Application determines optimal fields and weights based on index configuration
+// SearchStringQuery matches the query's SearchContract with a cross_fields
+// multi_match, so each term may hit any contract field, as it does in the
+// Postgres search_vector. The contract language is not applied: analysis is
+// fixed per field by the index mapping.
 func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
-	// Use default fields with default weights (application-determined)
 	cursor, size := baseOpts.Cursor, baseOpts.Size
-	fields := dquery.DefaultFields
-	fieldWeights := dquery.DefaultFieldWeights
-	queryOperator := query.GetDefaultOperator()
+	contract := query.Contract()
 
 	slog.Info("Executing es query_string search",
 		"query", query.Query,
-		"language", query.GetLanguage(),
-		"fields", fields,
-		"operator", queryOperator,
+		"fields", contract.Fields,
+		"operator", contract.Operator,
+		"language", contract.Language,
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	// Build field list with boosting from application defaults
-	// Format: "title^1.0", "description^1.0", "content^1.0"
-	fieldsWithBoost := make([]string, 0, len(fields))
-	for _, field := range fields {
-		weight := fieldWeights[field]
-		if weight != 1.0 {
-			fieldsWithBoost = append(fieldsWithBoost, fmt.Sprintf("%s^%.1f", field, weight))
-		} else {
-			fieldsWithBoost = append(fieldsWithBoost, field)
-		}
-	}
-
-	// Build multi_match query
 	multiMatch := &types.MultiMatchQuery{
-		Query:  query.Query,
-		Fields: fieldsWithBoost,
+		Query:    query.Query,
+		Fields:   boostedFields(contract.Fields),
+		Type:     &textquerytype.Crossfields,
+		Operator: termOperator(contract.Operator),
 	}
-
-	// Set operator (AND/OR)
-	if queryOperator == "and" {
-		and := operator.And
-		multiMatch.Operator = &and
-	} else {
-		or := operator.Or
-		multiMatch.Operator = &or
-	}
-
-	slog.Debug("Elasticsearch multi_match query",
-		"fields_with_boost", fieldsWithBoost,
-		"operator", queryOperator)
 
 	searchReq := r.client.Search().
 		Index(r.indexName).
@@ -93,7 +69,8 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 			MultiMatch: multiMatch,
 		}).
 		Size(size + 1).
-		TrackScores(true)
+		TrackScores(true).
+		TrackTotalHits(true)
 
 	if cursor != nil {
 		searchReq = searchReq.SearchAfter(
@@ -135,6 +112,26 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 		"max_score", page.MaxScore)
 
 	return page, nil
+}
+
+func boostedFields(fields []dquery.FieldWeight) []string {
+	boosted := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if f.Weight == 1.0 {
+			boosted = append(boosted, string(f.Field))
+			continue
+		}
+		boosted = append(boosted, fmt.Sprintf("%s^%g", f.Field, f.Weight))
+	}
+	return boosted
+}
+
+func termOperator(op queryoperator.Operator) *operator.Operator {
+	termOp := operator.And
+	if op.IsOr() {
+		termOp = operator.Or
+	}
+	return &termOp
 }
 
 // searchResultPage expects hits fetched with size+1: the extra hit only signals
@@ -230,7 +227,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 		"query", query.Query,
 		"field", query.Field,
 		"operator", query.GetOperator(),
-		"fuzziness", query.Fuzziness,
+		"fuzziness", query.GetFuzziness(),
 		"has_cursor", cursor != nil,
 		"size", size)
 
@@ -248,15 +245,15 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 		matchQuery.Operator = &or
 	}
 
-	// Set fuzziness if specified
-	if query.Fuzziness != "" {
-		matchQuery.Fuzziness = &query.Fuzziness
+	if fuzziness := query.GetFuzziness(); fuzziness != dquery.NoFuzziness {
+		editDistance := string(fuzziness)
+		matchQuery.Fuzziness = &editDistance
 	}
 
 	slog.Debug("Elasticsearch match query",
 		"field", query.Field,
 		"operator", query.GetOperator(),
-		"fuzziness", query.Fuzziness)
+		"fuzziness", query.GetFuzziness())
 
 	// Build search request with match query on specific field
 	searchReq := r.client.Search().
@@ -267,7 +264,8 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 			},
 		}).
 		Size(size + 1).
-		TrackScores(true)
+		TrackScores(true).
+		TrackTotalHits(true)
 
 	// Add cursor support and sorting
 	if cursor != nil {
@@ -358,7 +356,8 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 			MultiMatch: multiMatch,
 		}).
 		Size(size + 1).
-		TrackScores(true)
+		TrackScores(true).
+		TrackTotalHits(true)
 
 	// Add cursor support and sorting
 	if cursor != nil {
@@ -452,7 +451,8 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 			Bool: boolQuery,
 		}).
 		Size(size + 1).
-		TrackScores(true)
+		TrackScores(true).
+		TrackTotalHits(true)
 
 	// Add cursor support
 	if cursor != nil {
@@ -511,18 +511,9 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 		return nil, fmt.Errorf("invalid boolean query expression: %w", err)
 	}
 
-	fields := make([]string, 0, len(dquery.RecommendedFieldWeights))
-	for field, weight := range dquery.RecommendedFieldWeights {
-		if weight != 1.0 {
-			fields = append(fields, fmt.Sprintf("%s^%.1f", field, weight))
-		} else {
-			fields = append(fields, field)
-		}
-	}
-
 	queryStringQuery := &types.QueryStringQuery{
 		Query:  query.Expression,
-		Fields: fields,
+		Fields: boostedFields(dquery.DefaultSearchContract().Fields),
 	}
 
 	searchReq := r.client.Search().
@@ -531,7 +522,8 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 			QueryString: queryStringQuery,
 		}).
 		Size(size + 1).
-		TrackScores(true)
+		TrackScores(true).
+		TrackTotalHits(true)
 
 	if cursor != nil {
 		searchReq = searchReq.SearchAfter(

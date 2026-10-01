@@ -62,6 +62,7 @@ func (s *HybridSearcher) SearchHybrid(ctx context.Context, query *dquery.Hybrid,
 				   ) AS lex_rank
 			FROM articles a
 			WHERE a.search_vector @@ websearch_to_tsquery('%[1]s'::regconfig, $1)
+			ORDER BY lex_rank
 			LIMIT $5
 		),
 		vector AS (
