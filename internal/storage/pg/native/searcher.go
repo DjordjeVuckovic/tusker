@@ -38,7 +38,9 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 		fieldBoosts = append(fieldBoosts, FieldWeight{Field: string(f.Field), Weight: f.Weight})
 	}
 	whereClause := buildTsWhereClause(fieldBoosts, contract.Language, contract.Operator, 1)
-	rankExpr := buildRankExpression(fieldBoosts, contract.Language, contract.Operator, 1)
+	// The contract's boosts reach Elasticsearch only. Postgres ranks with its
+	// default weights, as the benchmark's Postgres arms do.
+	rankExpr := buildRankExpression(nil, contract.Language, contract.Operator, 1)
 
 	var globalMaxScore float64
 	var count int64

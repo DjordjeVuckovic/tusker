@@ -56,17 +56,18 @@ func ParseFieldBoost(spec string) (FieldWeight, error) {
 }
 
 // SearchContract is the question a query string asks every engine: which fields
-// to match, how to weight them, how to combine terms and how to analyse them.
-// Engines build their query from it, so one request means one recall set.
+// to match, how to combine terms and how to analyse them. Engines build their
+// query from it, so one request means one recall set. Field weights are ranking
+// boosts, and an engine may rank with its own weights instead.
 type SearchContract struct {
 	Fields   []FieldWeight
 	Operator operator.Operator
 	Language Language
 }
 
-// DefaultSearchContract mirrors what the benchmark templates measure: the
-// title^3, description^2, content boosts of the Elasticsearch and ParadeDB
-// templates, and the every-term-required semantics of plainto_tsquery.
+// DefaultSearchContract is the query-string search of the API: every term must
+// appear in the title, description or content, analysed in English, with title
+// boosted 3 and description 2.
 func DefaultSearchContract() SearchContract {
 	return SearchContract{
 		Fields: []FieldWeight{

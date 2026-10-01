@@ -67,8 +67,7 @@ func buildWeightLabels(fields []string) string {
 
 // buildWeightsArray creates the ts_rank weights array from field boosts, in
 // PostgreSQL's {D, C, B, A} order. ts_rank rejects weights above 1, so boosts
-// are scaled by the largest one when it exceeds 1; ranking only depends on
-// their ratio.
+// are scaled by the largest one when it exceeds 1.
 // Example: [{title 3.0} {description 1.5}] → "{0.0000, 0.0000, 0.5000, 1.0000}"
 func buildWeightsArray(fieldBoosts []FieldWeight) string {
 	weights := [4]float64{0.0, 0.0, 0.0, 0.0}

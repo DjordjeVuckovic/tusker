@@ -139,6 +139,38 @@ func TestSearcher_OrMatchWithNegationOnFieldSubsetKeepsRowsThatQualify(t *testin
 	}
 }
 
+func TestSearcher_StringQueryRanksWithPostgresDefaultWeights(t *testing.T) {
+	s := newSearcher(t)
+	indexer, err := pg.NewIndexer(testPool)
+	if err != nil {
+		t.Fatalf("NewIndexer: %v", err)
+	}
+	alsoInAuthor := uuid.New()
+	titleOnly := uuid.New()
+	articles := []document.Article{
+		{ID: alsoInAuthor, Title: "budget", Author: "budget", URL: "https://example.com/1"},
+		{ID: titleOnly, Title: "budget", URL: "https://example.com/2"},
+	}
+	if err := indexer.SaveBulk(testCtx, articles); err != nil {
+		t.Fatalf("SaveBulk: %v", err)
+	}
+
+	res, err := s.SearchStringQuery(testCtx, dquery.NewQueryString("budget"), &dquery.BaseOptions{Size: 10})
+	if err != nil {
+		t.Fatalf("SearchStringQuery: %v", err)
+	}
+	scores := map[uuid.UUID]float64{}
+	for _, hit := range res.Hits {
+		scores[hit.Article.ID] = hit.Score
+	}
+
+	// PostgreSQL's default weights give band D 0.1, so the author match counts.
+	if scores[alsoInAuthor] <= scores[titleOnly] {
+		t.Errorf("score with an author match = %v, title only = %v, want the author match to rank higher",
+			scores[alsoInAuthor], scores[titleOnly])
+	}
+}
+
 func TestSearcher_StringQueryOfOnlyStopwordsReturnsNoHits(t *testing.T) {
 	s := newSearcher(t)
 	articles, _ := pkgtesting.SearchContractCorpus()
