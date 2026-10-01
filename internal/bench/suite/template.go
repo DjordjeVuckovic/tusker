@@ -26,6 +26,15 @@ const (
 	DialectJSON Dialect = "json"
 )
 
+func (d Dialect) validate() error {
+	switch d {
+	case DialectPostgres, DialectJSON:
+		return nil
+	default:
+		return fmt.Errorf("unknown query dialect %q", d)
+	}
+}
+
 var (
 	placeholderRegex      = regexp.MustCompile(`\{\{(\w+)\}\}`)
 	boundPlaceholderRegex = regexp.MustCompile(`\{\{\$(\w+)\}\}`)
@@ -82,8 +91,8 @@ func bindValues(query string, params TemplateParams, dialect Dialect) (*Resolved
 	if !boundPlaceholderRegex.MatchString(query) {
 		return &ResolvedQuery{Query: query}, nil
 	}
-	if dialect != DialectPostgres && dialect != DialectJSON {
-		return nil, fmt.Errorf("bound params need a dialect, got %q", dialect)
+	if err := dialect.validate(); err != nil {
+		return nil, fmt.Errorf("bound params: %w", err)
 	}
 
 	var (

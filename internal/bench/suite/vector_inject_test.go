@@ -47,7 +47,7 @@ func TestResolveEngineQuery_InjectsTemplateVector(t *testing.T) {
 	}}
 	extra := TemplateParams{ReservedQueryVectorParam: "[1,2,3]"}
 
-	resolved, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg", Registry: reg, Extra: extra})
+	resolved, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg", Registry: reg, Extra: extra, Dialect: DialectPostgres})
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestResolveEngineQuery_InjectsInlineVector(t *testing.T) {
 	}}
 	extra := TemplateParams{ReservedQueryVectorParam: "[0.5,0.5]"}
 
-	resolved, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es", Extra: extra})
+	resolved, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es", Extra: extra, Dialect: DialectJSON})
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestResolveEngineQuery_UnresolvedInlinePlaceholderErrors(t *testing.T) {
 
 	// No extra params: {{precomputed}} stays unresolved and must error instead of
 	// shipping a literal "{" to the engine.
-	_, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es"})
+	_, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es", Dialect: DialectJSON})
 	if err == nil {
 		t.Fatal("expected error for unresolved inline placeholder, got nil")
 	}

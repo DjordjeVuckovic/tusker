@@ -66,7 +66,7 @@ queries:
       engine:
         template: pg_fts
         params: { terms: '`+yamlQuoted+`' }
-`, exec.Dialect())
+`, suite.DialectPostgres)
 
 	got, err := exec.Execute(ctx, resolved.Query, resolved.Args)
 	require.NoError(t, err)
@@ -102,7 +102,7 @@ queries:
       engine:
         query: '{"query": {"match": {"title": {{$terms}}}}, "size": 10}'
         params: { terms: '`+yamlQuoted+`' }
-`, exec.Dialect())
+`, suite.DialectJSON)
 
 	got, err := exec.Execute(ctx, resolved.Query, resolved.Args)
 	require.NoError(t, err)

@@ -32,6 +32,7 @@ func TestResolveEngineQuery_RendersModelAndVectorTogether(t *testing.T) {
 	resolved, err := q.ResolveEngineQuery(ResolveOptions{
 		Engine:   "pgvector-cosine",
 		Registry: reg,
+		Dialect:  DialectPostgres,
 		Defaults: TemplateParams{EmbeddingModelParam: "qwen3-embedding:0.6b"},
 		Extra:    TemplateParams{ReservedQueryVectorParam: "[0.1,0.2]"},
 	})
@@ -53,6 +54,7 @@ func TestResolveEngineQuery_EngineParamsReachInlineQuery(t *testing.T) {
 	resolved, err := q.ResolveEngineQuery(ResolveOptions{
 		Engine:   "elasticsearch",
 		Defaults: TemplateParams{EmbeddingModelParam: "qwen3"},
+		Dialect:  DialectJSON,
 	})
 
 	require.NoError(t, err)

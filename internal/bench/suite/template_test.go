@@ -159,7 +159,7 @@ func TestQuery_ResolveEngineQuery_Template(t *testing.T) {
 		},
 	}
 
-	result, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg", Registry: reg})
+	result, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg", Registry: reg, Dialect: DialectPostgres})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "SELECT * FROM articles WHERE term = 'climate'", result.Query)
@@ -174,12 +174,12 @@ func TestQuery_ResolveEngineQuery_Inline(t *testing.T) {
 		},
 	}
 
-	pgResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg"})
+	pgResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg", Dialect: DialectPostgres})
 	require.NoError(t, err)
 	require.NotNil(t, pgResult)
 	assert.Equal(t, "SELECT 1", pgResult.Query)
 
-	esResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es"})
+	esResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es", Dialect: DialectJSON})
 	require.NoError(t, err)
 	require.NotNil(t, esResult)
 	assert.Equal(t, `{"query": "test"}`, esResult.Query)
@@ -211,12 +211,12 @@ func TestQuery_ResolveEngineQuery_MixedEngines(t *testing.T) {
 		},
 	}
 
-	pgResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg", Registry: reg})
+	pgResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg", Registry: reg, Dialect: DialectPostgres})
 	require.NoError(t, err)
 	require.NotNil(t, pgResult)
 	assert.Equal(t, "SELECT * WHERE term = 'climate'", pgResult.Query)
 
-	esResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es", Registry: reg})
+	esResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es", Registry: reg, Dialect: DialectJSON})
 	require.NoError(t, err)
 	require.NotNil(t, esResult)
 	assert.Equal(t, `{"query":"climate"}`, esResult.Query)
@@ -421,4 +421,12 @@ func TestQueryTemplate_Render_RejectsParamBothBoundAndPasted(t *testing.T) {
 			assert.ErrorContains(t, err, "terms")
 		})
 	}
+}
+
+func TestEngineQuery_Resolve_RequiresDialect(t *testing.T) {
+	eq := EngineQuery{Query: "SELECT 1"}
+
+	_, err := eq.Resolve(ResolveOptions{})
+
+	assert.ErrorContains(t, err, "dialect")
 }

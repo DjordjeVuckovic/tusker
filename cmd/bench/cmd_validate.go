@@ -126,6 +126,7 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 					query:      q,
 					engineName: engName,
 					binding:    bs.QueryBinding(engName),
+					engineType: bs.Engines[engName].Type,
 					loaded:     ls,
 					executor:   executors[engName],
 					store:      vectorStore,
@@ -164,6 +165,7 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 type validateInput struct {
 	query      suite.Query
 	engineName string
+	engineType string
 	binding    spec.QueryBinding
 	loaded     *suite.LoadedSuite
 	executor   engine.Executor
@@ -193,13 +195,19 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 			row.detail = "stubbed vector"
 		}
 	}
+	dialect, err := runner.DialectForEngineType(in.engineType)
+	if err != nil {
+		row.status = "TEMPLATE_ERR"
+		row.detail = err.Error()
+		return row
+	}
 	resolved, err := q.ResolveEngineQuery(suite.ResolveOptions{
 		Engine:   in.binding.QuerySource,
 		Registry: in.loaded.Registry,
 		SuiteDir: in.loaded.Dir,
 		Defaults: in.binding.Params,
 		Extra:    extra,
-		Dialect:  exec.Dialect(),
+		Dialect:  dialect,
 	})
 	if err != nil {
 		row.status = "TEMPLATE_ERR"

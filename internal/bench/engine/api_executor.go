@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/google/uuid"
 )
 
@@ -102,10 +101,7 @@ func (e *APIExecutor) Execute(ctx context.Context, rawQuery string, _ []any) (*E
 }
 
 func (e *APIExecutor) Name() string { return e.name }
-
-// Dialect is JSON because a suite's api block is a JSON request descriptor.
-func (e *APIExecutor) Dialect() suite.Dialect { return suite.DialectJSON }
-func (e *APIExecutor) Close() error           { return nil }
+func (e *APIExecutor) Close() error { return nil }
 
 // Validate parses the request descriptor. We can't validate against the live
 // API without firing a real request, so this just checks shape: method, path,

@@ -61,6 +61,7 @@ func TestEngineQuery_Resolve_ParamPrecedence(t *testing.T) {
 				Registry: reg,
 				Defaults: tt.defaults,
 				Extra:    tt.extra,
+				Dialect:  DialectPostgres,
 			})
 			if tt.wantErr != "" {
 				require.Error(t, err)
@@ -88,6 +89,7 @@ func TestResolveEngineQuery_AliasedEnginesShareOneBlock(t *testing.T) {
 		Engine:   "pg-gin",
 		Registry: reg,
 		Defaults: TemplateParams{"rank_norm": "0"},
+		Dialect:  DialectPostgres,
 	})
 	require.NoError(t, err)
 
@@ -96,6 +98,7 @@ func TestResolveEngineQuery_AliasedEnginesShareOneBlock(t *testing.T) {
 		Engine:   "pg-gin",
 		Registry: reg,
 		Defaults: TemplateParams{"rank_norm": "1"},
+		Dialect:  DialectPostgres,
 	})
 	require.NoError(t, err)
 
@@ -112,7 +115,7 @@ func TestEngineQuery_Resolve_LeavesEngineDefaultsUnchanged(t *testing.T) {
 		Params: TemplateParams{"rank_norm": "1", "limit": 5},
 	}
 
-	resolved, err := eq.Resolve(ResolveOptions{Defaults: defaults})
+	resolved, err := eq.Resolve(ResolveOptions{Defaults: defaults, Dialect: DialectPostgres})
 	require.NoError(t, err)
 	assert.Equal(t, "SELECT 1, 5", resolved.Query)
 	assert.Equal(t, TemplateParams{"rank_norm": "0"}, defaults,

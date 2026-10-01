@@ -4,14 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/google/uuid"
 )
 
 type Executor interface {
 	Execute(ctx context.Context, query string, args []any) (*Execution, error)
-	// Dialect is how a suite's bound {{$name}} values reach this engine.
-	Dialect() suite.Dialect
 	Name() string
 	Close() error
 }

@@ -84,12 +84,16 @@ type ResolveOptions struct {
 	// vector under ReservedQueryVectorParam.
 	Extra TemplateParams
 	// Dialect is how the engine that runs the query receives {{$name}} values.
+	// Resolve rejects an empty one.
 	Dialect Dialect
 }
 
 // Resolve renders the engine query, merging the param layers so a narrower one
 // wins: engine defaults, then the query's own params, then run-time extras.
 func (eq *EngineQuery) Resolve(opts ResolveOptions) (*ResolvedQuery, error) {
+	if err := opts.Dialect.validate(); err != nil {
+		return nil, err
+	}
 	params := mergeParams(opts.Defaults, eq.Params, opts.Extra)
 	if eq.Template != "" {
 		if opts.Registry == nil {

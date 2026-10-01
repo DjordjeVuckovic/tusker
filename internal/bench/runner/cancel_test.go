@@ -41,7 +41,7 @@ queries:
 `), 0644))
 
 	bs := &spec.BenchSpec{
-		Engines: map[string]spec.Engine{"pg": {}},
+		Engines: map[string]spec.Engine{"pg": {Type: "postgres"}},
 		Jobs:    []spec.Job{{Name: "serial", Suite: suitePath, Engines: []string{"pg"}}},
 	}
 

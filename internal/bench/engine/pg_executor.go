@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	"github.com/google/uuid"
@@ -49,9 +48,7 @@ func (e *PgExecutor) Execute(ctx context.Context, rawQuery string, args []any) (
 }
 
 func (e *PgExecutor) Name() string { return e.name }
-
-func (e *PgExecutor) Dialect() suite.Dialect { return suite.DialectPostgres }
-func (e *PgExecutor) Close() error           { return nil }
+func (e *PgExecutor) Close() error { return nil }
 
 // Validate runs EXPLAIN on the query. This catches syntax errors and missing
 // columns/tables/operators without scanning data. ParadeDB's pdb.* functions

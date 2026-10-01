@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/google/uuid"
 )
 
@@ -105,9 +104,7 @@ func (e *EsExecutor) CorpusCount(ctx context.Context) (int64, error) {
 }
 
 func (e *EsExecutor) Name() string { return e.name }
-
-func (e *EsExecutor) Dialect() suite.Dialect { return suite.DialectJSON }
-func (e *EsExecutor) Close() error           { return nil }
+func (e *EsExecutor) Close() error { return nil }
 
 // Validate posts the query to <index>/_validate/query?explain=true. ES parses
 // the JSON, type-checks fields, and returns "valid: false" with an explanation

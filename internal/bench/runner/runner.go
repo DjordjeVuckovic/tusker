@@ -37,6 +37,10 @@ func (r *Runner) RunAll(
 	br := &BenchmarkResult{Config: r.config}
 
 	bindings := queryBindings(bs)
+	dialects, err := queryDialects(bs)
+	if err != nil {
+		return nil, err
+	}
 
 	// Cache suite loads — multiple jobs commonly share a suite.
 	suiteCache := map[string]*suite.LoadedSuite{}
@@ -56,6 +60,7 @@ func (r *Runner) RunAll(
 			Suite:     loaded,
 			Executors: executors,
 			Bindings:  bindings,
+			Dialects:  dialects,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("run job %q: %w", job.Name, err)
@@ -98,6 +103,32 @@ func queryBindings(bs *spec.BenchSpec) map[string]spec.QueryBinding {
 	return bindings
 }
 
+func queryDialects(bs *spec.BenchSpec) (map[string]suite.Dialect, error) {
+	dialects := make(map[string]suite.Dialect, len(bs.Engines))
+	for name, eng := range bs.Engines {
+		dialect, err := DialectForEngineType(eng.Type)
+		if err != nil {
+			return nil, fmt.Errorf("engine %q: %w", name, err)
+		}
+		dialects[name] = dialect
+	}
+	return dialects, nil
+}
+
+// DialectForEngineType is how an engine of a spec engine type receives a
+// suite's bound {{$name}} values: Postgres as $N arguments, Elasticsearch and
+// the API inlined into their JSON bodies.
+func DialectForEngineType(engineType string) (suite.Dialect, error) {
+	switch engineType {
+	case "postgres":
+		return suite.DialectPostgres, nil
+	case "elasticsearch", "api":
+		return suite.DialectJSON, nil
+	default:
+		return "", fmt.Errorf("engine type %q has no query dialect", engineType)
+	}
+}
+
 // JobRequest is everything one job needs to run: its declaration, the loaded
 // suite, the executors to drive, and how each engine reaches its queries.
 type JobRequest struct {
@@ -105,6 +136,7 @@ type JobRequest struct {
 	Suite     *suite.LoadedSuite
 	Executors map[string]engine.Executor
 	Bindings  map[string]spec.QueryBinding
+	Dialects  map[string]suite.Dialect
 }
 
 func (r *Runner) RunJob(ctx context.Context, req JobRequest) (*JobResult, error) {
@@ -219,7 +251,7 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				SuiteDir: req.Suite.Dir,
 				Defaults: binding.Params,
 				Extra:    extra,
-				Dialect:  exec.Dialect(),
+				Dialect:  req.Dialects[engName],
 			})
 			if err != nil {
 				slots[idx] = slot{
