@@ -120,6 +120,9 @@ func NewReader(ctx context.Context, cfg StorageConfig) (storage.Reader, error) {
 }
 
 func NewSemanticSearcher(cfg SearcherConfig) (storage.SemanticSearcher, error) {
+	if cfg.Embedder == nil {
+		return nil, fmt.Errorf("query embedder is not set")
+	}
 	switch cfg.Type {
 	case storage.PG:
 		if cfg.Pool == nil {
@@ -145,6 +148,9 @@ func NewSemanticSearcher(cfg SearcherConfig) (storage.SemanticSearcher, error) {
 }
 
 func NewHybridSearcher(cfg SearcherConfig) (storage.HybridSearcher, error) {
+	if cfg.Embedder == nil {
+		return nil, fmt.Errorf("query embedder is not set")
+	}
 	switch cfg.Type {
 	case storage.PG:
 		if cfg.Pool == nil {
