@@ -266,7 +266,7 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				return
 			}
 
-			result := r.executeWithRetries(ctx, exec, resolved.Query, resolved.Args, r.config.WarmupRuns, r.config.Runs)
+			result := r.executeWithRetries(ctx, exec, engine.Request{Query: resolved.Query, Args: resolved.Args}, r.config.WarmupRuns, r.config.Runs)
 
 			var scores metrics.ScoreSet
 			if result.err == nil && len(judgments) > 0 {
@@ -349,12 +349,11 @@ type execResult struct {
 func (r *Runner) executeWithRetries(
 	ctx context.Context,
 	exec engine.Executor,
-	query string,
-	params []any,
+	req engine.Request,
 	warmup, runs int,
 ) execResult {
 	for i := 0; i < warmup; i++ {
-		_, _ = exec.Execute(ctx, query, params)
+		_, _ = exec.Execute(ctx, req)
 	}
 
 	var latencies []time.Duration
@@ -362,7 +361,7 @@ func (r *Runner) executeWithRetries(
 	var lastErr error
 
 	for i := 0; i < runs; i++ {
-		result, err := exec.Execute(ctx, query, params)
+		result, err := exec.Execute(ctx, req)
 		if err != nil {
 			lastErr = err
 			continue

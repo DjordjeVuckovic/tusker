@@ -28,10 +28,10 @@ func NewEsExecutor(name, baseURL, index string) *EsExecutor {
 	}
 }
 
-func (e *EsExecutor) Execute(ctx context.Context, rawQuery string, _ []any) (*Execution, error) {
+func (e *EsExecutor) Execute(ctx context.Context, search Request) (*Execution, error) {
 	url := fmt.Sprintf("%s/%s/_search", e.baseURL, e.index)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBufferString(rawQuery))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBufferString(search.Query))
 	if err != nil {
 		return nil, fmt.Errorf("es create request: %w", err)
 	}
@@ -114,7 +114,8 @@ func (e *EsExecutor) Close() error { return nil }
 // validateKnnBody: _validate/query only understands the Query DSL and rejects
 // `knn` outright ("request does not support [knn]"), so the knn clause is
 // checked structurally instead.
-func (e *EsExecutor) Validate(ctx context.Context, rawQuery string, _ []any) error {
+func (e *EsExecutor) Validate(ctx context.Context, search Request) error {
+	rawQuery := search.Query
 	if hasKnn(rawQuery) {
 		return e.validateKnnBody(ctx, rawQuery)
 	}

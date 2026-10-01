@@ -59,11 +59,12 @@ queries:
 	})
 	require.NoError(t, err)
 
-	got, err := exec.Execute(ctx, resolved.Query, resolved.Args)
+	asRun := engine.Request{Query: resolved.Query, Args: resolved.Args}
+	got, err := exec.Execute(ctx, asRun)
 	require.NoError(t, err)
-	require.NoError(t, exec.Validate(ctx, resolved.Query, resolved.Args))
+	require.NoError(t, exec.Validate(ctx, asRun))
 
-	want, err := engine.NewPgExecutor("pg", pool).Execute(ctx, fmt.Sprintf(ranked, "$1", "$1"), []any{awkwardQueryText})
+	want, err := engine.NewPgExecutor("pg", pool).Execute(ctx, engine.Request{Query: fmt.Sprintf(ranked, "$1", "$1"), Args: []any{awkwardQueryText}})
 	require.NoError(t, err)
 	require.NotEmpty(t, want.RankedDocIDs, "the corpus holds a matching article, so an empty result proves nothing")
 	assert.Equal(t, want.RankedDocIDs, got.RankedDocIDs)

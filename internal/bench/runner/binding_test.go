@@ -20,11 +20,11 @@ type recordingExecutor struct {
 	lastArgs []any
 }
 
-func (e *recordingExecutor) Execute(_ context.Context, query string, args []any) (*engine.Execution, error) {
+func (e *recordingExecutor) Execute(_ context.Context, req engine.Request) (*engine.Execution, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.seen = append(e.seen, query)
-	e.lastArgs = args
+	e.seen = append(e.seen, req.Query)
+	e.lastArgs = req.Args
 	return &engine.Execution{}, nil
 }
 

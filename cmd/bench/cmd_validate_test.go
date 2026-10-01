@@ -81,14 +81,14 @@ type recordingValidator struct {
 	args  []any
 }
 
-func (v *recordingValidator) Execute(context.Context, string, []any) (*engine.Execution, error) {
+func (v *recordingValidator) Execute(context.Context, engine.Request) (*engine.Execution, error) {
 	return &engine.Execution{}, nil
 }
 func (v *recordingValidator) Name() string { return "recording" }
 func (v *recordingValidator) Close() error { return nil }
 
-func (v *recordingValidator) Validate(_ context.Context, query string, args []any) error {
-	v.query, v.args = query, args
+func (v *recordingValidator) Validate(_ context.Context, req engine.Request) error {
+	v.query, v.args = req.Query, req.Args
 	return nil
 }
 

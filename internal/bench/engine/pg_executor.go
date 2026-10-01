@@ -22,10 +22,10 @@ func NewPgExecutor(name string, pool *pg.ConnectionPool) *PgExecutor {
 	}
 }
 
-func (e *PgExecutor) Execute(ctx context.Context, rawQuery string, args []any) (*Execution, error) {
+func (e *PgExecutor) Execute(ctx context.Context, req Request) (*Execution, error) {
 	start := time.Now()
 
-	result, err := e.executor.Exec(ctx, rawQuery, args, nil)
+	result, err := e.executor.Exec(ctx, req.Query, req.Args, nil)
 	if err != nil {
 		return nil, fmt.Errorf("pg exec: %w", err)
 	}
@@ -53,8 +53,8 @@ func (e *PgExecutor) Close() error { return nil }
 // Validate runs EXPLAIN on the query. This catches syntax errors and missing
 // columns/tables/operators without scanning data. ParadeDB's pdb.* functions
 // also surface here, so it's a real correctness check for those queries too.
-func (e *PgExecutor) Validate(ctx context.Context, query string, args []any) error {
-	if _, err := e.executor.Exec(ctx, "EXPLAIN "+query, args, nil); err != nil {
+func (e *PgExecutor) Validate(ctx context.Context, req Request) error {
+	if _, err := e.executor.Exec(ctx, "EXPLAIN "+req.Query, req.Args, nil); err != nil {
 		return fmt.Errorf("pg explain: %w", err)
 	}
 	return nil

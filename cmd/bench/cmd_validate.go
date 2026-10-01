@@ -225,7 +225,7 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 		row.detail = "executor does not implement Validator"
 		return row
 	}
-	if err := v.Validate(ctx, resolved.Query, resolved.Args); err != nil {
+	if err := v.Validate(ctx, engine.Request{Query: resolved.Query, Args: resolved.Args}); err != nil {
 		row.status = "INVALID"
 		row.detail = truncate(err.Error(), 120)
 		return row

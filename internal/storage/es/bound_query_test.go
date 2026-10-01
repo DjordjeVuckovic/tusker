@@ -54,16 +54,17 @@ queries:
 	})
 	require.NoError(t, err)
 
-	got, err := exec.Execute(ctx, resolved.Query, resolved.Args)
+	asRun := engine.Request{Query: resolved.Query, Args: resolved.Args}
+	got, err := exec.Execute(ctx, asRun)
 	require.NoError(t, err)
-	require.NoError(t, exec.Validate(ctx, resolved.Query, resolved.Args))
+	require.NoError(t, exec.Validate(ctx, asRun))
 
 	handWritten, err := json.Marshal(map[string]any{
 		"query": map[string]any{"match": map[string]any{"title": awkwardQueryText}},
 		"size":  10,
 	})
 	require.NoError(t, err)
-	want, err := exec.Execute(ctx, string(handWritten), nil)
+	want, err := exec.Execute(ctx, engine.Request{Query: string(handWritten)})
 	require.NoError(t, err)
 	require.NotEmpty(t, want.RankedDocIDs, "the index holds a matching document, so an empty result proves nothing")
 	assert.Equal(t, want.RankedDocIDs, got.RankedDocIDs)
