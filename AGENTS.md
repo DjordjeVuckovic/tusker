@@ -250,6 +250,7 @@ Commands expect environment variables (typically in `.env` files):
 - `USE_HTTP2`: Enable HTTP/2 support (`true`/`false`)
 - `CORS_ORIGINS`: Allowed CORS origins (comma-separated)
 - `HTTP_READ_HEADER_TIMEOUT`, `HTTP_READ_TIMEOUT`, `HTTP_WRITE_TIMEOUT`, `HTTP_IDLE_TIMEOUT`: Go durations (default 5s, 30s, 120s, 120s)
+- `HTTP_REQUEST_TIMEOUT`: Go duration after which a handler's context is cancelled (default 90s); must be shorter than `HTTP_WRITE_TIMEOUT`
 - `HTTP_BODY_LIMIT`: Largest request body, e.g. `1M` (default); larger bodies get 413
 
 ## Testing

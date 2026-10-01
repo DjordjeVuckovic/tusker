@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/api/router"
 	"github.com/DjordjeVuckovic/tusker/internal/api/server"
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
@@ -234,5 +235,58 @@ func TestOpenSearchBackend_ElasticsearchSearchersShareOneClient(t *testing.T) {
 
 	if got := connections(); got > 1 {
 		t.Errorf("serial requests opened %d connections to Elasticsearch; searchers do not share one client", got)
+	}
+}
+
+func TestServer_SearchPastRequestDeadlineReleasesItsConnection(t *testing.T) {
+	ctx := context.Background()
+	container := pkgtesting.NewPGContainerWithCleanup(ctx, t)
+	backend, err := openSearchBackend(ctx, pgSearchConfig(container.ConnString+"&pool_max_conns=1"))
+	if err != nil {
+		t.Fatalf("openSearchBackend: %v", err)
+	}
+	t.Cleanup(backend.close)
+
+	s, err := server.New(&server.Config{Port: "0", RequestTimeout: 200 * time.Millisecond}, backend.health)
+	if err != nil {
+		t.Fatalf("server.New: %v", err)
+	}
+	s.SetupMiddlewares().SetupErrorHandler().SetupHealthChecks("/health")
+	router.NewSearchRouter(s.Echo, backend.fts).Bind()
+
+	locker, err := pgx.Connect(ctx, container.ConnString)
+	if err != nil {
+		t.Fatalf("connect locker: %v", err)
+	}
+	t.Cleanup(func() { _ = locker.Close(ctx) })
+	lock, err := locker.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	t.Cleanup(func() { _ = lock.Rollback(ctx) })
+	if _, err := lock.Exec(ctx, "LOCK TABLE articles IN ACCESS EXCLUSIVE MODE"); err != nil {
+		t.Fatalf("lock articles: %v", err)
+	}
+
+	search := httptest.NewRecorder()
+	answered := make(chan struct{})
+	go func() {
+		s.ServeHTTP(search, httptest.NewRequest(http.MethodGet, "/v1/articles/search?q=climate", nil))
+		close(answered)
+	}()
+	// The guard only stops a search that ignores its deadline from hanging the test.
+	select {
+	case <-answered:
+	case <-time.After(30 * time.Second):
+		t.Fatal("search blocked on a locked table outlived its request deadline")
+	}
+	if search.Code == http.StatusOK {
+		t.Fatalf("search on a locked table = %d, want an error", search.Code)
+	}
+
+	health := httptest.NewRecorder()
+	s.ServeHTTP(health, httptest.NewRequest(http.MethodGet, "/health", nil))
+	if health.Code != http.StatusOK {
+		t.Errorf("/health after the cancelled search = %d, want %d: its connection was not released", health.Code, http.StatusOK)
 	}
 }

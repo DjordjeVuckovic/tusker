@@ -17,11 +17,12 @@ import (
 const (
 	DefaultReadHeaderTimeout = 5 * time.Second
 	DefaultReadTimeout       = 30 * time.Second
-	// DefaultWriteTimeout outlasts the slowest search: a 60s query embedding
+	// DefaultRequestTimeout outlasts the slowest search: a 60s query embedding
 	// followed by an Elasticsearch call bounded at 30s.
-	DefaultWriteTimeout = 120 * time.Second
-	DefaultIdleTimeout  = 120 * time.Second
-	DefaultBodyLimit    = 1_000_000
+	DefaultRequestTimeout = 90 * time.Second
+	DefaultWriteTimeout   = 120 * time.Second
+	DefaultIdleTimeout    = 120 * time.Second
+	DefaultBodyLimit      = 1_000_000
 )
 
 type Config struct {
@@ -33,6 +34,9 @@ type Config struct {
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
+	// RequestTimeout cancels the handler's context, which WriteTimeout does not,
+	// so it must be shorter than WriteTimeout.
+	RequestTimeout time.Duration
 	// BodyLimit is the largest request body in bytes; larger bodies get 413.
 	BodyLimit int64
 }
@@ -80,6 +84,7 @@ func LoadConfig() (*Config, error) {
 		"HTTP_READ_TIMEOUT":        &cfg.ReadTimeout,
 		"HTTP_WRITE_TIMEOUT":       &cfg.WriteTimeout,
 		"HTTP_IDLE_TIMEOUT":        &cfg.IdleTimeout,
+		"HTTP_REQUEST_TIMEOUT":     &cfg.RequestTimeout,
 	}
 	for name, target := range timeouts {
 		if *target, err = durationFromEnv(name); err != nil {
@@ -105,11 +110,19 @@ func (cfg Config) validated() (*Config, error) {
 		{value: &cfg.ReadTimeout, fallback: DefaultReadTimeout},
 		{value: &cfg.WriteTimeout, fallback: DefaultWriteTimeout},
 		{value: &cfg.IdleTimeout, fallback: DefaultIdleTimeout},
+		{value: &cfg.RequestTimeout, fallback: DefaultRequestTimeout},
+	}
+	if cfg.RequestTimeout < 0 {
+		return nil, fmt.Errorf("invalid request timeout %v: must be positive", cfg.RequestTimeout)
 	}
 	for _, d := range defaults {
 		if *d.value == 0 {
 			*d.value = d.fallback
 		}
+	}
+	if cfg.RequestTimeout >= cfg.WriteTimeout {
+		return nil, fmt.Errorf("request timeout %v (HTTP_REQUEST_TIMEOUT) must be shorter than write timeout %v (HTTP_WRITE_TIMEOUT)",
+			cfg.RequestTimeout, cfg.WriteTimeout)
 	}
 	if cfg.BodyLimit < 0 {
 		return nil, fmt.Errorf("invalid body limit %d: must be positive", cfg.BodyLimit)

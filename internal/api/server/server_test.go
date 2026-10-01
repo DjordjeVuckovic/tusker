@@ -108,6 +108,7 @@ func TestLoadConfig_ServerBounds(t *testing.T) {
 	t.Run("env overrides", func(t *testing.T) {
 		t.Setenv("HTTP_READ_HEADER_TIMEOUT", "2s")
 		t.Setenv("HTTP_WRITE_TIMEOUT", "3m")
+		t.Setenv("HTTP_REQUEST_TIMEOUT", "150s")
 		t.Setenv("HTTP_BODY_LIMIT", "65536")
 
 		cfg, err := LoadConfig()
@@ -119,6 +120,9 @@ func TestLoadConfig_ServerBounds(t *testing.T) {
 		}
 		if cfg.WriteTimeout != 3*time.Minute {
 			t.Errorf("WriteTimeout = %v, want 3m", cfg.WriteTimeout)
+		}
+		if cfg.RequestTimeout != 150*time.Second {
+			t.Errorf("RequestTimeout = %v, want 150s", cfg.RequestTimeout)
 		}
 		if cfg.BodyLimit != 65536 {
 			t.Errorf("BodyLimit = %d, want 65536", cfg.BodyLimit)
@@ -135,6 +139,7 @@ func TestLoadConfig_ServerBounds(t *testing.T) {
 			"ReadTimeout":       cfg.ReadTimeout,
 			"WriteTimeout":      cfg.WriteTimeout,
 			"IdleTimeout":       cfg.IdleTimeout,
+			"RequestTimeout":    cfg.RequestTimeout,
 		} {
 			if d <= 0 {
 				t.Errorf("%s = %v, want a positive default", name, d)
@@ -153,6 +158,8 @@ func TestLoadConfig_ServerBounds(t *testing.T) {
 		{name: "unparseable timeout", env: "HTTP_READ_TIMEOUT", value: "soon"},
 		{name: "zero timeout", env: "HTTP_IDLE_TIMEOUT", value: "0s"},
 		{name: "unparseable body limit", env: "HTTP_BODY_LIMIT", value: "lots"},
+		{name: "zero request timeout", env: "HTTP_REQUEST_TIMEOUT", value: "0s"},
+		{name: "request timeout past the write timeout", env: "HTTP_REQUEST_TIMEOUT", value: "10m"},
 		{name: "zero body limit", env: "HTTP_BODY_LIMIT", value: "0"},
 		{name: "negative body limit", env: "HTTP_BODY_LIMIT", value: "-1M"},
 	}
@@ -172,6 +179,9 @@ func TestNew_RejectsInvalidBounds(t *testing.T) {
 		cfg  Config
 	}{
 		{name: "negative body limit", cfg: Config{Port: "0", BodyLimit: -1}},
+		{name: "negative request timeout", cfg: Config{Port: "0", RequestTimeout: -time.Second}},
+		{name: "request timeout equal to the write timeout", cfg: Config{Port: "0", RequestTimeout: time.Minute, WriteTimeout: time.Minute}},
+		{name: "write timeout below the default request timeout", cfg: Config{Port: "0", WriteTimeout: time.Minute}},
 	}
 
 	for _, tt := range tests {

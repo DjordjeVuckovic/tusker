@@ -96,6 +96,7 @@ func (s *Server) SetupMiddlewares() *Server {
 		AllowMethods: []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},
 	}))
 	s.Echo.Use(middleware.BodyLimit(strconv.FormatInt(s.cfg.BodyLimit, 10)))
+	s.Echo.Use(middleware.ContextTimeout(s.cfg.RequestTimeout))
 
 	return s
 }
