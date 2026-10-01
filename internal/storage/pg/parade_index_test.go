@@ -13,6 +13,7 @@ import (
 
 type paradeArticle struct {
 	title       string
+	subtitle    string
 	description string
 	content     string
 	publishedAt string
@@ -20,10 +21,10 @@ type paradeArticle struct {
 }
 
 var paradeCorpus = []paradeArticle{
-	{title: "Clear sky over harbour", description: "weather", content: "calm evening", publishedAt: "2024-02-01", sourceName: "bbc.com"},
-	{title: "Old habits die hard", description: "habits", content: "slow change", publishedAt: "2019-05-01", sourceName: "cnn.com"},
-	{title: "A new season begins", description: "sport", content: "fresh start", publishedAt: "2024-03-01", sourceName: "bbc.com"},
-	{title: "Evening news roundup", description: "bulletin", content: "daily summary", publishedAt: "2020-01-01", sourceName: "cnn.com"},
+	{title: "Clear sky over harbour", subtitle: "Forecasters promise a clear sky", description: "weather", content: "calm evening", publishedAt: "2024-02-01", sourceName: "bbc.com"},
+	{title: "Old habits die hard", subtitle: "Customs die slowly", description: "habits", content: "slow change", publishedAt: "2019-05-01", sourceName: "cnn.com"},
+	{title: "A new season begins", subtitle: "Teams announce signings", description: "sport", content: "fresh start", publishedAt: "2024-03-01", sourceName: "bbc.com"},
+	{title: "Evening news roundup", subtitle: "Today in news", description: "bulletin", content: "daily summary", publishedAt: "2020-01-01", sourceName: "cnn.com"},
 }
 
 func newParadeDB(t *testing.T) *pgxpool.Pool {
@@ -33,9 +34,9 @@ func newParadeDB(t *testing.T) *pgxpool.Pool {
 
 	for i, a := range paradeCorpus {
 		_, err := db.Exec(ctx, `
-			INSERT INTO articles (title, description, content, url, published_at, source_name)
-			VALUES ($1, $2, $3, $4, $5::timestamptz, $6)`,
-			a.title, a.description, a.content, fmt.Sprintf("https://example.com/%d", i), a.publishedAt, a.sourceName)
+			INSERT INTO articles (title, subtitle, description, content, url, published_at, source_name)
+			VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7)`,
+			a.title, a.subtitle, a.description, a.content, fmt.Sprintf("https://example.com/%d", i), a.publishedAt, a.sourceName)
 		if err != nil {
 			t.Fatalf("seed article %q: %v", a.title, err)
 		}
@@ -69,20 +70,22 @@ func matchingTitles(t *testing.T, db *pgxpool.Pool, query string, args ...any) [
 func TestParadeDBSearchIndex(t *testing.T) {
 	db := newParadeDB(t)
 
-	t.Run("title matches follow the postgres english stemmer", func(t *testing.T) {
-		for _, word := range []string{"skies", "dying", "news"} {
-			want := matchingTitles(t, db,
-				`SELECT title FROM articles WHERE to_tsvector('english', title) @@ plainto_tsquery('english', $1)`, word)
-			if len(want) == 0 {
-				t.Fatalf("postgres matches no title for %q, so the comparison proves nothing", word)
+	for _, field := range []string{"title", "subtitle"} {
+		t.Run(field+" matches follow the postgres english stemmer", func(t *testing.T) {
+			for _, word := range []string{"skies", "dying", "news"} {
+				want := matchingTitles(t, db, fmt.Sprintf(
+					`SELECT title FROM articles WHERE to_tsvector('english', %s) @@ plainto_tsquery('english', $1)`, field), word)
+				if len(want) == 0 {
+					t.Fatalf("postgres matches no %s for %q, so the comparison proves nothing", field, word)
+				}
+				got := matchingTitles(t, db,
+					`SELECT title FROM articles WHERE id @@@ paradedb.match($1, $2)`, field, word)
+				if !slices.Equal(got, want) {
+					t.Errorf("%q: paradedb matches %q, postgres matches %q", word, got, want)
+				}
 			}
-			got := matchingTitles(t, db,
-				`SELECT title FROM articles WHERE id @@@ paradedb.match('title', $1)`, word)
-			if !slices.Equal(got, want) {
-				t.Errorf("%q: paradedb matches %q, postgres matches %q", word, got, want)
-			}
-		}
-	})
+		})
+	}
 
 	queryForms := []struct {
 		name   string
