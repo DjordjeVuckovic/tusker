@@ -30,7 +30,11 @@ func pgSearchConfig(connStr string) *NewsSearchConfig {
 
 func healthStatus(t *testing.T, backend *searchBackend) int {
 	t.Helper()
-	s := server.New(&server.Config{Port: "0"}, backend.health).SetupHealthChecks("/health")
+	s, err := server.New(&server.Config{Port: "0"}, backend.health)
+	if err != nil {
+		t.Fatalf("server.New: %v", err)
+	}
+	s.SetupHealthChecks("/health")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

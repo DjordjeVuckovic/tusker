@@ -21,7 +21,7 @@ const (
 	// followed by an Elasticsearch call bounded at 30s.
 	DefaultWriteTimeout = 120 * time.Second
 	DefaultIdleTimeout  = 120 * time.Second
-	DefaultBodyLimit    = "1M"
+	DefaultBodyLimit    = 1_000_000
 )
 
 type Config struct {
@@ -33,8 +33,8 @@ type Config struct {
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
-	// BodyLimit is a size such as "1M"; larger request bodies get 413.
-	BodyLimit string
+	// BodyLimit is the largest request body in bytes; larger bodies get 413.
+	BodyLimit int64
 }
 
 func LoadConfig() (*Config, error) {
@@ -87,19 +87,16 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
-	if limit := os.Getenv("HTTP_BODY_LIMIT"); limit != "" {
-		if _, err := bytes.Parse(limit); err != nil {
-			return nil, fmt.Errorf("invalid HTTP_BODY_LIMIT %q: %w", limit, err)
-		}
-		cfg.BodyLimit = limit
+	if cfg.BodyLimit, err = byteSizeFromEnv("HTTP_BODY_LIMIT"); err != nil {
+		return nil, err
 	}
 
-	return cfg.withDefaults(), nil
+	return cfg.validated()
 }
 
-// withDefaults returns a copy of cfg with every unset timeout and the body
-// limit filled in, so no Config leaves the server without a bound.
-func (cfg Config) withDefaults() *Config {
+// validated returns a copy of cfg with every unset bound defaulted, so no
+// Config leaves the server unbounded, or an error if a bound is invalid.
+func (cfg Config) validated() (*Config, error) {
 	defaults := []struct {
 		value    *time.Duration
 		fallback time.Duration
@@ -114,10 +111,13 @@ func (cfg Config) withDefaults() *Config {
 			*d.value = d.fallback
 		}
 	}
-	if cfg.BodyLimit == "" {
+	if cfg.BodyLimit < 0 {
+		return nil, fmt.Errorf("invalid body limit %d: must be positive", cfg.BodyLimit)
+	}
+	if cfg.BodyLimit == 0 {
 		cfg.BodyLimit = DefaultBodyLimit
 	}
-	return &cfg
+	return &cfg, nil
 }
 
 func durationFromEnv(name string) (time.Duration, error) {
@@ -133,6 +133,21 @@ func durationFromEnv(name string) (time.Duration, error) {
 		return 0, fmt.Errorf("invalid %s %q: must be positive", name, raw)
 	}
 	return d, nil
+}
+
+func byteSizeFromEnv(name string) (int64, error) {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return 0, nil
+	}
+	size, err := bytes.Parse(raw)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s %q: %w", name, raw, err)
+	}
+	if size <= 0 {
+		return 0, fmt.Errorf("invalid %s %q: must be positive", name, raw)
+	}
+	return size, nil
 }
 
 func validatePort(port string) error {

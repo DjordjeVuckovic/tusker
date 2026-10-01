@@ -45,8 +45,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := server2.New(sCfg, backend.health).
-		SetupMiddlewares().
+	s, err := server2.New(sCfg, backend.health)
+	if err != nil {
+		backend.close()
+		slog.Error("Failed to create server", "error", err)
+		os.Exit(1)
+	}
+	s.SetupMiddlewares().
 		SetupValidator().
 		SetupErrorHandler().
 		SetupHealthChecks("/health").

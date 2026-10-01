@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 
 	openapi "github.com/DjordjeVuckovic/tusker/api/openapi-spec"
@@ -36,8 +37,11 @@ type Server struct {
 	shutdownSig             chan struct{}
 }
 
-func New(cfg *Config, checker server.HealthChecker) *Server {
-	cfg = cfg.withDefaults()
+func New(cfg *Config, checker server.HealthChecker) (*Server, error) {
+	cfg, err := cfg.validated()
+	if err != nil {
+		return nil, fmt.Errorf("server config: %w", err)
+	}
 	e := echo.New()
 
 	e.DisableHTTP2 = !cfg.UseHttp2
@@ -55,7 +59,7 @@ func New(cfg *Config, checker server.HealthChecker) *Server {
 		shutdownSig:             make(chan struct{}),
 	}
 
-	return s
+	return s, nil
 }
 
 func (s *Server) Context() context.Context {
@@ -102,7 +106,7 @@ func (s *Server) SetupMiddlewares() *Server {
 		AllowOrigins: s.cfg.CorsOrigins,
 		AllowMethods: []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},
 	}))
-	s.Echo.Use(middleware.BodyLimit(s.cfg.BodyLimit))
+	s.Echo.Use(middleware.BodyLimit(strconv.FormatInt(s.cfg.BodyLimit, 10)))
 
 	return s
 }

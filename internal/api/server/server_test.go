@@ -14,6 +14,15 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+func newServer(t *testing.T, cfg *Config, checker pkgserver.HealthChecker) *Server {
+	t.Helper()
+	s, err := New(cfg, checker)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return s
+}
+
 func startOnLoopback(t *testing.T, s *Server) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -29,7 +38,7 @@ func startOnLoopback(t *testing.T, s *Server) string {
 }
 
 func TestServer_DropsConnectionThatNeverFinishesHeaders(t *testing.T) {
-	s := New(&Config{Port: "0", ReadHeaderTimeout: 50 * time.Millisecond}, pkgserver.NewOkHealthChecker()).
+	s := newServer(t, &Config{Port: "0", ReadHeaderTimeout: 50 * time.Millisecond}, pkgserver.NewOkHealthChecker()).
 		SetupHealthChecks("/health")
 	addr := startOnLoopback(t, s)
 
@@ -70,7 +79,7 @@ func TestServer_RejectsBodyOverLimit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := New(&Config{Port: "0", BodyLimit: "1K"}, pkgserver.NewOkHealthChecker()).
+			s := newServer(t, &Config{Port: "0", BodyLimit: 1000}, pkgserver.NewOkHealthChecker()).
 				SetupMiddlewares().
 				SetupErrorHandler()
 			s.Echo.POST("/echo", func(c echo.Context) error {
@@ -96,7 +105,7 @@ func TestLoadConfig_ServerBounds(t *testing.T) {
 	t.Run("env overrides", func(t *testing.T) {
 		t.Setenv("HTTP_READ_HEADER_TIMEOUT", "2s")
 		t.Setenv("HTTP_WRITE_TIMEOUT", "3m")
-		t.Setenv("HTTP_BODY_LIMIT", "64K")
+		t.Setenv("HTTP_BODY_LIMIT", "65536")
 
 		cfg, err := LoadConfig()
 		if err != nil {
@@ -108,8 +117,8 @@ func TestLoadConfig_ServerBounds(t *testing.T) {
 		if cfg.WriteTimeout != 3*time.Minute {
 			t.Errorf("WriteTimeout = %v, want 3m", cfg.WriteTimeout)
 		}
-		if cfg.BodyLimit != "64K" {
-			t.Errorf("BodyLimit = %q, want 64K", cfg.BodyLimit)
+		if cfg.BodyLimit != 65536 {
+			t.Errorf("BodyLimit = %d, want 65536", cfg.BodyLimit)
 		}
 	})
 
@@ -128,8 +137,8 @@ func TestLoadConfig_ServerBounds(t *testing.T) {
 				t.Errorf("%s = %v, want a positive default", name, d)
 			}
 		}
-		if cfg.BodyLimit == "" {
-			t.Error("BodyLimit is empty, want a default")
+		if cfg.BodyLimit <= 0 {
+			t.Errorf("BodyLimit = %d, want a positive default", cfg.BodyLimit)
 		}
 	})
 
@@ -141,12 +150,31 @@ func TestLoadConfig_ServerBounds(t *testing.T) {
 		{name: "unparseable timeout", env: "HTTP_READ_TIMEOUT", value: "soon"},
 		{name: "zero timeout", env: "HTTP_IDLE_TIMEOUT", value: "0s"},
 		{name: "unparseable body limit", env: "HTTP_BODY_LIMIT", value: "lots"},
+		{name: "zero body limit", env: "HTTP_BODY_LIMIT", value: "0"},
+		{name: "negative body limit", env: "HTTP_BODY_LIMIT", value: "-1M"},
 	}
 	for _, tt := range invalid {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(tt.env, tt.value)
 			if _, err := LoadConfig(); err == nil {
 				t.Errorf("LoadConfig with %s=%q succeeded, want an error", tt.env, tt.value)
+			}
+		})
+	}
+}
+
+func TestNew_RejectsInvalidBounds(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  Config
+	}{
+		{name: "negative body limit", cfg: Config{Port: "0", BodyLimit: -1}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := New(&tt.cfg, pkgserver.NewOkHealthChecker()); err == nil {
+				t.Errorf("New(%+v) succeeded, want an error", tt.cfg)
 			}
 		})
 	}
