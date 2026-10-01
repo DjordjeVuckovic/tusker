@@ -15,10 +15,12 @@ CREATE TABLE articles
     description   text                             DEFAULT ''
 );
 -- Text fields stem with Snowball English, as the english regconfig does on
--- pg-native and tiger. ParadeDB takes no custom stopword list, so its english
--- list stays smaller than PostgreSQL's. published_at and source_name sit in the
--- index so structured filters are answered by the bm25 scan; source_name is a
--- literal so source_name = ... pushes down as an exact term.
+-- pg-native and tiger. pg_search 0.21.5 accepts the stopwords option but
+-- ignores it, so its english list stays smaller than PostgreSQL's.
+-- source_name is a literal, so source_name = ... next to @@@ pushes down as an
+-- exact term. published_at reaches the index only through
+-- paradedb.range('published_at', ...); a plain published_at comparison next to
+-- @@@ runs as a heap filter inside the ParadeDB scan.
 CREATE INDEX idx_articles_search ON articles
     USING bm25 (
         id,

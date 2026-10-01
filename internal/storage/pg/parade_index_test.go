@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
@@ -84,9 +85,10 @@ func TestParadeDBSearchIndex(t *testing.T) {
 	})
 
 	queryForms := []struct {
-		name  string
-		query string
-		want  []string
+		name   string
+		query  string
+		want   []string
+		inPlan string
 	}{
 		{
 			name:  "parse",
@@ -125,7 +127,8 @@ func TestParadeDBSearchIndex(t *testing.T) {
 					paradedb.match('title', 'news season'),
 					paradedb.range('published_at', tstzrange('2024-01-01', NULL))
 				])`,
-			want: []string{"A new season begins"},
+			want:   []string{"A new season begins"},
+			inPlan: `{"range":{"field":"published_at"`,
 		},
 		{
 			name: "published_at comparison next to a match",
@@ -144,6 +147,12 @@ func TestParadeDBSearchIndex(t *testing.T) {
 		t.Run(form.name, func(t *testing.T) {
 			if got := matchingTitles(t, db, form.query); !slices.Equal(got, form.want) {
 				t.Errorf("titles = %q, want %q", got, form.want)
+			}
+			if form.inPlan == "" {
+				return
+			}
+			if plan := explain(t, db, form.query); !strings.Contains(plan, form.inPlan) {
+				t.Errorf("plan lacks %s; plan:\n%s", form.inPlan, plan)
 			}
 		})
 	}
