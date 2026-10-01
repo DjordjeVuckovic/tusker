@@ -186,10 +186,6 @@ func (p *MatchParams) ToDomain() (*query.Match, error) {
 }
 
 func (p *MultiMatchParams) ToDomain() (*query.MultiMatch, error) {
-	if err := validateBoostedFields(p.Fields); err != nil {
-		return nil, err
-	}
-
 	var opts []query.MultiMatchQueryOption
 
 	op, err := parseOperator(p.Operator)
@@ -206,7 +202,7 @@ func (p *MultiMatchParams) ToDomain() (*query.MultiMatch, error) {
 
 	newQuery, err := query.NewMultiMatchQuery(p.Query, p.Fields, opts...)
 	if err != nil {
-		return nil, apperr.NewValidationWrap("invalid input", err)
+		return nil, apperr.NewValidationWrap("invalid multi_match query", err)
 	}
 
 	return newQuery, nil

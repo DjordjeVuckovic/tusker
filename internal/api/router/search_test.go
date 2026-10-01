@@ -102,6 +102,36 @@ func TestStructuredSearchHandlerValidation(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
+			name:     "multi_match with a zero boost",
+			body:     `{"query":{"multi_match":{"fields":["title^0"],"query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "multi_match with a NaN boost",
+			body:     `{"query":{"multi_match":{"fields":["title^NaN"],"query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "multi_match with an Inf boost",
+			body:     `{"query":{"multi_match":{"fields":["title^Inf"],"query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "multi_match with a -Inf boost",
+			body:     `{"query":{"multi_match":{"fields":["title^-Inf"],"query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "multi_match with an infinity boost",
+			body:     `{"query":{"multi_match":{"fields":["title^infinity"],"query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "multi_match with two boosts",
+			body:     `{"query":{"multi_match":{"fields":["title^2^3"],"query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
 			name:     "phrase on an unknown field",
 			body:     `{"query":{"phrase":{"fields":["headline"],"query":"climate change"}}}`,
 			wantCode: http.StatusBadRequest,

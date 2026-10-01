@@ -2,6 +2,9 @@ package query
 
 import (
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 )
@@ -32,6 +35,24 @@ func ParseField(s string) (Field, error) {
 type FieldWeight struct {
 	Field  Field
 	Weight float64
+}
+
+// ParseFieldBoost parses "field" or "field^boost". An unboosted field weighs 1;
+// a boost must be a finite positive number.
+func ParseFieldBoost(spec string) (FieldWeight, error) {
+	name, rawBoost, boosted := strings.Cut(strings.TrimSpace(spec), "^")
+	field, err := ParseField(name)
+	if err != nil {
+		return FieldWeight{}, err
+	}
+	if !boosted {
+		return FieldWeight{Field: field, Weight: 1}, nil
+	}
+	boost, err := strconv.ParseFloat(rawBoost, 64)
+	if err != nil || math.IsNaN(boost) || math.IsInf(boost, 0) || boost <= 0 {
+		return FieldWeight{}, fmt.Errorf("invalid boost in %q: must be a finite positive number", spec)
+	}
+	return FieldWeight{Field: field, Weight: boost}, nil
 }
 
 // SearchContract is the question a query string asks every engine: which fields

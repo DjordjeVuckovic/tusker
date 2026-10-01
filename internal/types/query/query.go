@@ -2,9 +2,6 @@ package query
 
 import (
 	"fmt"
-	"log/slog"
-	"strconv"
-	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 )
@@ -356,12 +353,17 @@ func NewMultiMatchQuery(query string, fields []string, opts ...MultiMatchQueryOp
 		return nil, fmt.Errorf("fields are required")
 	}
 
+	parsedFields, err := newMultiMatchFields(fields)
+	if err != nil {
+		return nil, err
+	}
+
 	q := &MultiMatch{
 		Query:         query,
 		Language:      DefaultLanguage,
 		Operator:      operator.Default,
 		MatchStrategy: MultiMatchBestFields,
-		Fields:        newMultiMatchNewFields(fields),
+		Fields:        parsedFields,
 	}
 
 	for _, opt := range opts {
@@ -383,27 +385,16 @@ func WithMultiMatchOperator(op operator.Operator) MultiMatchQueryOption {
 	}
 }
 
-func newMultiMatchNewFields(fields []string) []MultiMatchField {
-	parsedFields := make([]MultiMatchField, 0, len(fields))
-
-	for _, field := range fields {
-		fieldParts := strings.Split(strings.TrimSpace(field), "^")
-		switch len(fieldParts) {
-		case 1:
-			parsedFields = append(parsedFields, NewMultiMatchField(fieldParts[0]))
-		case 2:
-			weight, err := strconv.ParseFloat(fieldParts[1], 64)
-			if err != nil {
-				slog.Info("Invalid weight value in MultiMatchNewFields, defaulting to 1.0", "field", field, "error", err)
-				weight = 1.0
-			}
-			parsedFields = append(parsedFields, NewMultiMatchBoostedField(fieldParts[0], weight))
-		default:
-			slog.Info("Invalid field format in MultiMatchNewFields", "field", field)
+func newMultiMatchFields(specs []string) ([]MultiMatchField, error) {
+	fields := make([]MultiMatchField, 0, len(specs))
+	for _, spec := range specs {
+		fieldBoost, err := ParseFieldBoost(spec)
+		if err != nil {
+			return nil, err
 		}
+		fields = append(fields, NewMultiMatchBoostedField(string(fieldBoost.Field), fieldBoost.Weight))
 	}
-
-	return parsedFields
+	return fields, nil
 }
 
 func (q *MultiMatch) GetLanguage() Language {

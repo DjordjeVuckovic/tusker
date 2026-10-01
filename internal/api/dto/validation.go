@@ -2,7 +2,6 @@ package dto
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
@@ -42,24 +41,6 @@ func validateFields(raw []string) error {
 	for _, field := range raw {
 		if err := validateField(field); err != nil {
 			return err
-		}
-	}
-	return nil
-}
-
-// validateBoostedFields accepts "field" or "field^boost" with a positive boost.
-func validateBoostedFields(raw []string) error {
-	for _, spec := range raw {
-		name, boost, boosted := strings.Cut(strings.TrimSpace(spec), "^")
-		if err := validateField(name); err != nil {
-			return err
-		}
-		if !boosted {
-			continue
-		}
-		weight, err := strconv.ParseFloat(boost, 64)
-		if err != nil || weight <= 0 {
-			return apperr.NewValidation(fmt.Sprintf("invalid boost in %q: must be a positive number", spec))
 		}
 	}
 	return nil
