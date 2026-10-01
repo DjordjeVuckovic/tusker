@@ -2,6 +2,8 @@ package suite
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -410,4 +412,30 @@ func TestEngineQuery_Resolve_RequiresDialect(t *testing.T) {
 	_, err := eq.Resolve(ResolveOptions{})
 
 	assert.ErrorContains(t, err, "dialect")
+}
+
+func TestQuery_ResolveEngineQuery_RejectsInlineParamBothBoundAndPasted(t *testing.T) {
+	const mixed = "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', {{$terms}}) OR title = '{{terms}}'"
+	suiteDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(suiteDir, "mixed.sql"), []byte(mixed), 0o644))
+
+	tests := []struct {
+		name  string
+		block EngineQuery
+	}{
+		{name: "inline query", block: EngineQuery{Query: mixed, Params: TemplateParams{"terms": "don't"}}},
+		{name: "file query", block: EngineQuery{File: "mixed.sql", Params: TemplateParams{"terms": "don't"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := Query{ID: "q-mixed", Engines: map[string]EngineQuery{"pg-gin": tt.block}}
+
+			_, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg-gin", SuiteDir: suiteDir, Dialect: DialectPostgres})
+
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "q-mixed")
+			assert.ErrorContains(t, err, "pg-gin")
+			assert.ErrorContains(t, err, "terms")
+		})
+	}
 }

@@ -121,9 +121,12 @@ func (eq *EngineQuery) Resolve(opts ResolveOptions) (*ResolvedQuery, error) {
 // parses the literal "{" as an object and returns a cryptic START_OBJECT 400.
 // Templates already fail loudly via Render; this gives inline queries parity.
 func resolveInline(s string, params TemplateParams, dialect Dialect) (*ResolvedQuery, error) {
-	s = substituteParams(s, params)
+	s, pasted := substituteParams(s, params)
 	if missing := findMissingPlaceholders(s); len(missing) > 0 {
 		return nil, fmt.Errorf("query has unresolved placeholders: %v", missing)
+	}
+	if name, found := boundParamAlsoPasted(s, pasted); found {
+		return nil, fmt.Errorf("param %q is used both as {{$%s}} and as {{%s}}: bind it everywhere", name, name, name)
 	}
 	return bindValues(s, params, dialect)
 }
@@ -141,14 +144,21 @@ func mergeParams(layers ...TemplateParams) TemplateParams {
 	return out
 }
 
-// substituteParams replaces {{key}} for each key in params. Inline/file queries
-// aren't template-rendered, so this is how they receive params; only the
-// provided keys are touched, leaving any other braces untouched.
-func substituteParams(s string, params TemplateParams) string {
+// substituteParams replaces {{key}} for each key in params and reports the keys
+// it pasted. Inline/file queries aren't template-rendered, so this is how they
+// receive params; only the provided keys are touched, leaving any other braces
+// untouched.
+func substituteParams(s string, params TemplateParams) (string, map[string]bool) {
+	pasted := map[string]bool{}
 	for k, v := range params {
-		s = strings.ReplaceAll(s, "{{"+k+"}}", formatValue(v))
+		placeholder := "{{" + k + "}}"
+		if !strings.Contains(s, placeholder) {
+			continue
+		}
+		pasted[k] = true
+		s = strings.ReplaceAll(s, placeholder, formatValue(v))
 	}
-	return s
+	return s, pasted
 }
 
 type ResolvedQuery struct {
@@ -188,7 +198,11 @@ func (q *Query) ResolveEngineQuery(opts ResolveOptions) (*ResolvedQuery, error) 
 	if !ok {
 		return nil, nil
 	}
-	return eq.Resolve(opts)
+	resolved, err := eq.Resolve(opts)
+	if err != nil {
+		return nil, fmt.Errorf("query %q engine %q: %w", q.ID, opts.Engine, err)
+	}
+	return resolved, nil
 }
 
 // NeedsQueryVector reports whether any engine query references the reserved

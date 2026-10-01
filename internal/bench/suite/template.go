@@ -69,12 +69,8 @@ func (t *QueryTemplate) Render(params TemplateParams, dialect Dialect) (*Resolve
 		return nil, fmt.Errorf("template %q missing params: %v", t.ID, missing)
 	}
 
-	// Pasting a bound value anywhere puts its text back into the query
-	// unescaped, which is what binding exists to prevent.
-	for _, m := range boundPlaceholderRegex.FindAllStringSubmatch(result, -1) {
-		if pasted[m[1]] {
-			return nil, fmt.Errorf("template %q uses param %q both as {{$%s}} and as {{%s}}: bind it everywhere", t.ID, m[1], m[1], m[1])
-		}
+	if name, found := boundParamAlsoPasted(result, pasted); found {
+		return nil, fmt.Errorf("template %q uses param %q both as {{$%s}} and as {{%s}}: bind it everywhere", t.ID, name, name, name)
 	}
 
 	resolved, err := bindValues(result, params, dialect)
@@ -82,6 +78,18 @@ func (t *QueryTemplate) Render(params TemplateParams, dialect Dialect) (*Resolve
 		return nil, fmt.Errorf("template %q: %w", t.ID, err)
 	}
 	return resolved, nil
+}
+
+// boundParamAlsoPasted finds a param query binds as {{$name}} whose value was
+// also pasted as {{name}}. The pasted copy puts the text back into the query
+// unescaped, which is what binding exists to prevent.
+func boundParamAlsoPasted(query string, pasted map[string]bool) (string, bool) {
+	for _, m := range boundPlaceholderRegex.FindAllStringSubmatch(query, -1) {
+		if pasted[m[1]] {
+			return m[1], true
+		}
+	}
+	return "", false
 }
 
 // bindValues runs once, after every structural placeholder is resolved, so a
