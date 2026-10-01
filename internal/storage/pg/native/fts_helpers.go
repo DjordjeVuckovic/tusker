@@ -125,9 +125,11 @@ func buildRankExpression(fieldBoosts []FieldWeight, lang query.Language, op oper
 }
 
 // buildTsWhereClause matches the query against the requested fields only.
-// Every lexeme must hit one of the fields' weight bands, so the band filter
-// rechecks the rows the GIN-indexed match on the whole vector lets through.
 // No fields, or fields covering all four bands, match the whole vector.
+// Otherwise the query runs on the fields' weight bands. Under AND that implies
+// a match on the whole vector, which goes first so the GIN index narrows the
+// rows. Under OR the query may negate a term, so a row whose fields qualify can
+// fail the whole vector; there the bands are matched alone.
 func buildTsWhereClause(fieldBoosts []FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
 	queryExpr := buildTsQuery(op, lang, paramNum)
 	match := fmt.Sprintf("search_vector @@ %s", queryExpr)
@@ -142,7 +144,11 @@ func buildTsWhereClause(fieldBoosts []FieldWeight, lang query.Language, op opera
 	}
 
 	bands := strings.Split(strings.ToLower(labels), "")
-	return fmt.Sprintf("%s AND ts_filter(search_vector, '{%s}') @@ %s", match, strings.Join(bands, ","), queryExpr)
+	bandMatch := fmt.Sprintf("ts_filter(search_vector, '{%s}') @@ %s", strings.Join(bands, ","), queryExpr)
+	if op.IsOr() {
+		return bandMatch
+	}
+	return fmt.Sprintf("%s AND %s", match, bandMatch)
 }
 
 // buildPhraseSlopQuery constructs a phrase query with slop support
