@@ -12,6 +12,7 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/storagetest"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
@@ -93,7 +94,7 @@ func sortedIDs(ids []uuid.UUID) []uuid.UUID {
 
 func TestSearcher_StringQueryRecallFollowsSearchContract(t *testing.T) {
 	s := newSearcher(t)
-	articles, want := pkgtesting.SearchContractCorpus()
+	articles, want := storagetest.SearchContractCorpus()
 	indexer, err := pg.NewIndexer(testPool)
 	if err != nil {
 		t.Fatalf("NewIndexer: %v", err)
@@ -102,7 +103,7 @@ func TestSearcher_StringQueryRecallFollowsSearchContract(t *testing.T) {
 		t.Fatalf("SaveBulk: %v", err)
 	}
 
-	got := hitIDs(t, s, dquery.NewQueryString(pkgtesting.SearchContractQuery))
+	got := hitIDs(t, s, dquery.NewQueryString(storagetest.SearchContractQuery))
 
 	if !slices.Equal(sortedIDs(got), sortedIDs(want)) {
 		t.Errorf("recall = %v, want %v", sortedIDs(got), sortedIDs(want))
@@ -111,7 +112,7 @@ func TestSearcher_StringQueryRecallFollowsSearchContract(t *testing.T) {
 
 func TestSearcher_OrMatchWithNegationOnFieldSubsetKeepsRowsThatQualify(t *testing.T) {
 	s := newSearcher(t)
-	articles, _ := pkgtesting.SearchContractCorpus()
+	articles, _ := storagetest.SearchContractCorpus()
 	indexer, err := pg.NewIndexer(testPool)
 	if err != nil {
 		t.Fatalf("NewIndexer: %v", err)
@@ -173,7 +174,7 @@ func TestSearcher_StringQueryRanksWithPostgresDefaultWeights(t *testing.T) {
 
 func TestSearcher_StringQueryOfOnlyStopwordsReturnsNoHits(t *testing.T) {
 	s := newSearcher(t)
-	articles, _ := pkgtesting.SearchContractCorpus()
+	articles, _ := storagetest.SearchContractCorpus()
 	indexer, err := pg.NewIndexer(testPool)
 	if err != nil {
 		t.Fatalf("NewIndexer: %v", err)
@@ -189,7 +190,7 @@ func TestSearcher_StringQueryOfOnlyStopwordsReturnsNoHits(t *testing.T) {
 
 func TestSearcher_ScoreNormalizedStaysInUnitRangeWhenEveryRankIsZero(t *testing.T) {
 	s := newSearcher(t)
-	articles, _ := pkgtesting.SearchContractCorpus()
+	articles, _ := storagetest.SearchContractCorpus()
 	indexer, err := pg.NewIndexer(testPool)
 	if err != nil {
 		t.Fatalf("NewIndexer: %v", err)

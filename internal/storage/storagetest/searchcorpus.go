@@ -1,4 +1,4 @@
-package testing
+package storagetest
 
 import (
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"

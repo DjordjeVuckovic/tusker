@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/storagetest"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
@@ -230,7 +231,7 @@ func TestSearcher_StringQueryRecallFollowsSearchContract(t *testing.T) {
 	}
 	ctx := context.Background()
 	indexer, searcher := newSearcherTestEnv(t)
-	articles, want := pkgtesting.SearchContractCorpus()
+	articles, want := storagetest.SearchContractCorpus()
 	for _, article := range articles {
 		if _, err := indexer.Save(ctx, article); err != nil {
 			t.Fatalf("index %s: %v", article.ID, err)
@@ -238,7 +239,7 @@ func TestSearcher_StringQueryRecallFollowsSearchContract(t *testing.T) {
 	}
 	refreshIndex(t, indexer)
 
-	res, err := searcher.SearchStringQuery(ctx, dquery.NewQueryString(pkgtesting.SearchContractQuery), &dquery.BaseOptions{Size: 100})
+	res, err := searcher.SearchStringQuery(ctx, dquery.NewQueryString(storagetest.SearchContractQuery), &dquery.BaseOptions{Size: 100})
 	if err != nil {
 		t.Fatalf("SearchStringQuery: %v", err)
 	}
