@@ -227,7 +227,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 		"query", query.Query,
 		"field", query.Field,
 		"operator", query.GetOperator(),
-		"fuzziness", query.Fuzziness,
+		"fuzziness", query.GetFuzziness(),
 		"has_cursor", cursor != nil,
 		"size", size)
 
@@ -245,15 +245,15 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 		matchQuery.Operator = &or
 	}
 
-	// Set fuzziness if specified
-	if query.Fuzziness != "" {
-		matchQuery.Fuzziness = &query.Fuzziness
+	if fuzziness := query.GetFuzziness(); fuzziness != dquery.NoFuzziness {
+		editDistance := string(fuzziness)
+		matchQuery.Fuzziness = &editDistance
 	}
 
 	slog.Debug("Elasticsearch match query",
 		"field", query.Field,
 		"operator", query.GetOperator(),
-		"fuzziness", query.Fuzziness)
+		"fuzziness", query.GetFuzziness())
 
 	// Build search request with match query on specific field
 	searchReq := r.client.Search().

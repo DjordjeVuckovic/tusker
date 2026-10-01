@@ -72,6 +72,11 @@ func TestStructuredSearchHandlerValidation(t *testing.T) {
 			wantCode: http.StatusOK,
 		},
 		{
+			name:     "match without fuzziness",
+			body:     `{"query":{"match":{"field":"title","query":"climate","fuzziness":"none"}}}`,
+			wantCode: http.StatusOK,
+		},
+		{
 			name:     "match with unsupported fuzziness",
 			body:     `{"query":{"match":{"field":"title","query":"climate","fuzziness":"7"}}}`,
 			wantCode: http.StatusBadRequest,

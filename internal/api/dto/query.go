@@ -172,9 +172,7 @@ func (p *MatchParams) ToDomain() (*query.Match, error) {
 	if err != nil {
 		return nil, err
 	}
-	if fuzziness != "" {
-		opts = append(opts, query.WithMatchFuzziness(fuzziness))
-	}
+	opts = append(opts, query.WithMatchFuzziness(fuzziness))
 
 	lang, err := parseLanguage(p.Language)
 	if err != nil {

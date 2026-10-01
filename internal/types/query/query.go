@@ -232,10 +232,9 @@ type Match struct {
 	Operator operator.Operator `json:"operator,omitempty"`
 
 	// Fuzziness: Typo tolerance (general search concept)
-	// "AUTO", "0", "1", "2" - Levenshtein edit distance
 	// Elasticsearch: Native support via fuzziness parameter
 	// PostgreSQL: Ignored (would require pg_trgm extension)
-	Fuzziness string `json:"fuzziness,omitempty"`
+	Fuzziness Fuzziness `json:"fuzziness,omitempty"`
 }
 
 // GetLanguage returns the language with default fallback
@@ -254,14 +253,22 @@ func (q *Match) GetOperator() operator.Operator {
 	return q.Operator
 }
 
+func (q *Match) GetFuzziness() Fuzziness {
+	if q.Fuzziness == "" {
+		return NoFuzziness
+	}
+	return q.Fuzziness
+}
+
 type MatchQueryOption func(q *Match)
 
 func NewMatch(field, query string, opts ...MatchQueryOption) *Match {
 	q := &Match{
-		Field:    field,
-		Query:    query,
-		Language: DefaultLanguage,
-		Operator: operator.Default,
+		Field:     field,
+		Query:     query,
+		Language:  DefaultLanguage,
+		Operator:  operator.Default,
+		Fuzziness: NoFuzziness,
 	}
 
 	for _, opt := range opts {
@@ -286,7 +293,7 @@ func WithMatchOperator(op operator.Operator) MatchQueryOption {
 }
 
 // WithMatchFuzziness sets the fuzziness for Match query
-func WithMatchFuzziness(fuzziness string) MatchQueryOption {
+func WithMatchFuzziness(fuzziness Fuzziness) MatchQueryOption {
 	return func(q *Match) {
 		q.Fuzziness = fuzziness
 	}

@@ -1,9 +1,6 @@
 package dto
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	"github.com/DjordjeVuckovic/tusker/internal/types/query"
@@ -46,14 +43,10 @@ func validateFields(raw []string) error {
 	return nil
 }
 
-// parseFuzziness returns "" when no fuzziness was asked for.
-func parseFuzziness(raw string) (string, error) {
-	if raw == "" {
-		return "", nil
+func parseFuzziness(raw string) (query.Fuzziness, error) {
+	fuzziness, err := query.ParseFuzziness(raw)
+	if err != nil {
+		return "", apperr.NewValidationWrap("invalid fuzziness", err)
 	}
-	fuzziness := query.Fuzziness(strings.ToUpper(raw))
-	if !query.SupportedFuzziness[fuzziness] {
-		return "", apperr.NewValidation(fmt.Sprintf("unsupported fuzziness: %q (must be AUTO, 0, 1 or 2)", raw))
-	}
-	return string(fuzziness), nil
+	return fuzziness, nil
 }
