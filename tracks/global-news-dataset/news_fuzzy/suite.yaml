@@ -12,49 +12,53 @@ templates:
   # pg_trgm: trigram similarity — handles typos, transpositions, prefix variants.
   # Requires: CREATE EXTENSION pg_trgm; GIN index on (title gin_trgm_ops).
   - id: pg_trgm_title
+    args: [terms, limit]
     query: |
       SELECT id FROM articles
-      WHERE similarity(title, {{$terms}}) > 0.2
-      ORDER BY similarity(title, {{$terms}}) DESC
-      LIMIT {{limit}}
+      WHERE similarity(title, $1) > 0.2
+      ORDER BY similarity(title, $1) DESC
+      LIMIT $2::int
 
   - id: pg_trgm_multi
+    args: [terms, limit]
     query: |
       SELECT id FROM articles
-      WHERE similarity(title || ' ' || coalesce(description,''), {{$terms}}) > 0.15
-      ORDER BY similarity(title || ' ' || coalesce(description,''), {{$terms}}) DESC
-      LIMIT {{limit}}
+      WHERE similarity(title || ' ' || coalesce(description,''), $1) > 0.15
+      ORDER BY similarity(title || ' ' || coalesce(description,''), $1) DESC
+      LIMIT $2::int
 
   # pg_levenshtein: edit-distance search via levenshtein_less_equal.
   # Good for exact typo correction on single-token fields.
   - id: pg_levenshtein_title
+    args: [term, max_dist, terms, limit]
     query: |
       SELECT id FROM articles
       WHERE EXISTS (
         SELECT 1 FROM unnest(string_to_array(lower(title), ' ')) AS w
-        WHERE levenshtein_less_equal(w, lower({{$term}}), {{max_dist}}) <= {{max_dist}}
+        WHERE levenshtein_less_equal(w, lower($1), $2::int) <= $2::int
       )
       ORDER BY ts_rank(
         to_tsvector('english', title || ' ' || coalesce(description,'')),
-        plainto_tsquery('english', {{$terms}})
+        plainto_tsquery('english', $3)
       ) DESC
-      LIMIT {{limit}}
+      LIMIT $4::int
 
   # ParadeDB: per-token Levenshtein fuzziness via paradedb.match(distance => n),
   # the direct analog to Elasticsearch fuzziness. distance is capped at 2.
   # Multi-field boolean(should) mirrors the ES multi_match title^3/description^2.
   # Requires: CREATE EXTENSION pg_search; BM25 index over (id, title, description).
   - id: pdb_fuzzy_multi
+    args: [terms, distance, limit]
     query: |
       SELECT id FROM articles
       WHERE id @@@ paradedb.boolean(
         should => ARRAY[
-          paradedb.boost(3.0, paradedb.match('title', {{$terms}}, distance => {{distance}})),
-          paradedb.boost(2.0, paradedb.match('description', {{$terms}}, distance => {{distance}}))
+          paradedb.boost(3.0, paradedb.match('title', $1, distance => $2::int)),
+          paradedb.boost(2.0, paradedb.match('description', $1, distance => $2::int))
         ]
       )
       ORDER BY pdb.score(id) DESC
-      LIMIT {{limit}}
+      LIMIT $3::int
 
 queries:
   # Queries intentionally contain misspellings to test fuzzy tolerance.
