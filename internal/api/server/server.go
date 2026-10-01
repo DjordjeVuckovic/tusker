@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	openapi "github.com/DjordjeVuckovic/tusker/api/openapi-spec"
@@ -32,10 +33,7 @@ type Server struct {
 
 	checker server.HealthChecker
 
-	ctx context.Context
-
 	gracefulShutdownTimeout time.Duration
-	shutdownSig             chan struct{}
 }
 
 func New(cfg *Config, checker server.HealthChecker) (*Server, error) {
@@ -55,44 +53,34 @@ func New(cfg *Config, checker server.HealthChecker) (*Server, error) {
 		Echo:                    e,
 		cfg:                     cfg,
 		checker:                 checker,
-		ctx:                     context.Background(),
 		gracefulShutdownTimeout: DefaultGracefulShutdownTimeout,
-		shutdownSig:             make(chan struct{}),
 	}
 
 	return s, nil
 }
 
-func (s *Server) Context() context.Context {
-	return s.ctx
-}
-
-func (s *Server) ShutdownSignal() chan struct{} {
-	return s.shutdownSig
-}
-
+// Start serves until SIGINT or SIGTERM, then shuts down gracefully. It returns
+// instead of exiting so the caller can release what the handlers used.
 func (s *Server) Start() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	go func() {
-		if err := s.Echo.Start(":" + s.cfg.Port); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.Echo.Logger.Fatal("shutting down the server")
+	served := make(chan error, 1)
+	go func() { served <- s.Echo.Start(":" + s.cfg.Port) }()
+
+	select {
+	case err := <-served:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
 		}
-	}()
+		return fmt.Errorf("serve: %w", err)
+	case <-ctx.Done():
+	}
 
-	s.ctx = ctx
-
-	<-ctx.Done()
-
-	close(s.shutdownSig)
-
-	ctx, cancel := context.WithTimeout(context.Background(), s.gracefulShutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), s.gracefulShutdownTimeout)
 	defer cancel()
-
-	if err := s.Echo.Shutdown(ctx); err != nil {
-		s.Echo.Logger.Fatal(err)
-		return err
+	if err := s.Echo.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("graceful shutdown: %w", err)
 	}
 	slog.Info("Server shut down gracefully ...")
 

@@ -7,7 +7,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -206,5 +208,109 @@ func TestServer_HealthAnswersWhenBackendHangs(t *testing.T) {
 	}
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Errorf("/health = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+}
+
+// serve runs s.Start on a loopback listener and returns once the server answers,
+// which also means Start has registered its signal handlers.
+func serve(t *testing.T, s *Server) (baseURL string, stopped <-chan error) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	s.Echo.Listener = ln
+	s.Echo.HideBanner = true
+	s.Echo.HidePort = true
+	s.SetupHealthChecks("/health")
+
+	errs := make(chan error, 1)
+	go func() { errs <- s.Start() }()
+	t.Cleanup(func() { _ = s.Echo.Close() })
+
+	baseURL = "http://" + ln.Addr().String()
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(baseURL + "/health")
+	if err != nil {
+		t.Fatalf("server never answered: %v", err)
+	}
+	_ = resp.Body.Close()
+	return baseURL, errs
+}
+
+func waitForStart(t *testing.T, stopped <-chan error) error {
+	t.Helper()
+	// The guard only stops a Start that never returns from hanging the test.
+	select {
+	case err := <-stopped:
+		return err
+	case <-time.After(10 * time.Second):
+		t.Fatal("Start did not return after the shutdown signal")
+		return nil
+	}
+}
+
+func TestServer_StartReturnsOnShutdownSignal(t *testing.T) {
+	for _, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM} {
+		t.Run(sig.String(), func(t *testing.T) {
+			s := newServer(t, &Config{Port: "0"}, pkgserver.NewOkHealthChecker())
+			_, stopped := serve(t, s)
+
+			if err := syscall.Kill(os.Getpid(), sig); err != nil {
+				t.Fatalf("send %v: %v", sig, err)
+			}
+
+			if err := waitForStart(t, stopped); err != nil {
+				t.Errorf("Start after %v = %v, want nil", sig, err)
+			}
+		})
+	}
+}
+
+func TestServer_StartReturnsErrorWhenRequestOutlivesGracePeriod(t *testing.T) {
+	s := newServer(t, &Config{Port: "0"}, pkgserver.NewOkHealthChecker())
+	s.gracefulShutdownTimeout = 50 * time.Millisecond
+	entered, release := make(chan struct{}), make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	s.Echo.GET("/slow", func(c echo.Context) error {
+		close(entered)
+		<-release
+		return c.NoContent(http.StatusOK)
+	})
+	baseURL, stopped := serve(t, s)
+
+	go func() {
+		if resp, err := http.Get(baseURL + "/slow"); err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	<-entered
+	if err := syscall.Kill(os.Getpid(), syscall.SIGINT); err != nil {
+		t.Fatalf("send SIGINT: %v", err)
+	}
+
+	if err := waitForStart(t, stopped); err == nil {
+		t.Error("Start = nil after a request outlived the grace period, want an error")
+	}
+}
+
+func TestServer_StartReturnsErrorWhenPortIsTaken(t *testing.T) {
+	taken, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { _ = taken.Close() })
+	_, port, err := net.SplitHostPort(taken.Addr().String())
+	if err != nil {
+		t.Fatalf("split address: %v", err)
+	}
+	s := newServer(t, &Config{Port: port}, pkgserver.NewOkHealthChecker())
+	s.Echo.HideBanner = true
+
+	stopped := make(chan error, 1)
+	go func() { stopped <- s.Start() }()
+
+	if err := waitForStart(t, stopped); err == nil {
+		t.Error("Start = nil on a taken port, want an error")
 	}
 }
