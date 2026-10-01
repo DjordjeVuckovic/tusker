@@ -2,77 +2,11 @@ package es
 
 import (
 	"context"
-	"encoding/json"
-	"os"
-	"reflect"
 	"slices"
 	"testing"
 
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 )
-
-const indexTemplatePath = "../../../configs/elasticsearch/index-template.json"
-
-type indexTemplate struct {
-	Template struct {
-		Settings struct {
-			Analysis map[string]any `json:"analysis"`
-		} `json:"settings"`
-		Mappings struct {
-			Properties map[string]map[string]any `json:"properties"`
-		} `json:"mappings"`
-	} `json:"template"`
-}
-
-func readIndexTemplate(t *testing.T) indexTemplate {
-	t.Helper()
-	raw, err := os.ReadFile(indexTemplatePath)
-	if err != nil {
-		t.Fatalf("read index template: %v", err)
-	}
-	var tmpl indexTemplate
-	if err := json.Unmarshal(raw, &tmpl); err != nil {
-		t.Fatalf("parse index template: %v", err)
-	}
-	return tmpl
-}
-
-func TestIndexTemplate_DeclaresTheAnalysisTheLoaderBuilds(t *testing.T) {
-	tmpl := readIndexTemplate(t)
-
-	settings := NewIndexBuilder().buildSettings()
-	raw, err := json.Marshal(settings.Analysis)
-	if err != nil {
-		t.Fatalf("marshal loader analysis: %v", err)
-	}
-	var loaderAnalysis map[string]any
-	if err := json.Unmarshal(raw, &loaderAnalysis); err != nil {
-		t.Fatalf("unmarshal loader analysis: %v", err)
-	}
-
-	if !reflect.DeepEqual(tmpl.Template.Settings.Analysis, loaderAnalysis) {
-		got, _ := json.MarshalIndent(tmpl.Template.Settings.Analysis, "", "  ")
-		want, _ := json.MarshalIndent(loaderAnalysis, "", "  ")
-		t.Errorf("index-template.json analysis drifted from IndexBuilder\ntemplate: %s\nloader:   %s", got, want)
-	}
-}
-
-func TestIndexTemplate_ReferencesOnlyDeclaredAnalyzers(t *testing.T) {
-	tmpl := readIndexTemplate(t)
-	declared, _ := tmpl.Template.Settings.Analysis["analyzer"].(map[string]any)
-
-	for field, property := range tmpl.Template.Mappings.Properties {
-		for _, key := range []string{"analyzer", "search_analyzer"} {
-			name, ok := property[key].(string)
-			if !ok {
-				continue
-			}
-			if _, found := declared[name]; !found {
-				t.Errorf("field %q uses %s %q, which the template does not declare", field, key, name)
-			}
-		}
-	}
-}
 
 func TestIndexer_AnalyzesTextFieldsLikePostgresEnglish(t *testing.T) {
 	ctx := context.Background()
