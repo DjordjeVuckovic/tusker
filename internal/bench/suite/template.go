@@ -40,10 +40,12 @@ func (t *QueryTemplate) Render(params TemplateParams, dialect Dialect) (*Resolve
 	// vector is supplied under `precomputed`. Bounded to avoid self-referential
 	// cycles.
 	result := t.Query
+	pasted := map[string]bool{}
 	for i := 0; i < 5; i++ {
 		next := placeholderRegex.ReplaceAllStringFunc(result, func(match string) string {
 			key := match[2 : len(match)-2]
 			if val, ok := params[key]; ok {
+				pasted[key] = true
 				return formatValue(val)
 			}
 			return match
@@ -57,6 +59,14 @@ func (t *QueryTemplate) Render(params TemplateParams, dialect Dialect) (*Resolve
 	missing := findMissingPlaceholders(result)
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("template %q missing params: %v", t.ID, missing)
+	}
+
+	// Pasting a bound value anywhere puts its text back into the query
+	// unescaped, which is what binding exists to prevent.
+	for _, m := range boundPlaceholderRegex.FindAllStringSubmatch(result, -1) {
+		if pasted[m[1]] {
+			return nil, fmt.Errorf("template %q uses param %q both as {{$%s}} and as {{%s}}: bind it everywhere", t.ID, m[1], m[1], m[1])
+		}
 	}
 
 	resolved, err := bindValues(result, params, dialect)

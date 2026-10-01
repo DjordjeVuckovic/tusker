@@ -392,3 +392,33 @@ queries:
 		})
 	}
 }
+
+func TestQueryTemplate_Render_RejectsParamBothBoundAndPasted(t *testing.T) {
+	tests := []struct {
+		name   string
+		query  string
+		params TemplateParams
+	}{
+		{
+			name:   "pasted directly",
+			query:  "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', {{$terms}}) OR title = '{{terms}}'",
+			params: TemplateParams{"terms": "don't"},
+		},
+		{
+			name:   "pasted through another param's value",
+			query:  "SELECT id FROM articles WHERE {{filter}} AND search_vector @@ plainto_tsquery('english', {{$terms}})",
+			params: TemplateParams{"terms": "don't", "filter": "title = '{{terms}}'"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpl := &QueryTemplate{ID: "pg_mixed", Query: tt.query}
+
+			_, err := tmpl.Render(tt.params, DialectPostgres)
+
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "pg_mixed")
+			assert.ErrorContains(t, err, "terms")
+		})
+	}
+}
