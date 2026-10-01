@@ -2,8 +2,10 @@ package suite
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/version"
 	"gopkg.in/yaml.v3"
@@ -25,6 +27,9 @@ func LoadFromFile(path string) (*LoadedSuite, error) {
 		return nil, err
 	}
 	loaded.Dir = filepath.Dir(path)
+	if err := loaded.checkFileQueries(); err != nil {
+		return nil, err
+	}
 	return loaded, nil
 }
 
@@ -63,8 +68,79 @@ func Parse(data []byte) (*LoadedSuite, error) {
 					return nil, fmt.Errorf("query %q engine %q references unknown template %q", q.ID, engName, eq.Template)
 				}
 			}
+			if err := checkEngineQuery(&eq, registry); err != nil {
+				return nil, fmt.Errorf("query %q engine %q: %w", q.ID, engName, err)
+			}
 		}
 	}
 
 	return &LoadedSuite{Suite: &s, Registry: registry}, nil
+}
+
+func checkEngineQuery(eq *EngineQuery, registry *TemplateRegistry) error {
+	if _, ok := eq.Params[QueryVectorArg]; ok {
+		return fmt.Errorf("param %q is reserved for the query vector the run supplies", QueryVectorArg)
+	}
+	args := eq.declaredArgs(registry)
+	for _, name := range slices.Sorted(maps.Keys(eq.Params)) {
+		if !slices.Contains(args, name) {
+			return fmt.Errorf("param %q is not one of the args %v", name, args)
+		}
+	}
+	if eq.Template == "" && eq.File == "" {
+		return checkArgsCoverStatement(eq.Query, eq.Args)
+	}
+	return nil
+}
+
+func (ls *LoadedSuite) checkFileQueries() error {
+	for _, q := range ls.Suite.Queries {
+		for engName, eq := range q.Engines {
+			if eq.File == "" {
+				continue
+			}
+			statement, args, err := eq.statement(ls.Registry, ls.Dir)
+			if err != nil {
+				return fmt.Errorf("query %q engine %q: %w", q.ID, engName, err)
+			}
+			if err := checkArgsCoverStatement(statement, args); err != nil {
+				return fmt.Errorf("query %q engine %q file %q: %w", q.ID, engName, eq.File, err)
+			}
+		}
+	}
+	return nil
+}
+
+// CheckArgsSupplied verifies that every arg of every block engine reads is
+// supplied, by the query's params, the engine's defaults or the run's query
+// vector.
+func (ls *LoadedSuite) CheckArgsSupplied(engine string, defaults TemplateParams) error {
+	for _, q := range ls.Suite.Queries {
+		eq, ok := q.Engines[engine]
+		if !ok {
+			continue
+		}
+		var missing []string
+		for _, name := range eq.declaredArgs(ls.Registry) {
+			_, inQuery := eq.Params[name]
+			_, inDefaults := defaults[name]
+			if !inQuery && !inDefaults && name != QueryVectorArg {
+				missing = append(missing, name)
+			}
+		}
+		if len(missing) > 0 {
+			return fmt.Errorf("query %q engine %q: no param supplies args %v", q.ID, engine, missing)
+		}
+	}
+	return nil
+}
+
+// NeedsQueryVector reports whether any block of q takes the query vector.
+func (ls *LoadedSuite) NeedsQueryVector(q *Query) bool {
+	for _, eq := range q.Engines {
+		if slices.Contains(eq.declaredArgs(ls.Registry), QueryVectorArg) {
+			return true
+		}
+	}
+	return false
 }

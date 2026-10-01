@@ -30,9 +30,11 @@ func newValidateCmd() *cobra.Command {
 		Short: "Dry-run every query through each engine and report broken ones",
 		Long: `Validates spec + suite ahead of a real pool/run:
 
-  - templates render with the params provided
-  - postgres queries pass EXPLAIN (syntax, columns, operators)
-  - elasticsearch queries pass _validate/query (JSON, fields, types)
+  - every query is given the args its statement takes
+  - postgres queries pass EXPLAIN with their args (syntax, columns, operators)
+  - elasticsearch search templates are stored, rendered with their params, and
+    the rendered body passes _validate/query (JSON, fields, types), as do
+    inline Query DSL bodies
   - api descriptors parse as {method, path, body?, params?}
 
 Returns non-zero exit if any query fails — wire it into CI.`,
@@ -96,24 +98,25 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 	}
 	defer cleanup()
 
+	suites, err := runner.LoadSuites(bs)
+	if err != nil {
+		return err
+	}
+	if err := runner.RegisterSearchTemplates(cmd.Context(), runner.TemplateRegistration{
+		Spec: bs, Suites: suites, Executors: executors,
+	}); err != nil {
+		return err
+	}
+
 	var rows []validateRow
 	failures := 0
-	suites := map[string]*suite.LoadedSuite{}
 	// seen deduplicates (suitePath, queryID, engineName) triples — two jobs
 	// that share the same suite and engines would otherwise re-validate the
 	// same pairs, doubling traffic and output noise.
 	seen := map[string]struct{}{}
 
 	for _, job := range bs.Jobs {
-		ls, ok := suites[job.Suite]
-		if !ok {
-			loaded, err := suite.LoadFromFile(job.Suite)
-			if err != nil {
-				return fmt.Errorf("load suite for job %q: %w", job.Name, err)
-			}
-			suites[job.Suite] = loaded
-			ls = loaded
-		}
+		ls := suites[job.Suite]
 		for _, q := range ls.Suite.Queries {
 			for _, engName := range job.Engines {
 				key := job.Suite + "\x00" + q.ID + "\x00" + engName
@@ -124,6 +127,7 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 
 				row := validateOne(cmd.Context(), validateInput{
 					query:      q,
+					track:      bs.ID,
 					engineName: engName,
 					binding:    bs.QueryBinding(engName),
 					loaded:     ls,
@@ -163,6 +167,7 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 // to resolve and check it.
 type validateInput struct {
 	query      suite.Query
+	track      string
 	engineName string
 	binding    spec.QueryBinding
 	loaded     *suite.LoadedSuite
@@ -174,8 +179,8 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 	q, exec := in.query, in.executor
 	row := validateRow{queryID: q.ID, engine: in.engineName}
 
-	var extra suite.TemplateParams
-	if q.NeedsQueryVector() {
+	var queryVector []float32
+	if in.loaded.NeedsQueryVector(&q) {
 		if in.store != nil {
 			// Embed the real query so dimensionality (a 1-dim stub vs VECTOR(1024))
 			// is exercised here, not deferred to pool/run.
@@ -185,20 +190,20 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 				row.detail = truncate(err.Error(), 120)
 				return row
 			}
-			extra = suite.TemplateParams{suite.ReservedQueryVectorParam: suite.FormatVector(vec)}
+			queryVector = vec
 		} else {
-			// No embedder, and the kind doesn't require one — stub a placeholder so
-			// the query parses, but say so rather than report a bare OK.
-			extra = suite.TemplateParams{suite.ReservedQueryVectorParam: "[0]"}
+			// No embedder, and the kind doesn't require one — stub a vector so the
+			// query parses, but say so rather than report a bare OK.
+			queryVector = []float32{0}
 			row.detail = "stubbed vector"
 		}
 	}
 	resolved, err := q.ResolveEngineQuery(suite.ResolveOptions{
-		Engine:   in.binding.QuerySource,
-		Registry: in.loaded.Registry,
-		SuiteDir: in.loaded.Dir,
-		Defaults: in.binding.Params,
-		Extra:    extra,
+		Engine:      in.binding.QuerySource,
+		Registry:    in.loaded.Registry,
+		SuiteDir:    in.loaded.Dir,
+		Defaults:    in.binding.Params,
+		QueryVector: queryVector,
 	})
 	if err != nil {
 		row.status = "TEMPLATE_ERR"
@@ -216,7 +221,7 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 		row.detail = "executor does not implement Validator"
 		return row
 	}
-	if err := v.Validate(ctx, resolved.Query); err != nil {
+	if err := v.Validate(ctx, runner.EngineRequest(exec, in.track, resolved)); err != nil {
 		row.status = "INVALID"
 		row.detail = truncate(err.Error(), 120)
 		return row
@@ -227,24 +232,24 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 
 // warnKindDrift cross-checks the declared kind against observed query usage so
 // the two sources of truth can't silently diverge: a semantic/hybrid kind whose
-// queries never reference {{precomputed}}, or vector-bearing queries under a
+// queries never take the query vector, or vector-bearing queries under a
 // non-vector kind. Advisory only — it never fails the run.
 func warnKindDrift(w io.Writer, bs *spec.BenchSpec, suites map[string]*suite.LoadedSuite) {
 	anyNeedsVector := false
 	for _, ls := range suites {
 		for i := range ls.Suite.Queries {
-			if ls.Suite.Queries[i].NeedsQueryVector() {
+			if ls.NeedsQueryVector(&ls.Suite.Queries[i]) {
 				anyNeedsVector = true
 			}
 		}
 	}
 	switch {
 	case bs.Kind.RequiresEmbedder() && !anyNeedsVector:
-		printWarn(w, fmt.Sprintf("kind %q expects vector queries, but none reference {{%s}}",
-			bs.Kind, suite.ReservedQueryVectorParam))
+		printWarn(w, fmt.Sprintf("kind %q expects vector queries, but no query takes the %q arg",
+			bs.Kind, suite.QueryVectorArg))
 	case bs.Kind != "" && !bs.Kind.RequiresEmbedder() && anyNeedsVector:
-		printWarn(w, fmt.Sprintf("queries reference {{%s}} but kind %q is not semantic/hybrid",
-			suite.ReservedQueryVectorParam, bs.Kind))
+		printWarn(w, fmt.Sprintf("queries take the %q arg but kind %q is not semantic/hybrid",
+			suite.QueryVectorArg, bs.Kind))
 	}
 }
 

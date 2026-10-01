@@ -44,8 +44,8 @@ func (k Kind) Valid() bool {
 
 // RequiresEmbedder reports whether the paradigm needs a live query embedder
 // (EMBEDDING_BASE_URL + an embedding-capable engine). Semantic and hybrid
-// queries carry the reserved {{precomputed}} vector placeholder; the rest are
-// lexical and resolve without one.
+// queries take the reserved query_vector arg; the rest are lexical and resolve
+// without one.
 func (k Kind) RequiresEmbedder() bool {
 	return k == KindSemantic || k == KindHybrid
 }

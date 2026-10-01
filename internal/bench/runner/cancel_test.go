@@ -18,8 +18,8 @@ type interruptingExecutor struct {
 	interrupt context.CancelFunc
 }
 
-func (e *interruptingExecutor) Execute(ctx context.Context, query string, params []any) (*engine.Execution, error) {
-	_, _ = e.recordingExecutor.Execute(ctx, query, params)
+func (e *interruptingExecutor) Execute(ctx context.Context, req engine.Request) (*engine.Execution, error) {
+	_, _ = e.recordingExecutor.Execute(ctx, req)
 	e.interrupt()
 	return nil, ctx.Err()
 }
@@ -41,7 +41,7 @@ queries:
 `), 0644))
 
 	bs := &spec.BenchSpec{
-		Engines: map[string]spec.Engine{"pg": {}},
+		Engines: map[string]spec.Engine{"pg": {Type: "postgres"}},
 		Jobs:    []spec.Job{{Name: "serial", Suite: suitePath, Engines: []string{"pg"}}},
 	}
 

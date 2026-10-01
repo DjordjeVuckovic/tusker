@@ -33,7 +33,6 @@ func TestValidateKnnClause(t *testing.T) {
 		wantErr string // substring; "" means no error
 	}{
 		{"valid object", `{"field":"embedding","query_vector":[0.1,0.2],"k":10}`, ""},
-		{"placeholder vector", `{"field":"embedding","query_vector":"{{precomputed}}","k":50}`, ""},
 		{"query_vector_builder", `{"field":"embedding","query_vector_builder":{"text_embedding":{}}}`, ""},
 		{"valid array", `[{"field":"a","query_vector":[0.1]},{"field":"b","query_vector":[0.2]}]`, ""},
 		{"missing field", `{"query_vector":[0.1]}`, "missing required \"field\""},
@@ -60,7 +59,7 @@ func TestValidateKnnClause(t *testing.T) {
 // block), so it can be exercised without a live Elasticsearch.
 func TestValidateKnnBody_KnnOnly(t *testing.T) {
 	e := NewEsExecutor("es", "http://127.0.0.1:1", "articles")
-	body := `{"knn":{"field":"embedding","query_vector":"{{precomputed}}","k":50,"num_candidates":200}}`
+	body := `{"knn":{"field":"embedding","query_vector":[0.1,0.2],"k":50,"num_candidates":200}}`
 	if err := e.validateKnnBody(context.Background(), body); err != nil {
 		t.Fatalf("expected valid knn body, got: %v", err)
 	}

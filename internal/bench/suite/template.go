@@ -4,60 +4,19 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"strings"
 )
 
+// QueryTemplate is a statement shared by many queries. Args name the param
+// behind each of a Postgres statement's $1 … $n, in order.
 type QueryTemplate struct {
-	ID    string `yaml:"id"`
-	Query string `yaml:"query"`
+	ID    string   `yaml:"id"`
+	Args  []string `yaml:"args,omitempty"`
+	Query string   `yaml:"query"`
 }
 
 type TemplateParams map[string]any
 
-var placeholderRegex = regexp.MustCompile(`\{\{(\w+)\}\}`)
-
-func (t *QueryTemplate) Render(params TemplateParams, suiteDir string) (*ResolvedQuery, error) {
-	// Substitute repeatedly so placeholders introduced by a param's value also
-	// resolve — e.g. a query maps `embedding: "{{precomputed}}"` and the run-time
-	// vector is supplied under `precomputed`. Bounded to avoid self-referential
-	// cycles.
-	result := t.Query
-	for i := 0; i < 5; i++ {
-		next := placeholderRegex.ReplaceAllStringFunc(result, func(match string) string {
-			key := match[2 : len(match)-2]
-			if val, ok := params[key]; ok {
-				return formatValue(val)
-			}
-			return match
-		})
-		if next == result {
-			break
-		}
-		result = next
-	}
-
-	missing := findMissingPlaceholders(result)
-	if len(missing) > 0 {
-		return nil, fmt.Errorf("template %q missing params: %v", t.ID, missing)
-	}
-
-	return &ResolvedQuery{Query: result}, nil
-}
-
-func (t *QueryTemplate) RequiredParams() []string {
-	seen := make(map[string]bool)
-	var params []string
-
-	matches := placeholderRegex.FindAllStringSubmatch(t.Query, -1)
-	for _, m := range matches {
-		if len(m) > 1 && !seen[m[1]] {
-			seen[m[1]] = true
-			params = append(params, m[1])
-		}
-	}
-
-	return params
-}
+var positionalPlaceholder = regexp.MustCompile(`\$(\d+)`)
 
 func (t *QueryTemplate) Validate() error {
 	if t.ID == "" {
@@ -66,49 +25,57 @@ func (t *QueryTemplate) Validate() error {
 	if t.Query == "" {
 		return fmt.Errorf("template %q has no query", t.ID)
 	}
+	if err := checkArgsCoverStatement(t.Query, t.Args); err != nil {
+		return fmt.Errorf("template %q: %w", t.ID, err)
+	}
 	return nil
 }
 
-func formatValue(v any) string {
+func checkArgsCoverStatement(statement string, args []string) error {
+	highest := 0
+	for _, m := range positionalPlaceholder.FindAllStringSubmatch(statement, -1) {
+		n, err := strconv.Atoi(m[1])
+		if err != nil {
+			return fmt.Errorf("placeholder $%s: %w", m[1], err)
+		}
+		highest = max(highest, n)
+	}
+	if highest > len(args) {
+		return fmt.Errorf("statement uses $%d but args names only %d: %v", highest, len(args), args)
+	}
+	return nil
+}
+
+// positionalArgs looks up each named arg in params and returns the values as
+// text, in order. Text leaves typing to the statement's own casts.
+func positionalArgs(names []string, params TemplateParams) ([]any, error) {
+	args := make([]any, 0, len(names))
+	var missing []string
+	for _, name := range names {
+		value, ok := params[name]
+		if !ok {
+			missing = append(missing, name)
+			continue
+		}
+		args = append(args, argText(value))
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("missing params: %v", missing)
+	}
+	return args, nil
+}
+
+func argText(v any) string {
 	switch val := v.(type) {
 	case string:
 		return val
-	case int:
-		return strconv.Itoa(val)
-	case int64:
-		return strconv.FormatInt(val, 10)
 	case float64:
 		return strconv.FormatFloat(val, 'f', -1, 64)
-	case bool:
-		return strconv.FormatBool(val)
-	case []string:
-		return strings.Join(val, ", ")
-	case []any:
-		strs := make([]string, len(val))
-		for i, item := range val {
-			strs[i] = formatValue(item)
-		}
-		return strings.Join(strs, ", ")
+	case []float32:
+		return FormatVector(val)
 	default:
-		return fmt.Sprintf("%v", v)
+		return fmt.Sprint(v)
 	}
-}
-
-func findMissingPlaceholders(s string) []string {
-	matches := placeholderRegex.FindAllStringSubmatch(s, -1)
-	if len(matches) == 0 {
-		return nil
-	}
-
-	seen := make(map[string]bool)
-	var missing []string
-	for _, m := range matches {
-		if len(m) > 1 && !seen[m[1]] {
-			seen[m[1]] = true
-			missing = append(missing, m[1])
-		}
-	}
-	return missing
 }
 
 type TemplateRegistry struct {
@@ -135,14 +102,6 @@ func (r *TemplateRegistry) Register(t *QueryTemplate) error {
 func (r *TemplateRegistry) Get(id string) (*QueryTemplate, bool) {
 	t, ok := r.templates[id]
 	return t, ok
-}
-
-func (r *TemplateRegistry) RenderQuery(templateID string, params TemplateParams, suiteDir string) (*ResolvedQuery, error) {
-	t, ok := r.Get(templateID)
-	if !ok {
-		return nil, fmt.Errorf("template %q not found", templateID)
-	}
-	return t.Render(params, suiteDir)
 }
 
 func (r *TemplateRegistry) List() []string {

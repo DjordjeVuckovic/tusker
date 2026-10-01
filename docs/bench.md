@@ -31,8 +31,8 @@ It is primarily a taxonomy/provenance label (one per track); requirements are *d
 from it rather than declared separately. `kind` is **optional**, but omitting it emits a
 load-time warning.
 
-`semantic` and `hybrid` derive `RequiresEmbedder = true`: their queries carry the reserved
-`{{precomputed}}` vector placeholder, so `validate`/`pool`/`run` need a live query embedder
+`semantic` and `hybrid` derive `RequiresEmbedder = true`: their queries take the reserved
+`query_vector` arg, so `validate`/`pool`/`run` need a live query embedder
 (`EMBEDDING_BASE_URL` + a postgres engine). Without one, **`bench validate` fails up front**
 for these kinds instead of stubbing a fake vector and reporting a misleading OK.
 
@@ -84,6 +84,93 @@ which puts part of any recall gap in the graph rather than the engine. Both are 
 pgvector's default, so the loaded Postgres graphs stand as built. Changing the value rebuilds
 the graph and is therefore a new run.
 
+### Query templates
+
+A suite query reaches each engine through that engine's own parameter mechanism. The bench
+routes values to it and never edits query text.
+
+**Postgres.** A template is plain SQL with `$1 … $n`, as in a prepared statement, plus an
+`args` list naming the param behind each position:
+
+```yaml
+templates:
+  - id: pg_idx_multi_field
+    args: [terms, rank_norm, limit]
+    query: |
+      SELECT id FROM articles
+      WHERE search_vector @@ plainto_tsquery('english', $1)
+      ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1), $2::int) DESC
+      LIMIT $3::int
+queries:
+  - id: qs-climate
+    engines:
+      pg-gin:
+        template: pg_idx_multi_field
+        params: { terms: "climate change", limit: 100 }
+```
+
+The bench builds the arguments in `args` order from the query's params, the engine's params
+and the run's query vector. Every value is sent as text, so the SQL casts where it needs
+another type (`$3::int`). The statement reads as it runs and can be pasted into psql:
+`PREPARE q AS …; EXECUTE q('climate change', 0, 100);`. An inline or `file:` Postgres query
+follows the same rule, with `args` beside `query`, or is fully literal SQL with no params.
+
+Postgres binds values, not identifiers, so a shape that differs by a column, a field list or a
+function name is its own template rather than a param.
+
+A suite fails to load when `args` stops short of the statement's highest `$N`, or when a query
+gives a param that none of its args uses. Once the spec is read, `validate`, `pool` and `run`
+also fail before any query runs when no layer supplies an arg an engine's queries take.
+
+**Elasticsearch.** A template is the Mustache source of a native search template:
+
+```yaml
+templates:
+  - id: es_hybrid
+    args: [terms, query_vector]
+    query: |
+      {
+        "query": {"multi_match": {"query": "{{terms}}", "fields": ["title^3", "description^2", "content"]}},
+        "knn": {"field": "embedding", "query_vector": {{#toJson}}query_vector{{/toJson}}, "k": 50, "num_candidates": 200},
+        "size": 50
+      }
+```
+
+`validate`, `pool` and `run` first store every template an Elasticsearch engine's queries use
+with `PUT _scripts/<spec id>-<template id>`, then send each query to `_search/template` with
+its params. Two different templates that would land on one stored id fail the command before
+anything is stored.
+
+Quote a string param inside the JSON, as in `"{{terms}}"`: Elasticsearch escapes quotes and
+backslashes in the value, so `Ukraine's voters don't trust the "election"` arrives intact. Use
+`{{#toJson}}…{{/toJson}}` for the query vector, which has to arrive as an array. On a string
+it renders the text without quotes and breaks the body.
+
+`args` lists the params the template reads; their order does not matter here. Mustache renders
+a name it is not given as empty text, so a name the source uses but `args` leaves out goes
+unnoticed. Keep the two in step.
+
+An inline Elasticsearch block that is plain Query DSL with no params runs through `_search`
+as written. API blocks are unchanged: the descriptor's `params` carry the values.
+
+**The query vector.** `query_vector` is a reserved arg. The run embeds the query and fills it,
+as pgvector text for Postgres (`$2::vector`) and as a float array for a search template. A
+query needs the vector exactly when one of its statements lists `query_vector` in `args`, and
+a query may not set it in its own `params`.
+
+A bound value still reaches the engine's own query language wherever a function parses it as
+query syntax. `to_tsquery` rejects input its syntax doesn't allow, such as a stray double quote
+inside a phrase. ParadeDB's `field @@@ $1` and `paradedb.parse($1)` fail on an apostrophe, so
+ParadeDB templates take text through `paradedb.match('<field>', $1)`, which tokenizes it as
+plain text.
+
+Binding changes how Postgres plans the query. Every query that uses a template shares one
+prepared statement per connection, and after five executions the planner may switch it to a
+generic plan, so a query's latency would depend on where it sits in the suite. Every postgres
+engine therefore sets `plan_cache_mode: force_custom_plan` in its `connection_settings`, which
+plans each execution for its own values. Latency from before query text was bound is not
+comparable with latency after it.
+
 ### Engine params and shared query blocks
 
 An engine may declare template params of its own, and may take its per-query block from
@@ -104,20 +191,20 @@ engines:
       rank_norm: "1"
 ```
 
-Params merge widest first — engine defaults, then the query's own `params:`, then run-time
-values such as the injected query vector — so an engine default fills what a query omits and
-never overrides what it states.
+Params merge widest first, engine defaults and then the query's own `params:`, so an engine
+default fills what a query omits and never overrides what it states. The run's query vector
+fills `query_vector`, which neither layer may set.
 
 `queries_from` is why the two arms above stay comparable. Written out per query, an arm that
 differs only in a ranking argument is 30 duplicated blocks, and the first one edited on its
 own stops isolating the argument under test without anything erroring. Aliasing is one level
-deep: an alias must name a real engine that is not itself an alias, and the spec fails to
-load otherwise. `bench validate` still dry-runs every engine separately, so both arms are
+deep: an alias must name a real engine of its own type that is not itself an alias, and the
+spec fails to load otherwise. `bench validate` still dry-runs every engine separately, so both arms are
 checked even though one block backs them.
 
 An alias borrows the query block, not the params — it contributes only what it declares
 itself, which is what lets `pg-gin-norm` set `rank_norm` without inheriting `pg-gin`'s. So an
-alias states the full set it needs; omitting one the template requires fails the render rather
+alias states the full set it needs; omitting one the template requires fails the load rather
 than falling back.
 
 An arm has to exist before `bench pool`, not just before `bench run`. Each engine contributes
@@ -138,8 +225,8 @@ engines:
 ```
 
 `article_embeddings` is keyed `(article_id, model_name)`, so vectors from two models coexist
-in it by design, and the vector templates filter with `WHERE model_name = '{{embedding_model}}'`
-rather than ranking across both spaces. The declared value is checked against the model that
+in it by design, and the vector templates take `embedding_model` as an arg and filter on it
+(`WHERE model_name = $1`) rather than ranking across both spaces. The declared value is checked against the model that
 embeds the query (`EMBEDDING_MODEL`, defaulting to `qwen3-embedding:0.6b`) before `validate`,
 `pool` or `run` touches an engine, and a disagreement fails: comparing vectors from two models
 is arithmetic that succeeds and ranks nothing.
@@ -190,8 +277,8 @@ Every command accepts a track path as a positional arg (`bench run tracks/global
 precedence) and only the **query** is embedded at runtime via local Ollama. They
 do not re-embed documents. Configure with `--pg`/`PG_CONNECTION_STRING` and
 `--embedding-base`/`EMBEDDING_BASE_URL` (+ optional `EMBEDDING_MODEL`). The same
-`VectorStore` powers `pool`/`run`, which embed the query and inject it into
-vector queries via the reserved `{{precomputed}}` placeholder. `bm25` computes
+`VectorStore` powers `pool`/`run`, which embed the query and pass it to vector
+queries as the reserved `query_vector` arg. `bm25` computes
 term statistics over each query's candidate pool, so it runs with no external
 services.
 
@@ -211,9 +298,9 @@ Scaffolds `tracks/<name>/` with `spec.yaml`, `suite.yaml`, `trec/`, `reports/`, 
 
 ### `bench validate [<name>]`
 
-Dry-runs every query through every engine using the engine's native validation endpoint (PostgreSQL `EXPLAIN`, Elasticsearch `_validate/query`). Reports per-query pass/fail with colored status — no data is stored.
+Dry-runs every query through every engine using the engine's native validation endpoint: PostgreSQL `EXPLAIN` with the ordered args, and for Elasticsearch `_validate/query` on the body, rendered first with `_render/template` when the query is a search template. Reports per-query pass/fail with colored status. No documents are written; the search templates are stored, as they are before `pool` and `run`.
 
-For `semantic`/`hybrid` kinds it first requires an embedder (fails fast if `EMBEDDING_BASE_URL` is unset) and embeds each query for real, so dimension mismatches surface here. It also warns when the declared `kind` and actual `{{precomputed}}` usage disagree.
+For `semantic`/`hybrid` kinds it first requires an embedder (fails fast if `EMBEDDING_BASE_URL` is unset) and embeds each query for real, so dimension mismatches surface here. It also warns when the declared `kind` and the queries' use of `query_vector` disagree.
 
 ### `bench pool [<name>] [--depth N]`
 

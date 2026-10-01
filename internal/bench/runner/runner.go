@@ -36,24 +36,20 @@ func (r *Runner) RunAll(
 
 	br := &BenchmarkResult{Config: r.config}
 
+	suites, err := LoadSuites(bs)
+	if err != nil {
+		return nil, err
+	}
+	if err := RegisterSearchTemplates(ctx, TemplateRegistration{Spec: bs, Suites: suites, Executors: executors}); err != nil {
+		return nil, err
+	}
 	bindings := queryBindings(bs)
 
-	// Cache suite loads — multiple jobs commonly share a suite.
-	suiteCache := map[string]*suite.LoadedSuite{}
 	for _, job := range bs.Jobs {
-		loaded, ok := suiteCache[job.Suite]
-		if !ok {
-			ls, err := suite.LoadFromFile(job.Suite)
-			if err != nil {
-				return nil, fmt.Errorf("load suite for job %q: %w", job.Name, err)
-			}
-			suiteCache[job.Suite] = ls
-			loaded = ls
-		}
-
 		jr, err := r.RunJob(ctx, JobRequest{
+			Track:     bs.ID,
 			Job:       job,
-			Suite:     loaded,
+			Suite:     suites[job.Suite],
 			Executors: executors,
 			Bindings:  bindings,
 		})
@@ -98,9 +94,107 @@ func queryBindings(bs *spec.BenchSpec) map[string]spec.QueryBinding {
 	return bindings
 }
 
+// LoadSuites loads every job's suite once and checks that each job engine is
+// given every arg its queries take, so a broken binding fails before any query
+// runs rather than partway through the jobs.
+func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
+	suites := map[string]*suite.LoadedSuite{}
+	for _, job := range bs.Jobs {
+		loaded, ok := suites[job.Suite]
+		if !ok {
+			ls, err := suite.LoadFromFile(job.Suite)
+			if err != nil {
+				return nil, fmt.Errorf("load suite for job %q: %w", job.Name, err)
+			}
+			suites[job.Suite] = ls
+			loaded = ls
+		}
+		for _, engName := range job.Engines {
+			binding := bs.QueryBinding(engName)
+			if err := loaded.CheckArgsSupplied(binding.QuerySource, binding.Params); err != nil {
+				return nil, fmt.Errorf("job %q engine %q: %w", job.Name, engName, err)
+			}
+		}
+	}
+	return suites, nil
+}
+
+// TemplateRegistration is a loaded track whose search templates are to be
+// stored on the engines that render them.
+type TemplateRegistration struct {
+	Spec      *spec.BenchSpec
+	Suites    map[string]*suite.LoadedSuite
+	Executors map[string]engine.Executor
+}
+
+type templateOnEngine struct {
+	engine   string
+	template engine.SearchTemplate
+}
+
+// RegisterSearchTemplates stores each suite template a job engine's queries
+// use on that engine, when it renders templates itself. It fails before
+// storing anything when two different templates would share a stored id.
+func RegisterSearchTemplates(ctx context.Context, reg TemplateRegistration) error {
+	var pending []templateOnEngine
+	sourceByID := map[string]string{}
+	queued := map[templateOnEngine]bool{}
+	for _, job := range reg.Spec.Jobs {
+		ls := reg.Suites[job.Suite]
+		for _, engName := range job.Engines {
+			if _, stores := reg.Executors[engName].(engine.SearchTemplateRegistrar); !stores {
+				continue
+			}
+			source := reg.Spec.QueryBinding(engName).QuerySource
+			for _, q := range ls.Suite.Queries {
+				block, ok := q.Engines[source]
+				if !ok || block.Template == "" {
+					continue
+				}
+				tmpl, ok := ls.Registry.Get(block.Template)
+				if !ok {
+					return fmt.Errorf("query %q engine %q: template %q not found", q.ID, engName, block.Template)
+				}
+				stored := templateOnEngine{
+					engine:   engName,
+					template: engine.SearchTemplate{ID: engine.SearchTemplateID(reg.Spec.ID, tmpl.ID), Source: tmpl.Query},
+				}
+				if prev, seen := sourceByID[stored.template.ID]; seen && prev != tmpl.Query {
+					return fmt.Errorf("two different templates would be stored as %q: rename one", stored.template.ID)
+				}
+				sourceByID[stored.template.ID] = tmpl.Query
+				if !queued[stored] {
+					queued[stored] = true
+					pending = append(pending, stored)
+				}
+			}
+		}
+	}
+	for _, p := range pending {
+		registrar := reg.Executors[p.engine].(engine.SearchTemplateRegistrar)
+		if err := registrar.RegisterSearchTemplate(ctx, p.template); err != nil {
+			return fmt.Errorf("engine %q: %w", p.engine, err)
+		}
+	}
+	return nil
+}
+
+// EngineRequest is how exec receives a resolved query. An engine that stores
+// search templates runs a template query by its stored id and params.
+func EngineRequest(exec engine.Executor, track string, resolved *suite.ResolvedQuery) engine.Request {
+	req := engine.Request{Query: resolved.Query, Args: resolved.Args}
+	if _, stores := exec.(engine.SearchTemplateRegistrar); stores && resolved.Template != "" {
+		req.SearchTemplateID = engine.SearchTemplateID(track, resolved.Template)
+		req.Params = resolved.Params
+	}
+	return req
+}
+
 // JobRequest is everything one job needs to run: its declaration, the loaded
 // suite, the executors to drive, and how each engine reaches its queries.
 type JobRequest struct {
+	// Track is the spec id, which namespaces the job's stored search templates.
+	Track     string
 	Job       spec.Job
 	Suite     *suite.LoadedSuite
 	Executors map[string]engine.Executor
@@ -182,7 +276,7 @@ func (r *Runner) runQueries(ctx context.Context, jr *JobResult, req JobRequest) 
 // and the merge into jr.Results happens after all goroutines finish.
 func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite.Query, req JobRequest, engineSem chan struct{}) {
 	judgments := r.judgmentsFor(q)
-	extra := r.queryVectorParams(ctx, q)
+	queryVector := r.queryVector(ctx, req.Suite, q)
 
 	type slot struct {
 		engName string
@@ -214,11 +308,11 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				binding = spec.QueryBinding{QuerySource: engName}
 			}
 			resolved, err := q.ResolveEngineQuery(suite.ResolveOptions{
-				Engine:   binding.QuerySource,
-				Registry: req.Suite.Registry,
-				SuiteDir: req.Suite.Dir,
-				Defaults: binding.Params,
-				Extra:    extra,
+				Engine:      binding.QuerySource,
+				Registry:    req.Suite.Registry,
+				SuiteDir:    req.Suite.Dir,
+				Defaults:    binding.Params,
+				QueryVector: queryVector,
 			})
 			if err != nil {
 				slots[idx] = slot{
@@ -233,7 +327,7 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				return
 			}
 
-			result := r.executeWithRetries(ctx, exec, resolved.Query, nil, r.config.WarmupRuns, r.config.Runs)
+			result := r.executeWithRetries(ctx, exec, EngineRequest(exec, req.Track, resolved), r.config.WarmupRuns, r.config.Runs)
 
 			var scores metrics.ScoreSet
 			if result.err == nil && len(judgments) > 0 {
@@ -269,13 +363,11 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 	}
 }
 
-// queryVectorParams embeds the query once (via the configured VectorStore) and
-// returns it under the reserved query-vector param, so resolution can inject it
-// into vector queries. Returns nil when there is no store or the query needs no
-// vector; an embedding failure is logged and the vector queries simply fail to
-// resolve (recorded per-engine, non-fatal).
-func (r *Runner) queryVectorParams(ctx context.Context, q *suite.Query) suite.TemplateParams {
-	if r.config.VectorStore == nil || !q.NeedsQueryVector() {
+// queryVector embeds the query once when any of its blocks takes the query
+// vector. Without a store, or when embedding fails, it returns nil and those
+// blocks fail to resolve, recorded per engine.
+func (r *Runner) queryVector(ctx context.Context, ls *suite.LoadedSuite, q *suite.Query) []float32 {
+	if r.config.VectorStore == nil || !ls.NeedsQueryVector(q) {
 		return nil
 	}
 	vec, err := r.config.VectorStore.QueryVector(ctx, q.Description)
@@ -284,7 +376,7 @@ func (r *Runner) queryVectorParams(ctx context.Context, q *suite.Query) suite.Te
 			"query", q.ID, "error", err)
 		return nil
 	}
-	return suite.TemplateParams{suite.ReservedQueryVectorParam: suite.FormatVector(vec)}
+	return vec
 }
 
 // judgmentsFor returns the relevance grades for a query. Priority: the
@@ -316,12 +408,11 @@ type execResult struct {
 func (r *Runner) executeWithRetries(
 	ctx context.Context,
 	exec engine.Executor,
-	query string,
-	params []any,
+	req engine.Request,
 	warmup, runs int,
 ) execResult {
 	for i := 0; i < warmup; i++ {
-		_, _ = exec.Execute(ctx, query, params)
+		_, _ = exec.Execute(ctx, req)
 	}
 
 	var latencies []time.Duration
@@ -329,7 +420,7 @@ func (r *Runner) executeWithRetries(
 	var lastErr error
 
 	for i := 0; i < runs; i++ {
-		result, err := exec.Execute(ctx, query, params)
+		result, err := exec.Execute(ctx, req)
 		if err != nil {
 			lastErr = err
 			continue
