@@ -103,8 +103,11 @@ query language: `to_tsquery` and `paradedb.parse` parse it, so they reject input
 doesn't allow, such as a stray double quote inside a phrase.
 
 Binding changes how Postgres plans the query. Every query that uses a template now shares one
-prepared statement, and after five executions the planner may switch it to a generic plan. So
-latency from before the switch to bound values is not comparable with latency after it.
+prepared statement per connection, and after five executions the planner may switch it to a
+generic plan, so a query's latency would depend on where it sits in the suite. Every postgres
+engine therefore sets `plan_cache_mode: force_custom_plan` in its `connection_settings`, which
+plans each execution for its own values. Latency from before the switch to bound values is
+still not comparable with latency after it.
 
 ### Engine params and shared query blocks
 
