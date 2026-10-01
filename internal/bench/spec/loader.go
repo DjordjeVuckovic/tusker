@@ -142,10 +142,10 @@ func validate(s *BenchSpec) error {
 	return nil
 }
 
-// validateQueriesFrom checks an engine alias points at a declared engine other
-// than itself, and that the target is not an alias in turn. Aliasing is
-// deliberately one level: resolution never walks a chain, so a chain declared
-// here would silently resolve to the wrong query block.
+// validateQueriesFrom checks an engine alias points at a declared engine of its
+// own type other than itself, and that the target is not an alias in turn.
+// Aliasing is deliberately one level: resolution never walks a chain, so a
+// chain declared here would silently resolve to the wrong query block.
 func validateQueriesFrom(s *BenchSpec, name string, eng Engine) error {
 	if eng.QueriesFrom == "" {
 		return nil
@@ -160,6 +160,10 @@ func validateQueriesFrom(s *BenchSpec, name string, eng Engine) error {
 	if target.QueriesFrom != "" {
 		return fmt.Errorf("engine %q has queries_from %q, which is itself an alias of %q — queries_from does not chain",
 			name, eng.QueriesFrom, target.QueriesFrom)
+	}
+	if target.Type != eng.Type {
+		return fmt.Errorf("engine %q (type %s) has queries_from %q (type %s): an alias must reuse a block written for its own engine type",
+			name, eng.Type, eng.QueriesFrom, target.Type)
 	}
 	return nil
 }

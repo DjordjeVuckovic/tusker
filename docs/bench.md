@@ -140,8 +140,8 @@ never overrides what it states.
 `queries_from` is why the two arms above stay comparable. Written out per query, an arm that
 differs only in a ranking argument is 30 duplicated blocks, and the first one edited on its
 own stops isolating the argument under test without anything erroring. Aliasing is one level
-deep: an alias must name a real engine that is not itself an alias, and the spec fails to
-load otherwise. `bench validate` still dry-runs every engine separately, so both arms are
+deep: an alias must name a real engine of its own type that is not itself an alias, and the
+spec fails to load otherwise. `bench validate` still dry-runs every engine separately, so both arms are
 checked even though one block backs them.
 
 An alias borrows the query block, not the params — it contributes only what it declares
