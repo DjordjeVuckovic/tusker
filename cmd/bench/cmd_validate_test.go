@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,4 +74,78 @@ queries:
     engines:
       es: { query: '{"query": {"match": {"title": "election"}}}' }
 `), 0o644))
+}
+
+type recordingValidator struct {
+	query string
+	args  []any
+}
+
+func (v *recordingValidator) Execute(context.Context, string, []any) (*engine.Execution, error) {
+	return &engine.Execution{}, nil
+}
+func (v *recordingValidator) Name() string { return "recording" }
+func (v *recordingValidator) Close() error { return nil }
+
+func (v *recordingValidator) Validate(_ context.Context, query string, args []any) error {
+	v.query, v.args = query, args
+	return nil
+}
+
+// Validate must see the query exactly as a run sends it: bound text as $N plus
+// args for postgres, inlined as a JSON string for elasticsearch.
+func TestValidateOne_PassesBoundQueryTextTheWayTheEngineTypeReceivesIt(t *testing.T) {
+	loaded, err := suite.Parse([]byte(`schema_version: 1
+id: validate_bound
+queries:
+  - id: q-trust
+    engines:
+      pg:
+        query: "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', {{$terms}})"
+        params: { terms: "voters don't trust" }
+      es:
+        query: '{"query": {"match": {"title": {{$terms}}}}}'
+        params: { terms: "voters don't trust" }
+`))
+	require.NoError(t, err)
+
+	tests := []struct {
+		engineType string
+		engineName string
+		assertSeen func(t *testing.T, v *recordingValidator)
+	}{
+		{
+			engineType: "postgres",
+			engineName: "pg",
+			assertSeen: func(t *testing.T, v *recordingValidator) {
+				assert.Equal(t, "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', $1)", v.query)
+				assert.Equal(t, []any{"voters don't trust"}, v.args)
+			},
+		},
+		{
+			engineType: "elasticsearch",
+			engineName: "es",
+			assertSeen: func(t *testing.T, v *recordingValidator) {
+				assert.JSONEq(t, `{"query": {"match": {"title": "voters don't trust"}}}`, v.query)
+				assert.Empty(t, v.args)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.engineType, func(t *testing.T) {
+			validator := &recordingValidator{}
+
+			row := validateOne(context.Background(), validateInput{
+				query:      loaded.Suite.Queries[0],
+				engineName: tt.engineName,
+				engineType: tt.engineType,
+				binding:    spec.QueryBinding{QuerySource: tt.engineName},
+				loaded:     loaded,
+				executor:   validator,
+			})
+
+			require.Equal(t, "OK", row.status, row.detail)
+			tt.assertSeen(t, validator)
+		})
+	}
 }
