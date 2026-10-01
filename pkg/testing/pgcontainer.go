@@ -22,56 +22,67 @@ type PGContainer struct {
 }
 
 type PGConfig struct {
+	Engine   Engine
 	Database string
 	Username string
 	Password string
 }
 
-// postgresEngine pairs a Postgres flavour's image with the migrations the live
-// stack applies to it.
-type postgresEngine struct {
+// Engine is a Postgres flavour of the live stack. The zero value is native Postgres.
+type Engine string
+
+const (
+	EngineNative   Engine = ""
+	EngineParadeDB Engine = "paradedb"
+	EngineTiger    Engine = "tiger"
+)
+
+// engineSetup pairs an engine's image with the migrations the live stack
+// applies to it.
+type engineSetup struct {
 	image         string
 	migrationsDir string
 }
 
-var (
-	nativeEngine   = postgresEngine{image: "pgvector/pgvector:pg18", migrationsDir: "migrations"}
-	paradeDBEngine = postgresEngine{image: "paradedb/paradedb:latest-pg18", migrationsDir: "parade_migrations"}
-	tigerEngine    = postgresEngine{image: "timescale/timescaledb-ha:pg18", migrationsDir: "tiger_migrations"}
-)
+var engineSetups = map[Engine]engineSetup{
+	EngineNative:   {image: "pgvector/pgvector:pg18", migrationsDir: "migrations"},
+	EngineParadeDB: {image: "paradedb/paradedb:0.21.5-pg18", migrationsDir: "parade_migrations"},
+	EngineTiger:    {image: "timescale/timescaledb-ha:pg18", migrationsDir: "tiger_migrations"},
+}
 
 func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
-	return createPGContainer(ctx, cfg, nativeEngine)
+	return createPGContainer(ctx, cfg)
 }
 
 func NewPGContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer {
 	tb.Helper()
-	return newContainerWithCleanup(ctx, tb, nativeEngine)
+	return newContainerWithCleanup(ctx, tb, EngineNative)
 }
 
 // NewParadeDBContainerWithCleanup starts ParadeDB with db/parade_migrations applied.
 func NewParadeDBContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer {
 	tb.Helper()
-	return newContainerWithCleanup(ctx, tb, paradeDBEngine)
+	return newContainerWithCleanup(ctx, tb, EngineParadeDB)
 }
 
 // NewTigerContainerWithCleanup starts TimescaleDB with db/tiger_migrations applied.
 func NewTigerContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer {
 	tb.Helper()
-	return newContainerWithCleanup(ctx, tb, tigerEngine)
+	return newContainerWithCleanup(ctx, tb, EngineTiger)
 }
 
-func newContainerWithCleanup(ctx context.Context, tb testing.TB, engine postgresEngine) *PGContainer {
+func newContainerWithCleanup(ctx context.Context, tb testing.TB, engine Engine) *PGContainer {
 	tb.Helper()
 	if testing.Short() {
 		tb.Skip("skipping testcontainer-backed test in -short mode")
 	}
 
 	container, err := createPGContainer(ctx, PGConfig{
+		Engine:   engine,
 		Database: "news_test_db",
 		Username: "test",
 		Password: "test",
-	}, engine)
+	})
 	if err != nil {
 		tb.Fatalf("failed to create postgres container: %v", err)
 	}
@@ -85,10 +96,15 @@ func newContainerWithCleanup(ctx context.Context, tb testing.TB, engine postgres
 	return container
 }
 
-func createPGContainer(ctx context.Context, cfg PGConfig, engine postgresEngine) (*PGContainer, error) {
+func createPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
+	setup, ok := engineSetups[cfg.Engine]
+	if !ok {
+		return nil, fmt.Errorf("unknown postgres engine %q", cfg.Engine)
+	}
+
 	_, b, _, _ := runtime.Caller(0)
 	projectRoot := filepath.Join(filepath.Dir(b), "../..")
-	migrationsDir := filepath.Join(projectRoot, "db", engine.migrationsDir)
+	migrationsDir := filepath.Join(projectRoot, "db", setup.migrationsDir)
 
 	migrationFiles, err := filepath.Glob(filepath.Join(migrationsDir, "*.up.sql"))
 	if err != nil {
@@ -122,7 +138,7 @@ func createPGContainer(ctx context.Context, cfg PGConfig, engine postgresEngine)
 	}
 
 	pgContainer, err := postgres.Run(ctx,
-		engine.image,
+		setup.image,
 		postgres.WithDatabase(cfg.Database),
 		postgres.WithUsername(cfg.Username),
 		postgres.WithPassword(cfg.Password),

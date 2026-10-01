@@ -14,7 +14,7 @@ services:
       - pg_news_data:/var/lib/postgresql
 
   pg-news-parade:
-    image: paradedb/paradedb:latest-pg18
+    image: paradedb/paradedb:0.21.5-pg18
     container_name: pg-parade-news
     environment:
       POSTGRES_USER: news_user
