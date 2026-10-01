@@ -22,6 +22,7 @@ import (
 
 const (
 	DefaultGracefulShutdownTimeout = 10 * time.Second
+	healthCheckTimeout             = 2 * time.Second
 )
 
 type Server struct {
@@ -118,7 +119,9 @@ func (s *Server) SetupHealthChecks(path string) *Server {
 }
 
 func (s *Server) handleHealthCheck(c echo.Context) error {
-	if !s.checker.Healthy(c.Request().Context()) {
+	ctx, cancel := context.WithTimeout(c.Request().Context(), healthCheckTimeout)
+	defer cancel()
+	if !s.checker.Healthy(ctx) {
 		return c.JSON(http.StatusServiceUnavailable, map[string]string{"status": "unhealthy"})
 	}
 

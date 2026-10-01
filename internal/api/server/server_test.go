@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -177,5 +178,33 @@ func TestNew_RejectsInvalidBounds(t *testing.T) {
 				t.Errorf("New(%+v) succeeded, want an error", tt.cfg)
 			}
 		})
+	}
+}
+
+type blockingHealthChecker struct{}
+
+func (blockingHealthChecker) Healthy(ctx context.Context) bool {
+	<-ctx.Done()
+	return false
+}
+
+func TestServer_HealthAnswersWhenBackendHangs(t *testing.T) {
+	s := newServer(t, &Config{Port: "0"}, blockingHealthChecker{}).SetupHealthChecks("/health")
+
+	rec := httptest.NewRecorder()
+	answered := make(chan struct{})
+	go func() {
+		s.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+		close(answered)
+	}()
+
+	// The guard only stops an unbounded health check from hanging the test.
+	select {
+	case <-answered:
+	case <-time.After(30 * time.Second):
+		t.Fatal("/health never answered while the backend hung")
+	}
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("/health = %d, want %d", rec.Code, http.StatusServiceUnavailable)
 	}
 }
