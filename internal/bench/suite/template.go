@@ -80,7 +80,6 @@ func bindValues(query string, params TemplateParams, dialect Dialect) (*Resolved
 		args     []any
 		position = map[string]int{}
 		missing  []string
-		bindErr  error
 	)
 	bound := boundPlaceholderRegex.ReplaceAllStringFunc(query, func(match string) string {
 		name := match[3 : len(match)-2]
@@ -91,16 +90,14 @@ func bindValues(query string, params TemplateParams, dialect Dialect) (*Resolved
 			}
 			return match
 		}
+		text := formatValue(val)
 		if dialect == DialectJSON {
-			encoded, err := json.Marshal(val)
-			if err != nil && bindErr == nil {
-				bindErr = fmt.Errorf("encode param %q: %w", name, err)
-			}
+			encoded, _ := json.Marshal(text)
 			return string(encoded)
 		}
 		n, seen := position[name]
 		if !seen {
-			args = append(args, val)
+			args = append(args, text)
 			n = len(args)
 			position[name] = n
 		}
@@ -108,9 +105,6 @@ func bindValues(query string, params TemplateParams, dialect Dialect) (*Resolved
 	})
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("missing params: %v", missing)
-	}
-	if bindErr != nil {
-		return nil, bindErr
 	}
 	return &ResolvedQuery{Query: bound, Args: args}, nil
 }

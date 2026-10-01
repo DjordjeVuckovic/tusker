@@ -345,3 +345,50 @@ func TestQuery_ResolveEngineQuery_InlineBindsValues(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"query": {"match": {"title": "don't"}}}`, es.Query)
 }
+
+func TestQuery_ResolveEngineQuery_BindsNonStringScalarsAsText(t *testing.T) {
+	tests := []struct {
+		yamlValue string
+		wantText  string
+	}{
+		{yamlValue: "2024", wantText: "2024"},
+		{yamlValue: "true", wantText: "true"},
+		{yamlValue: "1.5", wantText: "1.5"},
+		{yamlValue: "[climate, change]", wantText: "climate, change"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.yamlValue, func(t *testing.T) {
+			loaded, err := Parse([]byte(`schema_version: 1
+id: scalars
+templates:
+  - id: pg_fts
+    query: "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery('english', {{$terms}})"
+  - id: es_match
+    query: '{"query": {"match": {"title": {{$terms}}}}}'
+queries:
+  - id: q1
+    engines:
+      pg: { template: pg_fts, params: { terms: ` + tt.yamlValue + ` } }
+      es: { template: es_match, params: { terms: ` + tt.yamlValue + ` } }
+`))
+			require.NoError(t, err)
+			q := loaded.Suite.Queries[0]
+
+			pg, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg", Registry: loaded.Registry, Dialect: DialectPostgres})
+			require.NoError(t, err)
+			assert.Equal(t, []any{tt.wantText}, pg.Args)
+
+			es, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es", Registry: loaded.Registry, Dialect: DialectJSON})
+			require.NoError(t, err)
+			var body struct {
+				Query struct {
+					Match struct {
+						Title string `json:"title"`
+					} `json:"match"`
+				} `json:"query"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(es.Query), &body), "body must carry the value as a JSON string: %s", es.Query)
+			assert.Equal(t, tt.wantText, body.Query.Match.Title)
+		})
+	}
+}
