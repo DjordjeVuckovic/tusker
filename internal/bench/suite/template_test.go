@@ -36,19 +36,6 @@ func TestQueryTemplate_Render_MissingParams(t *testing.T) {
 	assert.ErrorContains(t, err, "terms")
 }
 
-func TestQueryTemplate_RequiredParams(t *testing.T) {
-	tmpl := &QueryTemplate{
-		ID:    "fts_query",
-		Query: "{{lang}} {{terms}} {{limit}}",
-	}
-
-	params := tmpl.RequiredParams()
-	assert.Len(t, params, 3)
-	assert.Contains(t, params, "lang")
-	assert.Contains(t, params, "terms")
-	assert.Contains(t, params, "limit")
-}
-
 func TestQueryTemplate_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -319,12 +306,6 @@ func TestQueryTemplate_Render_BoundValueErrors(t *testing.T) {
 			assert.ErrorContains(t, err, tt.wantErr)
 		})
 	}
-}
-
-func TestQueryTemplate_RequiredParams_IncludesBoundNames(t *testing.T) {
-	tmpl := &QueryTemplate{ID: "t", Query: "q({{$terms}}) LIMIT {{limit}}"}
-
-	assert.ElementsMatch(t, []string{"terms", "limit"}, tmpl.RequiredParams())
 }
 
 func TestQuery_ResolveEngineQuery_InlineBindsValues(t *testing.T) {

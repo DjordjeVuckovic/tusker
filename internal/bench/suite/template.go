@@ -38,7 +38,6 @@ func (d Dialect) validate() error {
 var (
 	placeholderRegex      = regexp.MustCompile(`\{\{(\w+)\}\}`)
 	boundPlaceholderRegex = regexp.MustCompile(`\{\{\$(\w+)\}\}`)
-	anyPlaceholderRegex   = regexp.MustCompile(`\{\{\$?(\w+)\}\}`)
 )
 
 // Render substitutes structural {{name}} params as text and binds value
@@ -126,21 +125,6 @@ func bindValues(query string, params TemplateParams, dialect Dialect) (*Resolved
 		return nil, fmt.Errorf("missing params: %v", missing)
 	}
 	return &ResolvedQuery{Query: bound, Args: args}, nil
-}
-
-func (t *QueryTemplate) RequiredParams() []string {
-	seen := make(map[string]bool)
-	var params []string
-
-	matches := anyPlaceholderRegex.FindAllStringSubmatch(t.Query, -1)
-	for _, m := range matches {
-		if len(m) > 1 && !seen[m[1]] {
-			seen[m[1]] = true
-			params = append(params, m[1])
-		}
-	}
-
-	return params
 }
 
 func (t *QueryTemplate) Validate() error {
