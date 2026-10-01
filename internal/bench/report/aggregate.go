@@ -12,8 +12,9 @@ import (
 )
 
 type GenerateOptions struct {
-	Spec   *spec.BenchSpec
-	Corpus CorpusInfo
+	Spec    *spec.BenchSpec
+	Corpus  CorpusInfo
+	Indexes map[string]IndexProvenance
 }
 
 func Generate(br *runner.BenchmarkResult, opts *GenerateOptions) *Report {
@@ -33,10 +34,15 @@ func Generate(br *runner.BenchmarkResult, opts *GenerateOptions) *Report {
 	if opts != nil {
 		if opts.Spec != nil {
 			for name, eng := range opts.Spec.Engines {
-				r.Environment.Engines[name] = EngineInfo{
+				info := EngineInfo{
 					Type:       eng.Type,
 					Connection: maskConnection(eng.Connection),
 				}
+				if provenance, ok := opts.Indexes[name]; ok {
+					info.Version = provenance.Version()
+					info.Index = &provenance
+				}
+				r.Environment.Engines[name] = info
 			}
 		}
 		r.Environment.Corpus = opts.Corpus

@@ -346,8 +346,32 @@ func showReport(w io.Writer, rpt *report.Report) {
 			fmt.Fprintf(w, "  judgments: %s\n", p.Sources.Judgments)
 		}
 	}
+	showEngineIndexes(w, rpt.Environment.Engines)
 	fmt.Fprintln(w)
 	report.WriteTable(rpt, w)
+}
+
+func showEngineIndexes(w io.Writer, engines map[string]report.EngineInfo) {
+	if len(engines) == 0 {
+		return
+	}
+	names := make([]string, 0, len(engines))
+	for name := range engines {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	fmt.Fprintln(w, "\nEngines:")
+	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
+	for _, name := range names {
+		info := engines[name]
+		summary := "index provenance not recorded"
+		if info.Index != nil {
+			summary = info.Index.Summary()
+		}
+		fmt.Fprintf(tw, "  %s\t%s\t%s\n", name, info.Type, summary)
+	}
+	tw.Flush()
 }
 
 func formatSources(sources map[string]int) string {
