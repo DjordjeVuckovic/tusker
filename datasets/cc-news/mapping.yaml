@@ -36,6 +36,6 @@ fieldMappings:
     required: false
   - source: "domain"
     sourceType: "string"
-    target: "Metadata.SourceName"
+    target: "SourceName"
     targetType: "string"
     required: false

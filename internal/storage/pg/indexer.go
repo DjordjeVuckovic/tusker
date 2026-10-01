@@ -18,7 +18,7 @@ type Indexer struct {
 
 var insertColumns = []string{
 	"id", "title", "subtitle", "content", "author", "description", "url",
-	"language", "published_at", "created_at", "metadata",
+	"language", "published_at", "source_name", "created_at", "metadata",
 }
 
 func NewIndexer(pool *ConnectionPool) (*Indexer, error) {
@@ -34,8 +34,8 @@ func (s *Indexer) Save(ctx context.Context, article document.Article) (uuid.UUID
 
 	cmd := `
         INSERT INTO articles (id, title, subtitle, content, author, description, url, language,
-                              published_at, created_at, metadata)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                              published_at, source_name, created_at, metadata)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id;
     `
 	var id uuid.UUID
@@ -100,6 +100,7 @@ func insertRow(a document.Article, now time.Time) ([]any, error) {
 		a.URL,
 		a.Language,
 		nullableTime(a.PublishedAt),
+		a.SourceName,
 		a.CreatedAt,
 		metadataJSON,
 	}, nil

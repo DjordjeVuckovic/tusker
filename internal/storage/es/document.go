@@ -8,6 +8,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorindexoptionstype"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorsimilarity"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/snowballlanguage"
 	"github.com/google/uuid"
 )
 
@@ -39,6 +40,8 @@ func optionalTime(t time.Time) *time.Time {
 	return &t
 }
 
+const englishAnalyzer = "english_analyzer"
+
 type IndexBuilder struct {
 	defaultLanguage string
 }
@@ -53,6 +56,9 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) ArticleDocument
 	if article.ID == uuid.Nil {
 		article.ID = uuid.New()
 	}
+	if article.Language == "" {
+		article.Language = b.defaultLanguage
+	}
 	return ArticleDocument{
 		ID:          article.ID.String(),
 		Title:       article.Title,
@@ -64,7 +70,7 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) ArticleDocument
 		Language:    article.Language,
 		CreatedAt:   article.CreatedAt,
 		SourceId:    article.Metadata.SourceId,
-		SourceName:  article.Metadata.SourceName,
+		SourceName:  article.SourceName,
 		PublishedAt: optionalTime(article.PublishedAt),
 		Category:    article.Metadata.Category,
 		ImportedAt:  optionalTime(article.Metadata.ImportedAt),
@@ -72,13 +78,30 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) ArticleDocument
 	}
 }
 
+// buildSettings mirrors PostgreSQL's english regconfig: stopwords are removed
+// before stemming, and the stemmer is Snowball, not the Porter stemmer behind
+// the built-in english analyzer, which reduces "news" to "new". The standard
+// tokenizer keeps "don't" whole where PostgreSQL's parser splits it at the
+// apostrophe, so apostrophes become spaces before tokenizing.
 func (b *IndexBuilder) buildSettings() types.IndexSettings {
+	english := snowballlanguage.English
 	return types.IndexSettings{
 		Analysis: &types.IndexSettingsAnalysis{
 			Analyzer: map[string]types.Analyzer{
-				"multilingual_analyzer": types.StandardAnalyzer{
-					Stopwords: []string{"_none_"},
+				englishAnalyzer: types.CustomAnalyzer{
+					CharFilter: []string{"apostrophe_to_space"},
+					Tokenizer:  "standard",
+					Filter:     []string{"lowercase", "postgres_english_stop", "english_snowball"},
 				},
+			},
+			CharFilter: map[string]types.CharFilter{
+				"apostrophe_to_space": types.MappingCharFilter{
+					Mappings: []string{"' => \\u0020", "’ => \\u0020"},
+				},
+			},
+			Filter: map[string]types.TokenFilter{
+				"postgres_english_stop": types.StopTokenFilter{Stopwords: PostgresEnglishStopwords},
+				"english_snowball":      types.SnowballTokenFilter{Language: &english},
 			},
 		},
 	}
@@ -88,10 +111,10 @@ func (b *IndexBuilder) buildMapping() types.TypeMapping {
 	return types.TypeMapping{
 		Properties: map[string]types.Property{
 			"id":           types.NewKeywordProperty(),
-			"title":        b.createTextPropertyWithKeyword("multilingual_analyzer"),
-			"subtitle":     b.createTextProperty("multilingual_analyzer"),
-			"description":  b.createTextProperty("multilingual_analyzer"),
-			"content":      b.createTextProperty("multilingual_analyzer"),
+			"title":        b.createTextPropertyWithKeyword(englishAnalyzer),
+			"subtitle":     b.createTextProperty(englishAnalyzer),
+			"description":  b.createTextProperty(englishAnalyzer),
+			"content":      b.createTextProperty(englishAnalyzer),
 			"author":       b.createTextPropertyWithKeyword(""),
 			"url":          types.NewKeywordProperty(),
 			"language":     types.NewKeywordProperty(),

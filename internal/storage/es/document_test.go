@@ -2,10 +2,12 @@ package es
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
@@ -116,5 +118,44 @@ func assertDeclaredBuildParams(t *testing.T, client *elasticsearch.TypedClient, 
 	}
 	if vector.IndexOptions.EfConstruction == nil || *vector.IndexOptions.EfConstruction != storage.HNSWEfConstruction {
 		t.Errorf("index_options.ef_construction = %v, want %d", vector.IndexOptions.EfConstruction, storage.HNSWEfConstruction)
+	}
+}
+
+func TestIndexer_StoresArticleLanguage(t *testing.T) {
+	ctx := context.Background()
+	container := pkgtesting.NewESContainer(ctx, t)
+	cfg := ClientConfig{Addresses: []string{container.Address}, IndexName: "articles_language_test"}
+
+	indexer, err := NewIndexer(ctx, cfg)
+	if err != nil {
+		t.Fatalf("NewIndexer: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		language string
+		want     string
+	}{
+		{name: "empty language indexes as english like postgres", language: "", want: "english"},
+		{name: "explicit language is kept", language: "serbian", want: "serbian"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id, err := indexer.Save(ctx, document.Article{Title: "t", Language: tt.language})
+			if err != nil {
+				t.Fatalf("Save: %v", err)
+			}
+			res, err := indexer.client.Get(cfg.IndexName, id.String()).Do(ctx)
+			if err != nil {
+				t.Fatalf("get %s: %v", id, err)
+			}
+			var stored ArticleDocument
+			if err := json.Unmarshal(res.Source_, &stored); err != nil {
+				t.Fatalf("decode %s: %v", id, err)
+			}
+			if stored.Language != tt.want {
+				t.Errorf("language = %q, want %q", stored.Language, tt.want)
+			}
+		})
 	}
 }

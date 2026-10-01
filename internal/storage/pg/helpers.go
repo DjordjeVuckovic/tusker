@@ -14,7 +14,7 @@ import (
 // the order ScanArticle expects.
 var ArticleColumns = []string{
 	"id", "title", "subtitle", "content", "author", "description", "url",
-	"language", "published_at", "created_at", "metadata",
+	"language", "published_at", "source_name", "created_at", "metadata",
 }
 
 // ArticleColumnList renders the projection, optionally table-qualified.
@@ -45,6 +45,7 @@ func ScanArticle(rows pgx.Rows, trailing ...any) (*dto.Article, error) {
 		&article.URL,
 		&article.Language,
 		&article.PublishedAt,
+		&article.SourceName,
 		&article.CreatedAt,
 		&metadataJSON,
 	}, trailing...)

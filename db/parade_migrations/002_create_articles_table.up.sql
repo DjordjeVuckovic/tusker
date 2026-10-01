@@ -8,13 +8,29 @@ CREATE TABLE articles
     author        text                             default ''::text,
     url           text        NOT NULL,
     published_at  timestamptz,
+    source_name   text        NOT NULL             DEFAULT '',
     metadata      jsonb                            DEFAULT '{}'::jsonb,
     created_at    timestamptz NOT NULL             DEFAULT now(),
     language      VARCHAR(10)                      DEFAULT 'english',
     description   text                             DEFAULT ''
 );
+-- Text fields stem with Snowball English, as the english regconfig does on
+-- pg-native and tiger. pg_search 0.21.5 accepts the stopwords option but
+-- ignores it, so its english list stays smaller than PostgreSQL's.
+-- source_name is a literal, so source_name = ... next to @@@ pushes down as an
+-- exact term. published_at reaches the index only through
+-- paradedb.range('published_at', ...); a plain published_at comparison next to
+-- @@@ runs as a heap filter inside the ParadeDB scan.
 CREATE INDEX idx_articles_search ON articles
-    USING bm25 (id, title, subtitle, content, description)
+    USING bm25 (
+        id,
+        (title::pdb.simple('stemmer=english', 'stopwords_language=english')),
+        (subtitle::pdb.simple('stemmer=english', 'stopwords_language=english')),
+        (content::pdb.simple('stemmer=english', 'stopwords_language=english')),
+        (description::pdb.simple('stemmer=english', 'stopwords_language=english')),
+        published_at,
+        (source_name::pdb.literal)
+    )
     WITH (key_field='id');
 CREATE INDEX idx_articles_published_at ON articles (published_at DESC NULLS LAST);
 COMMIT;

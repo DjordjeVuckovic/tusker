@@ -176,10 +176,10 @@ func (m *ArticleDirectMapper) Map(record map[string]string) (document.Article, e
 		Language:    record["language"],
 		URL:         articleURL,
 		PublishedAt: publishedAt,
+		SourceName:  record["sourceName"],
 		CreatedAt:   createdAt,
 		Metadata: document.ArticleMetadata{
 			SourceId:   record["sourceId"],
-			SourceName: record["sourceName"],
 			Category:   record["category"],
 			ImportedAt: importedAt,
 		},

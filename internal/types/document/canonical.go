@@ -33,7 +33,7 @@ func (ar *Article) ToCanonical() CanonicalArticle {
 		Language:    ar.Language,
 		URL:         ar.URL,
 		SourceId:    ar.Metadata.SourceId,
-		SourceName:  ar.Metadata.SourceName,
+		SourceName:  ar.SourceName,
 		Category:    ar.Metadata.Category,
 	}
 	if !ar.CreatedAt.IsZero() {

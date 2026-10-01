@@ -33,7 +33,7 @@ fieldMappings:
     required: false
   - source: "publication"
     sourceType: "string"
-    target: "Metadata.SourceName"
+    target: "SourceName"
     targetType: "string"
     required: false
   - source: "section"

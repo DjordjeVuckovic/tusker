@@ -102,7 +102,7 @@ type FieldMapping struct {
 	SourceType string `json:"sourceType,omitempty" yaml:"sourceType,omitempty" schema:"enum=string|int|float|bool|date|datetime,default=string" description:"Source field data type"`
 
 	// Target is the field name in the target struct
-	Target string `json:"target" yaml:"target" schema:"required,enum=ID|Title|Subtitle|Content|Author|Description|Language|URL|PublishedAt|CreatedAt|Metadata.SourceId|Metadata.SourceName|Metadata.Category|Metadata.ImportedAt" description:"Target field in the Article struct, or Metadata.Extra.<key> for a dataset-specific field"`
+	Target string `json:"target" yaml:"target" schema:"required,enum=ID|Title|Subtitle|Content|Author|Description|Language|URL|PublishedAt|SourceName|CreatedAt|Metadata.SourceId|Metadata.Category|Metadata.ImportedAt" description:"Target field in the Article struct, or Metadata.Extra.<key> for a dataset-specific field"`
 
 	// TargetType is the data type of the target field
 	TargetType string `json:"targetType,omitempty" yaml:"targetType,omitempty" schema:"enum=string|int|float|bool|date|datetime|uuid|url|json,default=string" description:"Target field data type"`
@@ -148,7 +148,7 @@ const ExtraTargetPrefix = "Metadata.Extra."
 var articleTargets = map[string]struct{}{
 	"ID": {}, "Title": {}, "Subtitle": {}, "Content": {}, "Author": {},
 	"Description": {}, "Language": {}, "URL": {}, "PublishedAt": {},
-	"CreatedAt": {}, "Metadata.SourceId": {}, "Metadata.SourceName": {},
+	"SourceName": {}, "CreatedAt": {}, "Metadata.SourceId": {},
 	"Metadata.Category": {}, "Metadata.ImportedAt": {},
 }
 
@@ -156,6 +156,7 @@ var articleTargets = map[string]struct{}{
 // mapping fails at load instead of silently diverting into Metadata.Extra.
 var renamedTargets = map[string]string{
 	"Metadata.PublishedAt": "PublishedAt",
+	"Metadata.SourceName":  "SourceName",
 }
 
 func validateTarget(target string) error {

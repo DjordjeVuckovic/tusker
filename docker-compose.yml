@@ -14,7 +14,7 @@ services:
       - pg_news_data:/var/lib/postgresql
 
   pg-news-parade:
-    image: paradedb/paradedb:latest-pg18
+    image: paradedb/paradedb:0.21.5-pg18
     container_name: pg-parade-news
     environment:
       POSTGRES_USER: news_user
@@ -59,7 +59,6 @@ services:
     shm_size: 2gb
     volumes:
       - es_news_data:/usr/share/elasticsearch/data
-      - ./configs/elasticsearch:/usr/share/elasticsearch/config/policies
     ports:
       - "9200:9200"
       - "9300:9300"

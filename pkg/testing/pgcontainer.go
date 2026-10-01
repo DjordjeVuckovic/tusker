@@ -22,9 +22,32 @@ type PGContainer struct {
 }
 
 type PGConfig struct {
+	Engine   Engine
 	Database string
 	Username string
 	Password string
+}
+
+// Engine is a Postgres flavour of the live stack. The zero value is native Postgres.
+type Engine string
+
+const (
+	EngineNative   Engine = ""
+	EngineParadeDB Engine = "paradedb"
+	EngineTiger    Engine = "tiger"
+)
+
+// engineSetup pairs an engine's image with the migrations the live stack
+// applies to it.
+type engineSetup struct {
+	image         string
+	migrationsDir string
+}
+
+var engineSetups = map[Engine]engineSetup{
+	EngineNative:   {image: "pgvector/pgvector:pg18", migrationsDir: "migrations"},
+	EngineParadeDB: {image: "paradedb/paradedb:0.21.5-pg18", migrationsDir: "parade_migrations"},
+	EngineTiger:    {image: "timescale/timescaledb-ha:pg18", migrationsDir: "tiger_migrations"},
 }
 
 func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
@@ -33,11 +56,29 @@ func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
 
 func NewPGContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer {
 	tb.Helper()
+	return newContainerWithCleanup(ctx, tb, EngineNative)
+}
+
+// NewParadeDBContainerWithCleanup starts ParadeDB with db/parade_migrations applied.
+func NewParadeDBContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer {
+	tb.Helper()
+	return newContainerWithCleanup(ctx, tb, EngineParadeDB)
+}
+
+// NewTigerContainerWithCleanup starts TimescaleDB with db/tiger_migrations applied.
+func NewTigerContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer {
+	tb.Helper()
+	return newContainerWithCleanup(ctx, tb, EngineTiger)
+}
+
+func newContainerWithCleanup(ctx context.Context, tb testing.TB, engine Engine) *PGContainer {
+	tb.Helper()
 	if testing.Short() {
 		tb.Skip("skipping testcontainer-backed test in -short mode")
 	}
 
 	container, err := createPGContainer(ctx, PGConfig{
+		Engine:   engine,
 		Database: "news_test_db",
 		Username: "test",
 		Password: "test",
@@ -56,9 +97,14 @@ func NewPGContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer 
 }
 
 func createPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
+	setup, ok := engineSetups[cfg.Engine]
+	if !ok {
+		return nil, fmt.Errorf("unknown postgres engine %q", cfg.Engine)
+	}
+
 	_, b, _, _ := runtime.Caller(0)
 	projectRoot := filepath.Join(filepath.Dir(b), "../..")
-	migrationsDir := filepath.Join(projectRoot, "db", "migrations")
+	migrationsDir := filepath.Join(projectRoot, "db", setup.migrationsDir)
 
 	migrationFiles, err := filepath.Glob(filepath.Join(migrationsDir, "*.up.sql"))
 	if err != nil {
@@ -92,7 +138,7 @@ func createPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) 
 	}
 
 	pgContainer, err := postgres.Run(ctx,
-		"pgvector/pgvector:pg18",
+		setup.image,
 		postgres.WithDatabase(cfg.Database),
 		postgres.WithUsername(cfg.Username),
 		postgres.WithPassword(cfg.Password),

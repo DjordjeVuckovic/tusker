@@ -33,7 +33,7 @@ func TestYAMLMapper_Map(t *testing.T) {
 	assert.Equal(t, "Test ArticleReflectTest", article.Title)
 	assert.Equal(t, published, article.PublishedAt)
 	assert.Equal(t, urlStr, article.URL)
-	assert.Equal(t, "example.com", article.Metadata.SourceName)
+	assert.Equal(t, "example.com", article.SourceName)
 	assert.Equal(t, "https://example.com/a.png", article.Metadata.Extra["imageUrl"])
 }
 
@@ -118,13 +118,14 @@ func TestYAMLMapper_Map_OptionalFieldsAreSkipped(t *testing.T) {
 
 	article, err := mapper.Map(record)
 	require.NoError(t, err)
-	assert.Empty(t, article.Metadata.SourceName)
+	assert.Empty(t, article.SourceName)
 	assert.Empty(t, article.Metadata.Extra)
 }
 
 func TestNewArticleMapper_RejectsMovedTargets(t *testing.T) {
 	moved := map[string]string{
 		"Metadata.PublishedAt": "PublishedAt",
+		"Metadata.SourceName":  "SourceName",
 	}
 
 	for target, replacement := range moved {
@@ -194,7 +195,7 @@ fieldMappings:
     required: true
   - source: "domain"
     sourceType: "string"
-    target: "Metadata.SourceName"
+    target: "SourceName"
     targetType: "string"
     required: false
   - source: "image"
