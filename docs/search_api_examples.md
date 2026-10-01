@@ -21,7 +21,7 @@ The Tusker API provides comprehensive search capabilities across multiple paradi
 - `q` (required): Search query text
 - `size` (optional): Results per page (default: 100, max: 10000)
 - `cursor` (optional): Pagination cursor (base64-encoded)
-- `lang` (optional): Search language (default: english)
+- `lang` (optional): Search language. Only `english` (the default) is supported; any other value returns 400
 
 **Examples:**
 
@@ -30,7 +30,7 @@ The Tusker API provides comprehensive search capabilities across multiple paradi
 GET /v1/articles/search?q=climate change&size=10
 
 # With language
-GET /v1/articles/search?q=promene klime&lang=serbian
+GET /v1/articles/search?q=climate change&lang=english
 
 # With pagination
 GET /v1/articles/search?q=renewable energy&cursor=eyJzY29yZSI6...
@@ -118,7 +118,7 @@ POST /v1/articles/_search
 - `query` (required): Search text
 - `operator` (optional): "and" or "or" (default: "or")
 - `fuzziness` (optional): Typo tolerance - "AUTO", "0", "1", "2" (ES only)
-- `language` (optional): Language for text analysis (default: "english")
+- `language` (optional): Language for text analysis. Only `"english"` (the default) is supported; any other value returns 400
 
 **Use Cases:**
 - Search only in titles: `field: "title"`
@@ -158,7 +158,7 @@ POST /v1/articles/_search
 - `fields` (required): Array of fields to search
 - `field_weights` (optional): Field boost multipliers (default: 1.0 for all)
 - `operator` (optional): "and" or "or" (default: "or")
-- `language` (optional): Language for text analysis (default: "english")
+- `language` (optional): Language for text analysis. Only `"english"` (the default) is supported; any other value returns 400
 
 **Use Cases:**
 - Boost title matches: `"title": 3.0`
@@ -366,11 +366,7 @@ All endpoints return the same response structure:
 
 ### Language Support
 
-Supported languages:
-- `english` (default)
-- `serbian`
-
-More languages can be added via configuration.
+`english` is the only supported language and the default. Any other value returns 400 until Serbian is implemented.
 
 ---
 

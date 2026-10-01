@@ -238,7 +238,8 @@ paths:
         in: query
         name: cursor
         type: string
-      - description: 'SearchStringQuery language: english, serbian (default: english)'
+      - description: 'SearchStringQuery language: english, the only one supported
+          (default: english)'
         example: '"english"'
         in: query
         name: lang

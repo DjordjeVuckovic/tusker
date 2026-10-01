@@ -61,7 +61,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "example": "\"english\"",
-                        "description": "SearchStringQuery language: english, serbian (default: english)",
+                        "description": "SearchStringQuery language: english, the only one supported (default: english)",
                         "name": "lang",
                         "in": "query"
                     }
