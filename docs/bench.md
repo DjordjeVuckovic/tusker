@@ -95,12 +95,16 @@ A suite query has two kinds of placeholder:
   as a `$N` argument, so the template leaves out the quotes:
   `plainto_tsquery('english', {{$terms}})`. A name used twice binds one argument. An
   elasticsearch or api block gets it inlined as a JSON string, quotes included:
-  `"query": {{$terms}}`.
+  `"query": {{$terms}}`. An api descriptor's `body` is itself a JSON string, so a bound value
+  is not supported inside it; use it in `params` instead.
 
 Query text always goes through `{{$name}}`. Pasted between SQL quotes, `don't` ends the
 string literal early and breaks the statement. The bound value still reaches the engine's own
-query language: `to_tsquery` and `paradedb.parse` parse it, so they reject input their syntax
-doesn't allow, such as a stray double quote inside a phrase.
+query language wherever a function parses it as query syntax. `to_tsquery` rejects input its
+syntax doesn't allow, such as a stray double quote inside a phrase. ParadeDB's
+`field @@@ {{$terms}}` and `paradedb.parse({{$terms}})` fail on an apostrophe, so ParadeDB
+templates take bound text through `paradedb.match('<field>', {{$terms}})`, which tokenizes it
+as plain text.
 
 Binding changes how Postgres plans the query. Every query that uses a template now shares one
 prepared statement per connection, and after five executions the planner may switch it to a
