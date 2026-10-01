@@ -2,6 +2,7 @@ package es
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -120,7 +121,16 @@ func assertDeclaredBuildParams(t *testing.T, client *elasticsearch.TypedClient, 
 	}
 }
 
-func TestIndexBuilder_MapsArticleLanguage(t *testing.T) {
+func TestIndexer_StoresArticleLanguage(t *testing.T) {
+	ctx := context.Background()
+	container := pkgtesting.NewESContainer(ctx, t)
+	cfg := ClientConfig{Addresses: []string{container.Address}, IndexName: "articles_language_test"}
+
+	indexer, err := NewIndexer(ctx, cfg)
+	if err != nil {
+		t.Fatalf("NewIndexer: %v", err)
+	}
+
 	tests := []struct {
 		name     string
 		language string
@@ -131,9 +141,20 @@ func TestIndexBuilder_MapsArticleLanguage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			doc := NewIndexBuilder().mapToESDocument(document.Article{Title: "t", Language: tt.language})
-			if doc.Language != tt.want {
-				t.Errorf("language = %q, want %q", doc.Language, tt.want)
+			id, err := indexer.Save(ctx, document.Article{Title: "t", Language: tt.language})
+			if err != nil {
+				t.Fatalf("Save: %v", err)
+			}
+			res, err := indexer.client.Get(cfg.IndexName, id.String()).Do(ctx)
+			if err != nil {
+				t.Fatalf("get %s: %v", id, err)
+			}
+			var stored ArticleDocument
+			if err := json.Unmarshal(res.Source_, &stored); err != nil {
+				t.Fatalf("decode %s: %v", id, err)
+			}
+			if stored.Language != tt.want {
+				t.Errorf("language = %q, want %q", stored.Language, tt.want)
 			}
 		})
 	}
