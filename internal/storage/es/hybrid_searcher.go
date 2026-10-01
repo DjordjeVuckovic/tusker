@@ -27,17 +27,13 @@ type HybridSearcher struct {
 	model     string
 }
 
-func NewHybridSearcher(config ClientConfig, embedder *embedding.Embedder, model string) (*HybridSearcher, error) {
-	client, err := newClient(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
-	}
+func NewHybridSearcher(client *Client, embedder *embedding.Embedder, model string) *HybridSearcher {
 	return &HybridSearcher{
-		client:    client,
-		indexName: config.IndexName,
+		client:    client.typed,
+		indexName: client.indexName,
 		embedder:  embedder,
 		model:     model,
-	}, nil
+	}
 }
 
 // SearchHybrid runs a BM25 leg and a kNN leg over the same index and fuses them

@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
-	"github.com/DjordjeVuckovic/tusker/pkg/pagination"
 	"github.com/labstack/echo/v4"
 )
 
@@ -123,7 +121,7 @@ func (r *SearchRouter) searchHandler(c echo.Context) error {
 		return apperr.NewValidation("q parameter is required")
 	}
 
-	sizeInt, err := r.parseSize(sizeStr)
+	sizeInt, err := dto.ParsePageSize(sizeStr)
 	if err != nil {
 		return err
 	}
@@ -136,7 +134,10 @@ func (r *SearchRouter) searchHandler(c echo.Context) error {
 		}
 	}
 
-	queryString := dquery.NewQueryString(query)
+	queryString, err := dto.NewStringQuery(query)
+	if err != nil {
+		return err
+	}
 	searchResult, err := r.searcher.SearchStringQuery(c.Request().Context(), queryString, &dquery.BaseOptions{
 		Cursor: cursor,
 		Size:   sizeInt,
@@ -216,17 +217,13 @@ func (r *SearchRouter) structuredSearchHandler(c echo.Context) error {
 		return err
 	}
 
-	sizeInt := pagination.PageDefaultSize
-	if req.Size > 0 {
-		if req.Size > pagination.PageMaxSize {
-			return apperr.NewValidation(fmt.Sprintf("size parameter exceeds maximum of %d", pagination.PageMaxSize))
-		}
-		sizeInt = req.Size
+	sizeInt, err := dto.PageSize(req.Size)
+	if err != nil {
+		return err
 	}
 
 	var cursor *dquery.Cursor
 	if req.Cursor != "" {
-		var err error
 		cursor, err = dquery.DecodeCursor(req.Cursor)
 		if err != nil {
 			return apperr.NewValidation("invalid cursor parameter")
@@ -361,7 +358,7 @@ func (r *SearchRouter) handleSematicQuery(c echo.Context) error {
 	}
 
 	sizeStr := c.QueryParam("size")
-	size, err := r.parseSize(sizeStr)
+	size, err := dto.ParsePageSize(sizeStr)
 	if err != nil {
 		return err
 	}
@@ -421,20 +418,6 @@ func (r *SearchRouter) handleSematicQuery(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, apiResponse)
-}
-
-func (r *SearchRouter) parseSize(sizeStr string) (int, error) {
-	if sizeStr == "" {
-		return pagination.PageDefaultSize, nil
-	}
-	sizeInt, err := strconv.Atoi(sizeStr)
-	if err != nil || sizeInt < 1 {
-		return 0, apperr.NewValidation("invalid size parameter")
-	}
-	if sizeInt > pagination.PageMaxSize {
-		return 0, apperr.NewValidation(fmt.Sprintf("size parameter exceeds maximum of %d", pagination.PageMaxSize))
-	}
-	return sizeInt, nil
 }
 
 func (r *SearchRouter) buildResponse(c echo.Context, searchResult *storage.SearchResult) error {

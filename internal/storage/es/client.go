@@ -1,17 +1,53 @@
 package es
 
-import "github.com/elastic/go-elasticsearch/v8"
+import (
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"time"
+
+	"github.com/elastic/go-elasticsearch/v8"
+)
+
+const (
+	DefaultDialTimeout = 5 * time.Second
+	// DefaultResponseHeaderTimeout covers the slowest call the loaders make:
+	// a 5MB bulk flush, which a local node answers in seconds.
+	DefaultResponseHeaderTimeout = 30 * time.Second
+)
 
 type ClientConfig struct {
 	Addresses []string
 	IndexName string
 	Username  string
 	Password  string
+
+	// DialTimeout and ResponseHeaderTimeout default when zero.
+	DialTimeout           time.Duration
+	ResponseHeaderTimeout time.Duration
 }
 
-func newClient(config ClientConfig) (*elasticsearch.TypedClient, error) {
+// Client is an Elasticsearch connection pool bound to one index. Searchers and
+// health checks built from the same Client share its connections.
+type Client struct {
+	typed     *elasticsearch.TypedClient
+	indexName string
+}
+
+func NewClient(config ClientConfig) (*Client, error) {
+	typed, err := newTypedClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("create Elasticsearch client: %w", err)
+	}
+	return &Client{typed: typed, indexName: config.IndexName}, nil
+}
+
+func newTypedClient(config ClientConfig) (*elasticsearch.TypedClient, error) {
 	cfg := elasticsearch.Config{
-		Addresses: config.Addresses,
+		Addresses:    config.Addresses,
+		Transport:    newTransport(config),
+		RetryOnError: retryUnlessTimedOut,
 	}
 
 	if config.Username != "" && config.Password != "" {
@@ -22,4 +58,27 @@ func newClient(config ClientConfig) (*elasticsearch.TypedClient, error) {
 	client, err := elasticsearch.NewTypedClient(cfg)
 
 	return client, err
+}
+
+func newTransport(config ClientConfig) *http.Transport {
+	dialTimeout := config.DialTimeout
+	if dialTimeout == 0 {
+		dialTimeout = DefaultDialTimeout
+	}
+	responseHeaderTimeout := config.ResponseHeaderTimeout
+	if responseHeaderTimeout == 0 {
+		responseHeaderTimeout = DefaultResponseHeaderTimeout
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = (&net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}).DialContext
+	transport.ResponseHeaderTimeout = responseHeaderTimeout
+	return transport
+}
+
+// retryUnlessTimedOut keeps the client's retry on connection errors but not on
+// timeouts, which would otherwise multiply one timeout by the retry count.
+func retryUnlessTimedOut(_ *http.Request, err error) bool {
+	var netErr net.Error
+	return !errors.As(err, &netErr) || !netErr.Timeout()
 }
