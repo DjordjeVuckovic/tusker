@@ -33,11 +33,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	fieldBoosts := make([]FieldWeight, 0, len(contract.Fields))
-	for _, f := range contract.Fields {
-		fieldBoosts = append(fieldBoosts, FieldWeight{Field: string(f.Field), Weight: f.Weight})
-	}
-	whereClause := buildTsWhereClause(fieldBoosts, contract.Language, contract.Operator, 1)
+	whereClause := buildTsWhereClause(contract.Fields, contract.Language, contract.Operator, 1)
 	// The contract's boosts reach Elasticsearch only. Postgres ranks with its
 	// default weights, as the benchmark's Postgres arms do.
 	rankExpr := buildRankExpression(nil, contract.Language, contract.Operator, 1)
@@ -87,6 +83,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 	}
 
 	return r.fetchPage(ctx, pageQuery{
+		method:       "SearchStringQuery",
 		sql:          searchSQL,
 		args:         args,
 		size:         size,
@@ -110,8 +107,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	lang := query.GetLanguage()
 	operator := query.GetOperator()
 
-	// Build FieldWeight for single field
-	fieldBoosts := []FieldWeight{{Field: query.Field, Weight: 1.0}}
+	fieldBoosts := []dquery.FieldWeight{{Field: dquery.Field(query.Field), Weight: 1.0}}
 	whereClause := buildTsWhereClause(fieldBoosts, lang, operator, 1)
 	rankExpr := buildRankExpression(fieldBoosts, lang, operator, 1)
 
@@ -166,6 +162,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	}
 
 	return r.fetchPage(ctx, pageQuery{
+		method:       "SearchField",
 		sql:          searchSQL,
 		args:         args,
 		size:         size,
@@ -181,11 +178,10 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	lang := query.GetLanguage()
 	operator := query.GetOperator()
 
-	// Convert Fields (MultiMatchField) to FieldWeight
-	fieldBoosts := make([]FieldWeight, 0, len(query.Fields))
+	fieldBoosts := make([]dquery.FieldWeight, 0, len(query.Fields))
 	for _, f := range query.Fields {
-		fieldBoosts = append(fieldBoosts, FieldWeight{
-			Field:  f.Name,
+		fieldBoosts = append(fieldBoosts, dquery.FieldWeight{
+			Field:  dquery.Field(f.Name),
 			Weight: f.Weight,
 		})
 	}
@@ -198,7 +194,6 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	// Use helper functions with FieldWeight
 	whereClause := buildTsWhereClause(fieldBoosts, lang, operator, 1)
 	rankExpr := buildRankExpression(fieldBoosts, lang, operator, 1)
 
@@ -255,6 +250,7 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	}
 
 	return r.fetchPage(ctx, pageQuery{
+		method:       "SearchFields",
 		sql:          searchSQL,
 		args:         args,
 		size:         size,
@@ -419,6 +415,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 	}
 
 	return r.fetchPage(ctx, pageQuery{
+		method:       "SearchPhrase",
 		sql:          searchSQL,
 		args:         args,
 		size:         size,
@@ -495,6 +492,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 	}
 
 	return r.fetchPage(ctx, pageQuery{
+		method:       "SearchBoolean",
 		sql:          searchSQL,
 		args:         args,
 		size:         size,
@@ -507,6 +505,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 // extra row only signals that another page exists. maxScore and totalMatches
 // describe every match, not just this page.
 type pageQuery struct {
+	method       string
 	sql          string
 	args         []any
 	size         int
@@ -519,7 +518,7 @@ type pageQuery struct {
 func (r *Searcher) fetchPage(ctx context.Context, q pageQuery) (*storage.SearchResult, error) {
 	rows, err := r.db.Query(ctx, q.sql, q.args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute search query: %w", err)
+		return nil, fmt.Errorf("%s: failed to execute page query: %w", q.method, err)
 	}
 	defer rows.Close()
 
@@ -529,7 +528,7 @@ func (r *Searcher) fetchPage(ctx context.Context, q pageQuery) (*storage.SearchR
 		var rawScore float64
 		article, err := pg.ScanArticle(rows, &rawScore)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %w", q.method, err)
 		}
 		hits = append(hits, dto.ArticleSearchResult{
 			Article:         *article,
@@ -539,7 +538,7 @@ func (r *Searcher) fetchPage(ctx context.Context, q pageQuery) (*storage.SearchR
 		rawScores = append(rawScores, rawScore)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
+		return nil, fmt.Errorf("%s: failed to read page rows: %w", q.method, err)
 	}
 
 	page := &storage.SearchResult{

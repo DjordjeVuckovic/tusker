@@ -282,6 +282,60 @@ func TestSearcher_CursorPastEveryMatchReturnsEmptyPage(t *testing.T) {
 	}
 }
 
+func TestSearcher_PageQueryErrorNamesTheMethod(t *testing.T) {
+	s := newSearcher(t)
+	indexer, err := pg.NewIndexer(testPool)
+	if err != nil {
+		t.Fatalf("NewIndexer: %v", err)
+	}
+	if err := indexer.SaveBulk(testCtx, []document.Article{{ID: uuid.New(), Title: "climate change", URL: "https://example.com/1"}}); err != nil {
+		t.Fatalf("SaveBulk: %v", err)
+	}
+
+	// The match count succeeds; the page query's LIMIT size+1 is negative.
+	opts := &dquery.BaseOptions{Size: -2}
+	methods := []struct {
+		name   string
+		search func() (*storage.SearchResult, error)
+	}{
+		{"SearchStringQuery", func() (*storage.SearchResult, error) {
+			return s.SearchStringQuery(testCtx, dquery.NewQueryString("climate"), opts)
+		}},
+		{"SearchField", func() (*storage.SearchResult, error) {
+			return s.SearchField(testCtx, dquery.NewMatch("title", "climate"), opts)
+		}},
+		{"SearchFields", func() (*storage.SearchResult, error) {
+			q, err := dquery.NewMultiMatchQuery("climate", []string{"title", "content"})
+			if err != nil {
+				return nil, err
+			}
+			return s.SearchFields(testCtx, q, opts)
+		}},
+		{"SearchPhrase", func() (*storage.SearchResult, error) {
+			q, err := dquery.NewPhrase("climate change", []string{"title"})
+			if err != nil {
+				return nil, err
+			}
+			return s.SearchPhrase(testCtx, q, opts)
+		}},
+		{"SearchBoolean", func() (*storage.SearchResult, error) {
+			return s.SearchBoolean(testCtx, &dquery.Boolean{Expression: "climate"}, opts)
+		}},
+	}
+
+	for _, method := range methods {
+		t.Run(method.name, func(t *testing.T) {
+			_, err := method.search()
+			if err == nil {
+				t.Fatal("search succeeded with a negative page size")
+			}
+			if !strings.Contains(err.Error(), method.name) {
+				t.Errorf("error = %q, want it to name %s", err, method.name)
+			}
+		})
+	}
+}
+
 func TestSearcher_PagesThroughEveryHit(t *testing.T) {
 	s := newSearcher(t)
 	indexer, err := pg.NewIndexer(testPool)

@@ -29,12 +29,6 @@ var labelToPosition = map[string]int{
 	"D": 0, // Subtitle/Author - position 0
 }
 
-// FieldWeight represents a field with its boost value for ES-style notation
-type FieldWeight struct {
-	Field  string
-	Weight float64
-}
-
 // buildWeightLabels converts field names to PostgreSQL weight label string
 // Examples:
 //
@@ -69,11 +63,11 @@ func buildWeightLabels(fields []string) string {
 // PostgreSQL's {D, C, B, A} order. ts_rank rejects weights above 1, so boosts
 // are scaled by the largest one when it exceeds 1.
 // Example: [{title 3.0} {description 1.5}] → "{0.0000, 0.0000, 0.5000, 1.0000}"
-func buildWeightsArray(fieldBoosts []FieldWeight) string {
+func buildWeightsArray(fieldBoosts []query.FieldWeight) string {
 	weights := [4]float64{0.0, 0.0, 0.0, 0.0}
 
 	for _, fb := range fieldBoosts {
-		if label, ok := fieldToLabel[query.Field(fb.Field)]; ok {
+		if label, ok := fieldToLabel[fb.Field]; ok {
 			position := labelToPosition[label]
 			weights[position] = math.Max(weights[position], fb.Weight)
 		}
@@ -109,7 +103,7 @@ func buildTsQuery(op operator.Operator, lang query.Language, paramNum int) strin
 // PostgreSQL's default weight values are: {0.1, 0.2, 0.4, 1.0} for {D, C, B, A}
 // Weight array format: {D-weight, C-weight, B-weight, A-weight} (REVERSE ORDER!)
 // Returns: "ts_rank('{0.0, 1.0, 1.5, 3.0}', search_vector, query)" or "ts_rank(search_vector, query)"
-func buildRankExpression(fieldBoosts []FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
+func buildRankExpression(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
 	vectorExpr := "search_vector"
 	queryExpr := buildTsQuery(op, lang, paramNum)
 
@@ -129,13 +123,13 @@ func buildRankExpression(fieldBoosts []FieldWeight, lang query.Language, op oper
 // a match on the whole vector, which goes first so the GIN index narrows the
 // rows. Under OR the query may negate a term, so a row whose fields qualify can
 // fail the whole vector; there the bands are matched alone.
-func buildTsWhereClause(fieldBoosts []FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
+func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
 	queryExpr := buildTsQuery(op, lang, paramNum)
 	match := fmt.Sprintf("search_vector @@ %s", queryExpr)
 
 	fields := make([]string, 0, len(fieldBoosts))
 	for _, fb := range fieldBoosts {
-		fields = append(fields, fb.Field)
+		fields = append(fields, string(fb.Field))
 	}
 	labels := buildWeightLabels(fields)
 	if labels == "" || labels == "ABCD" {

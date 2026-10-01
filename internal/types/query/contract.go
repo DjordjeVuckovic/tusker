@@ -3,6 +3,7 @@ package query
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -21,15 +22,16 @@ const (
 )
 
 // SearchableFields is the allow-list of fields every engine indexes for full-text search.
-var SearchableFields = []Field{FieldTitle, FieldSubtitle, FieldDescription, FieldContent, FieldAuthor}
+func SearchableFields() []Field {
+	return []Field{FieldTitle, FieldSubtitle, FieldDescription, FieldContent, FieldAuthor}
+}
 
 func ParseField(s string) (Field, error) {
-	for _, field := range SearchableFields {
-		if Field(s) == field {
-			return field, nil
-		}
+	searchable := SearchableFields()
+	if !slices.Contains(searchable, Field(s)) {
+		return "", fmt.Errorf("unsupported field: %q (must be one of %v)", s, searchable)
 	}
-	return "", fmt.Errorf("unsupported field: %q (must be one of %v)", s, SearchableFields)
+	return Field(s), nil
 }
 
 type FieldWeight struct {
