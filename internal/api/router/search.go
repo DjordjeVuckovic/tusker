@@ -103,7 +103,7 @@ func (r *SearchRouter) capabilitiesHandler(c echo.Context) error {
 // @Param q query string true "SearchStringQuery query text" example("climate change")
 // @Param size query int false "Results per page (default: 100, max: 10000)" example(10)
 // @Param cursor query string false "Pagination cursor (base64-encoded from previous response)"
-// @Param lang query string false "SearchStringQuery language: english, serbian (default: english)" example("english")
+// @Param lang query string false "SearchStringQuery language: english, the only one supported (default: english)" example("english")
 // @Success 200 {object} dto.SearchResponse "SearchStringQuery results with pagination metadata"
 // @Failure 400 {object} map[string]string "Bad request - missing or invalid parameters"
 // @Failure 500 {object} map[string]string "Internal server error"

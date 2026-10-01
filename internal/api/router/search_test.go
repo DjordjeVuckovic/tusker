@@ -39,6 +39,12 @@ func (stubFtsSearcher) SearchBoolean(context.Context, *dquery.Boolean, *dquery.B
 	return &storage.SearchResult{}, nil
 }
 
+type stubHybridSearcher struct{}
+
+func (stubHybridSearcher) SearchHybrid(context.Context, *dquery.Hybrid, *dquery.BaseOptions) (*storage.SearchResult, error) {
+	return &storage.SearchResult{}, nil
+}
+
 func TestStructuredSearchHandlerValidation(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -105,6 +111,41 @@ func TestStructuredSearchHandlerValidation(t *testing.T) {
 			body:     `{"query":{"match":{"field":"title","query":"climate","operator":"not"}}}`,
 			wantCode: http.StatusBadRequest,
 		},
+		{
+			name:     "match in english",
+			body:     `{"query":{"match":{"field":"title","query":"climate","language":"english"}}}`,
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "match in serbian",
+			body:     `{"query":{"match":{"field":"title","query":"klima","language":"serbian"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "multi_match in serbian",
+			body:     `{"query":{"multi_match":{"fields":["title"],"query":"klima","language":"serbian"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "phrase in serbian",
+			body:     `{"query":{"phrase":{"fields":["title"],"query":"klimatske promene","language":"serbian"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "boolean in serbian",
+			body:     `{"query":{"boolean":{"expression":"klima AND promene","language":"serbian"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "hybrid in english",
+			body:     `{"query":{"hybrid":{"query":"climate","language":"english"}}}`,
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "hybrid in serbian",
+			body:     `{"query":{"hybrid":{"query":"klima","language":"serbian"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
 	}
 
 	for _, tt := range tests {
@@ -113,7 +154,7 @@ func TestStructuredSearchHandlerValidation(t *testing.T) {
 			(&apiserver.Server{Echo: e}).SetupValidator()
 			e.HTTPErrorHandler = apperr.GlobalErrorHandler()
 
-			r := &SearchRouter{e: e, searcher: stubFtsSearcher{}}
+			r := &SearchRouter{e: e, searcher: stubFtsSearcher{}, hybridSearcher: stubHybridSearcher{}}
 			r.Bind()
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/articles/_search", strings.NewReader(tt.body))
@@ -182,7 +223,8 @@ func TestSearchHandlerValidation(t *testing.T) {
 	}{
 		{name: "query only", target: "/v1/articles/search?q=climate", wantCode: http.StatusOK},
 		{name: "legacy query parameter", target: "/v1/articles/search?query=climate", wantCode: http.StatusOK},
-		{name: "supported language", target: "/v1/articles/search?q=climate&lang=serbian", wantCode: http.StatusOK},
+		{name: "english", target: "/v1/articles/search?q=climate&lang=english", wantCode: http.StatusOK},
+		{name: "serbian is not supported yet", target: "/v1/articles/search?q=klima&lang=serbian", wantCode: http.StatusBadRequest},
 		{name: "unsupported language", target: "/v1/articles/search?q=climate&lang=klingon", wantCode: http.StatusBadRequest},
 		{name: "missing query", target: "/v1/articles/search", wantCode: http.StatusBadRequest},
 	}
