@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "provenance": {
+    "run_id": "2026-09-30T11-00-00-run-bbbbbb",
+    "tool": "bench test",
+    "generated_at": "2026-09-30T10:00:00Z",
+    "spec_id": "cc-news-fts"
+  },
+  "environment": {
+    "engines": {
+      "pg-native": {
+        "type": "postgres",
+        "connection": "postgresql://localhost:54320/news_db",
+        "version": "18.0 (Debian 18.0-1.pgdg13+3)",
+        "index": {
+          "postgres": {
+            "server_version": "18.0 (Debian 18.0-1.pgdg13+3)",
+            "extensions": [
+              {
+                "name": "fuzzystrmatch",
+                "version": "1.2"
+              },
+              {
+                "name": "pg_trgm",
+                "version": "1.6"
+              },
+              {
+                "name": "vector",
+                "version": "0.8.1"
+              }
+            ],
+            "indexes": [
+              {
+                "table": "article_embeddings",
+                "name": "idx_article_embedding",
+                "definition": "CREATE INDEX idx_article_embedding ON public.article_embeddings USING hnsw (embedding vector_cosine_ops) WITH (m='16', ef_construction='64')",
+                "reloptions": [
+                  "m=16",
+                  "ef_construction=64"
+                ]
+              },
+              {
+                "table": "articles",
+                "name": "articles_pkey",
+                "definition": "CREATE UNIQUE INDEX articles_pkey ON public.articles USING btree (id)"
+              }
+            ],
+            "settings": {
+              "hnsw.ef_search": "200",
+              "plan_cache_mode": "force_custom_plan"
+            }
+          }
+        }
+      },
+      "es": {
+        "type": "elasticsearch",
+        "connection": "http://localhost:9200",
+        "version": "8.15.0",
+        "index": {
+          "elasticsearch": {
+            "version": "8.15.0",
+            "index": "news-cc-000001",
+            "analysis": {
+              "analyzer": {
+                "multilingual_analyzer": {
+                  "type": "custom",
+                  "tokenizer": "standard",
+                  "filter": [
+                    "lowercase",
+                    "postgres_english_stop"
+                  ]
+                }
+              },
+              "filter": {
+                "postgres_english_stop": {
+                  "type": "stop",
+                  "stopwords": [
+                    "a",
+                    "an",
+                    "the",
+                    "postgresenglishstopword"
+                  ]
+                }
+              }
+            },
+            "fields": {
+              "title": {
+                "type": "text",
+                "analyzer": "multilingual_analyzer"
+              },
+              "content": {
+                "type": "text",
+                "analyzer": "multilingual_analyzer"
+              },
+              "embedding": {
+                "type": "dense_vector",
+                "dims": 1024,
+                "similarity": "cosine",
+                "vector_index_options": {
+                  "type": "hnsw",
+                  "m": 16,
+                  "ef_construction": 64
+                }
+              }
+            }
+          }
+        }
+      },
+      "api": {
+        "type": "api",
+        "connection": "http://localhost:8080",
+        "index": {
+          "error": "engine cannot describe its index"
+        }
+      }
+    },
+    "platform": {
+      "go_version": "go1.25",
+      "os": "darwin",
+      "arch": "arm64",
+      "num_cpu": 8
+    }
+  },
+  "jobs": [
+    {
+      "JobName": "fts",
+      "Aggregated": [
+        {
+          "EngineName": "pg-native",
+          "NDCG": {
+            "10": 0.61
+          },
+          "MAP": 0.5,
+          "MRR": 0.7,
+          "QueryCount": 2,
+          "JudgedCount": 2
+        },
+        {
+          "EngineName": "es",
+          "NDCG": {
+            "10": 0.58
+          },
+          "MAP": 0.48,
+          "MRR": 0.66,
+          "QueryCount": 2,
+          "JudgedCount": 2
+        }
+      ],
+      "PerQuery": []
+    }
+  ],
+  "config": {
+    "KValues": [
+      10
+    ],
+    "RelevanceThreshold": 1
+  }
+}
