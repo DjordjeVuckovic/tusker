@@ -88,9 +88,18 @@ func checkEngineQuery(eq *EngineQuery, registry *TemplateRegistry) error {
 		}
 	}
 	if eq.Template == "" && eq.File == "" {
-		return checkArgsCoverStatement(eq.Query, eq.Args)
+		return checkStatementOutsideTemplate(eq.Query, eq.Args)
 	}
 	return nil
+}
+
+// checkStatementOutsideTemplate rejects Mustache in an inline or file query:
+// only suite templates run as search templates, so nothing would render it.
+func checkStatementOutsideTemplate(statement string, args []string) error {
+	if names := mustacheNames(statement); len(names) > 0 {
+		return fmt.Errorf("reads %v, but only a suite template is rendered as a search template", names)
+	}
+	return checkArgsFitStatement(statement, args)
 }
 
 func (ls *LoadedSuite) checkFileQueries() error {
@@ -103,7 +112,7 @@ func (ls *LoadedSuite) checkFileQueries() error {
 			if err != nil {
 				return fmt.Errorf("query %q engine %q: %w", q.ID, engName, err)
 			}
-			if err := checkArgsCoverStatement(statement, args); err != nil {
+			if err := checkStatementOutsideTemplate(statement, args); err != nil {
 				return fmt.Errorf("query %q engine %q file %q: %w", q.ID, engName, eq.File, err)
 			}
 		}

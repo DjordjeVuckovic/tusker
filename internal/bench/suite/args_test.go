@@ -217,6 +217,44 @@ queries:
 `,
 			wantErr: []string{"q1", "pg", QueryVectorArg},
 		},
+		{
+			name: "search template reads a name its args leave out",
+			suite: `templates:
+  - id: es_hybrid
+    args: [terms]
+    query: '{"query": {"match": {"title": "{{terms}}"}}, "knn": {"query_vector": {{#toJson}}query_vector{{/toJson}}}}'
+queries:
+  - id: q1
+    engines:
+      es: { template: es_hybrid, params: { terms: climate } }
+`,
+			wantErr: []string{"es_hybrid", QueryVectorArg},
+		},
+		{
+			name: "search template args name a param the source never reads",
+			suite: `templates:
+  - id: es_match
+    args: [terms, size]
+    query: '{"query": {"match": {"title": "{{terms}}"}}}'
+queries:
+  - id: q1
+    engines:
+      es: { template: es_match, params: { terms: climate, size: 10 } }
+`,
+			wantErr: []string{"es_match", "size"},
+		},
+		{
+			name: "inline block reads a mustache name nothing renders",
+			suite: `queries:
+  - id: q1
+    engines:
+      es:
+        query: '{"query": {"match": {"title": "{{terms}}"}}}'
+        args: [terms]
+        params: { terms: climate }
+`,
+			wantErr: []string{"q1", "es", "terms"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -229,6 +267,26 @@ queries:
 			}
 		})
 	}
+}
+
+func TestParse_AcceptsSearchTemplateWhoseArgsMatchItsNames(t *testing.T) {
+	_, err := Parse([]byte(validHeader + `templates:
+  - id: es_hybrid
+    args: [terms, query_vector, size, fields]
+    query: |
+      {
+        "query": {"multi_match": {"query": "{{terms}}", "fields": {{#toJson}}fields{{/toJson}}}},
+        "knn": {"field": "embedding", "query_vector": {{#toJson}}query_vector{{/toJson}}},
+        {{#size}}"size": {{{size}}},{{/size}}
+        "_source": false
+      }
+queries:
+  - id: q1
+    engines:
+      es: { template: es_hybrid, params: { terms: climate, size: 50, fields: [title] } }
+`))
+
+	require.NoError(t, err)
 }
 
 func TestLoadFromFile_RejectsFileQueryWhoseArgsStopShort(t *testing.T) {

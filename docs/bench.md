@@ -146,9 +146,8 @@ backslashes in the value, so `Ukraine's voters don't trust the "election"` arriv
 `{{#toJson}}…{{/toJson}}` for the query vector, which has to arrive as an array. On a string
 it renders the text without quotes and breaks the body.
 
-`args` lists the params the template reads; their order does not matter here. Mustache renders
-a name it is not given as empty text, so a name the source uses but `args` leaves out goes
-unnoticed. Keep the two in step.
+`args` lists the params the template reads, in any order. Mustache renders a name it is not
+given as empty text, so a suite fails to load when `args` and the names in the source differ.
 
 An inline Elasticsearch block that is plain Query DSL with no params runs through `_search`
 as written. API blocks are unchanged: the descriptor's `params` carry the values.
