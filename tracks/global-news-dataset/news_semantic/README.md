@@ -54,7 +54,7 @@ python scripts/embed_corpus.py \
   --pg "postgresql://news_user:news_password@localhost:54320/news_db"
 ```
 
-The `{{precomputed}}` placeholder in SQL/JSON queries is replaced by the float array from `query_embeddings.json` at run time by the bench executor.
+Templates that list the reserved `query_vector` arg get the query's embedding bound at run time.
 
 ## Pipeline
 

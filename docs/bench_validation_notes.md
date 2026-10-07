@@ -53,10 +53,9 @@ keys are free-form labels — verified working.
   with a `knn` clause to a structural check (`validateKnnBody`), since
   `_validate/query` rejects `knn` outright. All 10 semantic ES rows now pass
   (were `INVALID`); hybrid ES still validates its `query` block too.
-- **`{{precomputed}}` query-vector injection** — a storage-agnostic
+- **Query-vector binding** — a storage-agnostic
   `storage.VectorStore` (PG impl now, ES stubbed) embeds the query at run time;
-  `pool`/`run` inject it via the reserved `precomputed` param (renderer now
-  resolves param-introduced placeholders). The `vector`/`hybrid` judges read
+  `pool`/`run` bind it as the reserved `query_vector` arg. The `vector`/`hybrid` judges read
   document vectors from the same store instead of re-embedding. Semantic/hybrid
   PG rows now reach EXPLAIN, exposing the real schema blocker below.
 
