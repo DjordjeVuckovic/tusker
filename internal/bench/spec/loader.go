@@ -68,12 +68,6 @@ func Parse(data []byte) (*BenchSpec, error) {
 	return &s, nil
 }
 
-var validEngineTypes = map[string]bool{
-	"postgres":      true,
-	"elasticsearch": true,
-	"api":           true,
-}
-
 func validate(s *BenchSpec) error {
 	if err := version.CheckSchema(s.SchemaVersion, "spec"); err != nil {
 		return err
@@ -114,7 +108,7 @@ func validate(s *BenchSpec) error {
 		if eng.Type == "" {
 			return fmt.Errorf("engine %q has no type", name)
 		}
-		if !validEngineTypes[eng.Type] {
+		if !eng.Type.Valid() {
 			return fmt.Errorf("engine %q has invalid type %q", name, eng.Type)
 		}
 		if eng.Connection == "" {

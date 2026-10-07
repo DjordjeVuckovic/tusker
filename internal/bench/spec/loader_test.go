@@ -132,7 +132,7 @@ jobs:
 `
 		s, err := Parse([]byte(yaml))
 		require.NoError(t, err)
-		assert.Equal(t, "api", s.Engines["api"].Type)
+		assert.Equal(t, EngineAPI, s.Engines["api"].Type)
 		assert.Equal(t, "http://localhost:8080", s.Engines["api"].Connection)
 	})
 }

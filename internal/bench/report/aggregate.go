@@ -34,7 +34,7 @@ func Generate(br *runner.BenchmarkResult, opts *GenerateOptions) *Report {
 		if opts.Spec != nil {
 			for name, eng := range opts.Spec.Engines {
 				r.Environment.Engines[name] = EngineInfo{
-					Type:       eng.Type,
+					Type:       string(eng.Type),
 					Connection: maskConnection(eng.Connection),
 				}
 			}

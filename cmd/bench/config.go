@@ -39,7 +39,7 @@ func buildQueryVectorStore(ctx context.Context, bs *spec.BenchSpec) (storage.Vec
 	}
 	var pgConn string
 	for _, eng := range bs.Engines {
-		if eng.Type == "postgres" {
+		if eng.Type == spec.EnginePostgres {
 			pgConn = eng.Connection
 			break
 		}

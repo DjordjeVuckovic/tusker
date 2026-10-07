@@ -64,10 +64,28 @@ type Job struct {
 	Engines []string `yaml:"engines"`
 }
 
+// EngineType is the kind of system an engine runs queries against.
+type EngineType string
+
+const (
+	EnginePostgres      EngineType = "postgres"
+	EngineElasticsearch EngineType = "elasticsearch"
+	EngineAPI           EngineType = "api"
+)
+
+func (t EngineType) Valid() bool {
+	switch t {
+	case EnginePostgres, EngineElasticsearch, EngineAPI:
+		return true
+	default:
+		return false
+	}
+}
+
 type Engine struct {
-	Type       string `yaml:"type"`
-	Connection string `yaml:"connection"`
-	Index      string `yaml:"index,omitempty"`
+	Type       EngineType `yaml:"type"`
+	Connection string     `yaml:"connection"`
+	Index      string     `yaml:"index,omitempty"`
 	// ConnectionSettings are GUCs pinning the operating point a postgres engine
 	// is measured at, e.g. hnsw.ef_search. See docs/bench.md.
 	ConnectionSettings map[string]string `yaml:"connection_settings,omitempty"`
