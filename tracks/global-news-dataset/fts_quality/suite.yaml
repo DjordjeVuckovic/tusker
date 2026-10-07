@@ -92,12 +92,19 @@ templates:
       LIMIT $2::int
 
   # --- ParadeDB BM25 templates (pdb.* operators) ---
-  # pdb_multi_field: single Tantivy scan across all indexed fields via key_field
+  # pdb_multi_field: single Tantivy scan across all indexed text fields via key_field
   - id: pdb_multi_field
     args: [terms, limit]
     query: |
       SELECT id FROM articles
-      WHERE id @@@ paradedb.parse($1)
+      WHERE id @@@ paradedb.boolean(
+        should => ARRAY[
+          paradedb.match('title', $1),
+          paradedb.match('subtitle', $1),
+          paradedb.match('description', $1),
+          paradedb.match('content', $1)
+        ]
+      )
       ORDER BY pdb.score(id) DESC
       LIMIT $2::int
 

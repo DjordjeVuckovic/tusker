@@ -162,7 +162,8 @@ A bound value still reaches the engine's own query language wherever a function 
 query syntax. `to_tsquery` rejects input its syntax doesn't allow, such as a stray double quote
 inside a phrase. ParadeDB's `field @@@ $1` and `paradedb.parse($1)` fail on an apostrophe, so
 ParadeDB templates take text through `paradedb.match('<field>', $1)`, which tokenizes it as
-plain text.
+plain text. A phrase wrapped in quotes for `paradedb.parse` takes an apostrophe but not a
+double quote.
 
 Binding changes how Postgres plans the query. Every query that uses a template shares one
 prepared statement per connection, and after five executions the planner may switch it to a

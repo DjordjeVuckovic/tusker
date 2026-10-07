@@ -68,7 +68,13 @@ templates:
       WITH bm25_ranked AS (
         SELECT id, ROW_NUMBER() OVER (ORDER BY pdb.score(id) DESC) AS rank
         FROM articles
-        WHERE title @@@ $1 OR description @@@ $1 OR content @@@ $1
+        WHERE id @@@ paradedb.boolean(
+          should => ARRAY[
+            paradedb.match('title', $1),
+            paradedb.match('description', $1),
+            paradedb.match('content', $1)
+          ]
+        )
         ORDER BY pdb.score(id) DESC
         LIMIT $4::int
       ),
