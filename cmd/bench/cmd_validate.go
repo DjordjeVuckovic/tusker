@@ -7,6 +7,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/dialect"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
@@ -102,6 +103,10 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 	if err != nil {
 		return err
 	}
+	dialects, err := runner.Dialects(bs)
+	if err != nil {
+		return err
+	}
 	if err := runner.RegisterSearchTemplates(cmd.Context(), runner.TemplateRegistration{
 		Spec: bs, Suites: suites, Executors: executors,
 	}); err != nil {
@@ -133,6 +138,7 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 					loaded:     ls,
 					executor:   executors[engName],
 					store:      vectorStore,
+					dialect:    dialects[engName],
 				})
 				if err := cmd.Context().Err(); err != nil {
 					return err
@@ -173,6 +179,7 @@ type validateInput struct {
 	loaded     *suite.LoadedSuite
 	executor   engine.Executor
 	store      storage.VectorStore
+	dialect    dialect.Dialect
 }
 
 func validateOne(ctx context.Context, in validateInput) validateRow {
@@ -221,7 +228,7 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 		row.detail = "executor does not implement Validator"
 		return row
 	}
-	if err := v.Validate(ctx, runner.EngineRequest(exec, in.track, resolved)); err != nil {
+	if err := v.Validate(ctx, in.dialect.Request(in.track, resolved)); err != nil {
 		row.status = "INVALID"
 		row.detail = truncate(err.Error(), 120)
 		return row

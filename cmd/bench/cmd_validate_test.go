@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/dialect"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
@@ -115,6 +116,7 @@ queries:
 		binding:    spec.QueryBinding{QuerySource: "pg", Params: map[string]any{"rank_norm": "1"}},
 		loaded:     loaded,
 		executor:   validator,
+		dialect:    dialect.Positional{},
 	})
 
 	require.Equal(t, "OK", row.status, row.detail)

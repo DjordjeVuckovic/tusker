@@ -87,7 +87,10 @@ the graph and is therefore a new run.
 ### Query templates
 
 A suite query reaches each engine through that engine's own parameter mechanism. The bench
-routes values to it and never edits query text.
+routes values to it and never edits query text. Each engine type has one dialect, the syntax
+its blocks are written in: `postgres` is positional (`$1 … $n`), `elasticsearch` is Mustache,
+and `api` is literal. `validate`, `pool` and `run` check every block a job engine runs against
+its dialect before any query runs, and a template read by engines of two dialects fails too.
 
 **Postgres.** A template is plain SQL with `$1 … $n`, as in a prepared statement, plus an
 `args` list naming the param behind each position:
@@ -111,16 +114,18 @@ queries:
 
 The bench builds the arguments in `args` order from the query's params, the engine's params
 and the run's query vector. Every value is sent as text, so the SQL casts where it needs
-another type (`$3::int`). The statement reads as it runs and can be pasted into psql:
+another type (`$3::int`); a `null` param binds as SQL NULL, and a list or map param is
+rejected because a placeholder binds one value. The statement reads as it runs and can be pasted into psql:
 `PREPARE q AS …; EXECUTE q('climate change', 0, 100);`. An inline or `file:` Postgres query
 follows the same rule, with `args` beside `query`, or is fully literal SQL with no params.
 
 Postgres binds values, not identifiers, so a shape that differs by a column, a field list or a
 function name is its own template rather than a param.
 
-A suite fails to load when `args` stops short of the statement's highest `$N`, or when a query
-gives a param that none of its args uses. Once the spec is read, `validate`, `pool` and `run`
-also fail before any query runs when no layer supplies an arg an engine's queries take.
+`args` must name exactly `$1 … $n`: a statement that uses more placeholders than `args`
+names, fewer, or skips one fails the check. A suite fails to load when a query gives a param
+that none of its args uses, and the check also fails when no layer supplies an arg an
+engine's queries take.
 
 **Elasticsearch.** A template is the Mustache source of a native search template:
 
@@ -147,10 +152,13 @@ backslashes in the value, so `Ukraine's voters don't trust the "election"` arriv
 it renders the text without quotes and breaks the body.
 
 `args` lists the params the template reads, in any order. Mustache renders a name it is not
-given as empty text, so a suite fails to load when `args` and the names in the source differ.
+given as empty text, so the check fails when the source reads a name outside every section
+that `args` leaves out, or when `args` names one the source never reads. A name inside a
+section may be a field of each list element, so it need not be an arg.
 
-An inline Elasticsearch block that is plain Query DSL with no params runs through `_search`
-as written. API blocks are unchanged: the descriptor's `params` carry the values.
+An inline or `file:` Elasticsearch block is plain Query DSL, runs through `_search` as written
+and takes no args or `{{…}}` names. An API block is a literal request descriptor the same way:
+the values are typed into it, and it takes no args or `{{…}}` names.
 
 **The query vector.** `query_vector` is a reserved arg. The run embeds the query and fills it,
 as pgvector text for Postgres (`$2::vector`) and as a float array for a search template. A

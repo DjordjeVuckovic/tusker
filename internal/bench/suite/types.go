@@ -84,8 +84,8 @@ type ResolveOptions struct {
 	QueryVector []float32
 }
 
-// Resolve reads the engine's statement and builds its $N args from the query's
-// params, the engine defaults and the query vector.
+// Resolve reads the engine's statement and looks up each of its args in the
+// query's params, the engine defaults and the query vector.
 func (eq *EngineQuery) Resolve(opts ResolveOptions) (*ResolvedQuery, error) {
 	params := mergeParams(opts.Defaults, eq.Params)
 	if opts.QueryVector != nil {
@@ -95,7 +95,7 @@ func (eq *EngineQuery) Resolve(opts ResolveOptions) (*ResolvedQuery, error) {
 	if err != nil {
 		return nil, err
 	}
-	args, err := positionalArgs(argNames, params)
+	args, err := valuesInOrder(argNames, params)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func mergeParams(layers ...TemplateParams) TemplateParams {
 
 type ResolvedQuery struct {
 	Query string
-	// Args are the values behind the query's $N placeholders, in order.
+	// Args are the param values the statement's args name, in order.
 	Args []any
 	// Template is the suite template the query came from, empty for an inline
 	// or file query.

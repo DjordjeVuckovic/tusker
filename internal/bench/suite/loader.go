@@ -27,9 +27,6 @@ func LoadFromFile(path string) (*LoadedSuite, error) {
 		return nil, err
 	}
 	loaded.Dir = filepath.Dir(path)
-	if err := loaded.checkFileQueries(); err != nil {
-		return nil, err
-	}
 	return loaded, nil
 }
 
@@ -87,37 +84,43 @@ func checkEngineQuery(eq *EngineQuery, registry *TemplateRegistry) error {
 			return fmt.Errorf("param %q is not one of the args %v", name, args)
 		}
 	}
-	if eq.Template == "" && eq.File == "" {
-		return checkStatementOutsideTemplate(eq.Query, eq.Args)
-	}
 	return nil
 }
 
-// checkStatementOutsideTemplate rejects Mustache in an inline or file query:
-// only suite templates run as search templates, so nothing would render it.
-func checkStatementOutsideTemplate(statement string, args []string) error {
-	if names := mustacheNames(statement); len(names) > 0 {
-		return fmt.Errorf("reads %v, but only a suite template is rendered as a search template", names)
-	}
-	return checkArgsFitStatement(statement, args)
+// Block is one engine's statement for one query, with the params it runs with
+// before the run adds the query vector.
+type Block struct {
+	QueryID   string
+	Statement string
+	Args      []string
+	// Template is the suite template the statement comes from, empty for an
+	// inline or file query.
+	Template string
+	Params   TemplateParams
 }
 
-func (ls *LoadedSuite) checkFileQueries() error {
+// Blocks reads the statement of every query engine has a block in, with the
+// engine defaults under the query's own params.
+func (ls *LoadedSuite) Blocks(engine string, defaults TemplateParams) ([]Block, error) {
+	var blocks []Block
 	for _, q := range ls.Suite.Queries {
-		for engName, eq := range q.Engines {
-			if eq.File == "" {
-				continue
-			}
-			statement, args, err := eq.statement(ls.Registry, ls.Dir)
-			if err != nil {
-				return fmt.Errorf("query %q engine %q: %w", q.ID, engName, err)
-			}
-			if err := checkStatementOutsideTemplate(statement, args); err != nil {
-				return fmt.Errorf("query %q engine %q file %q: %w", q.ID, engName, eq.File, err)
-			}
+		eq, ok := q.Engines[engine]
+		if !ok {
+			continue
 		}
+		statement, args, err := eq.statement(ls.Registry, ls.Dir)
+		if err != nil {
+			return nil, fmt.Errorf("query %q engine %q: %w", q.ID, engine, err)
+		}
+		blocks = append(blocks, Block{
+			QueryID:   q.ID,
+			Statement: statement,
+			Args:      args,
+			Template:  eq.Template,
+			Params:    mergeParams(defaults, eq.Params),
+		})
 	}
-	return nil
+	return blocks, nil
 }
 
 // CheckArgsSupplied verifies that every arg of every block engine reads is

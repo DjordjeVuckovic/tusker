@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/dialect"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
@@ -43,6 +44,10 @@ func (r *Runner) RunAll(
 	if err := RegisterSearchTemplates(ctx, TemplateRegistration{Spec: bs, Suites: suites, Executors: executors}); err != nil {
 		return nil, err
 	}
+	dialects, err := Dialects(bs)
+	if err != nil {
+		return nil, err
+	}
 	bindings := queryBindings(bs)
 
 	for _, job := range bs.Jobs {
@@ -52,6 +57,7 @@ func (r *Runner) RunAll(
 			Suite:     suites[job.Suite],
 			Executors: executors,
 			Bindings:  bindings,
+			Dialects:  dialects,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("run job %q: %w", job.Name, err)
@@ -94,11 +100,29 @@ func queryBindings(bs *spec.BenchSpec) map[string]spec.QueryBinding {
 	return bindings
 }
 
-// LoadSuites loads every job's suite once and checks that each job engine is
-// given every arg its queries take, so a broken binding fails before any query
-// runs rather than partway through the jobs.
+// Dialects maps each declared engine to the syntax its type reads params in.
+func Dialects(bs *spec.BenchSpec) (map[string]dialect.Dialect, error) {
+	dialects := make(map[string]dialect.Dialect, len(bs.Engines))
+	for name, eng := range bs.Engines {
+		d, err := dialect.For(eng.Type)
+		if err != nil {
+			return nil, fmt.Errorf("engine %q: %w", name, err)
+		}
+		dialects[name] = d
+	}
+	return dialects, nil
+}
+
+// LoadSuites loads every job's suite once and checks each job engine's blocks
+// against its dialect and that every arg they take is supplied, so a broken
+// binding fails before any query runs rather than partway through the jobs.
 func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
+	dialects, err := Dialects(bs)
+	if err != nil {
+		return nil, err
+	}
 	suites := map[string]*suite.LoadedSuite{}
+	templateReaders := map[templateInSuite]engineDialect{}
 	for _, job := range bs.Jobs {
 		loaded, ok := suites[job.Suite]
 		if !ok {
@@ -114,9 +138,41 @@ func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
 			if err := loaded.CheckArgsSupplied(binding.QuerySource, binding.Params); err != nil {
 				return nil, fmt.Errorf("job %q engine %q: %w", job.Name, engName, err)
 			}
+			reader := engineDialect{engine: engName, dialect: dialects[engName]}
+			if reader.dialect == nil {
+				return nil, fmt.Errorf("job %q engine %q is not declared", job.Name, engName)
+			}
+			blocks, err := loaded.Blocks(binding.QuerySource, binding.Params)
+			if err != nil {
+				return nil, fmt.Errorf("job %q engine %q: %w", job.Name, engName, err)
+			}
+			for _, block := range blocks {
+				if err := reader.dialect.Check(block); err != nil {
+					return nil, fmt.Errorf("job %q engine %q query %q: %w", job.Name, engName, block.QueryID, err)
+				}
+				if block.Template == "" {
+					continue
+				}
+				key := templateInSuite{suite: job.Suite, template: block.Template}
+				if prev, seen := templateReaders[key]; seen && prev.dialect.Name() != reader.dialect.Name() {
+					return nil, fmt.Errorf("template %q is read by engine %q as %s and by engine %q as %s",
+						block.Template, prev.engine, prev.dialect.Name(), engName, reader.dialect.Name())
+				}
+				templateReaders[key] = reader
+			}
 		}
 	}
 	return suites, nil
+}
+
+type templateInSuite struct {
+	suite    string
+	template string
+}
+
+type engineDialect struct {
+	engine  string
+	dialect dialect.Dialect
 }
 
 // TemplateRegistration is a loaded track whose search templates are to be
@@ -133,17 +189,29 @@ type templateOnEngine struct {
 }
 
 // RegisterSearchTemplates stores each suite template a job engine's queries
-// use on that engine, when it renders templates itself. It fails before
-// storing anything when two different templates would share a stored id.
+// use on that engine, when its dialect renders templates on the engine. It
+// fails before storing anything when such an engine cannot store templates or
+// two different templates would share a stored id.
 func RegisterSearchTemplates(ctx context.Context, reg TemplateRegistration) error {
+	dialects, err := Dialects(reg.Spec)
+	if err != nil {
+		return err
+	}
 	var pending []templateOnEngine
 	sourceByID := map[string]string{}
 	queued := map[templateOnEngine]bool{}
 	for _, job := range reg.Spec.Jobs {
 		ls := reg.Suites[job.Suite]
 		for _, engName := range job.Engines {
-			if _, stores := reg.Executors[engName].(engine.SearchTemplateRegistrar); !stores {
+			if d := dialects[engName]; d == nil || !d.StoresTemplates() {
 				continue
+			}
+			exec, ok := reg.Executors[engName]
+			if !ok {
+				continue
+			}
+			if _, stores := exec.(engine.SearchTemplateRegistrar); !stores {
+				return fmt.Errorf("engine %q reads %s templates but its executor cannot store them", engName, dialects[engName].Name())
 			}
 			source := reg.Spec.QueryBinding(engName).QuerySource
 			for _, q := range ls.Suite.Queries {
@@ -179,17 +247,6 @@ func RegisterSearchTemplates(ctx context.Context, reg TemplateRegistration) erro
 	return nil
 }
 
-// EngineRequest is how exec receives a resolved query. An engine that stores
-// search templates runs a template query by its stored id and params.
-func EngineRequest(exec engine.Executor, track string, resolved *suite.ResolvedQuery) engine.Request {
-	req := engine.Request{Query: resolved.Query, Args: resolved.Args}
-	if _, stores := exec.(engine.SearchTemplateRegistrar); stores && resolved.Template != "" {
-		req.SearchTemplateID = engine.SearchTemplateID(track, resolved.Template)
-		req.Params = resolved.Params
-	}
-	return req
-}
-
 // JobRequest is everything one job needs to run: its declaration, the loaded
 // suite, the executors to drive, and how each engine reaches its queries.
 type JobRequest struct {
@@ -199,6 +256,7 @@ type JobRequest struct {
 	Suite     *suite.LoadedSuite
 	Executors map[string]engine.Executor
 	Bindings  map[string]spec.QueryBinding
+	Dialects  map[string]dialect.Dialect
 }
 
 func (r *Runner) RunJob(ctx context.Context, req JobRequest) (*JobResult, error) {
@@ -327,7 +385,7 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				return
 			}
 
-			result := r.executeWithRetries(ctx, exec, EngineRequest(exec, req.Track, resolved), r.config.WarmupRuns, r.config.Runs)
+			result := r.executeWithRetries(ctx, exec, req.Dialects[engName].Request(req.Track, resolved), r.config.WarmupRuns, r.config.Runs)
 
 			var scores metrics.ScoreSet
 			if result.err == nil && len(judgments) > 0 {

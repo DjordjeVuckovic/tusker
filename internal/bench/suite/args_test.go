@@ -1,42 +1,11 @@
 package suite
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestResolveEngineQuery_BuildsArgsInDeclaredOrder(t *testing.T) {
-	loaded, err := Parse([]byte(validHeader + `templates:
-  - id: pg_idx
-    args: [limit, terms, rank_norm]
-    query: |
-      SELECT id FROM articles
-      WHERE search_vector @@ plainto_tsquery('english', $2)
-      ORDER BY ts_rank(search_vector, plainto_tsquery('english', $2), $3::int) DESC
-      LIMIT $1::int
-queries:
-  - id: qs-climate
-    engines:
-      pg-gin:
-        template: pg_idx
-        params: { terms: "Ukraine's voters don't trust the \"election\"", limit: 100 }
-`))
-	require.NoError(t, err)
-
-	resolved, err := loaded.Suite.Queries[0].ResolveEngineQuery(ResolveOptions{
-		Engine:   "pg-gin",
-		Registry: loaded.Registry,
-		Defaults: TemplateParams{"rank_norm": "1"},
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, []any{"100", `Ukraine's voters don't trust the "election"`, "1"}, resolved.Args)
-	assert.Contains(t, resolved.Query, "plainto_tsquery('english', $2)", "the SQL reaches the engine as written")
-}
 
 func TestEngineQuery_Resolve_ParamPrecedence(t *testing.T) {
 	block := EngineQuery{
@@ -55,13 +24,13 @@ func TestEngineQuery_Resolve_ParamPrecedence(t *testing.T) {
 			name:     "engine defaults supply what the query omits",
 			defaults: TemplateParams{"rank_norm": "1"},
 			params:   TemplateParams{"terms": "climate", "limit": 10},
-			want:     []any{"climate", "1", "10"},
+			want:     []any{"climate", "1", 10},
 		},
 		{
 			name:     "query params win over engine defaults",
 			defaults: TemplateParams{"rank_norm": "1", "limit": 10},
 			params:   TemplateParams{"terms": "climate", "rank_norm": "0", "limit": 50},
-			want:     []any{"climate", "0", "50"},
+			want:     []any{"climate", "0", 50},
 		},
 		{
 			name:    "an arg no layer supplies is named in the error",
@@ -99,38 +68,8 @@ func TestEngineQuery_Resolve_PassesValuesThroughVerbatim(t *testing.T) {
 	resolved, err := eq.Resolve(ResolveOptions{})
 
 	require.NoError(t, err)
-	assert.Equal(t, []any{"{{limit}} $2", "5"}, resolved.Args)
+	assert.Equal(t, []any{"{{limit}} $2", 5}, resolved.Args)
 	assert.Equal(t, "SELECT id FROM articles WHERE title = $1 LIMIT $2::int", resolved.Query)
-}
-
-func TestEngineQuery_Resolve_PassesScalarsAsText(t *testing.T) {
-	tests := []struct {
-		yamlValue string
-		wantText  string
-	}{
-		{yamlValue: "2024", wantText: "2024"},
-		{yamlValue: "true", wantText: "true"},
-		{yamlValue: "1.5", wantText: "1.5"},
-		{yamlValue: "climate", wantText: "climate"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.yamlValue, func(t *testing.T) {
-			loaded, err := Parse([]byte(validHeader + `queries:
-  - id: q1
-    engines:
-      pg:
-        query: "SELECT id FROM articles WHERE title = $1"
-        args: [value]
-        params: { value: ` + tt.yamlValue + ` }
-`))
-			require.NoError(t, err)
-
-			resolved, err := loaded.Suite.Queries[0].ResolveEngineQuery(ResolveOptions{Engine: "pg"})
-
-			require.NoError(t, err)
-			assert.Equal(t, []any{tt.wantText}, resolved.Args)
-		})
-	}
 }
 
 func TestEngineQuery_Resolve_LeavesEngineDefaultsUnchanged(t *testing.T) {
@@ -144,7 +83,7 @@ func TestEngineQuery_Resolve_LeavesEngineDefaultsUnchanged(t *testing.T) {
 	resolved, err := eq.Resolve(ResolveOptions{Defaults: defaults, QueryVector: []float32{0.5}})
 
 	require.NoError(t, err)
-	assert.Equal(t, []any{"1", "5"}, resolved.Args)
+	assert.Equal(t, []any{"1", 5}, resolved.Args)
 	assert.Equal(t, TemplateParams{"rank_norm": "0"}, defaults,
 		"engine params are shared by every query the engine runs and must survive resolution")
 }
@@ -155,31 +94,6 @@ func TestParse_RejectsArgsThatDoNotFitTheStatement(t *testing.T) {
 		suite   string
 		wantErr []string
 	}{
-		{
-			name: "template args stop short of the highest placeholder",
-			suite: `templates:
-  - id: pg_idx
-    args: [terms]
-    query: "SELECT id FROM articles WHERE search_vector @@ plainto_tsquery($1) LIMIT $2::int"
-queries:
-  - id: q1
-    engines:
-      pg: { template: pg_idx, params: { terms: climate } }
-`,
-			wantErr: []string{"pg_idx", "$2"},
-		},
-		{
-			name: "inline args stop short of the highest placeholder",
-			suite: `queries:
-  - id: q1
-    engines:
-      pg:
-        query: "SELECT id FROM articles WHERE title = $1 OR description = $3"
-        args: [terms, terms]
-        params: { terms: climate }
-`,
-			wantErr: []string{"q1", "pg", "$3"},
-		},
 		{
 			name: "query gives a param its template takes no arg for",
 			suite: `templates:
@@ -217,44 +131,6 @@ queries:
 `,
 			wantErr: []string{"q1", "pg", QueryVectorArg},
 		},
-		{
-			name: "search template reads a name its args leave out",
-			suite: `templates:
-  - id: es_hybrid
-    args: [terms]
-    query: '{"query": {"match": {"title": "{{terms}}"}}, "knn": {"query_vector": {{#toJson}}query_vector{{/toJson}}}}'
-queries:
-  - id: q1
-    engines:
-      es: { template: es_hybrid, params: { terms: climate } }
-`,
-			wantErr: []string{"es_hybrid", QueryVectorArg},
-		},
-		{
-			name: "search template args name a param the source never reads",
-			suite: `templates:
-  - id: es_match
-    args: [terms, size]
-    query: '{"query": {"match": {"title": "{{terms}}"}}}'
-queries:
-  - id: q1
-    engines:
-      es: { template: es_match, params: { terms: climate, size: 10 } }
-`,
-			wantErr: []string{"es_match", "size"},
-		},
-		{
-			name: "inline block reads a mustache name nothing renders",
-			suite: `queries:
-  - id: q1
-    engines:
-      es:
-        query: '{"query": {"match": {"title": "{{terms}}"}}}'
-        args: [terms]
-        params: { terms: climate }
-`,
-			wantErr: []string{"q1", "es", "terms"},
-		},
 	}
 
 	for _, tt := range tests {
@@ -267,44 +143,6 @@ queries:
 			}
 		})
 	}
-}
-
-func TestParse_AcceptsSearchTemplateWhoseArgsMatchItsNames(t *testing.T) {
-	_, err := Parse([]byte(validHeader + `templates:
-  - id: es_hybrid
-    args: [terms, query_vector, size, fields]
-    query: |
-      {
-        "query": {"multi_match": {"query": "{{terms}}", "fields": {{#toJson}}fields{{/toJson}}}},
-        "knn": {"field": "embedding", "query_vector": {{#toJson}}query_vector{{/toJson}}},
-        {{#size}}"size": {{{size}}},{{/size}}
-        "_source": false
-      }
-queries:
-  - id: q1
-    engines:
-      es: { template: es_hybrid, params: { terms: climate, size: 50, fields: [title] } }
-`))
-
-	require.NoError(t, err)
-}
-
-func TestLoadFromFile_RejectsFileQueryWhoseArgsStopShort(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "search.sql"),
-		[]byte("SELECT id FROM articles WHERE title = $1 LIMIT $2::int"), 0o644))
-	suitePath := filepath.Join(dir, "suite.yaml")
-	require.NoError(t, os.WriteFile(suitePath, []byte(validHeader+`queries:
-  - id: q1
-    engines:
-      pg: { file: search.sql, args: [terms], params: { terms: climate } }
-`), 0o644))
-
-	_, err := LoadFromFile(suitePath)
-
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "search.sql")
-	assert.ErrorContains(t, err, "$2")
 }
 
 func TestLoadedSuite_CheckArgsSupplied(t *testing.T) {
@@ -371,7 +209,7 @@ queries:
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []any{"qwen3-embedding:0.6b", "[0.1,-0.25]", "50"}, resolved.Args)
+	assert.Equal(t, []any{"qwen3-embedding:0.6b", []float32{0.1, -0.25}, 50}, resolved.Args)
 }
 
 func TestResolveEngineQuery_QueryVectorArgWithoutVectorErrors(t *testing.T) {

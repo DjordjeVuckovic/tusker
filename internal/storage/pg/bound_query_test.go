@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/dialect"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
@@ -56,7 +57,7 @@ queries:
 	})
 	require.NoError(t, err)
 
-	asRun := engine.Request{Query: resolved.Query, Args: resolved.Args}
+	asRun := dialect.Positional{}.Request("bound", resolved)
 	got, err := exec.Execute(ctx, asRun)
 	require.NoError(t, err)
 	require.NoError(t, exec.Validate(ctx, asRun))
@@ -111,7 +112,7 @@ queries:
 	})
 	require.NoError(t, err)
 
-	got, err := exec.Execute(ctx, engine.Request{Query: resolved.Query, Args: resolved.Args})
+	got, err := exec.Execute(ctx, dialect.Positional{}.Request("vector", resolved))
 	require.NoError(t, err)
 
 	want, err := exec.Execute(ctx, engine.Request{Query: fmt.Sprintf(

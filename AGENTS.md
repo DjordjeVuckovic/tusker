@@ -131,6 +131,7 @@ TREC-style IR evaluation pipeline. Full docs: [docs/bench.md](docs/bench.md).
 - `trackctx/` — resolves track folder + all artifact paths; single source of truth for every subcommand
 - `spec/` — `BenchSpec` YAML: engines, jobs, metrics config, `defaults.judgments`
 - `suite/` — `TestSuite` YAML: queries, per-engine templates
+- `dialect/` — the syntax each engine type reads suite params in (postgres positional, elasticsearch Mustache, api literal): load-time block checks and the request each executor receives
 - `pool/` — TREC-style candidate pooling
 - `judgment/` — strategy taxonomy (lexical / claude-cli / claude-api / manual); batched grading; incremental writer
 - `runner/` — orchestration: warmup + measured iterations, per-query metrics
