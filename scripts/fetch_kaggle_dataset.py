@@ -3,15 +3,22 @@
 # requires-python = ">=3.11"
 # dependencies = ["kagglehub>=1.0"]
 # ///
-"""Fetch Kaggle datasets into datasets/<dir>/.
+"""Fetch Kaggle datasets into datasets/<dir>/raw/.
 
   uv run scripts/fetch_kaggle_dataset.py --list
   uv run scripts/fetch_kaggle_dataset.py global_news
+  uv run scripts/fetch_kaggle_dataset.py global_news --version 3
   uv run scripts/fetch_kaggle_dataset.py rmisra/news-category-dataset --force
 
 Kaggle serves whatever files the owner uploaded, so there is nothing to project
 or slice. That is why this is separate from fetch_hf_dataset.py, whose sizes,
 --mode and --format flags mean nothing against a zip of CSVs.
+
+kagglehub downloads one dataset version into its cache, and the files are
+copied from there into raw/ next to raw/datapackage.json, which records the
+handle, the version and each file's sha256. A file already in raw/ with the
+same hash is kept, and one that differs is refused unless --force, which
+clears raw/ and nothing else.
 
 Credentials: KAGGLE_USERNAME and KAGGLE_KEY, or ~/.kaggle/kaggle.json.
 """
@@ -19,19 +26,23 @@ Credentials: KAGGLE_USERNAME and KAGGLE_KEY, or ~/.kaggle/kaggle.json.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
+import shutil
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 
 import kagglehub
 
 ROOT = Path(__file__).resolve().parents[1]
-
-META_NAME = "dataset.meta.json"
+DATASETS_ROOT = ROOT / "datasets"
+PROFILE = "https://datapackage.org/profiles/2.0/datapackage.json"
+DESCRIPTOR = "datapackage.json"
+CHUNK = 1024 * 1024
 
 CREDENTIALS_HELP = """Kaggle credentials not found. Either:
 
@@ -100,43 +111,129 @@ def check_credentials() -> None:
     raise SystemExit(CREDENTIALS_HELP)
 
 
-def write_meta(dest: Path, ds: Dataset, files: list[Path]) -> None:
-    (dest / META_NAME).write_text(
-        json.dumps(
-            {
-                "tool": "scripts/fetch_kaggle_dataset.py",
-                "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "kagglehub_version": kagglehub.__version__,
-                "dataset": ds.key,
-                "kaggle_handle": ds.handle,
-                "files": [path.name for path in files],
-                "bytes": sum(path.stat().st_size for path in files),
-            },
-            indent=2,
-        )
-        + "\n"
-    )
+def version_of(landed: Path) -> str:
+    """kagglehub caches a dataset under .../versions/<n>, the version it resolved."""
+    match = re.search(r"/versions/(\d+)$", landed.as_posix())
+    if not match:
+        raise SystemExit(f"cannot tell which version kagglehub fetched into {landed}")
+    return match.group(1)
 
 
-def fetch(ds: Dataset, dest: Path, force: bool) -> list[Path]:
-    dest.mkdir(parents=True, exist_ok=True)
-    print(f"→ {ds.key}: downloading {ds.handle} to {rel(dest)}", flush=True)
+def sha256_of(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(CHUNK):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def refuse(path: Path, reason: str) -> SystemExit:
+    return SystemExit(f"{rel(path)} {reason}; rerun with --force to clear raw/ and fetch again")
+
+
+def clear(raw: Path) -> None:
+    for entry in raw.iterdir():
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+
+
+def recorded_version(raw: Path) -> str | None:
+    descriptor = raw / DESCRIPTOR
+    if not descriptor.exists():
+        return None
+    sources = json.loads(descriptor.read_text()).get("sources") or [{}]
+    return sources[0].get("version")
+
+
+def copy_hashed(source: Path, target: Path) -> str:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(target.name + ".part")
+    digest = hashlib.sha256()
+    try:
+        with source.open("rb") as reader, partial.open("wb") as writer:
+            while chunk := reader.read(CHUNK):
+                digest.update(chunk)
+                writer.write(chunk)
+        partial.replace(target)
+    finally:
+        partial.unlink(missing_ok=True)
+    return digest.hexdigest()
+
+
+def write_descriptor(raw: Path, package: dict[str, object]) -> None:
+    content = json.dumps(package, indent=2) + "\n"
+    target = raw / DESCRIPTOR
+    if target.exists():
+        if target.read_text() == content:
+            return
+        raise refuse(target, "describes a different fetch")
+    partial = raw / f".{DESCRIPTOR}.part"
+    try:
+        partial.write_text(content)
+        partial.replace(target)
+    finally:
+        partial.unlink(missing_ok=True)
+
+
+def fetch(ds: Dataset, *, version: int | None, raw: Path, force: bool) -> None:
+    handle = ds.handle if version is None else f"{ds.handle}/versions/{version}"
+    print(f"→ {ds.key}: downloading {handle} into the kagglehub cache", flush=True)
     started = time.monotonic()
-    landed = Path(
-        kagglehub.dataset_download(ds.handle, force_download=force, output_dir=str(dest))
+    landed = Path(kagglehub.dataset_download(handle))
+    fetched_version = version_of(landed)
+    sources = sorted(path for path in landed.rglob("*") if path.is_file())
+    if not sources:
+        raise SystemExit(f"{handle} downloaded no files into {landed}")
+
+    raw.mkdir(parents=True, exist_ok=True)
+    if force:
+        clear(raw)
+    elif recorded_version(raw) not in (None, fetched_version):
+        raise refuse(
+            raw / DESCRIPTOR, f"records version {recorded_version(raw)}, not {fetched_version}"
+        )
+    hashes = {source: sha256_of(source) for source in sources}
+    for source, digest in hashes.items():
+        target = raw / source.relative_to(landed)
+        if target.exists() and sha256_of(target) != digest:
+            raise refuse(target, f"differs from {ds.handle} version {fetched_version}")
+
+    resources = []
+    for source in sources:
+        relative = source.relative_to(landed).as_posix()
+        target = raw / relative
+        if not target.exists():
+            copy_hashed(source, target)
+        print(f"  {rel(target)}  {target.stat().st_size / 1024 / 1024:,.1f} MB")
+        resources.append(
+            {
+                "name": relative,
+                "path": relative,
+                "format": source.suffix.removeprefix(".") or "bin",
+                "bytes": target.stat().st_size,
+                "hash": f"sha256:{hashes[source]}",
+            }
+        )
+
+    write_descriptor(
+        raw,
+        {
+            "$schema": PROFILE,
+            "name": f"{ds.out_dir}-raw",
+            "producedBy": {"tool": "scripts/fetch_kaggle_dataset.py"},
+            "sources": [
+                {
+                    "title": f"Kaggle {ds.handle}",
+                    "path": f"https://www.kaggle.com/datasets/{ds.handle}",
+                    "version": fetched_version,
+                }
+            ],
+            "resources": resources,
+        },
     )
-    files = sorted(
-        path
-        for path in landed.rglob("*")
-        if path.is_file() and path.name not in {META_NAME, "README.md"}
-    )
-    if not files:
-        raise SystemExit(f"{ds.handle} downloaded no files into {rel(landed)}")
-    for path in files:
-        print(f"  {rel(path)}  {path.stat().st_size / 1024 / 1024:,.1f} MB")
-    write_meta(landed, ds, files)
-    print(f"\nDone 🎇  {len(files)} file(s) in {time.monotonic() - started:,.1f}s")
-    return files
+    print(f"\nDone 🎇  {len(sources)} file(s) in {time.monotonic() - started:,.1f}s")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -147,9 +244,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         epilog="\n".join(f"  {ds.key:<14} {ds.handle}\n{'':<17}{ds.summary}" for ds in DATASETS),
     )
     parser.add_argument("dataset", nargs="?", help="dataset key or Kaggle owner/slug handle")
-    parser.add_argument("--out-dir", help="write into this directory instead")
+    parser.add_argument("--version", type=int, help="dataset version (default: the latest)")
     parser.add_argument(
-        "--force", action="store_true", help="re-download even if the files are already there"
+        "--datasets-root",
+        default=str(DATASETS_ROOT),
+        help="folder holding the dataset folders (default: datasets/)",
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="clear raw/ before copying the version in"
     )
     parser.add_argument("--list", action="store_true", help="list known datasets and exit")
     args = parser.parse_args(argv)
@@ -167,8 +269,8 @@ def main(argv: list[str]) -> int:
 
     ds = resolve(args.dataset)
     check_credentials()
-    dest = Path(args.out_dir).expanduser() if args.out_dir else ROOT / "datasets" / ds.out_dir
-    fetch(ds, dest, args.force)
+    raw = Path(args.datasets_root).expanduser() / ds.out_dir / "raw"
+    fetch(ds, version=args.version, raw=raw, force=args.force)
     return 0
 
 
