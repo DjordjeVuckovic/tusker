@@ -13,12 +13,14 @@ import (
 type PgExecutor struct {
 	name     string
 	executor storage.RawExecutor
+	pool     *pg.ConnectionPool
 }
 
 func NewPgExecutor(name string, pool *pg.ConnectionPool) *PgExecutor {
 	return &PgExecutor{
 		name:     name,
 		executor: pg.NewRawExecutor(pool),
+		pool:     pool,
 	}
 }
 

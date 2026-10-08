@@ -341,6 +341,19 @@ Retrieval depth is the suite's own `limit` param (or ES `size`); there is no run
 
 Elapsed time is printed after the results table.
 
+#### Index provenance
+
+Before the first query, `bench run` reads from each live engine how it indexed the corpus and records it under `environment.engines.<name>.index` in the report. It also fills `version`.
+
+| Engine        | Recorded                                                                                                                                                                                                                                        |
+|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| postgres      | `server_version`; the versions of `vector`, `pg_search`, `pg_textsearch`, `pg_trgm` and `fuzzystrmatch`, where installed; `indexdef` and `reloptions` of every index on `articles` and `article_embeddings`; the live value of each `connection_settings` entry |
+| elasticsearch | the version from `GET /`; the concrete index the spec's `index` resolves to; its `settings.index.analysis`; analyzer, `index_options`, dims and similarity of every text and `dense_vector` field                                                      |
+
+Provenance is metadata, so a failed read never fails the run: it prints a warning and the block carries `error` instead. An `api` engine cannot describe its index, so its block carries only that error. Reports written before provenance was recorded have no `index` block and still load.
+
+`bench show report` prints one line per engine summarising the block. `bench diff` lists the provenance fields that differ between the two runs before the metric deltas. The analysis block is compared as one field and shown as a digest.
+
 ### `bench export [<name>] --format <F>`
 
 | Format               | Output                  | Description                                                                          |
@@ -364,7 +377,7 @@ Prints a one-glance dashboard showing which artifacts exist, when they were last
 
 ### `bench diff [<name>]`
 
-Loads the two most-recent reports and shows per-engine metric deltas (NDCG, MAP, MRR, latency) and per-query NDCG regressions sorted by magnitude. Pass `--a` / `--b` to compare specific run IDs.
+Loads the two most-recent reports and shows the index provenance fields that changed between them, then per-engine metric deltas (NDCG, MAP, MRR, latency) and per-query NDCG regressions sorted by magnitude. Pass `--a` / `--b` to compare specific run IDs.
 
 ### `bench show <subcommand> [<name>|path]`
 

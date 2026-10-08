@@ -397,21 +397,27 @@ func TestFmtDuration(t *testing.T) {
 	}
 }
 
-// ─── maskConnection ───────────────────────────────────────────────────────────
+// ─── connectionEndpoint ───────────────────────────────────────────────────────
 
-func TestMaskConnection(t *testing.T) {
-	short := "postgres://localhost/db"
-	if got := maskConnection(short); got != short {
-		t.Errorf("maskConnection(short) = %q, want %q", got, short)
+func TestConnectionEndpoint_DropsCredentials(t *testing.T) {
+	tests := []struct {
+		name string
+		conn string
+		want string
+	}{
+		{"short postgres url with password", "postgresql://u:secret@db:5432/news", "postgresql://db:5432/news"},
+		{"long postgres url with password", "postgresql://news_user:news_password@localhost:54320/news_db", "postgresql://localhost:54320/news_db"},
+		{"password in query string", "postgres://localhost:54320/news_db?password=secret&sslmode=disable", "postgres://localhost:54320/news_db"},
+		{"elasticsearch url with basic auth", "http://elastic:changeme@localhost:9200", "http://localhost:9200"},
+		{"plain elasticsearch url", "http://localhost:9200", "http://localhost:9200"},
+		{"key value dsn", "host=localhost port=54320 user=news_user password=secret dbname=news_db", "host=localhost port=54320 dbname=news_db"},
 	}
-
-	long := "postgres://user:password@very-long-hostname.example.com:5432/news_db?sslmode=disable"
-	masked := maskConnection(long)
-	if len(masked) >= len(long) {
-		t.Errorf("maskConnection did not shorten a long connection string")
-	}
-	if !strings.Contains(masked, "...") {
-		t.Error("maskConnection long result should contain '...'")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := connectionEndpoint(tt.conn); got != tt.want {
+				t.Errorf("connectionEndpoint(%q) = %q, want %q", tt.conn, got, tt.want)
+			}
+		})
 	}
 }
 

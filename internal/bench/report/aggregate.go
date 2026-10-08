@@ -3,6 +3,8 @@ package report
 import (
 	"fmt"
 	"math"
+	"net/url"
+	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
@@ -12,8 +14,9 @@ import (
 )
 
 type GenerateOptions struct {
-	Spec   *spec.BenchSpec
-	Corpus CorpusInfo
+	Spec    *spec.BenchSpec
+	Corpus  CorpusInfo
+	Indexes map[string]IndexProvenance
 }
 
 func Generate(br *runner.BenchmarkResult, opts *GenerateOptions) *Report {
@@ -33,10 +36,15 @@ func Generate(br *runner.BenchmarkResult, opts *GenerateOptions) *Report {
 	if opts != nil {
 		if opts.Spec != nil {
 			for name, eng := range opts.Spec.Engines {
-				r.Environment.Engines[name] = EngineInfo{
+				info := EngineInfo{
 					Type:       string(eng.Type),
-					Connection: maskConnection(eng.Connection),
+					Connection: connectionEndpoint(eng.Connection),
 				}
+				if provenance, ok := opts.Indexes[name]; ok {
+					info.Version = provenance.Version()
+					info.Index = &provenance
+				}
+				r.Environment.Engines[name] = info
 			}
 		}
 		r.Environment.Corpus = opts.Corpus
@@ -49,11 +57,21 @@ func Generate(br *runner.BenchmarkResult, opts *GenerateOptions) *Report {
 	return r
 }
 
-func maskConnection(conn string) string {
-	if len(conn) > 50 {
-		return conn[:20] + "..." + conn[len(conn)-20:]
+// connectionEndpoint keeps only where an engine lives, never how it
+// authenticates: a URL loses its user info and query, a key=value DSN keeps
+// only host, port and dbname.
+func connectionEndpoint(conn string) string {
+	if u, err := url.Parse(conn); err == nil && u.Scheme != "" && u.Host != "" {
+		return (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path}).String()
 	}
-	return conn
+	var kept []string
+	for _, field := range strings.Fields(conn) {
+		key, _, ok := strings.Cut(field, "=")
+		if ok && (key == "host" || key == "port" || key == "dbname") {
+			kept = append(kept, field)
+		}
+	}
+	return strings.Join(kept, " ")
 }
 
 func generateJobReport(jr *runner.JobResult, kValues []int) JobReport {
