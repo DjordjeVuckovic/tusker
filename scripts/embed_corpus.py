@@ -8,41 +8,50 @@
 #   "pyarrow>=16",
 # ]
 # ///
-"""Generate Qwen3 embeddings for a canonical JSONL corpus.
+"""Embed a canonical article package into an embeddings package.
 
-  uv run scripts/embed_corpus.py <corpus.jsonl[.gz]> [--limit N]
-  uv run scripts/embed_corpus.py <corpus.jsonl[.gz]> --merge-only
+  uv run scripts/embed_corpus.py datasets/cc-news/canonical/<version>/datapackage.json
 
-Writes a Parquet of (id, embedding) that `datapipe load embeddings` reads
-directly. Runs on CUDA, MPS or CPU, and accepts plain or gzipped JSONL.
-
-The corpus is streamed and checkpointed every --shard-size documents, so an
-interrupted run resumes when re-invoked with the same arguments. Checkpoints
-have to outlive the process: on an ephemeral disk, point --checkpoint-dir at
-persistent storage.
+Reads the package's single resource (parquet or jsonl, or the slim projection
+slim_corpus.py writes), verifies its bytes and hash, and writes
+embeddings/<tag-dir>/<version>/ under the dataset root: embeddings.parquet with
+one (id, embedding) row per canonical row in canonical order, and a
+datapackage.json that records the model, recipe and canonical resource it came
+from.
 
 Doubles as a Kaggle script kernel. Kernels run with no argv, so omitting the
-corpus argument makes the script look for one under /kaggle/input and write to
-/kaggle/working. Pass a corpus path and none of that applies.
+package argument reads the one datapackage.json under /kaggle/input and writes
+to /kaggle/working.
 """
 
 import argparse
-import gzip
+import hashlib
 import json
+import shutil
 import sys
 import time
-from datetime import datetime, timezone
+import uuid
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Literal, NamedTuple
 
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import torch
 import torch.nn.functional as F
-from transformers import AutoModel, AutoTokenizer
+from transformers.models.auto.modeling_auto import AutoModel
+from transformers.models.auto.tokenization_auto import AutoTokenizer
 
-MODEL_ID = "Qwen/Qwen3-Embedding-0.6B"
-MODEL_NAME = "qwen3-embedding:0.6b"  # stored as article_embeddings.model_name; must match query time
+QWEN_HF_MODEL = "Qwen/Qwen3-Embedding-0.6B"
+QWEN_MODEL_NAME = "qwen3-embedding:0.6b"
+QWEN_REVISION = "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3"
+
+DOCUMENT_RECIPE = "lead-v1"
+POOLING = "last_token"
+DATAPACKAGE_PROFILE = "https://datapackage.org/profiles/2.0/datapackage.json"
+PARQUET_MEDIATYPE = "application/vnd.apache.parquet"
 
 KAGGLE_INPUT = Path("/kaggle/input")
 KAGGLE_WORKING = Path("/kaggle/working")
@@ -50,130 +59,356 @@ KAGGLE_WORKING = Path("/kaggle/working")
 SWEEP_BATCH_SIZES = (64, 256, 512)
 SWEEP_DOCS = 2000
 
-
-# Without full_content, must match mapDocToPrompt in internal/embedding/embedder.go.
-def build_text(article: dict, full_content: bool) -> str:
-    parts = [article.get("title") or "", article.get("description") or ""]
-    if full_content:
-        parts.append(article.get("full_content") or article.get("content") or "")
-    return " ".join(p.strip() for p in parts if p and p.strip())
+ResourceFormat = Literal["parquet", "jsonl"]
 
 
-def open_text(path: Path):
-    if path.suffix == ".gz":
-        return gzip.open(path, "rt", encoding="utf-8")
-    return open(path, encoding="utf-8")
+class PackageError(Exception):
+    """A package, resource or run configuration that cannot be used as given."""
 
 
-def count_lines(path: Path) -> int:
-    opener = gzip.open if path.suffix == ".gz" else open
-    total = 0
-    with opener(path, "rb") as fh:
-        while chunk := fh.read(8 << 20):
-            total += chunk.count(b"\n")
-    return total
+@dataclass(frozen=True, slots=True)
+class CanonicalRef:
+    name: str
+    version: str
+    resource_hash: str
+
+    def to_descriptor(self) -> dict[str, str]:
+        return {
+            "name": self.name,
+            "version": self.version,
+            "resourceHash": self.resource_hash,
+        }
 
 
-def iter_shards(path: Path, shard_size: int, full_content: bool, limit: int | None, is_done):
-    """Yield (shard_idx, ids, texts) in file order.
+@dataclass(frozen=True, slots=True)
+class SourcePackage:
+    """A canonical package, or a projection of one that names its canonical source."""
 
-    Shards already on disk are counted but not parsed, so a resumed run skips the
-    finished prefix at read speed.
+    resource: Path
+    resource_format: ResourceFormat
+    canonical: CanonicalRef
+    language: str | None
+
+
+class LeadRow(NamedTuple):
+    id: str
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class Shard:
+    index: int
+    ids: list[str]
+    texts: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class Encoder:
+    tokenizer: Any
+    model: Any
+    device: torch.device
+    native_dim: int
+
+
+@dataclass(frozen=True, slots=True)
+class EmbeddingSpec:
+    hf_model: str
+    model_name: str
+    revision: str
+    recipe: str
+    dim: int
+    max_tokens: int
+
+    @property
+    def tag(self) -> str:
+        return f"{self.model_name}@{self.dim}"
+
+    def to_descriptor(self) -> dict[str, Any]:
+        return {
+            "model": self.model_name,
+            "hfModel": self.hf_model,
+            "revision": self.revision,
+            "tag": self.tag,
+            "dim": self.dim,
+            "recipe": self.recipe,
+            "pooling": POOLING,
+            "normalized": True,
+            "maxTokens": self.max_tokens,
+        }
+
+
+def version(prefix: str, *inputs: str) -> str:
+    """Derive a package version from its inputs, as `<prefix>-<8 hex of sha256>`.
+
+    Each input is hashed as its 8-byte big-endian UTF-8 length followed by the bytes,
+    so ("ab", "c") and ("a", "bc") give different versions.
+    """
+    digest = hashlib.sha256()
+    for value in inputs:
+        encoded = value.encode("utf-8")
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+    return f"{prefix}-{digest.hexdigest()[:8]}"
+
+
+def sha256_hash(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as file:
+        while chunk := file.read(8 << 20):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
+
+
+def describe_parquet_resource(path: Path, *, name: str) -> dict[str, Any]:
+    return {
+        "name": name,
+        "path": path.name,
+        "format": "parquet",
+        "mediatype": PARQUET_MEDIATYPE,
+        "bytes": path.stat().st_size,
+        "hash": sha256_hash(path),
+    }
+
+
+def write_descriptor(directory: Path, descriptor: dict[str, Any]) -> None:
+    text = json.dumps(descriptor, indent=2, ensure_ascii=False) + "\n"
+    (directory / "datapackage.json").write_text(text, encoding="utf-8")
+
+
+def read_descriptor(descriptor_path: Path) -> dict[str, Any]:
+    try:
+        return json.loads(descriptor_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise PackageError(f"read descriptor {descriptor_path}: {error}") from error
+
+
+def single_resource(
+    descriptor_path: Path, descriptor: dict[str, Any]
+) -> dict[str, Any]:
+    resources = descriptor.get("resources") or []
+    if len(resources) != 1:
+        raise PackageError(
+            f"{descriptor_path}: expected exactly one resource, found {len(resources)}"
+        )
+    return resources[0]
+
+
+def open_package(descriptor_path: Path) -> SourcePackage:
+    """Read a package descriptor and verify its single resource by size and hash."""
+    descriptor = read_descriptor(descriptor_path)
+    resource = single_resource(descriptor_path, descriptor)
+    resource_format = resource.get("format")
+    if resource_format not in ("parquet", "jsonl"):
+        raise PackageError(
+            f"{descriptor_path}: resource format {resource_format!r} is not parquet or jsonl"
+        )
+
+    resource_path = resolve_resource_path(descriptor_path, resource.get("path"))
+    verify_resource(resource_path, resource)
+
+    try:
+        carried = descriptor.get("canonical")
+        canonical = (
+            CanonicalRef(carried["name"], carried["version"], carried["resourceHash"])
+            if carried
+            else CanonicalRef(
+                descriptor["name"], descriptor["version"], resource["hash"]
+            )
+        )
+    except KeyError as error:
+        raise PackageError(
+            f"{descriptor_path}: missing {error} for the canonical reference"
+        ) from error
+    return SourcePackage(
+        resource=resource_path,
+        resource_format=resource_format,
+        canonical=canonical,
+        language=descriptor.get("language"),
+    )
+
+
+def resolve_resource_path(descriptor_path: Path, relative: object) -> Path:
+    if not isinstance(relative, str) or not relative:
+        raise PackageError(f"{descriptor_path}: resource has no path")
+    path = Path(relative)
+    if path.is_absolute() or ".." in path.parts:
+        raise PackageError(
+            f"{descriptor_path}: resource path {relative!r} leaves the package directory"
+        )
+    return descriptor_path.parent / path
+
+
+def verify_resource(path: Path, resource: dict[str, Any]) -> None:
+    if not path.is_file():
+        raise PackageError(f"resource {path} does not exist")
+    size = path.stat().st_size
+    if size != resource.get("bytes"):
+        raise PackageError(
+            f"resource {path} is {size} bytes, descriptor says {resource.get('bytes')}"
+        )
+    actual = sha256_hash(path)
+    if actual != resource.get("hash"):
+        raise PackageError(
+            f"resource {path} hash is {actual}, descriptor says {resource.get('hash')}"
+        )
+
+
+def lead_text(title: str | None, description: str | None) -> str:
+    """Build the lead-v1 document text: the stripped, non-empty title and description."""
+    parts = (part.strip() for part in (title or "", description or ""))
+    return " ".join(part for part in parts if part)
+
+
+def iter_lead_rows(source: SourcePackage) -> Iterator[LeadRow]:
+    """Stream (id, lead text) per row in resource order without holding the corpus in memory."""
+    records = (
+        iter_parquet_records(source.resource)
+        if source.resource_format == "parquet"
+        else iter_jsonl_records(source.resource)
+    )
+    for row_number, record in enumerate(records, 1):
+        yield LeadRow(
+            id=canonical_id(record.get("id"), row_number),
+            text=lead_text(record.get("title"), record.get("description")),
+        )
+
+
+def iter_parquet_records(path: Path) -> Iterator[dict[str, Any]]:
+    file = pq.ParquetFile(path)
+    columns = [
+        name
+        for name in ("id", "title", "description")
+        if name in file.schema_arrow.names
+    ]
+    for batch in file.iter_batches(columns=columns, batch_size=8192):
+        yield from batch.to_pylist()
+
+
+def iter_jsonl_records(path: Path) -> Iterator[dict[str, Any]]:
+    with open(path, encoding="utf-8") as file:
+        for line in file:
+            if line.strip():
+                yield json.loads(line)
+
+
+def canonical_id(value: object, row_number: int) -> str:
+    if not isinstance(value, str):
+        raise PackageError(f"row {row_number} has no string id")
+    try:
+        return str(uuid.UUID(value))
+    except ValueError as error:
+        raise PackageError(f"row {row_number} id {value!r} is not a uuid") from error
+
+
+def scan_corpus(source: SourcePackage) -> int:
+    """Count the rows to embed, refusing any row whose lead text is empty.
+
+    Loaders pair vectors with articles by position, so a row cannot be skipped.
+    """
+    rows = 0
+    empty_ids: list[str] = []
+    for row in iter_lead_rows(source):
+        rows += 1
+        if not row.text:
+            empty_ids.append(row.id)
+    if empty_ids:
+        raise PackageError(
+            f"{len(empty_ids)} rows have no title or description, first ids: {empty_ids[:5]}"
+        )
+    if rows == 0:
+        raise PackageError(f"{source.resource} has no rows")
+    return rows
+
+
+def iter_shards(
+    source: SourcePackage, *, shard_size: int, skip: set[int]
+) -> Iterator[Shard]:
+    """Cut the corpus into fixed shards in resource order, skipping finished ones.
+
+    Shard N always covers the same rows, which is what makes resume exact.
     """
     ids: list[str] = []
     texts: list[str] = []
-    shard_idx = 0
-    in_shard = 0
-    seen = 0
-    skip = is_done(0)
-
-    with open_text(path) as fh:
-        for lineno, line in enumerate(fh, 1):
-            if not line.strip():
-                continue
-            if limit is not None and seen >= limit:
-                break
-            seen += 1
-
-            if not skip:
-                record = json.loads(line)
-                if "id" not in record:
-                    raise ValueError(f"{path}:{lineno} has no 'id' field")
-                ids.append(str(record["id"]))
-                texts.append(build_text(record, full_content))
-
-            in_shard += 1
-            if in_shard == shard_size:
-                if not skip:
-                    yield shard_idx, ids, texts
-                ids, texts = [], []
-                in_shard = 0
-                shard_idx += 1
-                skip = is_done(shard_idx)
-
-    if in_shard and not skip:
-        yield shard_idx, ids, texts
+    index = 0
+    for position, row in enumerate(iter_lead_rows(source)):
+        if index not in skip:
+            ids.append(row.id)
+            texts.append(row.text)
+        if (position + 1) % shard_size == 0:
+            if index not in skip:
+                yield Shard(index, ids, texts)
+            ids, texts = [], []
+            index += 1
+    if ids:
+        yield Shard(index, ids, texts)
 
 
 def pick_device(requested: str) -> torch.device:
+    """Resolve `auto` to CUDA or CPU; Apple's MPS only when asked for by name."""
     if requested != "auto":
         return torch.device(requested)
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def last_token_pool(hidden_states: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
-    """Qwen3-Embedding pools the last token, and tolerates either padding side."""
+def inference_dtype(device: torch.device) -> torch.dtype:
+    return torch.float32 if device.type == "cpu" else torch.float16
+
+
+def load_encoder(*, hf_model: str, revision: str, device: torch.device) -> Encoder:
+    tokenizer = AutoTokenizer.from_pretrained(hf_model, revision=revision)
+    model = AutoModel.from_pretrained(
+        hf_model, revision=revision, torch_dtype=inference_dtype(device)
+    )
+    resolved = getattr(model.config, "_commit_hash", None)
+    if resolved is not None and resolved != revision:
+        raise PackageError(
+            f"revision {revision!r} resolved to commit {resolved}; pass the commit sha"
+        )
+    return Encoder(
+        tokenizer, model.to(device).eval(), device, int(model.config.hidden_size)
+    )
+
+
+def last_token_pool(
+    hidden_states: torch.Tensor, attention_mask: torch.Tensor
+) -> torch.Tensor:
+    """Pool the last real token, whichever side the tokenizer pads on."""
     left_padding = attention_mask[:, -1].sum() == attention_mask.shape[0]
     if left_padding:
         return hidden_states[:, -1]
-    seq_len = attention_mask.sum(dim=1) - 1
-    batch_idx = torch.arange(hidden_states.size(0), device=hidden_states.device)
-    return hidden_states[batch_idx, seq_len]
-
-
-def load_model(device: torch.device):
-    dtype = torch.float32 if device.type == "cpu" else torch.float16
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
-    model = AutoModel.from_pretrained(MODEL_ID, trust_remote_code=True, torch_dtype=dtype)
-    model = model.to(device).eval()
-    return tokenizer, model
+    lengths = attention_mask.sum(dim=1) - 1
+    batch = torch.arange(hidden_states.size(0), device=hidden_states.device)
+    return hidden_states[batch, lengths]
 
 
 @torch.inference_mode()
-def embed_texts(texts, tokenizer, model, device, batch_size, max_length) -> np.ndarray:
-    out = np.empty((len(texts), model.config.hidden_size), dtype=np.float32)
+def encode(
+    encoder: Encoder, texts: list[str], *, batch_size: int, max_tokens: int, dim: int
+) -> np.ndarray:
+    """Embed texts, sliced to `dim` and L2-normalised, one row per text in input order."""
+    vectors = np.empty((len(texts), dim), dtype=np.float32)
 
     # Batches pad to their longest member, so grouping similar lengths cuts wasted
-    # compute. Undone below, keeping a shard's contents fixed by file order.
+    # compute. Writing by index undoes the sort.
     order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
-
-    for lo in range(0, len(order), batch_size):
-        idx = order[lo : lo + batch_size]
-        encoded = tokenizer(
-            [texts[i] for i in idx],
+    for start in range(0, len(order), batch_size):
+        batch = order[start : start + batch_size]
+        encoded = encoder.tokenizer(
+            [texts[i] for i in batch],
             padding=True,
             truncation=True,
-            max_length=max_length,
+            max_length=max_tokens,
             return_tensors="pt",
-        ).to(device)
-        hidden = model(**encoded).last_hidden_state
-        vectors = last_token_pool(hidden, encoded["attention_mask"])
-        vectors = F.normalize(vectors, p=2, dim=1)
-        out[idx] = vectors.cpu().float().numpy()
-    return out
+        ).to(encoder.device)
+        hidden = encoder.model(**encoded).last_hidden_state
+        pooled = last_token_pool(hidden, encoded["attention_mask"])[:, :dim]
+        vectors[batch] = F.normalize(pooled.float(), p=2, dim=1).cpu().numpy()
+    return vectors
 
 
-def head_texts(path: Path, count: int, full_content: bool) -> list[str]:
-    for _, _, texts in iter_shards(path, count, full_content, count, lambda i: False):
-        return texts
-    return []
-
-
-def sweep_batch_size(texts, tokenizer, model, device, max_length) -> int:
+def sweep_batch_size(
+    encoder: Encoder, texts: list[str], *, max_tokens: int, dim: int
+) -> int:
     """Time a slice at each candidate size and return the fastest.
 
     The default suits Apple Silicon and is usually wrong for a discrete GPU, which
@@ -181,265 +416,306 @@ def sweep_batch_size(texts, tokenizer, model, device, max_length) -> int:
     """
     best, best_rate = SWEEP_BATCH_SIZES[0], 0.0
     for size in SWEEP_BATCH_SIZES:
-        started = time.time()
+        started = time.monotonic()
         try:
-            embed_texts(texts, tokenizer, model, device, size, max_length)
-        except (RuntimeError, torch.OutOfMemoryError) as err:
-            print(f"batch {size:>4}: {type(err).__name__}, skipping")
+            encode(encoder, texts, batch_size=size, max_tokens=max_tokens, dim=dim)
+        except (RuntimeError, torch.OutOfMemoryError) as error:
+            print(f"batch {size:>4}: {type(error).__name__}, skipping")
             continue
         finally:
-            if device.type == "cuda":
+            if encoder.device.type == "cuda":
                 torch.cuda.empty_cache()
-
-        rate = len(texts) / (time.time() - started)
+        rate = len(texts) / (time.monotonic() - started)
         print(f"batch {size:>4}: {rate:>6.1f} docs/s")
         if rate > best_rate:
             best, best_rate = size, rate
     return best
 
 
-def shard_path(ckpt_dir: Path, idx: int) -> Path:
-    return ckpt_dir / f"shard_{idx:05d}.npz"
+def shard_path(checkpoint_dir: Path, index: int) -> Path:
+    return checkpoint_dir / f"shard_{index:05d}.npz"
 
 
-def save_shard(ckpt_dir: Path, idx: int, ids: list[str], vectors: np.ndarray) -> None:
-    ckpt_dir.mkdir(parents=True, exist_ok=True)
-    tmp = shard_path(ckpt_dir, idx).with_suffix(".npz.tmp")
+def save_shard(checkpoint_dir: Path, shard: Shard, vectors: np.ndarray) -> None:
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    temporary = shard_path(checkpoint_dir, shard.index).with_suffix(".npz.tmp")
     # Uncompressed: float32 vectors barely compress, and this write blocks every shard.
-    with open(tmp, "wb") as fh:
-        np.savez(fh, ids=np.array(ids), embeddings=vectors)
-    tmp.rename(shard_path(ckpt_dir, idx))
+    with open(temporary, "wb") as file:
+        np.savez(file, ids=np.array(shard.ids), embeddings=vectors)
+    temporary.rename(shard_path(checkpoint_dir, shard.index))
 
 
-def existing_shards(ckpt_dir: Path) -> list[int]:
-    if not ckpt_dir.is_dir():
+def finished_shards(checkpoint_dir: Path) -> list[int]:
+    if not checkpoint_dir.is_dir():
         return []
-    return sorted(int(p.stem.split("_")[1]) for p in ckpt_dir.glob("shard_*.npz"))
+    return sorted(
+        int(path.stem.split("_")[1]) for path in checkpoint_dir.glob("shard_*.npz")
+    )
 
 
-def list_column(vectors: np.ndarray) -> pa.ListArray:
+def vector_column(vectors: np.ndarray) -> pa.ListArray:
     rows, dim = vectors.shape
-    flat = pa.array(vectors.reshape(-1), type=pa.float32())
+    values = pa.array(vectors.reshape(-1), type=pa.float32())
     offsets = pa.array(np.arange(0, rows * dim + 1, dim, dtype=np.int32))
-    return pa.ListArray.from_arrays(offsets, flat)
+    return pa.ListArray.from_arrays(offsets, values)
 
 
-def merge(ckpt_dir: Path, out_path: Path, max_length: int, full_content: bool) -> None:
-    """Append every shard to one Parquet file, one row group per shard."""
-    shards = existing_shards(ckpt_dir)
-    if not shards:
-        sys.exit(f"no checkpoints in {ckpt_dir}")
-    if shards != list(range(len(shards))):
-        missing = sorted(set(range(shards[-1] + 1)) - set(shards))
-        sys.exit(f"checkpoints are not contiguous, missing shards: {missing}")
+EMBEDDINGS_SCHEMA = pa.schema(
+    [pa.field("id", pa.string()), pa.field("embedding", pa.list_(pa.float32()))]
+)
 
-    # Row count has to be known before the writer opens, but only the first and last
-    # shard need reading: every other shard is full.
-    last = np.load(shard_path(ckpt_dir, shards[-1]), allow_pickle=False)
-    dim = int(last["embeddings"].shape[1])
-    rows = 0
-    if len(shards) > 1:
-        first = np.load(shard_path(ckpt_dir, 0), allow_pickle=False)
-        rows = int(first["embeddings"].shape[0]) * (len(shards) - 1)
-    rows += int(last["embeddings"].shape[0])
 
-    schema = pa.schema(
-        [pa.field("id", pa.string()), pa.field("embedding", pa.list_(pa.float32()))]
-    ).with_metadata(
-        {
-            "model": MODEL_NAME,
-            "hf_model_id": MODEL_ID,
-            "dim": str(dim),
-            "pooling": "last_token",
-            "normalized": "l2",
-            "max_length": str(max_length),
-            "embed_full_content": str(full_content),
-            "row_count": str(rows),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    print(f"merging {len(shards)} shards -> {out_path}  ({rows:,} rows x {dim} dims)")
-    with pq.ParquetWriter(out_path, schema, compression="zstd") as writer:
-        for idx in shards:
-            shard = np.load(shard_path(ckpt_dir, idx), allow_pickle=False)
-            table = pa.Table.from_arrays(
-                [
-                    pa.array(shard["ids"].astype(str), type=pa.string()),
-                    list_column(shard["embeddings"].astype(np.float32)),
-                ],
-                schema=schema,
-            )
+def merge_shards(checkpoint_dir: Path, *, shard_count: int, out_path: Path) -> None:
+    """Stream every shard into one Parquet file, one row group per shard."""
+    missing = sorted(set(range(shard_count)) - set(finished_shards(checkpoint_dir)))
+    if missing:
+        raise PackageError(f"{checkpoint_dir} is missing shards {missing}")
+    with pq.ParquetWriter(out_path, EMBEDDINGS_SCHEMA, compression="zstd") as writer:
+        for index in range(shard_count):
+            with np.load(
+                shard_path(checkpoint_dir, index), allow_pickle=False
+            ) as shard:
+                ids = pa.array(shard["ids"].astype(str), type=pa.string())
+                table = pa.Table.from_arrays(
+                    [ids, vector_column(shard["embeddings"])], schema=EMBEDDINGS_SCHEMA
+                )
             writer.write_table(table)
-            print(f"  shard {idx + 1}/{len(shards)}", end="\r", flush=True)
-
-    print(f"\nwrote {out_path.stat().st_size / 1e6:.1f} MB")
 
 
-def verify(out_path: Path) -> None:
-    handle = pq.ParquetFile(out_path)
-    print("\n=== verification ===")
-    print(f"rows     : {handle.metadata.num_rows:,}")
-    print(f"metadata : {handle.schema_arrow.metadata}")
-
-    head = handle.read_row_group(0)
-    sample = np.array(head.column("embedding").slice(0, 1000).to_pylist(), dtype=np.float32)
-    norms = np.linalg.norm(sample, axis=1)
-    print(
-        f"l2 norms : mean={norms.mean():.4f} std={norms.std():.6f} "
-        f"min={norms.min():.4f} max={norms.max():.4f}"
-    )
-    print(f"cos(0,1) : {float(np.dot(sample[0], sample[1])):.4f}")
-
-
-def kaggle_corpus() -> Path | None:
-    if not KAGGLE_INPUT.is_dir():
-        return None
-    for pattern in ("**/*.jsonl.gz", "**/*.jsonl"):
-        matches = sorted(KAGGLE_INPUT.glob(pattern))
-        if matches:
-            return matches[0]
-    return None
-
-
-def apply_kaggle_defaults(args: argparse.Namespace) -> None:
-    """Fill in what a kernel cannot pass on the command line."""
-    corpus = kaggle_corpus()
-    if corpus is None:
-        sys.exit("no corpus argument, and no .jsonl or .jsonl.gz under /kaggle/input")
-
-    args.input = corpus
-    args.out = args.out or KAGGLE_WORKING / "embeddings.parquet"
-    args.checkpoint_dir = args.checkpoint_dir or KAGGLE_WORKING / "checkpoints"
-    args.clean_checkpoints = True  # kernel disk holds the shards and the Parquet at once
-    args.auto_batch_size = True
-
-
-def remove_checkpoints(ckpt_dir: Path) -> int:
-    freed = sum(shard_path(ckpt_dir, i).stat().st_size for i in existing_shards(ckpt_dir))
-    for idx in existing_shards(ckpt_dir):
-        shard_path(ckpt_dir, idx).unlink()
+def publish_package(final_dir: Path, build: Callable[[Path], None]) -> None:
+    """Build a package in a sibling temp dir and rename it into place, so no reader sees half of one."""
+    temporary = final_dir.with_name(f".{final_dir.name}.tmp")
+    shutil.rmtree(temporary, ignore_errors=True)
+    temporary.mkdir(parents=True)
     try:
-        ckpt_dir.rmdir()
-    except OSError:
-        pass  # a crashed run can leave a .npz.tmp; the shards are what matter
-    return freed
+        build(temporary)
+        temporary.rename(final_dir)
+    except BaseException:
+        shutil.rmtree(temporary, ignore_errors=True)
+        raise
 
 
-def fmt_duration(seconds: float) -> str:
-    if seconds == float("inf"):
-        return "?"
-    m, s = divmod(int(seconds), 60)
-    h, m = divmod(m, 60)
-    return f"{h}h{m:02d}m" if h else f"{m}m{s:02d}s"
+def verify_existing_package(final_dir: Path, expected_version: str) -> None:
+    """Accept a finished package only if it holds this version and its resource still verifies."""
+    descriptor_path = final_dir / "datapackage.json"
+    descriptor = read_descriptor(descriptor_path)
+    if descriptor.get("version") != expected_version:
+        raise PackageError(
+            f"{final_dir} holds version {descriptor.get('version')!r}, not {expected_version!r}"
+        )
+    resource = single_resource(descriptor_path, descriptor)
+    verify_resource(
+        resolve_resource_path(descriptor_path, resource.get("path")), resource
+    )
 
 
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("input", type=Path, nargs="?", help="canonical JSONL, optionally gzipped; omit under /kaggle/input")
-    p.add_argument("-o", "--out", type=Path, help="output Parquet (default: <input dir>/embeddings.parquet)")
-    p.add_argument("--checkpoint-dir", type=Path, help="default: <out dir>/.embed-checkpoints")
+def dataset_root_of(descriptor_path: Path) -> Path:
+    """Return datasets/<ds> for a package at datasets/<ds>/canonical/<version>/datapackage.json."""
+    version_dir = descriptor_path.resolve().parent
+    if version_dir.parent.name != "canonical":
+        raise PackageError(
+            f"{descriptor_path} is not under <dataset>/canonical/<version>/; pass --output-root"
+        )
+    return version_dir.parent.parent
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "package", nargs="?", type=Path, help="canonical or slim datapackage.json"
+    )
+    parser.add_argument(
+        "--output-root", type=Path, help="dataset root to write embeddings/ under"
+    )
+    parser.add_argument(
+        "--checkpoint-dir", type=Path, help="default: a dir beside the output package"
+    )
+    parser.add_argument(
+        "--model",
+        default=QWEN_HF_MODEL,
+        help="Hugging Face model id or local directory",
+    )
+    parser.add_argument(
+        "--revision", help=f"model commit; required unless --model is {QWEN_HF_MODEL}"
+    )
+    parser.add_argument(
+        "--model-name", help=f"tag stem; required unless --model is {QWEN_HF_MODEL}"
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=512,
+        help="input tokens per document; the rest is cut",
+    )
     # 64 measured fastest on Apple Silicon, where wide batches thrash unified memory.
-    p.add_argument("--batch-size", type=int, default=64, help="documents per forward pass (lower if OOM)")
-    p.add_argument(
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=64,
+        help="documents per forward pass (lower if OOM)",
+    )
+    parser.add_argument(
         "--auto-batch-size",
         action="store_true",
         help=f"time {SWEEP_DOCS} docs at {', '.join(map(str, SWEEP_BATCH_SIZES))} and use the fastest",
     )
-    p.add_argument("--shard-size", type=int, default=20000, help="documents per checkpoint file; also the resume granularity")
-    p.add_argument("--max-length", type=int, default=512, help="tokens per document")
-    p.add_argument("--full-content", action="store_true", help="also embed the article body (slower, more VRAM)")
-    p.add_argument("--limit", type=int, help="stop after N documents; useful for timing a slice")
-    p.add_argument("--device", default="auto", choices=["auto", "mps", "cuda", "cpu"])
-    p.add_argument("--merge-only", action="store_true", help="skip embedding, just merge existing checkpoints")
-    p.add_argument(
+    parser.add_argument(
+        "--shard-size",
+        type=int,
+        default=20000,
+        help="documents per checkpoint; the resume unit",
+    )
+    parser.add_argument(
+        "--device",
+        default="auto",
+        choices=["auto", "cuda", "cpu", "mps"],
+        help="auto never picks mps",
+    )
+    parser.add_argument(
         "--clean-checkpoints",
         action="store_true",
-        help="delete the shard dir after a successful merge; halves peak disk, forfeits resume",
+        help="delete the checkpoints once the package is written; halves peak disk, forfeits resume",
     )
-    p.add_argument("--force", action="store_true", help="overwrite an output Parquet this checkpoint dir did not produce")
-    return p.parse_args()
+    return parser.parse_args(argv)
+
+
+def resolve_model_identity(args: argparse.Namespace) -> tuple[str, str]:
+    """Return (revision, model name), defaulting both only for the pinned Qwen model."""
+    if args.model == QWEN_HF_MODEL:
+        return args.revision or QWEN_REVISION, args.model_name or QWEN_MODEL_NAME
+    if not args.revision or not args.model_name:
+        raise PackageError(
+            "--revision and --model-name are required with a model other than the default"
+        )
+    return args.revision, args.model_name
+
+
+def kaggle_package() -> Path:
+    matches = (
+        sorted(KAGGLE_INPUT.glob("**/datapackage.json"))
+        if KAGGLE_INPUT.is_dir()
+        else []
+    )
+    if len(matches) != 1:
+        raise PackageError(
+            f"no package argument, and {len(matches)} datapackage.json files under {KAGGLE_INPUT}"
+        )
+    return matches[0]
+
+
+def apply_kaggle_defaults(args: argparse.Namespace) -> Path:
+    """Fill in what a kernel cannot pass on the command line, and return the package."""
+    args.output_root = args.output_root or KAGGLE_WORKING
+    args.checkpoint_dir = args.checkpoint_dir or KAGGLE_WORKING / "checkpoints"
+    # Kernel disk has to hold the shards and the Parquet at once.
+    args.clean_checkpoints = True
+    args.auto_batch_size = True
+    return kaggle_package()
+
+
+def run(args: argparse.Namespace) -> Path:
+    package: Path = args.package or apply_kaggle_defaults(args)
+    revision, model_name = resolve_model_identity(args)
+    source = open_package(package)
+    output_root = args.output_root or dataset_root_of(package)
+    total_rows = scan_corpus(source)
+
+    device = pick_device(args.device)
+    encoder = load_encoder(hf_model=args.model, revision=revision, device=device)
+    spec = EmbeddingSpec(
+        hf_model=args.model,
+        model_name=model_name,
+        revision=revision,
+        recipe=DOCUMENT_RECIPE,
+        dim=encoder.native_dim,
+        max_tokens=args.max_tokens,
+    )
+    package_version = version(
+        f"{spec.recipe}-{spec.dim}",
+        source.canonical.resource_hash,
+        spec.revision,
+        spec.recipe,
+        str(spec.dim),
+        str(spec.max_tokens),
+    )
+    final_dir = (
+        output_root / "embeddings" / spec.tag.replace(":", "-") / package_version
+    )
+    if final_dir.exists():
+        verify_existing_package(final_dir, package_version)
+        print(f"{final_dir} is already complete")
+        return final_dir
+
+    checkpoint_dir = args.checkpoint_dir or final_dir.with_name(
+        f".checkpoints-{package_version}"
+    )
+    shard_count = -(-total_rows // args.shard_size)
+    done = set(finished_shards(checkpoint_dir))
+    print(f"input    : {source.resource}  ({total_rows:,} rows)")
+    print(f"device   : {device.type}")
+    print(
+        f"shards   : {shard_count} x {args.shard_size} rows  ({len(done)} already on disk)"
+    )
+    print(f"output   : {final_dir}\n")
+
+    batch_size = args.batch_size
+    if args.auto_batch_size:
+        head = next(iter_shards(source, shard_size=SWEEP_DOCS, skip=set()))
+        batch_size = sweep_batch_size(
+            encoder, head.texts, max_tokens=spec.max_tokens, dim=spec.dim
+        )
+        print(f"using --batch-size {batch_size}\n")
+
+    started = time.monotonic()
+    embedded = 0
+    for shard in iter_shards(source, shard_size=args.shard_size, skip=done):
+        vectors = encode(
+            encoder,
+            shard.texts,
+            batch_size=batch_size,
+            max_tokens=spec.max_tokens,
+            dim=spec.dim,
+        )
+        save_shard(checkpoint_dir, shard, vectors)
+        embedded += len(shard.ids)
+        rate = embedded / max(time.monotonic() - started, 1e-9)
+        print(
+            f"shard {shard.index + 1:>4}/{shard_count}  {embedded:>8,} rows  {rate:>6.1f} rows/s"
+        )
+
+    def build(directory: Path) -> None:
+        resource_path = directory / "embeddings.parquet"
+        merge_shards(checkpoint_dir, shard_count=shard_count, out_path=resource_path)
+        descriptor: dict[str, Any] = {
+            "$schema": DATAPACKAGE_PROFILE,
+            "name": f"{source.canonical.name}-embeddings",
+            "version": package_version,
+        }
+        if source.language:
+            descriptor["language"] = source.language
+        descriptor["embedding"] = spec.to_descriptor()
+        descriptor["canonical"] = source.canonical.to_descriptor()
+        descriptor["resources"] = [
+            describe_parquet_resource(resource_path, name="embeddings")
+        ]
+        write_descriptor(directory, descriptor)
+
+    final_dir.parent.mkdir(parents=True, exist_ok=True)
+    publish_package(final_dir, build)
+    print(f"wrote {final_dir}")
+
+    if args.clean_checkpoints:
+        shutil.rmtree(checkpoint_dir, ignore_errors=True)
+    return final_dir
 
 
 def main() -> None:
-    args = parse_args()
-    if args.input is None:
-        apply_kaggle_defaults(args)
-    if not args.input.is_file():
-        sys.exit(f"no such file: {args.input}")
-
-    out_path = args.out or args.input.parent / "embeddings.parquet"
-    ckpt_dir = args.checkpoint_dir or out_path.parent / ".embed-checkpoints"
-
-    # Refuse only when no checkpoints exist, so a resumed run re-merges freely while a
-    # stray path cannot clobber vectors this run did not produce.
-    if out_path.exists() and not existing_shards(ckpt_dir) and not args.force:
-        # A completed --clean-checkpoints run leaves this same state, and re-running is
-        # how a dropped session resumes, so it has to no-op instead of failing.
-        if args.clean_checkpoints:
-            print(f"{out_path} is already complete; pass --force to regenerate")
-            return
-        sys.exit(f"{out_path} exists and {ckpt_dir} has no checkpoints; pass --force to overwrite")
-
-    if not args.merge_only:
-        total_docs = count_lines(args.input)
-        if args.limit:
-            total_docs = min(total_docs, args.limit)
-        total_shards = -(-total_docs // args.shard_size)
-        done = set(existing_shards(ckpt_dir))
-
-        device = pick_device(args.device)
-        print(f"input    : {args.input}  ({total_docs:,} docs)")
-        print(f"device   : {device.type}")
-        print(f"shards   : {total_shards} x {args.shard_size} docs  ({len(done)} already on disk)")
-        print(f"ckpt dir : {ckpt_dir}")
-        print(f"output   : {out_path}\n")
-
-        tokenizer, model = load_model(device)
-        print(f"model loaded, embedding dim {model.config.hidden_size}\n")
-
-        batch_size = args.batch_size
-        if args.auto_batch_size:
-            batch_size = sweep_batch_size(
-                head_texts(args.input, SWEEP_DOCS, args.full_content),
-                tokenizer, model, device, args.max_length,
-            )
-            print(f"using --batch-size {batch_size}\n")
-
-        started = time.time()
-        embedded = 0
-        for shard_idx, ids, texts in iter_shards(
-            args.input, args.shard_size, args.full_content, args.limit, lambda i: i in done
-        ):
-            vectors = embed_texts(texts, tokenizer, model, device, batch_size, args.max_length)
-            save_shard(ckpt_dir, shard_idx, ids, vectors)
-
-            embedded += len(ids)
-            elapsed = time.time() - started
-            rate = embedded / elapsed if elapsed else 0
-            remaining = (total_shards - shard_idx - 1) * args.shard_size
-            eta = remaining / rate if rate else float("inf")
-            print(
-                f"shard {shard_idx + 1:>4}/{total_shards}  "
-                f"{embedded:>8,} docs  {rate:>6.1f} docs/s  "
-                f"elapsed {fmt_duration(elapsed)}  eta {fmt_duration(eta)}"
-            )
-
-        if embedded:
-            print(f"\nembedded {embedded:,} docs in {fmt_duration(time.time() - started)}")
-        else:
-            print("nothing to do: every shard already checkpointed")
-
-    merge(ckpt_dir, out_path, args.max_length, args.full_content)
-    verify(out_path)
-
-    if args.clean_checkpoints:
-        freed = remove_checkpoints(ckpt_dir)
-        size = f"{freed / 1e9:.2f} GB" if freed >= 1e9 else f"{freed / 1e6:.0f} MB"
-        print(f"removed checkpoints, freed {size}")
-
-    print(f"\nEMBEDDING_SOURCE=file EMBEDDING_FILE_PATH={out_path}")
+    try:
+        run(parse_args())
+    except PackageError as error:
+        sys.exit(f"embed_corpus: {error}")
 
 
 if __name__ == "__main__":
