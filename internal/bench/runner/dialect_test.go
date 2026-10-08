@@ -284,7 +284,7 @@ queries:
 			suite: `templates:
   - id: es_range
     args: [terms, from, size]
-    query: '{"query": {"bool": {"must": {"match": {"title": "{{terms}}"}}{{#from}}, "filter": {"range": {"published_at": {"gte": "{{from}}"}}}}{{/from}}}}, "size": {{size}}}'
+    query: '{"query": {"bool": {"must": {"match": {"title": "{{terms}}"}}{{#from}}, "filter": {"range": {"published_at": {"gte": "{{from}}"}}}}{{/from}}}}, "size": {{{size}}}}'
 queries:
   - id: q1
     engines:

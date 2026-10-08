@@ -7,8 +7,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 )
 
-// Literal is the tusker API: a request descriptor sent as written, with the
-// query's values typed into it.
+// Literal is the tusker API: a request descriptor sent as written.
 type Literal struct{}
 
 func (Literal) Name() string { return "literal" }

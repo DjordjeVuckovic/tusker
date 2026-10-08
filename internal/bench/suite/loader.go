@@ -87,20 +87,17 @@ func checkEngineQuery(eq *EngineQuery, registry *TemplateRegistry) error {
 	return nil
 }
 
-// Block is one engine's statement for one query, with the params it runs with
-// before the run adds the query vector.
+// Block is one engine's statement for one query, before the run adds the query vector.
 type Block struct {
 	QueryID   string
 	Statement string
 	Args      []string
-	// Template is the suite template the statement comes from, empty for an
-	// inline or file query.
+	// Template is empty for an inline or file query.
 	Template string
 	Params   TemplateParams
 }
 
-// Blocks reads the statement of every query engine has a block in, with the
-// engine defaults under the query's own params.
+// Blocks reads engine's statement in every query, with defaults under the query's own params.
 func (ls *LoadedSuite) Blocks(engine string, defaults TemplateParams) ([]Block, error) {
 	var blocks []Block
 	for _, q := range ls.Suite.Queries {

@@ -10,9 +10,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 )
 
-// Mustache is Elasticsearch: a suite template is stored as a search template
-// and rendered by the engine from the params; any other block is Query DSL
-// sent as written.
+// Mustache is Elasticsearch: suite templates render on the engine, other blocks are sent as written.
 type Mustache struct{}
 
 var mustacheTag = regexp.MustCompile(`\{\{\{?\s*([#^/!>&]?)\s*([^}]*?)\s*\}?\}\}`)
@@ -56,17 +54,13 @@ func (Mustache) Request(track string, query *suite.ResolvedQuery) engine.Request
 	}
 }
 
-// mustacheNames are the names a source reads. A name inside a section may be a
-// field of each list element rather than a param, so only topLevel names must
-// be params.
+// mustacheNames splits out topLevel names, since one inside a section may be a list element's field.
 type mustacheNames struct {
 	topLevel []string
 	all      []string
 }
 
-// readMustache collects names as Elasticsearch renders them: toJson and join
-// read the param their body names, url renders its body, and a comment or
-// partial reads nothing.
+// readMustache follows Elasticsearch's lambdas: toJson and join read the param their body names.
 func readMustache(source string) mustacheNames {
 	var names mustacheNames
 	var openSections []string

@@ -113,9 +113,7 @@ func Dialects(bs *spec.BenchSpec) (map[string]dialect.Dialect, error) {
 	return dialects, nil
 }
 
-// LoadSuites loads every job's suite once and checks each job engine's blocks
-// against its dialect and that every arg they take is supplied, so a broken
-// binding fails before any query runs rather than partway through the jobs.
+// LoadSuites loads every job's suite and checks its blocks so a broken one fails before any query runs.
 func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
 	dialects, err := Dialects(bs)
 	if err != nil {
@@ -188,10 +186,7 @@ type templateOnEngine struct {
 	template engine.SearchTemplate
 }
 
-// RegisterSearchTemplates stores each suite template a job engine's queries
-// use on that engine, when its dialect renders templates on the engine. It
-// fails before storing anything when such an engine cannot store templates or
-// two different templates would share a stored id.
+// RegisterSearchTemplates stores templates on engines that render them, failing before storing any on a conflict.
 func RegisterSearchTemplates(ctx context.Context, reg TemplateRegistration) error {
 	dialects, err := Dialects(reg.Spec)
 	if err != nil {

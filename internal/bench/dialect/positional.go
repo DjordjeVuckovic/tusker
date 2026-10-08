@@ -61,8 +61,7 @@ func (Positional) Request(_ string, query *suite.ResolvedQuery) engine.Request {
 	return engine.Request{Query: query.Query, Args: args}
 }
 
-// bindValue sends a param as text, leaving typing to the statement's casts.
-// A null param stays nil so it binds as SQL NULL.
+// bindValue sends text for the statement to cast, and nil so null binds as SQL NULL.
 func bindValue(value any) any {
 	switch v := value.(type) {
 	case nil:

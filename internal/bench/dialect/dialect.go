@@ -1,5 +1,4 @@
-// Package dialect holds the syntax each engine type reads suite params in: how
-// a block is checked before anything runs and what its executor receives.
+// Package dialect holds the syntax each engine type reads suite params in.
 package dialect
 
 import (
@@ -17,8 +16,7 @@ type Dialect interface {
 	Check(block suite.Block) error
 	// Request is what the executor receives for a resolved query of track.
 	Request(track string, query *suite.ResolvedQuery) engine.Request
-	// StoresTemplates reports whether the engine keeps suite templates and
-	// renders them itself, so they are stored before any query runs.
+	// StoresTemplates reports whether templates are stored on the engine before any query runs.
 	StoresTemplates() bool
 }
 
