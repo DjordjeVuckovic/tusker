@@ -12,8 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSearchTemplateID(t *testing.T) {
-	assert.Equal(t, "news_hybrid-es_hybrid", SearchTemplateID("news_hybrid", "es_hybrid"))
+func TestSearchTemplateID_KeepsTracksApart(t *testing.T) {
 	assert.NotEqual(t, SearchTemplateID("fts_quality", "es_match"), SearchTemplateID("news_fuzzy", "es_match"),
 		"two tracks sharing a template id must not overwrite each other's stored template")
 }

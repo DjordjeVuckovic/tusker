@@ -125,5 +125,6 @@ queries:
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "fts-es_match")
+	assert.Empty(t, es.stored, "a collision is found before anything is stored")
 	assert.Empty(t, es.requests)
 }
