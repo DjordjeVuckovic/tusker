@@ -544,6 +544,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--model-name", help=f"tag stem; required unless --model is {QWEN_HF_MODEL}"
     )
     parser.add_argument(
+        "--dim",
+        type=int,
+        help="keep the first N dimensions, then L2-normalise (default: the model's width)",
+    )
+    parser.add_argument(
         "--max-tokens",
         type=int,
         default=512,
@@ -592,6 +597,16 @@ def resolve_model_identity(args: argparse.Namespace) -> tuple[str, str]:
     return args.revision, args.model_name
 
 
+def resolve_dim(requested: int | None, native_dim: int) -> int:
+    if requested is None:
+        return native_dim
+    if not 1 <= requested <= native_dim:
+        raise PackageError(
+            f"--dim {requested} is outside 1..{native_dim}, the model's width"
+        )
+    return requested
+
+
 def kaggle_package() -> Path:
     matches = (
         sorted(KAGGLE_INPUT.glob("**/datapackage.json"))
@@ -629,7 +644,7 @@ def run(args: argparse.Namespace) -> Path:
         model_name=model_name,
         revision=revision,
         recipe=DOCUMENT_RECIPE,
-        dim=encoder.native_dim,
+        dim=resolve_dim(args.dim, encoder.native_dim),
         max_tokens=args.max_tokens,
     )
     package_version = version(

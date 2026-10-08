@@ -209,3 +209,75 @@ def test_the_same_inputs_produce_byte_identical_packages(tmp_path, tiny_model_ar
     assert sha256_of(first.parent / "embeddings.parquet") == sha256_of(
         second.parent / "embeddings.parquet"
     )
+
+
+def test_dim_slices_the_native_vector_then_renormalises_it(tmp_path, tiny_model_args):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    embed(canonical.descriptor, tmp_path / "native", *tiny_model_args)
+    result = embed(
+        canonical.descriptor, tmp_path / "sliced", *tiny_model_args, "--dim", "64"
+    )
+
+    assert result.returncode == 0, result.stderr
+    _, native = read_embeddings(only_package(tmp_path / "native"))
+    _, sliced = read_embeddings(only_package(tmp_path / "sliced"))
+    prefix = native[:, :64]
+    np.testing.assert_allclose(
+        sliced, prefix / np.linalg.norm(prefix, axis=1, keepdims=True), atol=1e-6
+    )
+
+
+@pytest.mark.parametrize("dim", [None, "64"], ids=["native", "sliced"])
+def test_every_vector_has_unit_norm_at_the_chosen_dim(tmp_path, tiny_model_args, dim):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    dim_args = ["--dim", dim] if dim else []
+
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, *dim_args)
+
+    _, vectors = read_embeddings(only_package(tmp_path / "out"))
+    assert vectors.shape[1] == int(dim or 1024)
+    np.testing.assert_allclose(np.linalg.norm(vectors, axis=1), 1.0, atol=1e-6)
+
+
+def test_tag_version_and_location_carry_the_chosen_dim(tmp_path, tiny_model_args):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, "--dim", "64")
+
+    descriptor_path = only_package(tmp_path / "out")
+    descriptor = json.loads(descriptor_path.read_text())
+    assert descriptor["embedding"]["dim"] == 64
+    assert descriptor["embedding"]["tag"] == "tiny-qwen3@64"
+    assert descriptor["version"].startswith("lead-v1-64-")
+    assert descriptor_path.parent.parent.name == "tiny-qwen3@64"
+
+
+def test_refuses_a_dim_wider_than_the_model(tmp_path, tiny_model_args):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    result = embed(
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--dim", "2048"
+    )
+
+    assert result.returncode != 0
+    assert "--dim" in result.stderr
+    assert not (tmp_path / "out").exists()
+
+
+def test_max_tokens_caps_the_model_input(tmp_path, tiny_model_args):
+    rows = [
+        article("11111111-1111-4111-8111-111111111111", "Breaking: storm one"),
+        article("22222222-2222-4222-8222-222222222222", "Breaking: storm two"),
+    ]
+    canonical = write_canonical_package(tmp_path / "canonical", rows)
+
+    result = embed(
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--max-tokens", "8"
+    )
+
+    assert result.returncode == 0, result.stderr
+    descriptor_path = only_package(tmp_path / "out")
+    _, vectors = read_embeddings(descriptor_path)
+    np.testing.assert_array_equal(vectors[0], vectors[1])
+    assert json.loads(descriptor_path.read_text())["embedding"]["maxTokens"] == 8
