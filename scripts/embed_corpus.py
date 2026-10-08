@@ -26,6 +26,7 @@ to /kaggle/working.
 
 import argparse
 import hashlib
+import itertools
 import json
 import shutil
 import sys
@@ -55,6 +56,8 @@ PARQUET_MEDIATYPE = "application/vnd.apache.parquet"
 
 KAGGLE_INPUT = Path("/kaggle/input")
 KAGGLE_WORKING = Path("/kaggle/working")
+
+CHECKPOINT_MANIFEST = "manifest.json"
 
 SWEEP_BATCH_SIZES = (64, 256, 512)
 SWEEP_DOCS = 2000
@@ -86,6 +89,7 @@ class SourcePackage:
 
     resource: Path
     resource_format: ResourceFormat
+    resource_hash: str
     canonical: CanonicalRef
     language: str | None
 
@@ -222,6 +226,7 @@ def open_package(descriptor_path: Path) -> SourcePackage:
     return SourcePackage(
         resource=resource_path,
         resource_format=resource_format,
+        resource_hash=resource["hash"],
         canonical=canonical,
         language=descriptor.get("language"),
     )
@@ -259,14 +264,14 @@ def lead_text(title: str | None, description: str | None) -> str:
     return " ".join(part for part in parts if part)
 
 
-def iter_lead_rows(source: SourcePackage) -> Iterator[LeadRow]:
+def iter_lead_rows(source: SourcePackage, limit: int | None) -> Iterator[LeadRow]:
     """Stream (id, lead text) per row in resource order without holding the corpus in memory."""
     records = (
         iter_parquet_records(source.resource)
         if source.resource_format == "parquet"
         else iter_jsonl_records(source.resource)
     )
-    for row_number, record in enumerate(records, 1):
+    for row_number, record in enumerate(itertools.islice(records, limit), 1):
         yield LeadRow(
             id=canonical_id(record.get("id"), row_number),
             text=lead_text(record.get("title"), record.get("description")),
@@ -300,14 +305,14 @@ def canonical_id(value: object, row_number: int) -> str:
         raise PackageError(f"row {row_number} id {value!r} is not a uuid") from error
 
 
-def scan_corpus(source: SourcePackage) -> int:
+def scan_corpus(source: SourcePackage, limit: int | None) -> int:
     """Count the rows to embed, refusing any row whose lead text is empty.
 
     Loaders pair vectors with articles by position, so a row cannot be skipped.
     """
     rows = 0
     empty_ids: list[str] = []
-    for row in iter_lead_rows(source):
+    for row in iter_lead_rows(source, limit):
         rows += 1
         if not row.text:
             empty_ids.append(row.id)
@@ -321,7 +326,7 @@ def scan_corpus(source: SourcePackage) -> int:
 
 
 def iter_shards(
-    source: SourcePackage, *, shard_size: int, skip: set[int]
+    source: SourcePackage, *, shard_size: int, limit: int | None, skip: set[int]
 ) -> Iterator[Shard]:
     """Cut the corpus into fixed shards in resource order, skipping finished ones.
 
@@ -330,7 +335,7 @@ def iter_shards(
     ids: list[str] = []
     texts: list[str] = []
     index = 0
-    for position, row in enumerate(iter_lead_rows(source)):
+    for position, row in enumerate(iter_lead_rows(source, limit)):
         if index not in skip:
             ids.append(row.id)
             texts.append(row.text)
@@ -443,6 +448,49 @@ def save_shard(checkpoint_dir: Path, shard: Shard, vectors: np.ndarray) -> None:
     with open(temporary, "wb") as file:
         np.savez(file, ids=np.array(shard.ids), embeddings=vectors)
     temporary.rename(shard_path(checkpoint_dir, shard.index))
+
+
+def claim_checkpoints(checkpoint_dir: Path, key: dict[str, Any]) -> None:
+    """Bind a checkpoint dir to one run's settings, refusing shards written under others.
+
+    The key holds every setting that changes a shard's bytes, so resuming can never
+    splice vectors from two configurations, or a --limit trial, into one package.
+    """
+    manifest = checkpoint_dir / CHECKPOINT_MANIFEST
+    if manifest.exists():
+        recorded = json.loads(manifest.read_text(encoding="utf-8"))
+        differing = sorted(
+            name
+            for name in key.keys() | recorded.keys()
+            if key.get(name) != recorded.get(name)
+        )
+        if differing:
+            details = ", ".join(
+                f"{name} {recorded.get(name)!r} -> {key.get(name)!r}"
+                for name in differing
+            )
+            raise PackageError(
+                f"{checkpoint_dir} holds checkpoints from other settings ({details}); "
+                "use another --checkpoint-dir or delete it"
+            )
+        return
+    if finished_shards(checkpoint_dir):
+        raise PackageError(
+            f"{checkpoint_dir} holds shards with no {CHECKPOINT_MANIFEST}"
+        )
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    temporary = manifest.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps(key, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    temporary.rename(manifest)
+
+
+def recorded_batch_size(checkpoint_dir: Path) -> int | None:
+    manifest = checkpoint_dir / CHECKPOINT_MANIFEST
+    if not manifest.exists():
+        return None
+    return json.loads(manifest.read_text(encoding="utf-8")).get("batchSize")
 
 
 def finished_shards(checkpoint_dir: Path) -> list[int]:
@@ -573,6 +621,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="documents per checkpoint; the resume unit",
     )
     parser.add_argument(
+        "--limit",
+        type=int,
+        help="embed only the first N rows, as a trial package named <version>-limit-N",
+    )
+    parser.add_argument(
         "--device",
         default="auto",
         choices=["auto", "cuda", "cpu", "mps"],
@@ -635,7 +688,7 @@ def run(args: argparse.Namespace) -> Path:
     revision, model_name = resolve_model_identity(args)
     source = open_package(package)
     output_root = args.output_root or dataset_root_of(package)
-    total_rows = scan_corpus(source)
+    total_rows = scan_corpus(source, args.limit)
 
     device = pick_device(args.device)
     encoder = load_encoder(hf_model=args.model, revision=revision, device=device)
@@ -655,6 +708,10 @@ def run(args: argparse.Namespace) -> Path:
         str(spec.dim),
         str(spec.max_tokens),
     )
+    # A trial holds a prefix of the corpus, so it must never sit where the full
+    # package of the same inputs belongs.
+    if args.limit is not None:
+        package_version = f"{package_version}-limit-{args.limit}"
     final_dir = (
         output_root / "embeddings" / spec.tag.replace(":", "-") / package_version
     )
@@ -666,39 +723,43 @@ def run(args: argparse.Namespace) -> Path:
     checkpoint_dir = args.checkpoint_dir or final_dir.with_name(
         f".checkpoints-{package_version}"
     )
-    shard_count = -(-total_rows // args.shard_size)
-    done = set(finished_shards(checkpoint_dir))
-    print(f"input    : {source.resource}  ({total_rows:,} rows)")
-    print(f"device   : {device.type}")
-    print(
-        f"shards   : {shard_count} x {args.shard_size} rows  ({len(done)} already on disk)"
-    )
-    print(f"output   : {final_dir}\n")
-
     batch_size = args.batch_size
     if args.auto_batch_size:
-        head = next(iter_shards(source, shard_size=SWEEP_DOCS, skip=set()))
-        batch_size = sweep_batch_size(
-            encoder, head.texts, max_tokens=spec.max_tokens, dim=spec.dim
-        )
-        print(f"using --batch-size {batch_size}\n")
-
-    started = time.monotonic()
-    embedded = 0
-    for shard in iter_shards(source, shard_size=args.shard_size, skip=done):
-        vectors = encode(
+        batch_size = recorded_batch_size(checkpoint_dir) or sweep_batch_size(
             encoder,
-            shard.texts,
-            batch_size=batch_size,
+            next(
+                iter_shards(source, shard_size=SWEEP_DOCS, limit=SWEEP_DOCS, skip=set())
+            ).texts,
             max_tokens=spec.max_tokens,
             dim=spec.dim,
         )
-        save_shard(checkpoint_dir, shard, vectors)
-        embedded += len(shard.ids)
-        rate = embedded / max(time.monotonic() - started, 1e-9)
-        print(
-            f"shard {shard.index + 1:>4}/{shard_count}  {embedded:>8,} rows  {rate:>6.1f} rows/s"
-        )
+        print(f"using --batch-size {batch_size}\n")
+    claim_checkpoints(
+        checkpoint_dir,
+        {
+            "resourceHash": source.resource_hash,
+            "canonicalResourceHash": source.canonical.resource_hash,
+            "limit": args.limit,
+            "shardSize": args.shard_size,
+            "batchSize": batch_size,
+            "dtype": str(inference_dtype(device)),
+            **spec.to_descriptor(),
+        },
+    )
+
+    shard_count = -(-total_rows // args.shard_size)
+    embed_shards(
+        source,
+        encoder,
+        EmbedPlan(
+            spec=spec,
+            checkpoint_dir=checkpoint_dir,
+            shard_size=args.shard_size,
+            shard_count=shard_count,
+            limit=args.limit,
+            batch_size=batch_size,
+        ),
+    )
 
     def build(directory: Path) -> None:
         resource_path = directory / "embeddings.parquet"
@@ -724,6 +785,47 @@ def run(args: argparse.Namespace) -> Path:
     if args.clean_checkpoints:
         shutil.rmtree(checkpoint_dir, ignore_errors=True)
     return final_dir
+
+
+@dataclass(frozen=True, slots=True)
+class EmbedPlan:
+    spec: EmbeddingSpec
+    checkpoint_dir: Path
+    shard_size: int
+    shard_count: int
+    limit: int | None
+    batch_size: int
+
+
+def embed_shards(source: SourcePackage, encoder: Encoder, plan: EmbedPlan) -> None:
+    """Embed and checkpoint every shard not already on disk."""
+    done = set(finished_shards(plan.checkpoint_dir))
+    print(f"input    : {source.resource}")
+    print(f"device   : {encoder.device.type}")
+    print(
+        f"shards   : {plan.shard_count} x {plan.shard_size} rows  ({len(done)} on disk)"
+    )
+    print(f"ckpt dir : {plan.checkpoint_dir}\n")
+
+    started = time.monotonic()
+    embedded = 0
+    shards = iter_shards(
+        source, shard_size=plan.shard_size, limit=plan.limit, skip=done
+    )
+    for shard in shards:
+        vectors = encode(
+            encoder,
+            shard.texts,
+            batch_size=plan.batch_size,
+            max_tokens=plan.spec.max_tokens,
+            dim=plan.spec.dim,
+        )
+        save_shard(plan.checkpoint_dir, shard, vectors)
+        embedded += len(shard.ids)
+        rate = embedded / max(time.monotonic() - started, 1e-9)
+        print(
+            f"shard {shard.index + 1:>4}/{plan.shard_count}  {embedded:>8,} rows  {rate:>6.1f} rows/s"
+        )
 
 
 def main() -> None:

@@ -281,3 +281,139 @@ def test_max_tokens_caps_the_model_input(tmp_path, tiny_model_args):
     _, vectors = read_embeddings(descriptor_path)
     np.testing.assert_array_equal(vectors[0], vectors[1])
     assert json.loads(descriptor_path.read_text())["embedding"]["maxTokens"] == 8
+
+
+def package_dirs(output_root: Path) -> list[str]:
+    return sorted(
+        path.parent.name for path in output_root.glob("embeddings/*/*/datapackage.json")
+    )
+
+
+def test_a_limit_trial_embeds_the_first_rows_into_its_own_package(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    result = embed(
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--limit", "2"
+    )
+
+    assert result.returncode == 0, result.stderr
+    descriptor_path = only_package(tmp_path / "out")
+    ids, _ = read_embeddings(descriptor_path)
+    assert ids == [ROWS[0]["id"], ROWS[1]["id"]]
+    assert descriptor_path.parent.name.endswith("-limit-2")
+    assert (
+        json.loads(descriptor_path.read_text())["version"]
+        == descriptor_path.parent.name
+    )
+
+
+def test_a_full_run_after_a_limit_trial_writes_the_full_corpus(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, "--limit", "2")
+
+    result = embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
+
+    assert result.returncode == 0, result.stderr
+    (full,) = [name for name in package_dirs(tmp_path / "out") if "limit" not in name]
+    ids, _ = read_embeddings(
+        next((tmp_path / "out").glob(f"embeddings/*/{full}/datapackage.json"))
+    )
+    assert ids == [row["id"] for row in ROWS]
+
+
+def test_refuses_to_resume_a_limit_trial_as_a_full_run(tmp_path, tiny_model_args):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    checkpoints = tmp_path / "checkpoints"
+    embed(
+        canonical.descriptor,
+        tmp_path / "out",
+        *tiny_model_args,
+        "--limit",
+        "2",
+        "--checkpoint-dir",
+        checkpoints,
+    )
+
+    result = embed(
+        canonical.descriptor,
+        tmp_path / "out",
+        *tiny_model_args,
+        "--checkpoint-dir",
+        checkpoints,
+    )
+
+    assert result.returncode != 0
+    assert "limit" in result.stderr
+    assert all("limit" in name for name in package_dirs(tmp_path / "out"))
+
+
+def test_refuses_checkpoints_written_with_different_settings(tmp_path, tiny_model_args):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    checkpoints = tmp_path / "checkpoints"
+    embed(
+        canonical.descriptor,
+        tmp_path / "out",
+        *tiny_model_args,
+        "--checkpoint-dir",
+        checkpoints,
+    )
+
+    result = embed(
+        canonical.descriptor,
+        tmp_path / "out",
+        *tiny_model_args,
+        "--max-tokens",
+        "256",
+        "--checkpoint-dir",
+        checkpoints,
+    )
+
+    assert result.returncode != 0
+    assert "maxTokens" in result.stderr
+
+
+def test_a_resumed_run_reproduces_the_uninterrupted_package(tmp_path, tiny_model_args):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    checkpoints = tmp_path / "checkpoints"
+    args = [*tiny_model_args, "--shard-size", "2", "--checkpoint-dir", checkpoints]
+    embed(canonical.descriptor, tmp_path / "first", *args)
+    uninterrupted = only_package(tmp_path / "first")
+    max(checkpoints.glob("*.npz")).unlink()
+
+    result = embed(canonical.descriptor, tmp_path / "second", *args)
+
+    assert result.returncode == 0, result.stderr
+    resumed = only_package(tmp_path / "second")
+    assert sha256_of(resumed.parent / "embeddings.parquet") == sha256_of(
+        uninterrupted.parent / "embeddings.parquet"
+    )
+
+
+def test_rerunning_a_finished_package_leaves_it_untouched(tmp_path, tiny_model_args):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
+    resource = only_package(tmp_path / "out").parent / "embeddings.parquet"
+    before = sha256_of(resource)
+
+    result = embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
+
+    assert result.returncode == 0, result.stderr
+    assert sha256_of(resource) == before
+
+
+def test_refuses_to_rerun_over_a_finished_package_that_no_longer_verifies(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
+    resource = only_package(tmp_path / "out").parent / "embeddings.parquet"
+    resource.write_bytes(resource.read_bytes()[:-1] + b"\0")
+
+    result = embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
+
+    assert result.returncode != 0
+    assert "hash" in result.stderr
