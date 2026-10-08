@@ -146,7 +146,7 @@ func verifyInPlace(ctx context.Context, r Resource, f *os.File) (*ResourceFile, 
 }
 
 func (o *Opened) download(ctx context.Context, r Resource, body io.Reader) (*ResourceFile, error) {
-	tmp, err := os.CreateTemp(o.tempDir, "datapackage-"+r.Name+"-*")
+	tmp, err := os.CreateTemp(o.tempDir, "datapackage-resource-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp file for resource %s: %w", r.Name, err)
 	}

@@ -19,6 +19,9 @@ import (
 // identical descriptor already there is left alone; a different one is never
 // replaced and yields ErrDescriptorExists.
 func Write(ctx context.Context, dir string, pkg Package) (Package, error) {
+	if pkg.Name == "" {
+		return Package{}, errors.New("package has no name")
+	}
 	if err := pkg.validate(); err != nil {
 		return Package{}, err
 	}

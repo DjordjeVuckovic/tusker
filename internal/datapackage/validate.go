@@ -6,10 +6,9 @@ import (
 	"strings"
 )
 
+// validate checks what every package needs before its resources can be
+// trusted. Write also requires a name, which the v2 profile leaves optional.
 func (p Package) validate() error {
-	if p.Name == "" {
-		return errors.New("package has no name")
-	}
 	if len(p.Resources) == 0 {
 		return fmt.Errorf("package %s has no resources", p.Name)
 	}

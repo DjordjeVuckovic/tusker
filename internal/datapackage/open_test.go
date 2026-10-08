@@ -178,3 +178,18 @@ func TestOpenReportsAMissingDescriptor(t *testing.T) {
 		t.Errorf("err = %v, want NotFoundError", err)
 	}
 }
+
+func TestOpenAcceptsADescriptorWithoutAPackageName(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "hello.txt", "hello\n")
+	writeFile(t, dir, datapackage.DescriptorName, `{"resources": [{"name": "hello", "path": "hello.txt", "format": "txt", "bytes": 6,
+		"hash": "sha256:5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"}]}`)
+
+	opened, err := datapackage.Open(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if got, err := readResource(context.Background(), opened, "hello"); err != nil || string(got) != "hello\n" {
+		t.Errorf("hello = %q, %v", got, err)
+	}
+}

@@ -239,3 +239,25 @@ func TestResourceStopsOnCancelWithoutLeavingADownload(t *testing.T) {
 	}
 	emptyDir(t, tempDir)
 }
+
+func TestOpenOverHTTPSServesANestedResource(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "pkg/docs/notes.txt", "notes\n")
+	if _, err := datapackage.Write(context.Background(), filepath.Join(root, "pkg"), datapackage.Package{
+		Name:      "nested",
+		Resources: []datapackage.Resource{{Name: "docs/notes.txt", Path: "docs/notes.txt", Format: "txt"}},
+	}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	srv := httptest.NewTLSServer(http.FileServer(http.Dir(root)))
+	t.Cleanup(srv.Close)
+	ctx := context.Background()
+
+	opened, err := datapackage.OpenWith(ctx, srv.URL+"/pkg/datapackage.json", datapackage.Options{HTTPClient: srv.Client()})
+	if err != nil {
+		t.Fatalf("OpenWith: %v", err)
+	}
+	if got, err := readResource(ctx, opened, "docs/notes.txt"); err != nil || string(got) != "notes\n" {
+		t.Errorf("docs/notes.txt = %q, %v", got, err)
+	}
+}
