@@ -1,0 +1,170 @@
+package datapackage_test
+
+import (
+	"bytes"
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/dlclark/regexp2"
+	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
+)
+
+// The profile's path patterns use lookaheads, which Go's RE2 cannot compile.
+type ecmaRegexp struct{ re *regexp2.Regexp }
+
+func (r ecmaRegexp) MatchString(s string) bool {
+	ok, err := r.re.MatchString(s)
+	return err == nil && ok
+}
+
+func (r ecmaRegexp) String() string { return r.re.String() }
+
+func compileProfile(t *testing.T) *jsonschema.Schema {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("testdata", "datapackage-profile-2.0.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := jsonschema.NewCompiler()
+	c.UseRegexpEngine(func(expr string) (jsonschema.Regexp, error) {
+		re, err := regexp2.Compile(expr, regexp2.ECMAScript)
+		if err != nil {
+			return nil, err
+		}
+		return ecmaRegexp{re}, nil
+	})
+	if err := c.AddResource(datapackage.Profile, doc); err != nil {
+		t.Fatal(err)
+	}
+	schema, err := c.Compile(datapackage.Profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return schema
+}
+
+func TestWrittenDescriptorConformsToDataPackageV2Profile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "articles.parquet", "not really parquet")
+	writeFile(t, dir, "embeddings.parquet", "not really vectors")
+
+	_, err := datapackage.Write(context.Background(), dir, fullPackage())
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, datapackage.DescriptorName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := compileProfile(t).Validate(doc); err != nil {
+		t.Errorf("descriptor violates the v2 profile: %v\n%s", err, raw)
+	}
+}
+
+func fullPackage() datapackage.Package {
+	return datapackage.Package{
+		Name:          "cc-news-canonical",
+		Version:       "article-v2-601d5476",
+		ArticleSchema: datapackage.ArticleSchema,
+		Language:      "eng",
+		Mapping:       &datapackage.FileRef{Path: "mapping.yaml", Hash: "sha256:2d0edef8b70bf82650502ae43740637a3a0c5270a8ddca0d48f161cd74d6bf98"},
+		IDStrategy:    &datapackage.IDStrategy{Kind: "uuidv5", Source: "url", Namespace: "6ba7b811-9dad-11d1-80b4-00c04fd430c8"},
+		ProducedBy:    &datapackage.ProducedBy{Tool: "datapipe preprocess", Version: "v0.1.0", Commit: "c4ecbe3"},
+		Report: &datapackage.Report{
+			Read: 10, Written: 7, Deduped: 1,
+			Dropped: map[string]int64{"invalid_url": 2},
+		},
+		Embedding: &datapackage.Embedding{
+			Model: "qwen3-embedding:0.6b", HuggingFaceModel: "Qwen/Qwen3-Embedding-0.6B", Revision: "abc123",
+			Tag: "qwen3-embedding:0.6b@1024", Dim: 1024, Recipe: "lead-v1", Pooling: "last-token",
+			Normalized: true, MaxTokens: 512,
+		},
+		Canonical: &datapackage.Ref{Name: "cc-news-canonical", Version: "article-v2-601d5476", ResourceHash: "sha256:" + zeros64},
+		Sources:   []datapackage.Source{{Title: "huggingface vblagoje/cc_news", Path: "https://huggingface.co/datasets/vblagoje/cc_news", Version: "81eb2ce0d2a9dad6ad16b68ef750ec290880fa36"}},
+		Resources: []datapackage.Resource{
+			{Name: "articles", Path: "articles.parquet", Format: "parquet"},
+			{Name: "embeddings", Path: "embeddings.parquet", Format: "parquet"},
+		},
+	}
+}
+
+const zeros64 = "0000000000000000000000000000000000000000000000000000000000000000"
+
+// The Python producers write the same descriptor without this package, so the
+// property names are checked against the contract's spelling, not the structs.
+func TestWrittenDescriptorUsesContractPropertyNames(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "articles.parquet", "not really parquet")
+	writeFile(t, dir, "embeddings.parquet", "not really vectors")
+	if _, err := datapackage.Write(context.Background(), dir, fullPackage()); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	doc := readDescriptorJSON(t, dir)
+
+	want := map[string]any{
+		"$schema":                    "https://datapackage.org/profiles/2.0/datapackage.json",
+		"name":                       "cc-news-canonical",
+		"version":                    "article-v2-601d5476",
+		"articleSchema":              "article/v2",
+		"language":                   "eng",
+		"mapping/path":               "mapping.yaml",
+		"mapping/hash":               "sha256:2d0edef8b70bf82650502ae43740637a3a0c5270a8ddca0d48f161cd74d6bf98",
+		"idStrategy/kind":            "uuidv5",
+		"producedBy/tool":            "datapipe preprocess",
+		"producedBy/version":         "v0.1.0",
+		"producedBy/commit":          "c4ecbe3",
+		"report/read":                10.0,
+		"report/written":             7.0,
+		"report/dropped/invalid_url": 2.0,
+		"report/deduped":             1.0,
+		"embedding/model":            "qwen3-embedding:0.6b",
+		"embedding/hfModel":          "Qwen/Qwen3-Embedding-0.6B",
+		"embedding/revision":         "abc123",
+		"embedding/tag":              "qwen3-embedding:0.6b@1024",
+		"embedding/dim":              1024.0,
+		"embedding/recipe":           "lead-v1",
+		"embedding/pooling":          "last-token",
+		"embedding/normalized":       true,
+		"embedding/maxTokens":        512.0,
+		"canonical/name":             "cc-news-canonical",
+		"canonical/version":          "article-v2-601d5476",
+		"canonical/resourceHash":     "sha256:" + zeros64,
+	}
+	for pointer, value := range want {
+		if got := lookup(doc, pointer); got != value {
+			t.Errorf("%s = %v, want %v", pointer, got, value)
+		}
+	}
+	resource := doc["resources"].([]any)[0].(map[string]any)
+	for _, key := range []string{"name", "path", "format", "bytes", "hash"} {
+		if _, ok := resource[key]; !ok {
+			t.Errorf("resource lacks %q: %v", key, resource)
+		}
+	}
+}
+
+func lookup(doc map[string]any, pointer string) any {
+	var node any = doc
+	for _, key := range strings.Split(pointer, "/") {
+		object, ok := node.(map[string]any)
+		if !ok {
+			return nil
+		}
+		node = object[key]
+	}
+	return node
+}

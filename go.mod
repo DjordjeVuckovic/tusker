@@ -7,6 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.20
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.19
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.102.2
+	github.com/dlclark/regexp2 v1.12.0
 	github.com/elastic/go-elasticsearch/v8 v8.19.0
 	github.com/fatih/color v1.19.0
 	github.com/go-playground/validator/v10 v10.30.3
@@ -18,6 +19,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/parquet-go/parquet-go v0.30.1
 	github.com/pgvector/pgvector-go v0.3.0
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/echo-swagger v1.4.1
