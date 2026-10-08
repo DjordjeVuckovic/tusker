@@ -16,8 +16,8 @@ import (
 // data file cannot be pulled into memory whole.
 const maxDescriptorBytes = 16 << 20
 
-// Options configures OpenWith. The zero value opens local paths only plus
-// https through http.DefaultClient.
+// Options configures OpenWith. The zero value uses http.DefaultClient and the
+// default AWS credential chain.
 type Options struct {
 	HTTPClient *http.Client
 	S3         S3Config

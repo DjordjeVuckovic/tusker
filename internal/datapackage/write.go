@@ -15,7 +15,9 @@ import (
 )
 
 // Write hashes every resource under dir and writes the descriptor to
-// dir/datapackage.json atomically, returning the descriptor as written.
+// dir/datapackage.json atomically, returning the descriptor as written. An
+// identical descriptor already there is left alone; a different one is never
+// replaced and yields ErrDescriptorExists.
 func Write(ctx context.Context, dir string, pkg Package) (Package, error) {
 	if err := pkg.validate(); err != nil {
 		return Package{}, err
@@ -64,12 +66,8 @@ func digestFile(ctx context.Context, path string) (digest, error) {
 		return digest{}, err
 	}
 	defer f.Close()
-	return digestReader(ctx, f)
-}
-
-func digestReader(ctx context.Context, r io.Reader) (digest, error) {
 	h := sha256.New()
-	n, err := io.Copy(h, contextReader{ctx: ctx, r: r})
+	n, err := io.Copy(h, contextReader{ctx: ctx, r: f})
 	if err != nil {
 		return digest{}, err
 	}
@@ -87,6 +85,10 @@ func writeAtomic(path string, content []byte) error {
 	if _, err := tmp.Write(content); err != nil {
 		tmp.Close()
 		return fmt.Errorf("write %s: %w", tmp.Name(), err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("sync %s: %w", tmp.Name(), err)
 	}
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("close %s: %w", tmp.Name(), err)
