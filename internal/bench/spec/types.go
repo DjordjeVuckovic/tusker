@@ -44,8 +44,8 @@ func (k Kind) Valid() bool {
 
 // RequiresEmbedder reports whether the paradigm needs a live query embedder
 // (EMBEDDING_BASE_URL + an embedding-capable engine). Semantic and hybrid
-// queries carry the reserved {{precomputed}} vector placeholder; the rest are
-// lexical and resolve without one.
+// queries take the reserved query_vector arg; the rest are lexical and resolve
+// without one.
 func (k Kind) RequiresEmbedder() bool {
 	return k == KindSemantic || k == KindHybrid
 }
@@ -64,10 +64,28 @@ type Job struct {
 	Engines []string `yaml:"engines"`
 }
 
+// EngineType is the kind of system an engine runs queries against.
+type EngineType string
+
+const (
+	EnginePostgres      EngineType = "postgres"
+	EngineElasticsearch EngineType = "elasticsearch"
+	EngineAPI           EngineType = "api"
+)
+
+func (t EngineType) Valid() bool {
+	switch t {
+	case EnginePostgres, EngineElasticsearch, EngineAPI:
+		return true
+	default:
+		return false
+	}
+}
+
 type Engine struct {
-	Type       string `yaml:"type"`
-	Connection string `yaml:"connection"`
-	Index      string `yaml:"index,omitempty"`
+	Type       EngineType `yaml:"type"`
+	Connection string     `yaml:"connection"`
+	Index      string     `yaml:"index,omitempty"`
 	// ConnectionSettings are GUCs pinning the operating point a postgres engine
 	// is measured at, e.g. hnsw.ef_search. See docs/bench.md.
 	ConnectionSettings map[string]string `yaml:"connection_settings,omitempty"`

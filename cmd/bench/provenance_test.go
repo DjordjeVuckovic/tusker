@@ -89,7 +89,7 @@ type describedExecutor struct {
 	err         error
 }
 
-func (e describedExecutor) Execute(context.Context, string, []any) (*engine.Execution, error) {
+func (e describedExecutor) Execute(context.Context, engine.Request) (*engine.Execution, error) {
 	return &engine.Execution{}, nil
 }
 func (e describedExecutor) Name() string { return "described" }
@@ -100,7 +100,7 @@ func (e describedExecutor) DescribeIndex(context.Context) (*engine.IndexDescript
 
 type undescribedExecutor struct{}
 
-func (undescribedExecutor) Execute(context.Context, string, []any) (*engine.Execution, error) {
+func (undescribedExecutor) Execute(context.Context, engine.Request) (*engine.Execution, error) {
 	return &engine.Execution{}, nil
 }
 func (undescribedExecutor) Name() string { return "undescribed" }

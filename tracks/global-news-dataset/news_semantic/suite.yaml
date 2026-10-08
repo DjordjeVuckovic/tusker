@@ -8,7 +8,7 @@ corpus:
   name: news_hunter_articles
   source: "postgres://localhost:54320/news_db (articles)"
 
-# Query embeddings ({{embedding}} placeholder) use Qwen3-Embedding-0.6B (1024-dim),
+# Query embeddings (the query_vector arg) use Qwen3-Embedding-0.6B (1024-dim),
 # L2-normalised (scripts/embed_qwen3.ipynb). Document vectors live in
 # article_embeddings (VECTOR(1024)); requires migrations (make migrate-up-all).
 #
@@ -21,17 +21,31 @@ corpus:
 #
 # article_embeddings is keyed (article_id, model_name), so two models coexist in
 # it by design and an unfiltered scan would rank across both vector spaces.
-# {{embedding_model}} comes from the engine's params in spec.yaml. The ES arm
+# The embedding_model arg comes from the engine's params in spec.yaml. The ES arm
 # needs no equivalent: the vector is a field on the article document, so a second
 # model overwrites rather than joins.
 
 templates:
   - id: pgvector_cosine
+    args: [embedding_model, query_vector, limit]
     query: |
       SELECT article_id AS id FROM article_embeddings
-      WHERE model_name = '{{embedding_model}}'
-      ORDER BY embedding <=> '{{embedding}}'::vector
-      LIMIT {{limit}}
+      WHERE model_name = $1
+      ORDER BY embedding <=> $2::vector
+      LIMIT $3::int
+
+  - id: es_knn
+    args: [query_vector]
+    query: |
+      {
+        "knn": {
+          "field": "embedding",
+          "query_vector": {{#toJson}}query_vector{{/toJson}},
+          "k": 50,
+          "num_candidates": 200
+        },
+        "size": 50
+      }
 
 queries:
   # Semantic queries test conceptual understanding: the relevant documents may
@@ -42,197 +56,117 @@ queries:
     engines:
       pgvector-cosine:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
+        params: { limit: 50 }
       pgvector-exact:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
-      elasticsearch: |
-        {
-          "knn": {
-            "field": "embedding",
-            "query_vector": {{precomputed}},
-            "k": 50,
-            "num_candidates": 200
-          },
-          "size": 50
-        }
+        params: { limit: 50 }
+      elasticsearch:
+        template: es_knn
 
   - id: sem-political-leadership-change
     description: "Leadership transitions, elections, coups — not just 'election' keyword"
     engines:
       pgvector-cosine:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
+        params: { limit: 50 }
       pgvector-exact:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
-      elasticsearch: |
-        {
-          "knn": {
-            "field": "embedding",
-            "query_vector": {{precomputed}},
-            "k": 50,
-            "num_candidates": 200
-          },
-          "size": 50
-        }
+        params: { limit: 50 }
+      elasticsearch:
+        template: es_knn
 
   - id: sem-environmental-impact
     description: "Environmental consequences of human activity — beyond 'climate change'"
     engines:
       pgvector-cosine:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
+        params: { limit: 50 }
       pgvector-exact:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
-      elasticsearch: |
-        {
-          "knn": {
-            "field": "embedding",
-            "query_vector": {{precomputed}},
-            "k": 50,
-            "num_candidates": 200
-          },
-          "size": 50
-        }
+        params: { limit: 50 }
+      elasticsearch:
+        template: es_knn
 
   - id: sem-tech-disruption
     description: "Technology reshaping industries — not just 'AI' or 'startup'"
     engines:
       pgvector-cosine:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
+        params: { limit: 50 }
       pgvector-exact:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
-      elasticsearch: |
-        {
-          "knn": {
-            "field": "embedding",
-            "query_vector": {{precomputed}},
-            "k": 50,
-            "num_candidates": 200
-          },
-          "size": 50
-        }
+        params: { limit: 50 }
+      elasticsearch:
+        template: es_knn
 
   - id: sem-public-health-threat
     description: "Disease outbreaks, health emergencies — broader than 'pandemic'"
     engines:
       pgvector-cosine:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
+        params: { limit: 50 }
       pgvector-exact:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
-      elasticsearch: |
-        {
-          "knn": {
-            "field": "embedding",
-            "query_vector": {{precomputed}},
-            "k": 50,
-            "num_candidates": 200
-          },
-          "size": 50
-        }
+        params: { limit: 50 }
+      elasticsearch:
+        template: es_knn
 
   - id: sem-military-conflict
     description: "Armed conflict, war, military operations"
     engines:
       pgvector-cosine:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
+        params: { limit: 50 }
       pgvector-exact:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
-      elasticsearch: |
-        {
-          "knn": {
-            "field": "embedding",
-            "query_vector": {{precomputed}},
-            "k": 50,
-            "num_candidates": 200
-          },
-          "size": 50
-        }
+        params: { limit: 50 }
+      elasticsearch:
+        template: es_knn
 
   - id: sem-social-justice
     description: "Civil rights, protests, inequality — conceptual, not keyword-driven"
     engines:
       pgvector-cosine:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
+        params: { limit: 50 }
       pgvector-exact:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
-      elasticsearch: |
-        {
-          "knn": {
-            "field": "embedding",
-            "query_vector": {{precomputed}},
-            "k": 50,
-            "num_candidates": 200
-          },
-          "size": 50
-        }
+        params: { limit: 50 }
+      elasticsearch:
+        template: es_knn
 
   - id: sem-energy-transition
     description: "Shift from fossil fuels to renewables — policy + technology angle"
     engines:
       pgvector-cosine:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
+        params: { limit: 50 }
       pgvector-exact:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
-      elasticsearch: |
-        {
-          "knn": {
-            "field": "embedding",
-            "query_vector": {{precomputed}},
-            "k": 50,
-            "num_candidates": 200
-          },
-          "size": 50
-        }
+        params: { limit: 50 }
+      elasticsearch:
+        template: es_knn
 
   - id: sem-inflation-cost-of-living
     description: "Rising prices, affordability crisis, central bank response"
     engines:
       pgvector-cosine:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
+        params: { limit: 50 }
       pgvector-exact:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
-      elasticsearch: |
-        {
-          "knn": {
-            "field": "embedding",
-            "query_vector": {{precomputed}},
-            "k": 50,
-            "num_candidates": 200
-          },
-          "size": 50
-        }
+        params: { limit: 50 }
+      elasticsearch:
+        template: es_knn
 
   - id: sem-diplomatic-relations
     description: "International diplomacy, treaties, sanctions"
     engines:
       pgvector-cosine:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
+        params: { limit: 50 }
       pgvector-exact:
         template: pgvector_cosine
-        params: { embedding: "{{precomputed}}", limit: 50 }
-      elasticsearch: |
-        {
-          "knn": {
-            "field": "embedding",
-            "query_vector": {{precomputed}},
-            "k": 50,
-            "num_candidates": 200
-          },
-          "size": 50
-        }
+        params: { limit: 50 }
+      elasticsearch:
+        template: es_knn

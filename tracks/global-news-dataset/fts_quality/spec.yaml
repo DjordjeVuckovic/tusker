@@ -13,9 +13,13 @@ engines:
   pg-seq:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
+    connection_settings:
+      plan_cache_mode: force_custom_plan
   pg-gin:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
+    connection_settings:
+      plan_cache_mode: force_custom_plan
     params:
       rank_norm: "0"
   # The length-normalised arm: same instance, column and queries as pg-gin, only
@@ -24,6 +28,8 @@ engines:
   pg-gin-norm:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
+    connection_settings:
+      plan_cache_mode: force_custom_plan
     queries_from: pg-gin
     params:
       rank_norm: "1"
@@ -33,6 +39,7 @@ engines:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
     connection_settings:
+      plan_cache_mode: force_custom_plan
       enable_indexscan: "off"
       enable_bitmapscan: "off"
     params:
@@ -40,9 +47,13 @@ engines:
   paradedb:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54321/news_db"
+    connection_settings:
+      plan_cache_mode: force_custom_plan
   tiger:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54322/news_db"
+    connection_settings:
+      plan_cache_mode: force_custom_plan
   elasticsearch:
     type: elasticsearch
     connection: "http://localhost:9200"

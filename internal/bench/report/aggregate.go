@@ -37,7 +37,7 @@ func Generate(br *runner.BenchmarkResult, opts *GenerateOptions) *Report {
 		if opts.Spec != nil {
 			for name, eng := range opts.Spec.Engines {
 				info := EngineInfo{
-					Type:       eng.Type,
+					Type:       string(eng.Type),
 					Connection: connectionEndpoint(eng.Connection),
 				}
 				if provenance, ok := opts.Indexes[name]; ok {

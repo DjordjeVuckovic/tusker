@@ -10,105 +10,146 @@ corpus:
 
 templates:
   - id: pg_fts_multi_field
+    args: [terms, limit]
     query: |
       SELECT id FROM articles
       WHERE to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,''))
-            @@ plainto_tsquery('english', '{{terms}}')
+            @@ plainto_tsquery('english', $1)
       ORDER BY ts_rank(
         to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')),
-        plainto_tsquery('english', '{{terms}}')
+        plainto_tsquery('english', $1)
       ) DESC
-      LIMIT {{limit}}
+      LIMIT $2::int
 
-  - id: pg_fts_single_field
+  - id: pg_fts_title
+    args: [terms, limit]
     query: |
       SELECT id FROM articles
-      WHERE to_tsvector('english', {{field}}) @@ {{tsquery_fn}}('english', '{{terms}}')
-      ORDER BY ts_rank(to_tsvector('english', {{field}}), {{tsquery_fn}}('english', '{{terms}}')) DESC
-      LIMIT {{limit}}
+      WHERE to_tsvector('english', title) @@ plainto_tsquery('english', $1)
+      ORDER BY ts_rank(to_tsvector('english', title), plainto_tsquery('english', $1)) DESC
+      LIMIT $2::int
 
   - id: pg_fts_phrase
-    query: |
-      SELECT id FROM articles
-      WHERE to_tsvector('english', {{fields}})
-            @@ phraseto_tsquery('english', '{{terms}}')
-      ORDER BY ts_rank(
-        to_tsvector('english', {{fields}}),
-        phraseto_tsquery('english', '{{terms}}')
-      ) DESC
-      LIMIT {{limit}}
-
-  - id: pg_fts_boolean
-    query: |
-      SELECT id FROM articles
-      WHERE to_tsvector('english', {{fields}})
-            @@ to_tsquery('english', '{{tsquery_expr}}')
-      ORDER BY ts_rank(
-        to_tsvector('english', {{fields}}),
-        to_tsquery('english', '{{tsquery_expr}}')
-      ) DESC
-      LIMIT {{limit}}
-
-  - id: pg_fts_weighted
+    args: [terms, limit]
     query: |
       SELECT id FROM articles
       WHERE to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,''))
-            @@ plainto_tsquery('english', '{{terms}}')
+            @@ phraseto_tsquery('english', $1)
+      ORDER BY ts_rank(
+        to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')),
+        phraseto_tsquery('english', $1)
+      ) DESC
+      LIMIT $2::int
+
+  - id: pg_fts_phrase_title_description
+    args: [terms, limit]
+    query: |
+      SELECT id FROM articles
+      WHERE to_tsvector('english', title || ' ' || coalesce(description,''))
+            @@ phraseto_tsquery('english', $1)
+      ORDER BY ts_rank(
+        to_tsvector('english', title || ' ' || coalesce(description,'')),
+        phraseto_tsquery('english', $1)
+      ) DESC
+      LIMIT $2::int
+
+  - id: pg_fts_phrase_title_content
+    args: [terms, limit]
+    query: |
+      SELECT id FROM articles
+      WHERE to_tsvector('english', title || ' ' || coalesce(content,''))
+            @@ phraseto_tsquery('english', $1)
+      ORDER BY ts_rank(
+        to_tsvector('english', title || ' ' || coalesce(content,'')),
+        phraseto_tsquery('english', $1)
+      ) DESC
+      LIMIT $2::int
+
+  - id: pg_fts_boolean
+    args: [tsquery_expr, limit]
+    query: |
+      SELECT id FROM articles
+      WHERE to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,''))
+            @@ to_tsquery('english', $1)
+      ORDER BY ts_rank(
+        to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')),
+        to_tsquery('english', $1)
+      ) DESC
+      LIMIT $2::int
+
+  - id: pg_fts_weighted
+    args: [terms, limit]
+    query: |
+      SELECT id FROM articles
+      WHERE to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,''))
+            @@ plainto_tsquery('english', $1)
       ORDER BY ts_rank(
         setweight(to_tsvector('english', title), 'A') ||
         setweight(to_tsvector('english', coalesce(description,'')), 'B') ||
         setweight(to_tsvector('english', coalesce(content,'')), 'C'),
-        plainto_tsquery('english', '{{terms}}')
+        plainto_tsquery('english', $1)
       ) DESC
-      LIMIT {{limit}}
+      LIMIT $2::int
 
   # --- ParadeDB BM25 templates (pdb.* operators) ---
-  # pdb_multi_field: single Tantivy scan across all indexed fields via key_field
+  # pdb_multi_field: single Tantivy scan across all indexed text fields via key_field
   - id: pdb_multi_field
+    args: [terms, limit]
     query: |
       SELECT id FROM articles
-      WHERE id @@@ paradedb.parse('{{terms}}')
+      WHERE id @@@ paradedb.boolean(
+        should => ARRAY[
+          paradedb.match('title', $1),
+          paradedb.match('subtitle', $1),
+          paradedb.match('description', $1),
+          paradedb.match('content', $1)
+        ]
+      )
       ORDER BY pdb.score(id) DESC
-      LIMIT {{limit}}
+      LIMIT $2::int
 
   # pdb_multi_field_boosted: per-field boost, single BM25 scan. 3.0/2.0/1.0
   # mirrors the ES "title^3, description^2, content" boosts. pg-gin's setweight
   # A/B/C reads as 1.0/0.4/0.2 through ts_rank and cannot be matched; disclose
   # that next to any cross-engine table.
   - id: pdb_multi_field_boosted
+    args: [terms, limit]
     query: |
       SELECT id FROM articles
       WHERE id @@@ paradedb.boolean(
         should => ARRAY[
-          paradedb.boost(3.0, paradedb.match('title', '{{terms}}')),
-          paradedb.boost(2.0, paradedb.match('description', '{{terms}}')),
-          paradedb.match('content', '{{terms}}')
+          paradedb.boost(3.0, paradedb.match('title', $1)),
+          paradedb.boost(2.0, paradedb.match('description', $1)),
+          paradedb.match('content', $1)
         ]
       )
       ORDER BY pdb.score(id) DESC
-      LIMIT {{limit}}
+      LIMIT $2::int
 
-  - id: pdb_single_field
+  - id: pdb_title
+    args: [terms, limit]
     query: |
       SELECT id FROM articles
-      WHERE id @@@ paradedb.match('{{field}}', '{{terms}}')
+      WHERE id @@@ paradedb.match('title', $1)
       ORDER BY pdb.score(id) DESC
-      LIMIT {{limit}}
+      LIMIT $2::int
 
   # pdb_phrase: Lucene quoted phrase syntax, searches all indexed fields
   - id: pdb_phrase
+    args: [terms, limit]
     query: |
       SELECT id FROM articles
-      WHERE id @@@ paradedb.parse('"{{terms}}"')
+      WHERE id @@@ paradedb.parse('"' || $1 || '"')
       ORDER BY pdb.score(id) DESC
-      LIMIT {{limit}}
+      LIMIT $2::int
 
   - id: pdb_phrase_slop
+    args: [terms, slop, limit]
     query: |
       SELECT id FROM articles
-      WHERE id @@@ paradedb.parse('"{{terms}}"~{{slop}}')
+      WHERE id @@@ paradedb.parse('"' || $1 || '"~' || $2)
       ORDER BY pdb.score(id) DESC
-      LIMIT {{limit}}
+      LIMIT $3::int
 
   # --- TigerData pg_textsearch BM25 templates (<@> operator) ---
   # pg_textsearch v1.0 is OR-only (no phrase, boolean, or NOT operators) and
@@ -121,44 +162,52 @@ templates:
   # No WHERE either: v1.0 exposes no match predicate, so this ranks the whole
   # corpus and always fills the LIMIT. Hence the separate `tiger-rank-everything`
   # job in spec.yaml.
+  #
+  # A bound parameter resolves to `text <@> text`, which pg_textsearch (1.1.0) rejects outside a
+  # literal, so the query names its index the way a literal would implicitly.
   - id: tiger_bm25
+    args: [terms, limit]
     query: |
       SELECT id FROM articles
-      ORDER BY search_text <@> '{{terms}}'
-      LIMIT {{limit}}
+      ORDER BY search_text <@> to_bm25query($1, 'idx_articles_bm25')
+      LIMIT $2::int
 
   # --- Pre-computed search_vector (GIN-indexed) templates ---
-  # {{rank_norm}} is ts_rank's normalisation bitmask, declared per engine in
+  # rank_norm is ts_rank's normalisation bitmask, declared per engine in
   # spec.yaml: 0 ignores document length (the PostgreSQL default), 1 divides by
   # 1 + log(length), which is the length normalisation BM25 applies. It is the
   # only difference between the pg-gin and pg-gin-norm arms.
   - id: pg_idx_multi_field
+    args: [terms, rank_norm, limit]
     query: |
       SELECT id FROM articles
-      WHERE search_vector @@ plainto_tsquery('english', '{{terms}}')
-      ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}'), {{rank_norm}}) DESC
-      LIMIT {{limit}}
+      WHERE search_vector @@ plainto_tsquery('english', $1)
+      ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1), $2::int) DESC
+      LIMIT $3::int
 
   - id: pg_idx_phrase
+    args: [terms, rank_norm, limit]
     query: |
       SELECT id FROM articles
-      WHERE search_vector @@ phraseto_tsquery('english', '{{terms}}')
-      ORDER BY ts_rank(search_vector, phraseto_tsquery('english', '{{terms}}'), {{rank_norm}}) DESC
-      LIMIT {{limit}}
+      WHERE search_vector @@ phraseto_tsquery('english', $1)
+      ORDER BY ts_rank(search_vector, phraseto_tsquery('english', $1), $2::int) DESC
+      LIMIT $3::int
 
   - id: pg_idx_boolean
+    args: [tsquery_expr, rank_norm, limit]
     query: |
       SELECT id FROM articles
-      WHERE search_vector @@ to_tsquery('english', '{{tsquery_expr}}')
-      ORDER BY ts_rank(search_vector, to_tsquery('english', '{{tsquery_expr}}'), {{rank_norm}}) DESC
-      LIMIT {{limit}}
+      WHERE search_vector @@ to_tsquery('english', $1)
+      ORDER BY ts_rank(search_vector, to_tsquery('english', $1), $2::int) DESC
+      LIMIT $3::int
 
   - id: pg_idx_weighted
+    args: [terms, rank_norm, limit]
     query: |
       SELECT id FROM articles
-      WHERE search_vector @@ plainto_tsquery('english', '{{terms}}')
-      ORDER BY ts_rank(search_vector, plainto_tsquery('english', '{{terms}}'), {{rank_norm}}) DESC
-      LIMIT {{limit}}
+      WHERE search_vector @@ plainto_tsquery('english', $1)
+      ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1), $2::int) DESC
+      LIMIT $3::int
 
 queries:
   # --- Simple keyword search ---
@@ -240,8 +289,8 @@ queries:
         template: tiger_bm25
         params: { terms: "economy recession", limit: 100 }
       pg-seq:
-        template: pg_fts_single_field
-        params: { field: "title", tsquery_fn: "plainto_tsquery", terms: "economy recession", limit: 100 }
+        template: pg_fts_title
+        params: { terms: "economy recession", limit: 100 }
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "economy recession", limit: 100 }
@@ -249,8 +298,8 @@ queries:
         template: pg_idx_multi_field
         params: { terms: "economy recession", limit: 100 }
       paradedb:
-        template: pdb_single_field
-        params: { field: "title", terms: "economy recession", limit: 100 }
+        template: pdb_title
+        params: { terms: "economy recession", limit: 100 }
       elasticsearch: |
         {
           "query": {
@@ -279,7 +328,7 @@ queries:
         params: { terms: "artificial intelligence", limit: 100 }
       pg-seq:
         template: pg_fts_phrase
-        params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", terms: "artificial intelligence", limit: 100 }
+        params: { terms: "artificial intelligence", limit: 100 }
       pg-gin:
         template: pg_idx_phrase
         params: { terms: "artificial intelligence", limit: 100 }
@@ -310,8 +359,8 @@ queries:
         template: tiger_bm25
         params: { terms: "global warming", limit: 100 }
       pg-seq:
-        template: pg_fts_phrase
-        params: { fields: "title || ' ' || coalesce(content,'')", terms: "global warming", limit: 100 }
+        template: pg_fts_phrase_title_content
+        params: { terms: "global warming", limit: 100 }
       pg-gin:
         template: pg_idx_phrase
         params: { terms: "global warming", limit: 100 }
@@ -341,8 +390,8 @@ queries:
         template: tiger_bm25
         params: { terms: "trade war", limit: 100 }
       pg-seq:
-        template: pg_fts_phrase
-        params: { fields: "title || ' ' || coalesce(description,'')", terms: "trade war", limit: 100 }
+        template: pg_fts_phrase_title_description
+        params: { terms: "trade war", limit: 100 }
       pg-gin:
         template: pg_idx_phrase
         params: { terms: "trade war", limit: 100 }
@@ -377,7 +426,7 @@ queries:
         params: { terms: "climate", limit: 100 }
       pg-seq:
         template: pg_fts_boolean
-        params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", tsquery_expr: "climate & !politics", limit: 100 }
+        params: { tsquery_expr: "climate & !politics", limit: 100 }
       pg-gin:
         template: pg_idx_boolean
         params: { tsquery_expr: "climate & !politics", limit: 100 }
@@ -428,7 +477,7 @@ queries:
         params: { terms: "technology science innovation", limit: 100 }
       pg-seq:
         template: pg_fts_boolean
-        params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", tsquery_expr: "(technology | science) & innovation", limit: 100 }
+        params: { tsquery_expr: "(technology | science) & innovation", limit: 100 }
       pg-gin:
         template: pg_idx_boolean
         params: { tsquery_expr: "(technology | science) & innovation", limit: 100 }
@@ -790,8 +839,8 @@ queries:
         template: tiger_bm25
         params: { terms: "stock market crash", limit: 100 }
       pg-seq:
-        template: pg_fts_phrase
-        params: { fields: "title || ' ' || coalesce(description,'')", terms: "stock market crash", limit: 100 }
+        template: pg_fts_phrase_title_description
+        params: { terms: "stock market crash", limit: 100 }
       pg-gin:
         template: pg_idx_phrase
         params: { terms: "stock market crash", limit: 100 }
@@ -821,8 +870,8 @@ queries:
         template: tiger_bm25
         params: { terms: "interest rate hike", limit: 100 }
       pg-seq:
-        template: pg_fts_phrase
-        params: { fields: "title || ' ' || coalesce(description,'')", terms: "interest rate hike", limit: 100 }
+        template: pg_fts_phrase_title_description
+        params: { terms: "interest rate hike", limit: 100 }
       pg-gin:
         template: pg_idx_phrase
         params: { terms: "interest rate hike", limit: 100 }
@@ -853,7 +902,7 @@ queries:
         params: { terms: "human rights violations", limit: 100 }
       pg-seq:
         template: pg_fts_phrase
-        params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", terms: "human rights violations", limit: 100 }
+        params: { terms: "human rights violations", limit: 100 }
       pg-gin:
         template: pg_idx_phrase
         params: { terms: "human rights violations", limit: 100 }
@@ -887,7 +936,7 @@ queries:
         params: { terms: "technology", limit: 100 }
       pg-seq:
         template: pg_fts_boolean
-        params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", tsquery_expr: "technology & !cryptocurrency & !bitcoin", limit: 100 }
+        params: { tsquery_expr: "technology & !cryptocurrency & !bitcoin", limit: 100 }
       pg-gin:
         template: pg_idx_boolean
         params: { tsquery_expr: "technology & !cryptocurrency & !bitcoin", limit: 100 }
@@ -936,7 +985,7 @@ queries:
         params: { terms: "health science medicine research", limit: 100 }
       pg-seq:
         template: pg_fts_boolean
-        params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", tsquery_expr: "health & (science | medicine | research)", limit: 100 }
+        params: { tsquery_expr: "health & (science | medicine | research)", limit: 100 }
       pg-gin:
         template: pg_idx_boolean
         params: { tsquery_expr: "health & (science | medicine | research)", limit: 100 }
@@ -995,7 +1044,7 @@ queries:
         params: { terms: "economy recession", limit: 100 }
       pg-seq:
         template: pg_fts_boolean
-        params: { fields: "title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')", tsquery_expr: "(economy | recession) & !covid & !pandemic", limit: 100 }
+        params: { tsquery_expr: "(economy | recession) & !covid & !pandemic", limit: 100 }
       pg-gin:
         template: pg_idx_boolean
         params: { tsquery_expr: "(economy | recession) & !covid & !pandemic", limit: 100 }
@@ -1171,8 +1220,8 @@ queries:
         template: tiger_bm25
         params: { terms: "pandemic lockdown", limit: 100 }
       pg-seq:
-        template: pg_fts_single_field
-        params: { field: "title", tsquery_fn: "plainto_tsquery", terms: "pandemic lockdown", limit: 100 }
+        template: pg_fts_title
+        params: { terms: "pandemic lockdown", limit: 100 }
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "pandemic lockdown", limit: 100 }
@@ -1180,8 +1229,8 @@ queries:
         template: pg_idx_multi_field
         params: { terms: "pandemic lockdown", limit: 100 }
       paradedb:
-        template: pdb_single_field
-        params: { field: "title", terms: "pandemic lockdown", limit: 100 }
+        template: pdb_title
+        params: { terms: "pandemic lockdown", limit: 100 }
       elasticsearch: |
         {
           "query": {
@@ -1203,8 +1252,8 @@ queries:
         template: tiger_bm25
         params: { terms: "semiconductor chip shortage", limit: 100 }
       pg-seq:
-        template: pg_fts_single_field
-        params: { field: "title", tsquery_fn: "plainto_tsquery", terms: "semiconductor chip shortage", limit: 100 }
+        template: pg_fts_title
+        params: { terms: "semiconductor chip shortage", limit: 100 }
       pg-gin:
         template: pg_idx_multi_field
         params: { terms: "semiconductor chip shortage", limit: 100 }
@@ -1212,8 +1261,8 @@ queries:
         template: pg_idx_multi_field
         params: { terms: "semiconductor chip shortage", limit: 100 }
       paradedb:
-        template: pdb_single_field
-        params: { field: "title", terms: "semiconductor chip shortage", limit: 100 }
+        template: pdb_title
+        params: { terms: "semiconductor chip shortage", limit: 100 }
       elasticsearch: |
         {
           "query": {

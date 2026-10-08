@@ -20,7 +20,7 @@ func CreateFromSpec(ctx context.Context, engines map[string]spec.Engine) (map[st
 
 	for name, eng := range engines {
 		switch eng.Type {
-		case "postgres":
+		case spec.EnginePostgres:
 			pool, err := pg.NewConnectionPool(ctx, pg.PoolConfig{
 				ConnStr:            eng.Connection,
 				ConnectionSettings: eng.ConnectionSettings,
@@ -32,14 +32,14 @@ func CreateFromSpec(ctx context.Context, engines map[string]spec.Engine) (map[st
 			cleanups = append(cleanups, pool.Close)
 			executors[name] = NewPgExecutor(name, pool)
 
-		case "elasticsearch":
+		case spec.EngineElasticsearch:
 			index := eng.Index
 			if index == "" {
 				index = "news"
 			}
 			executors[name] = NewEsExecutor(name, eng.Connection, index)
 
-		case "api":
+		case spec.EngineAPI:
 			executors[name] = NewAPIExecutor(name, eng.Connection)
 
 		default:

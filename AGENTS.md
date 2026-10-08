@@ -131,6 +131,7 @@ TREC-style IR evaluation pipeline. Full docs: [docs/bench.md](docs/bench.md).
 - `trackctx/` — resolves track folder + all artifact paths; single source of truth for every subcommand
 - `spec/` — `BenchSpec` YAML: engines, jobs, metrics config, `defaults.judgments`
 - `suite/` — `TestSuite` YAML: queries, per-engine templates
+- `dialect/` — the syntax each engine type reads suite params in (postgres positional, elasticsearch Mustache, api literal): load-time block checks and the request each executor receives
 - `pool/` — TREC-style candidate pooling
 - `judgment/` — strategy taxonomy (lexical / claude-cli / claude-api / manual); batched grading; incremental writer
 - `runner/` — orchestration: warmup + measured iterations, per-query metrics
@@ -141,7 +142,7 @@ TREC-style IR evaluation pipeline. Full docs: [docs/bench.md](docs/bench.md).
 
 **Track convention**: a track is any folder holding `spec.yaml` + `suite.yaml` + `trec/` (+ `reports/`) — the layout above it is not enforced; this repo groups them as `tracks/<dataset>/<paradigm>/`. Track args are ordinary paths: absolute, relative to the track root (`--track-root` / `BENCH_TRACK_ROOT`, default cwd), a glob, or omitted to walk up from CWD.
 
-**Strategy taxonomy**: `lexical` (token-overlap), `bm25` (pool-local Okapi BM25), `vector` (embedding cosine), `hybrid` (BM25 + vector fusion), `claude-cli` / `claude-api` (LLM batched), `manual` (human placeholders). `vector`/`hybrid` read doc vectors from a storage-agnostic `storage.VectorStore` (PG `article_embeddings` now, ES stubbed; PG precedence) and embed the query via Ollama (`--pg` + `EMBEDDING_BASE_URL`). The same store powers `pool`/`run` query-vector injection (reserved `{{precomputed}}` placeholder).
+**Strategy taxonomy**: `lexical` (token-overlap), `bm25` (pool-local Okapi BM25), `vector` (embedding cosine), `hybrid` (BM25 + vector fusion), `claude-cli` / `claude-api` (LLM batched), `manual` (human placeholders). `vector`/`hybrid` read doc vectors from a storage-agnostic `storage.VectorStore` (PG `article_embeddings` now, ES stubbed; PG precedence) and embed the query via Ollama (`--pg` + `EMBEDDING_BASE_URL`). The same store fills the reserved `query_vector` arg for `pool`/`run`.
 
 **Schema v1**: every artifact has `schema_version: 1` + `meta:` block. Loading without it is a hard error — no backward-compat tolerance.
 

@@ -10,15 +10,23 @@ corpus:
 
 templates:
   - id: pg_fts_multi_field
+    args: [terms, limit]
     query: |
       SELECT id FROM articles
       WHERE to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,''))
-            @@ plainto_tsquery('english', '{{`{{terms}}`}}')
+            @@ plainto_tsquery('english', $1)
       ORDER BY ts_rank(
         to_tsvector('english', title || ' ' || coalesce(description,'') || ' ' || coalesce(content,'')),
-        plainto_tsquery('english', '{{`{{terms}}`}}')
+        plainto_tsquery('english', $1)
       ) DESC
-      LIMIT {{`{{limit}}`}}
+      LIMIT $2::int
+
+  # An elasticsearch search template is Mustache over the Query DSL: quote string
+  # params, and render the query_vector arg with toJson.
+  # - id: es_multi_match
+  #   args: [terms]
+  #   query: |
+  #     {"query": {"multi_match": {"query": "{{`{{terms}}`}}", "fields": ["title^3", "description^2", "content"]}}, "size": 100}
 
 queries:
   - id: example-q1
@@ -27,3 +35,6 @@ queries:
       pg:
         template: pg_fts_multi_field
         params: { terms: "climate change", limit: 100 }
+      # elasticsearch:
+      #   template: es_multi_match
+      #   params: { terms: "climate change" }
