@@ -1,0 +1,224 @@
+package datapackage_test
+
+import (
+	"context"
+	"errors"
+	"io/fs"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/minio"
+
+	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
+)
+
+// minio/minio RELEASE.2025-09-07T16-13-09Z. The repository is gone from Docker
+// Hub, so the image is pinned by digest and must already be in the local cache.
+const minioImage = "minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
+
+// servePackage writes the full package under root/pkg and serves root over
+// TLS, so resource paths must resolve against the descriptor's directory
+// rather than the server root.
+func servePackage(t *testing.T) (root string, written datapackage.Package, srv *httptest.Server) {
+	t.Helper()
+	root = t.TempDir()
+	written = writeFullPackage(t, filepath.Join(root, "pkg"))
+	srv = httptest.NewTLSServer(http.FileServer(http.Dir(root)))
+	t.Cleanup(srv.Close)
+	return root, written, srv
+}
+
+func emptyDir(t *testing.T, dir string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("%s still holds %v", dir, entries)
+	}
+}
+
+func TestOpenOverHTTPSServesVerifiedResources(t *testing.T) {
+	root, written, srv := servePackage(t)
+	tempDir := t.TempDir()
+	opts := datapackage.Options{HTTPClient: srv.Client(), TempDir: tempDir}
+	ctx := context.Background()
+
+	opened, err := datapackage.OpenWith(ctx, srv.URL+"/pkg/datapackage.json", opts)
+	if err != nil {
+		t.Fatalf("OpenWith: %v", err)
+	}
+	if !reflect.DeepEqual(opened.Package, written) {
+		t.Errorf("descriptor differs:\n got %+v\nwant %+v", opened.Package, written)
+	}
+	got, err := readResource(ctx, opened, "articles")
+	if err != nil || string(got) != "not really parquet" {
+		t.Errorf("articles = %q, %v", got, err)
+	}
+	emptyDir(t, tempDir)
+
+	writeFile(t, filepath.Join(root, "pkg"), "articles.parquet", strings.Replace("not really parquet", "p", "P", 1))
+	_, err = readResource(ctx, opened, "articles")
+	var mismatch *datapackage.HashMismatchError
+	if !errors.As(err, &mismatch) {
+		t.Errorf("flipped byte: err = %v, want HashMismatchError", err)
+	}
+	emptyDir(t, tempDir)
+
+	if err := os.Remove(filepath.Join(root, "pkg", "embeddings.parquet")); err != nil {
+		t.Fatal(err)
+	}
+	_, err = readResource(ctx, opened, "embeddings")
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("404: err = %v, want NotFoundError", err)
+	}
+}
+
+func TestOpenRefusesPlainHTTP(t *testing.T) {
+	_, _, srv := servePackage(t)
+	plain := httptest.NewServer(srv.Config.Handler)
+	t.Cleanup(plain.Close)
+
+	if _, err := datapackage.Open(context.Background(), plain.URL+"/pkg/datapackage.json"); err == nil {
+		t.Error("Open accepted an http:// descriptor")
+	}
+}
+
+func startMinIO(t *testing.T) (endpoint string, client *s3.Client) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("needs Docker")
+	}
+	ctx := context.Background()
+	container, err := minio.Run(ctx, minioImage)
+	testcontainers.CleanupContainer(t, container)
+	if err != nil {
+		t.Fatalf("start minio: %v", err)
+	}
+	host, err := container.ConnectionString(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	endpoint = "http://" + host
+	client = s3.New(s3.Options{
+		BaseEndpoint: aws.String(endpoint),
+		Region:       "auto",
+		UsePathStyle: true,
+		Credentials:  credentials.NewStaticCredentialsProvider(container.Username, container.Password, ""),
+	})
+	t.Setenv("DATASET_S3_ENDPOINT", endpoint)
+	t.Setenv("DATASET_S3_REGION", "auto")
+	t.Setenv("DATASET_S3_ACCESS_KEY", container.Username)
+	t.Setenv("DATASET_S3_SECRET_KEY", container.Password)
+	return endpoint, client
+}
+
+func upload(t *testing.T, client *s3.Client, bucket, localDir, prefix string) {
+	t.Helper()
+	err := filepath.WalkDir(localDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(localDir, path)
+		if err != nil {
+			return err
+		}
+		body, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer body.Close()
+		_, err = client.PutObject(context.Background(), &s3.PutObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(prefix + filepath.ToSlash(rel)),
+			Body:   body,
+		})
+		return err
+	})
+	if err != nil {
+		t.Fatalf("upload %s: %v", localDir, err)
+	}
+}
+
+func TestPackageOpensIdenticallyFromDiskHTTPSAndS3(t *testing.T) {
+	_, client := startMinIO(t)
+	root, written, srv := servePackage(t)
+	ctx := context.Background()
+	if _, err := client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String("datasets")}); err != nil {
+		t.Fatal(err)
+	}
+	upload(t, client, "datasets", filepath.Join(root, "pkg"), "cc-news/canonical/v1/")
+
+	locations := []struct {
+		name     string
+		location string
+		opts     datapackage.Options
+	}{
+		{"disk", filepath.Join(root, "pkg"), datapackage.Options{}},
+		{"https", srv.URL + "/pkg/datapackage.json", datapackage.Options{HTTPClient: srv.Client()}},
+		{"s3", "s3://datasets/cc-news/canonical/v1/datapackage.json", datapackage.Options{S3: datapackage.S3ConfigFromEnv()}},
+	}
+	for _, l := range locations {
+		t.Run(l.name, func(t *testing.T) {
+			opened, err := datapackage.OpenWith(ctx, l.location, l.opts)
+			if err != nil {
+				t.Fatalf("OpenWith(%s): %v", l.location, err)
+			}
+			if !reflect.DeepEqual(opened.Package, written) {
+				t.Errorf("descriptor differs:\n got %+v\nwant %+v", opened.Package, written)
+			}
+			for name, want := range map[string]string{"articles": "not really parquet", "embeddings": "not really vectors"} {
+				if got, err := readResource(ctx, opened, name); err != nil || string(got) != want {
+					t.Errorf("%s = %q, %v, want %q", name, got, err, want)
+				}
+			}
+		})
+	}
+}
+
+func TestOpenFromS3FailsOnAlteredOrMissingObjects(t *testing.T) {
+	_, client := startMinIO(t)
+	root, _, _ := servePackage(t)
+	ctx := context.Background()
+	if _, err := client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String("datasets")}); err != nil {
+		t.Fatal(err)
+	}
+	pkgDir := filepath.Join(root, "pkg")
+	upload(t, client, "datasets", pkgDir, "p/")
+
+	opened, err := datapackage.Open(ctx, "s3://datasets/p/datapackage.json")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	writeFile(t, pkgDir, "embeddings.parquet", strings.Replace("not really vectors", "v", "V", 1))
+	upload(t, client, "datasets", pkgDir, "p/")
+	_, err = readResource(ctx, opened, "embeddings")
+	var mismatch *datapackage.HashMismatchError
+	if !errors.As(err, &mismatch) {
+		t.Errorf("altered object: err = %v, want HashMismatchError", err)
+	}
+
+	if _, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String("datasets"), Key: aws.String("p/articles.parquet")}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = readResource(ctx, opened, "articles")
+	var missing *datapackage.NotFoundError
+	if !errors.As(err, &missing) {
+		t.Errorf("missing object: err = %v, want NotFoundError", err)
+	}
+
+	_, err = datapackage.Open(ctx, "s3://datasets/absent/datapackage.json")
+	if !errors.As(err, &missing) {
+		t.Errorf("missing descriptor: err = %v, want NotFoundError", err)
+	}
+}

@@ -20,6 +20,7 @@ const maxDescriptorBytes = 16 << 20
 // https through http.DefaultClient.
 type Options struct {
 	HTTPClient *http.Client
+	S3         S3Config
 	// TempDir holds remote resources while they are verified; empty means
 	// os.TempDir.
 	TempDir string
@@ -43,9 +44,10 @@ type store interface {
 // Open reads the descriptor at location: a local file or directory,
 // https://…, or s3://bucket/key with credentials from the DATASET_S3_* env.
 func Open(ctx context.Context, location string) (*Opened, error) {
-	return OpenWith(ctx, location, Options{})
+	return OpenWith(ctx, location, Options{S3: S3ConfigFromEnv()})
 }
 
+// OpenWith is Open with explicit options; it reads no environment.
 func OpenWith(ctx context.Context, location string, opts Options) (*Opened, error) {
 	st, descriptorName, err := opts.storeFor(ctx, location)
 	if err != nil {
