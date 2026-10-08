@@ -2,8 +2,8 @@ package native
 
 import (
 	"fmt"
-	"log/slog"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
@@ -12,12 +12,12 @@ import (
 
 // Field to PostgreSQL weight label mapping
 // Weight labels determine which document sections are searched
-var fieldToLabel = map[string]string{
-	"title":       "A",
-	"description": "B",
-	"content":     "C",
-	"subtitle":    "D",
-	"author":      "D",
+var fieldToLabel = map[query.Field]string{
+	query.FieldTitle:       "A",
+	query.FieldDescription: "B",
+	query.FieldContent:     "C",
+	query.FieldSubtitle:    "D",
+	query.FieldAuthor:      "D",
 }
 
 // Label to ts_rank weight array position mapping
@@ -27,12 +27,6 @@ var labelToPosition = map[string]int{
 	"B": 2, // Description - position 2
 	"C": 1, // Content - position 1
 	"D": 0, // Subtitle/Author - position 0
-}
-
-// FieldWeight represents a field with its boost value for ES-style notation
-type FieldWeight struct {
-	Field  string
-	Weight float64
 }
 
 // buildWeightLabels converts field names to PostgreSQL weight label string
@@ -49,7 +43,7 @@ func buildWeightLabels(fields []string) string {
 
 	labels := make(map[string]bool)
 	for _, field := range fields {
-		if label, ok := fieldToLabel[field]; ok {
+		if label, ok := fieldToLabel[query.Field(field)]; ok {
 			labels[label] = true
 		}
 	}
@@ -65,42 +59,28 @@ func buildWeightLabels(fields []string) string {
 	return result
 }
 
-// buildWeightsArray creates ts_rank weights array from field boosts
-// PostgreSQL array format: {D-weight, C-weight, B-weight, A-weight} (reverse order!)
-// Examples:
-//
-//	[]FieldWeight{{"title", 3.0}, {"description", 1.5}}
-//	→ "{0.00, 0.00, 1.50, 3.00}"  (D=0.0, C=0.0, B=1.5, A=3.0)
-func buildWeightsArray(fieldBoosts []FieldWeight) string {
-	// Initialize with zeros - only specified fields will have non-zero weights
-	weights := [4]float64{0.0, 0.0, 0.0, 0.0} // {D, C, B, A}
+// buildWeightsArray creates the ts_rank weights array from field boosts, in
+// PostgreSQL's {D, C, B, A} order. ts_rank rejects weights above 1, so boosts
+// are scaled by the largest one when it exceeds 1.
+// Example: [{title 3.0} {description 1.5}] → "{0.0000, 0.0000, 0.5000, 1.0000}"
+func buildWeightsArray(fieldBoosts []query.FieldWeight) string {
+	weights := [4]float64{0.0, 0.0, 0.0, 0.0}
 
 	for _, fb := range fieldBoosts {
 		if label, ok := fieldToLabel[fb.Field]; ok {
 			position := labelToPosition[label]
-
-			// For D (subtitle/author), take max boost if multiple fields map to D
-			if position == 0 {
-				weights[position] = math.Max(weights[position], fb.Weight)
-			} else {
-				weights[position] = fb.Weight
-			}
+			weights[position] = math.Max(weights[position], fb.Weight)
 		}
 	}
 
-	result := fmt.Sprintf("{%.2f, %.2f, %.2f, %.2f}",
-		weights[0], weights[1], weights[2], weights[3])
+	largest := slices.Max(weights[:])
+	if largest > 1 {
+		for i := range weights {
+			weights[i] /= largest
+		}
+	}
 
-	// Log for debugging
-	slog.Debug("Built weights array",
-		"weights_dcba", result,
-		"D", weights[0],
-		"C", weights[1],
-		"B", weights[2],
-		"A", weights[3],
-		"field_boosts", fieldBoosts)
-
-	return result
+	return fmt.Sprintf("{%.4f, %.4f, %.4f, %.4f}", weights[0], weights[1], weights[2], weights[3])
 }
 
 // buildTsQuery constructs a PostgreSQL tsquery expression based on operator
@@ -123,7 +103,7 @@ func buildTsQuery(op operator.Operator, lang query.Language, paramNum int) strin
 // PostgreSQL's default weight values are: {0.1, 0.2, 0.4, 1.0} for {D, C, B, A}
 // Weight array format: {D-weight, C-weight, B-weight, A-weight} (REVERSE ORDER!)
 // Returns: "ts_rank('{0.0, 1.0, 1.5, 3.0}', search_vector, query)" or "ts_rank(search_vector, query)"
-func buildRankExpression(fieldBoosts []FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
+func buildRankExpression(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
 	vectorExpr := "search_vector"
 	queryExpr := buildTsQuery(op, lang, paramNum)
 
@@ -137,42 +117,31 @@ func buildRankExpression(fieldBoosts []FieldWeight, lang query.Language, op oper
 	return fmt.Sprintf("ts_rank(%s, %s)", vectorExpr, queryExpr)
 }
 
-// buildTsWhereClause constructs the WHERE clause for full-text search with weight label filtering
-// Weight labels filter which fields are searched: A=title, B=description, C=content, D=subtitle/author
-// Examples:
-//
-//	fieldBoosts=[{title,3.0}]                       → search_vector @@ (query::text || ':A')::tsquery
-//	fieldBoosts=[{title,3.0},{description,1.5}]     → search_vector @@ (query::text || ':AB')::tsquery
-//	fieldBoosts=[]                                   → search_vector @@ query (all fields)
-func buildTsWhereClause(fieldBoosts []FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
-	vectorExpr := "search_vector"
+// buildTsWhereClause matches the query against the requested fields only.
+// No fields, or fields covering all four bands, match the whole vector.
+// Otherwise the query runs on the fields' weight bands. Under AND that implies
+// a match on the whole vector, which goes first so the GIN index narrows the
+// rows. Under OR the query may negate a term, so a row whose fields qualify can
+// fail the whole vector; there the bands are matched alone.
+func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
 	queryExpr := buildTsQuery(op, lang, paramNum)
+	match := fmt.Sprintf("search_vector @@ %s", queryExpr)
 
-	// Extract field names from FieldWeight
 	fields := make([]string, 0, len(fieldBoosts))
 	for _, fb := range fieldBoosts {
-		fields = append(fields, fb.Field)
+		fields = append(fields, string(fb.Field))
 	}
-
-	// Build weight labels from field names
 	labels := buildWeightLabels(fields)
-
-	var result string
-	// If specific fields requested, use weight label filtering
-	if labels != "" {
-		result = fmt.Sprintf("%s @@ (%s::text || ':%s')::tsquery", vectorExpr, queryExpr, labels)
-		slog.Debug("Built WHERE clause with label filtering",
-			"labels", labels,
-			"fields", fields,
-			"where_clause", result)
-	} else {
-		// No field filtering - search all fields
-		result = fmt.Sprintf("%s @@ %s", vectorExpr, queryExpr)
-		slog.Debug("Built WHERE clause without filtering",
-			"where_clause", result)
+	if labels == "" || labels == "ABCD" {
+		return match
 	}
 
-	return result
+	bands := strings.Split(strings.ToLower(labels), "")
+	bandMatch := fmt.Sprintf("ts_filter(search_vector, '{%s}') @@ %s", strings.Join(bands, ","), queryExpr)
+	if op.IsOr() {
+		return bandMatch
+	}
+	return fmt.Sprintf("%s AND %s", match, bandMatch)
 }
 
 // buildPhraseSlopQuery constructs a phrase query with slop support

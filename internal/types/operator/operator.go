@@ -20,9 +20,6 @@ const (
 
 	// Or requires any search term to match (lower precision, higher recall)
 	Or Operator = "OR"
-
-	// Not excludes terms from matching (used for negation)
-	Not Operator = "NOT"
 )
 
 const Default = And
@@ -34,7 +31,7 @@ func Parse(s string) (Operator, error) {
 
 	op := Operator(strings.ToUpper(s))
 	switch op {
-	case Or, And, Not:
+	case Or, And:
 		return op, nil
 	default:
 		return "", fmt.Errorf("invalid operator: %s (must be 'or' or 'and')", s)
