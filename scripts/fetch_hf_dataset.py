@@ -7,6 +7,7 @@
 
   uv run scripts/fetch_hf_dataset.py --list
   uv run scripts/fetch_hf_dataset.py cc_news --mirror        # shards to raw/
+  uv run scripts/fetch_hf_dataset.py cc_news --mirror --revision <sha>
   uv run scripts/fetch_hf_dataset.py cc_news                 # whole corpus
   uv run scripts/fetch_hf_dataset.py cc_news 100000 500000   # nested slices
   uv run scripts/fetch_hf_dataset.py cc_news 50000 --format parquet
@@ -14,8 +15,13 @@
 Sizes default to the whole corpus, and a count above it writes the whole corpus
 instead of failing. csv is the only format datapipe preprocess reads today.
 
---mirror copies the shards down once. Slicing then reads them from disk: 482 s
-to 1.4 s for a cc_news sample.
+--mirror copies the shards of one Hub commit into datasets/<dir>/raw/ and
+writes raw/datapackage.json, recording that commit and each shard's sha256.
+Every shard is checked against the Hub's LFS sha256 before it is kept. A
+shard already in raw/ with the right hash is reused, and one that differs is
+refused unless --force, which clears raw/ and nothing else. HF_ENDPOINT points
+at a mirror of the Hub. Slicing then reads the shards from disk: 482 s to
+1.4 s for a cc_news sample.
 
 --mode sample seeds a reservoir sample, head takes the first N rows. Both
 corpora ship in crawl order, so head is skewed: 273 of 8,759 cc_news domains in
@@ -28,12 +34,17 @@ Slices are cut in hash(url) order so they nest. Dates go through TRY_CAST since
 from __future__ import annotations
 
 import argparse
+import fnmatch
+import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -42,6 +53,11 @@ from pathlib import Path
 import duckdb
 
 ROOT = Path(__file__).resolve().parents[1]
+DATASETS_ROOT = ROOT / "datasets"
+HUB = "https://huggingface.co"
+PROFILE = "https://datapackage.org/profiles/2.0/datapackage.json"
+DESCRIPTOR = "datapackage.json"
+CHUNK = 1024 * 1024
 
 FULL = "full"
 EXT = {"csv": ".csv", "parquet": ".parquet"}
@@ -61,9 +77,8 @@ class Dataset:
     def source(self) -> str:
         return f"hf://datasets/{self.repo}/{self.files}"
 
-    @property
-    def mirror_dir(self) -> Path:
-        return ROOT / "datasets" / self.out_dir / "raw"
+    def raw_dir(self, datasets_root: Path) -> Path:
+        return datasets_root / self.out_dir / "raw"
 
 
 def _published_at(column: str = "date") -> str:
@@ -153,48 +168,221 @@ def connect(temp_dir: str) -> duckdb.DuckDBPyConnection:
     return con
 
 
-def download(hf_path: str, out: Path) -> bool:
-    """False when out already holds the whole file."""
-    owner, name, path = hf_path.removeprefix("hf://datasets/").split("/", 2)
-    url = f"https://huggingface.co/datasets/{owner}/{name}/resolve/main/{path}"
+@dataclass(frozen=True, slots=True)
+class HubFile:
+    path: str
+    size: int
+    sha256: str | None
+
+    @property
+    def name(self) -> str:
+        return Path(self.path).name
+
+
+def hub_endpoint() -> str:
+    return os.environ.get("HF_ENDPOINT", HUB).rstrip("/")
+
+
+def hub_request(url: str) -> urllib.request.Request:
     request = urllib.request.Request(url)
     token = os.environ.get("HF_TOKEN")
     if token:
         request.add_header("Authorization", f"Bearer {token}")
-    with urllib.request.urlopen(request) as response:
-        expected = int(response.headers.get("Content-Length") or 0)
-        if out.exists() and expected and out.stat().st_size == expected:
-            return False
-        partial = out.with_suffix(out.suffix + ".part")
-        with partial.open("wb") as handle:
-            shutil.copyfileobj(response, handle, 1024 * 1024)
-    partial.replace(out)
-    return True
+    return request
 
 
-def mirror(con: duckdb.DuckDBPyConnection, ds: Dataset, dest: Path) -> list[Path]:
-    listing = con.execute(f"SELECT file FROM glob('{ds.source}') ORDER BY file").fetchall()
-    if not listing:
-        raise SystemExit(f"no parquet files matched {ds.source}")
+def hub_json(url: str) -> tuple[object, str | None]:
+    """Return the decoded body and the next page's url, if the Hub paginates."""
+    try:
+        with urllib.request.urlopen(hub_request(url)) as response:
+            next_page = re.search(r'<([^>]+)>;\s*rel="next"', response.headers.get("Link") or "")
+            return json.load(response), next_page.group(1) if next_page else None
+    except urllib.error.HTTPError as error:
+        raise SystemExit(f"GET {url}: {error.code} {error.reason}") from error
 
-    dest.mkdir(parents=True, exist_ok=True)
-    print(f"→ {ds.key}: mirroring {len(listing)} shards to {rel(dest)}", flush=True)
+
+def resolve_commit(ds: Dataset, revision: str) -> str:
+    quoted = urllib.parse.quote(revision, safe="")
+    info, _ = hub_json(f"{hub_endpoint()}/api/datasets/{ds.repo}/revision/{quoted}")
+    if not isinstance(info, dict) or not isinstance(info.get("sha"), str):
+        raise SystemExit(f"{ds.repo}@{revision}: the Hub returned no commit sha")
+    return info["sha"]
+
+
+def list_hub_files(ds: Dataset, commit: str) -> list[HubFile]:
+    directory = ds.files.split("*", 1)[0].rsplit("/", 1)[0]
+    entries: list[dict] = []
+    url: str | None = (
+        f"{hub_endpoint()}/api/datasets/{ds.repo}/tree/{commit}/{directory}?recursive=true"
+    )
+    while url:
+        page, url = hub_json(url)
+        if not isinstance(page, list):
+            raise SystemExit(f"{ds.repo}@{commit}: unexpected tree listing")
+        entries.extend(page)
+    files = sorted(
+        (
+            HubFile(
+                path=entry["path"],
+                size=int(entry["size"]),
+                sha256=entry["lfs"]["oid"] if entry.get("lfs") else None,
+            )
+            for entry in entries
+            if entry.get("type") == "file" and fnmatch.fnmatch(entry["path"], ds.files)
+        ),
+        key=lambda hub_file: hub_file.path,
+    )
+    if not files:
+        raise SystemExit(f"no files matched {ds.files} in {ds.repo}@{commit}")
+    names = [hub_file.name for hub_file in files]
+    if len(set(names)) != len(names):
+        raise SystemExit(f"{ds.files} matches files that share a name, raw/ cannot hold them flat")
+    return files
+
+
+def sha256_of(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(CHUNK):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def refuse(path: Path, reason: str) -> SystemExit:
+    return SystemExit(f"{rel(path)} {reason}; rerun with --force to clear raw/ and fetch again")
+
+
+def download_verified(url: str, partial: Path, hub_file: HubFile) -> str:
+    digest = hashlib.sha256()
+    size = 0
+    try:
+        with urllib.request.urlopen(hub_request(url)) as response, partial.open("wb") as handle:
+            while chunk := response.read(CHUNK):
+                digest.update(chunk)
+                handle.write(chunk)
+                size += len(chunk)
+    except urllib.error.HTTPError as error:
+        raise SystemExit(f"GET {url}: {error.code} {error.reason}") from error
+    if size != hub_file.size:
+        raise SystemExit(
+            f"{hub_file.path}: received {size:,} bytes, the Hub lists {hub_file.size:,}"
+        )
+    if hub_file.sha256 and digest.hexdigest() != hub_file.sha256:
+        raise SystemExit(
+            f"{hub_file.path}: sha256 {digest.hexdigest()}, the Hub lists {hub_file.sha256}"
+        )
+    return digest.hexdigest()
+
+
+def place(ds: Dataset, commit: str, hub_file: HubFile, target: Path) -> tuple[str, bool]:
+    """Return the shard's sha256 and whether it was downloaded."""
+    if target.exists() and hub_file.sha256:
+        if sha256_of(target) != hub_file.sha256:
+            raise refuse(target, f"differs from {ds.repo}@{commit}")
+        return hub_file.sha256, False
+
+    url = (
+        f"{hub_endpoint()}/datasets/{ds.repo}/resolve/{commit}/{urllib.parse.quote(hub_file.path)}"
+    )
+    partial = target.with_name(target.name + ".part")
+    try:
+        digest = download_verified(url, partial, hub_file)
+        if target.exists() and sha256_of(target) != digest:
+            raise refuse(target, f"differs from {ds.repo}@{commit}")
+        partial.replace(target)
+    finally:
+        partial.unlink(missing_ok=True)
+    return digest, True
+
+
+def clear(raw: Path) -> None:
+    for entry in raw.iterdir():
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+
+
+def recorded_commit(raw: Path) -> str | None:
+    descriptor = raw / DESCRIPTOR
+    if not descriptor.exists():
+        return None
+    sources = json.loads(descriptor.read_text()).get("sources") or [{}]
+    return sources[0].get("version")
+
+
+def write_descriptor(raw: Path, package: dict[str, object]) -> None:
+    content = json.dumps(package, indent=2) + "\n"
+    target = raw / DESCRIPTOR
+    if target.exists():
+        if target.read_text() == content:
+            return
+        raise refuse(target, "describes a different fetch")
+    partial = raw / f".{DESCRIPTOR}.part"
+    try:
+        partial.write_text(content)
+        partial.replace(target)
+    finally:
+        partial.unlink(missing_ok=True)
+
+
+def mirror(ds: Dataset, *, revision: str, raw: Path, force: bool) -> list[Path]:
+    commit = resolve_commit(ds, revision)
+    hub_files = list_hub_files(ds, commit)
+
+    raw.mkdir(parents=True, exist_ok=True)
+    if force:
+        clear(raw)
+    elif recorded_commit(raw) not in (None, commit):
+        raise refuse(raw / DESCRIPTOR, f"records {ds.repo}@{recorded_commit(raw)}, not {commit}")
+    print(
+        f"→ {ds.key}: mirroring {len(hub_files)} shards of {ds.repo}@{commit} to {rel(raw)}",
+        flush=True,
+    )
+    resources = []
     written = []
-    for index, (hf_path,) in enumerate(listing, start=1):
-        out = dest / Path(hf_path).name
+    for index, hub_file in enumerate(hub_files, start=1):
+        target = raw / hub_file.name
         started = time.monotonic()
-        fetched = download(hf_path, out)
+        digest, fetched = place(ds, commit, hub_file, target)
         note = f"{time.monotonic() - started:,.1f}s" if fetched else "already mirrored"
-        print(f"  [{index}/{len(listing)}] {out.name}  {mb(out):,.1f} MB  {note}", flush=True)
-        written.append(out)
+        print(
+            f"  [{index}/{len(hub_files)}] {target.name}  {mb(target):,.1f} MB  {note}", flush=True
+        )
+        resources.append(
+            {
+                "name": hub_file.name,
+                "path": hub_file.name,
+                "format": Path(hub_file.name).suffix.removeprefix(".") or "bin",
+                "bytes": hub_file.size,
+                "hash": f"sha256:{digest}",
+            }
+        )
+        written.append(target)
 
-    write_meta(dest / "mirror.meta.json", ds, shards=[path.name for path in written])
+    write_descriptor(
+        raw,
+        {
+            "$schema": PROFILE,
+            "name": f"{ds.out_dir}-raw",
+            "producedBy": {"tool": "scripts/fetch_hf_dataset.py"},
+            "sources": [
+                {
+                    "title": f"Hugging Face {ds.repo}",
+                    "path": f"{HUB}/datasets/{ds.repo}",
+                    "version": commit,
+                }
+            ],
+            "resources": resources,
+        },
+    )
     return written
 
 
-def source_for(ds: Dataset) -> tuple[str, str]:
-    if any(ds.mirror_dir.glob("*.parquet")):
-        return f"{ds.mirror_dir}/*.parquet", f"mirror {rel(ds.mirror_dir)}"
+def source_for(ds: Dataset, datasets_root: Path) -> tuple[str, str]:
+    raw = ds.raw_dir(datasets_root)
+    if any(raw.glob("*.parquet")):
+        return f"{raw}/*.parquet", f"mirror {rel(raw)}"
     return ds.source, ds.source
 
 
@@ -215,7 +403,7 @@ def slice_dataset(
     con: duckdb.DuckDBPyConnection, ds: Dataset, args: argparse.Namespace, out_dir: Path
 ) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
-    source, source_label = source_for(ds)
+    source, source_label = source_for(ds, Path(args.datasets_root))
     print(f"→ {ds.key}: reading {source_label}", flush=True)
 
     scan = f"SELECT {', '.join(ds.columns)} FROM read_parquet('{source}')"
@@ -290,6 +478,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--mirror", action="store_true", help="copy the shards to datasets/<dir>/raw/, no slicing"
     )
+    parser.add_argument(
+        "--revision", default="main", help="branch, tag or commit to mirror (default: main)"
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="with --mirror, clear raw/ before fetching"
+    )
+    parser.add_argument(
+        "--datasets-root",
+        default=str(DATASETS_ROOT),
+        help="folder holding the dataset folders (default: datasets/)",
+    )
     parser.add_argument("--format", choices=tuple(EXT), help="slice encoding (default: csv)")
     parser.add_argument("--mode", choices=("sample", "head"), default="sample")
     parser.add_argument("--seed", type=int, default=42, help="reservoir seed (default: 42)")
@@ -308,12 +507,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     if args.mirror:
         if args.sizes:
             parser.error("--mirror copies whole shards, drop the size argument")
-        if args.output:
-            parser.error("--mirror writes a directory of shards, use --out-dir")
+        if args.output or args.out_dir:
+            parser.error("--mirror writes only into datasets/<dir>/raw/, use --datasets-root")
         if args.format:
             parser.error("--mirror keeps the published parquet, --format does not apply")
         return args
 
+    if args.force or args.revision != "main":
+        parser.error("--force and --revision apply to --mirror only")
     args.format = args.format or "csv"
     if not args.sizes:
         args.sizes = [FULL]
@@ -329,25 +530,30 @@ def main(argv: list[str]) -> int:
     args = parse_args(argv)
     if args.list:
         for ds in DATASETS:
-            state = "mirrored" if any(ds.mirror_dir.glob("*.parquet")) else "not mirrored"
+            mirrored = any(ds.raw_dir(Path(args.datasets_root)).glob("*.parquet"))
+            state = "mirrored" if mirrored else "not mirrored"
             print(f"{ds.key:<14} {ds.repo} ({state})\n{'':<14} {ds.summary}")
         return 0
 
     ds = resolve(args.dataset)
+    datasets_root = Path(args.datasets_root)
+    if args.mirror:
+        raw = ds.raw_dir(datasets_root)
+        written = mirror(ds, revision=args.revision, raw=raw, force=args.force)
+        print(f"Done 🎇  {len(written)} file(s), {sum(mb(p) for p in written):,.1f} MB")
+        return 0
+
     if args.output:
         out_dir = Path(args.output).parent
     elif args.out_dir:
         out_dir = Path(args.out_dir)
     else:
-        out_dir = ROOT / "datasets" / ds.out_dir
+        out_dir = datasets_root / ds.out_dir
 
     with tempfile.TemporaryDirectory(prefix="fetch-hf-dataset-") as temp_dir:
         con = connect(temp_dir)
         try:
-            if args.mirror:
-                written = mirror(con, ds, out_dir if args.out_dir else ds.mirror_dir)
-            else:
-                written = slice_dataset(con, ds, args, out_dir)
+            written = slice_dataset(con, ds, args, out_dir)
         finally:
             con.close()
 
