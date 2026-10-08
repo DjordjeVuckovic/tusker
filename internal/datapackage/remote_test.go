@@ -222,3 +222,20 @@ func TestOpenFromS3FailsOnAlteredOrMissingObjects(t *testing.T) {
 		t.Errorf("missing descriptor: err = %v, want NotFoundError", err)
 	}
 }
+
+func TestResourceStopsOnCancelWithoutLeavingADownload(t *testing.T) {
+	_, _, srv := servePackage(t)
+	tempDir := t.TempDir()
+	opened, err := datapackage.OpenWith(context.Background(), srv.URL+"/pkg/", datapackage.Options{HTTPClient: srv.Client(), TempDir: tempDir})
+	if err != nil {
+		t.Fatalf("OpenWith: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = opened.Resource(ctx, "articles")
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("err = %v, want context.Canceled", err)
+	}
+	emptyDir(t, tempDir)
+}
