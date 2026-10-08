@@ -20,6 +20,7 @@ engines:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
     connection_settings:
+      plan_cache_mode: force_custom_plan
       hnsw.ef_search: "200"
     params:
       embedding_model: "qwen3-embedding:0.6b"
@@ -30,6 +31,7 @@ engines:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
     connection_settings:
+      plan_cache_mode: force_custom_plan
       enable_indexscan: "off"
     params:
       embedding_model: "qwen3-embedding:0.6b"
