@@ -25,7 +25,7 @@ type VectorStore struct {
 }
 
 func NewVectorStore(config ClientConfig, embedder *embedding.Embedder, model string) (*VectorStore, error) {
-	client, err := newClient(config)
+	client, err := newTypedClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}

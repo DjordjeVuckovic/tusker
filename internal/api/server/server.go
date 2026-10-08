@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"syscall"
 	"time"
 
 	openapi "github.com/DjordjeVuckovic/tusker/api/openapi-spec"
@@ -21,6 +23,7 @@ import (
 
 const (
 	DefaultGracefulShutdownTimeout = 10 * time.Second
+	healthCheckTimeout             = 2 * time.Second
 )
 
 type Server struct {
@@ -30,59 +33,54 @@ type Server struct {
 
 	checker server.HealthChecker
 
-	ctx context.Context
-
 	gracefulShutdownTimeout time.Duration
-	shutdownSig             chan struct{}
 }
 
-func New(cfg *Config, checker server.HealthChecker) *Server {
+func New(cfg *Config, checker server.HealthChecker) (*Server, error) {
+	cfg, err := cfg.validated()
+	if err != nil {
+		return nil, fmt.Errorf("server config: %w", err)
+	}
 	e := echo.New()
 
 	e.DisableHTTP2 = !cfg.UseHttp2
+	e.Server.ReadHeaderTimeout = cfg.ReadHeaderTimeout
+	e.Server.ReadTimeout = cfg.ReadTimeout
+	e.Server.WriteTimeout = cfg.WriteTimeout
+	e.Server.IdleTimeout = cfg.IdleTimeout
 
 	s := &Server{
 		Echo:                    e,
 		cfg:                     cfg,
 		checker:                 checker,
-		ctx:                     context.Background(),
 		gracefulShutdownTimeout: DefaultGracefulShutdownTimeout,
-		shutdownSig:             make(chan struct{}),
 	}
 
-	return s
+	return s, nil
 }
 
-func (s *Server) Context() context.Context {
-	return s.ctx
-}
-
-func (s *Server) ShutdownSignal() chan struct{} {
-	return s.shutdownSig
-}
-
+// Start serves until SIGINT or SIGTERM, then shuts down gracefully. It returns
+// instead of exiting so the caller can release what the handlers used.
 func (s *Server) Start() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	go func() {
-		if err := s.Echo.Start(":" + s.cfg.Port); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.Echo.Logger.Fatal("shutting down the server")
+	served := make(chan error, 1)
+	go func() { served <- s.Echo.Start(":" + s.cfg.Port) }()
+
+	select {
+	case err := <-served:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
 		}
-	}()
+		return fmt.Errorf("serve: %w", err)
+	case <-ctx.Done():
+	}
 
-	s.ctx = ctx
-
-	<-ctx.Done()
-
-	close(s.shutdownSig)
-
-	ctx, cancel := context.WithTimeout(context.Background(), s.gracefulShutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), s.gracefulShutdownTimeout)
 	defer cancel()
-
-	if err := s.Echo.Shutdown(ctx); err != nil {
-		s.Echo.Logger.Fatal(err)
-		return err
+	if err := s.Echo.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("graceful shutdown: %w", err)
 	}
 	slog.Info("Server shut down gracefully ...")
 
@@ -97,6 +95,8 @@ func (s *Server) SetupMiddlewares() *Server {
 		AllowOrigins: s.cfg.CorsOrigins,
 		AllowMethods: []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},
 	}))
+	s.Echo.Use(middleware.BodyLimit(strconv.FormatInt(s.cfg.BodyLimit, 10)))
+	s.Echo.Use(middleware.ContextTimeout(s.cfg.RequestTimeout))
 
 	return s
 }
@@ -108,7 +108,9 @@ func (s *Server) SetupHealthChecks(path string) *Server {
 }
 
 func (s *Server) handleHealthCheck(c echo.Context) error {
-	if !s.checker.Healthy(c.Request().Context()) {
+	ctx, cancel := context.WithTimeout(c.Request().Context(), healthCheckTimeout)
+	defer cancel()
+	if !s.checker.Healthy(ctx) {
 		return c.JSON(http.StatusServiceUnavailable, map[string]string{"status": "unhealthy"})
 	}
 

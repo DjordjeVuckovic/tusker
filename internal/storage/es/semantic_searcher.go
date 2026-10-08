@@ -28,17 +28,13 @@ type SemanticSearcher struct {
 	model     string
 }
 
-func NewSemanticSearcher(config ClientConfig, embedder *embedding.Embedder, model string) (*SemanticSearcher, error) {
-	client, err := newClient(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
-	}
+func NewSemanticSearcher(client *Client, embedder *embedding.Embedder, model string) *SemanticSearcher {
 	return &SemanticSearcher{
-		client:    client,
-		indexName: config.IndexName,
+		client:    client.typed,
+		indexName: client.indexName,
 		embedder:  embedder,
 		model:     model,
-	}, nil
+	}
 }
 
 func (s *SemanticSearcher) SearchSemantic(ctx context.Context, query *dquery.Semantic, baseOpts *dquery.BaseOptions) (*storage.VectorSearchResult, error) {
