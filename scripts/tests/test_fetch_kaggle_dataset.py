@@ -127,3 +127,15 @@ def test_a_differing_raw_file_is_refused_until_force_clears_raw(
     assert (dataset / "raw" / "articles.csv").read_bytes() == ARTICLES
     assert not (dataset / "raw" / "stale.csv").exists()
     assert (dataset / "mapping.yaml").read_text() == "kind: DataMapper\n"
+
+
+def test_a_file_no_descriptor_reader_accepts_is_refused(cache: Path, tmp_path: Path) -> None:
+    version = cache / "datasets" / "acme" / "news" / "versions" / "3"
+    (version / ".DS_Store").write_bytes(b"finder")
+    datasets_root = tmp_path / "datasets"
+
+    result = fetch(cache, datasets_root)
+
+    assert result.returncode != 0
+    assert ".DS_Store" in result.stderr
+    assert not (datasets_root / "news" / "raw" / "datapackage.json").exists()
