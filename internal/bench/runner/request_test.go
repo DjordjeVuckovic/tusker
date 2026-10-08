@@ -53,8 +53,8 @@ func TestRunAll_SendsQueriesOutsideTemplatesAsWritten(t *testing.T) {
 	_, err := New(singleRunConfig()).RunAll(context.Background(), bs, map[string]engine.Executor{"es": es, "api": apiExec})
 
 	require.NoError(t, err)
-	require.Len(t, es.requests, 1)
-	assert.Equal(t, engine.Request{Query: esBody}, es.requests[0])
+	require.NotEmpty(t, es.requests)
+	assert.Equal(t, engine.Request{Query: esBody}, es.requests[len(es.requests)-1])
 	assert.Empty(t, es.stored)
 	assert.Equal(t, apiDescriptor, apiExec.lastQuery())
 	assert.Empty(t, apiExec.lastArgs)

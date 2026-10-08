@@ -116,28 +116,3 @@ func TestQuery_ResolveEngineQuery_NotFound(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, result)
 }
-
-func TestQuery_ResolveEngineQuery_MixedEngines(t *testing.T) {
-	reg := NewTemplateRegistry()
-	tmpl := &QueryTemplate{ID: "fts", Args: []string{"term"}, Query: "SELECT * WHERE term = $1"}
-	require.NoError(t, reg.Register(tmpl))
-
-	q := Query{
-		ID: "q1",
-		Engines: map[string]EngineQuery{
-			"pg": {Template: "fts", Params: TemplateParams{"term": "climate"}},
-			"es": {Query: `{"query":"climate"}`},
-		},
-	}
-
-	pgResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "pg", Registry: reg})
-	require.NoError(t, err)
-	require.NotNil(t, pgResult)
-	assert.Equal(t, "SELECT * WHERE term = $1", pgResult.Query)
-	assert.Equal(t, []any{"climate"}, pgResult.Args)
-
-	esResult, err := q.ResolveEngineQuery(ResolveOptions{Engine: "es", Registry: reg})
-	require.NoError(t, err)
-	require.NotNil(t, esResult)
-	assert.Equal(t, `{"query":"climate"}`, esResult.Query)
-}

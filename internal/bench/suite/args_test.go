@@ -88,7 +88,7 @@ func TestEngineQuery_Resolve_LeavesEngineDefaultsUnchanged(t *testing.T) {
 		"engine params are shared by every query the engine runs and must survive resolution")
 }
 
-func TestParse_RejectsArgsThatDoNotFitTheStatement(t *testing.T) {
+func TestParse_RejectsParamsTheStatementCannotTake(t *testing.T) {
 	tests := []struct {
 		name    string
 		suite   string

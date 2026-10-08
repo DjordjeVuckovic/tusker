@@ -5,8 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,8 +40,13 @@ func TestInit_ScaffoldedSpecResolvesItsSuite(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, bs.Jobs)
 
-			_, err = suite.LoadFromFile(bs.Jobs[0].Suite)
+			_, err = runner.LoadSuites(bs)
 			require.NoError(t, err)
+			for name, eng := range bs.Engines {
+				if eng.Type == spec.EnginePostgres {
+					assert.Equal(t, "force_custom_plan", eng.ConnectionSettings["plan_cache_mode"], name)
+				}
+			}
 		})
 	}
 }

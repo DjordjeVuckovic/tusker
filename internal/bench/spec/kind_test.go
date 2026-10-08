@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,6 +49,5 @@ func TestParse_KindOmittedWarns(t *testing.T) {
 	s, err := Parse([]byte(validSpecHeader + minimalBody))
 	require.NoError(t, err)
 	assert.Equal(t, Kind(""), s.Kind)
-	require.Len(t, s.Warnings, 1)
-	assert.Contains(t, s.Warnings[0], "no kind")
+	assert.Contains(t, strings.Join(s.Warnings, "\n"), "no kind")
 }

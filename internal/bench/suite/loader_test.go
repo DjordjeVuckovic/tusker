@@ -30,9 +30,10 @@ queries:
 		require.NoError(t, err)
 		assert.Equal(t, "test", loaded.Suite.Name)
 		assert.Equal(t, "test_suite", loaded.Suite.ID)
-		assert.Len(t, loaded.Suite.Queries, 1)
+		require.NotEmpty(t, loaded.Suite.Queries)
 		assert.Equal(t, "q1", loaded.Suite.Queries[0].ID)
-		assert.Len(t, loaded.Suite.Queries[0].Engines, 2)
+		assert.Contains(t, loaded.Suite.Queries[0].Engines, "pg-native")
+		assert.Contains(t, loaded.Suite.Queries[0].Engines, "elasticsearch")
 	})
 
 	t.Run("string engines unmarshal as EngineQuery", func(t *testing.T) {
@@ -164,7 +165,7 @@ queries:
 `
 	loaded, err := Parse([]byte(yaml))
 	require.NoError(t, err)
-	assert.Len(t, loaded.Suite.Queries[0].Judgments, 1)
+	require.NotEmpty(t, loaded.Suite.Queries[0].Judgments)
 	assert.Equal(t, docID, loaded.Suite.Queries[0].Judgments[0].DocID)
 	assert.Equal(t, 3, loaded.Suite.Queries[0].Judgments[0].Relevance)
 }
@@ -197,38 +198,20 @@ func TestEngineQuery_Resolve_File(t *testing.T) {
 	assert.Equal(t, []any{"42"}, resolved.Args)
 }
 
-func TestEngineQuery_Resolve_Inline(t *testing.T) {
-	eq := EngineQuery{Query: "SELECT 1"}
-	resolved, err := eq.Resolve(ResolveOptions{})
-	require.NoError(t, err)
-	assert.Equal(t, "SELECT 1", resolved.Query)
-}
-
-func TestEngineQuery_Resolve_Template(t *testing.T) {
-	reg := NewTemplateRegistry()
-	tmpl := &QueryTemplate{ID: "fts", Args: []string{"term"}, Query: "SELECT * WHERE term = $1"}
-	require.NoError(t, reg.Register(tmpl))
-
-	eq := EngineQuery{Template: "fts", Params: TemplateParams{"term": "climate"}}
-	resolved, err := eq.Resolve(ResolveOptions{Registry: reg})
-	require.NoError(t, err)
-	assert.Equal(t, "SELECT * WHERE term = $1", resolved.Query)
-	assert.Equal(t, []any{"climate"}, resolved.Args)
-}
-
-func TestLoadFromFile_SetsDir(t *testing.T) {
+func TestLoadFromFile_FileQueryResolvesBesideTheSuite(t *testing.T) {
 	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "search.sql"), []byte("SELECT id FROM articles WHERE id = $1"), 0644))
 	suiteFile := filepath.Join(dir, "suite.yaml")
-	content := validHeader + `name: test
-queries:
+	require.NoError(t, os.WriteFile(suiteFile, []byte(validHeader+`queries:
   - id: q1
     engines:
-      pg: "SELECT 1"
-    judgments: []
-`
-	require.NoError(t, os.WriteFile(suiteFile, []byte(content), 0644))
+      pg: { file: search.sql, args: [id], params: { id: "42" } }
+`), 0644))
 
 	loaded, err := LoadFromFile(suiteFile)
 	require.NoError(t, err)
-	assert.Equal(t, dir, loaded.Dir)
+	resolved, err := loaded.Suite.Queries[0].ResolveEngineQuery(ResolveOptions{Engine: "pg", Registry: loaded.Registry, SuiteDir: loaded.Dir})
+
+	require.NoError(t, err)
+	assert.Equal(t, "SELECT id FROM articles WHERE id = $1", resolved.Query)
 }

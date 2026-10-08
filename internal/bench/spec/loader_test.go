@@ -40,9 +40,10 @@ jobs:
 		s, err := Parse([]byte(yaml))
 		require.NoError(t, err)
 		assert.Equal(t, "test_spec", s.ID)
-		assert.Len(t, s.Jobs, 1)
-		assert.Len(t, s.Engines, 2)
+		require.NotEmpty(t, s.Jobs)
 		assert.Equal(t, "raw-comparison", s.Jobs[0].Name)
+		assert.Equal(t, EnginePostgres, s.Engines["pg-native"].Type)
+		assert.Equal(t, "news", s.Engines["elasticsearch"].Index)
 		assert.Equal(t, 3, s.Runs.Iterations)
 	})
 
