@@ -1,0 +1,100 @@
+import json
+
+import pyarrow.parquet as pq
+from conftest import article, run_script, sha256_of, write_canonical_package
+
+ROWS = [
+    article(
+        "6f1c2b8e-0d5a-4a57-9a0e-1b2c3d4e5f60",
+        "Markets rally",
+        "Stocks rose on Monday.",
+        "long body " * 50,
+    ),
+    article(
+        "0a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d",
+        "Storm hits coast",
+        "",
+        "another long body " * 50,
+    ),
+    article(
+        "d4c3b2a1-9f8e-4d7c-b6a5-0f1e2d3c4b5a",
+        "Election results",
+        "Polls closed at eight.",
+        "third body",
+    ),
+]
+
+
+def only_package(output_root):
+    (descriptor,) = output_root.glob("embeddings/*/*/datapackage.json")
+    return descriptor
+
+
+def test_embedding_the_slim_projection_reproduces_the_canonical_package(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    slim = tmp_path / "payload"
+
+    sliming = run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
+    run_script(
+        "embed_corpus.py",
+        canonical.descriptor,
+        "--output-root",
+        tmp_path / "direct",
+        *tiny_model_args,
+    )
+    run_script(
+        "embed_corpus.py",
+        slim / "datapackage.json",
+        "--output-root",
+        tmp_path / "slim",
+        *tiny_model_args,
+    )
+
+    assert sliming.returncode == 0, sliming.stderr
+    direct, projected = (
+        only_package(tmp_path / "direct"),
+        only_package(tmp_path / "slim"),
+    )
+    assert projected.parent.name == direct.parent.name
+    assert (
+        json.loads(projected.read_text())["canonical"]
+        == json.loads(direct.read_text())["canonical"]
+    )
+    assert sha256_of(projected.parent / "embeddings.parquet") == sha256_of(
+        direct.parent / "embeddings.parquet"
+    )
+
+
+def test_the_slim_payload_carries_only_what_the_embedder_reads(tmp_path):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS, "jsonl")
+    slim = tmp_path / "payload"
+
+    run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
+
+    descriptor = json.loads((slim / "datapackage.json").read_text())
+    (resource,) = descriptor["resources"]
+    table = pq.read_table(slim / resource["path"])
+    assert table.column_names == ["id", "title", "description"]
+    assert table.column("id").to_pylist() == [row["id"] for row in ROWS]
+    assert descriptor["canonical"] == {
+        "name": "cc-news",
+        "version": "article-v2-0badcafe",
+        "resourceHash": sha256_of(canonical.resource),
+    }
+
+
+def test_refuses_to_slim_a_canonical_resource_that_does_not_verify(tmp_path):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS, "jsonl")
+    canonical.resource.write_bytes(
+        canonical.resource.read_bytes().replace(b"Markets", b"Murkets")
+    )
+
+    result = run_script(
+        "slim_corpus.py", canonical.descriptor, "--out", tmp_path / "payload"
+    )
+
+    assert result.returncode != 0
+    assert "hash" in result.stderr
+    assert not (tmp_path / "payload").exists()
