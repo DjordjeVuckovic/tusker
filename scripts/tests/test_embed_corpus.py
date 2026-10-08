@@ -417,3 +417,16 @@ def test_refuses_to_rerun_over_a_finished_package_that_no_longer_verifies(
 
     assert result.returncode != 0
     assert "hash" in result.stderr
+
+
+def test_writes_under_the_dataset_root_of_a_canonical_package_by_default(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(
+        tmp_path / "cc-news" / "canonical" / "article-v2-0badcafe", ROWS
+    )
+
+    result = run_script("embed_corpus.py", canonical.descriptor, *tiny_model_args)
+
+    assert result.returncode == 0, result.stderr
+    assert only_package(tmp_path / "cc-news").is_file()
