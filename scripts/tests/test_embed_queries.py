@@ -1,0 +1,150 @@
+import json
+from pathlib import Path
+
+import numpy as np
+import pyarrow.parquet as pq
+from conftest import article, run_script, sha256_of, write_canonical_package
+
+SUITE = """\
+schema_version: 1
+id: cc-news-semantic
+version: "1.0.0"
+queries:
+  - id: q-climate
+    description: "  climate change "
+    engines: {}
+  - id: q-rates
+    description: central bank interest rates
+    engines: {}
+"""
+
+
+def write_suite(track: Path, text: str = SUITE) -> Path:
+    track.mkdir(parents=True, exist_ok=True)
+    suite = track / "suite.yaml"
+    suite.write_text(text, encoding="utf-8")
+    return suite
+
+
+def query_vectors(track: Path) -> Path:
+    return track / "trec" / "query-vectors" / "datapackage.json"
+
+
+def read_query_vectors(descriptor: Path) -> dict[str, list]:
+    return pq.read_table(descriptor.parent / "query-vectors.parquet").to_pydict()
+
+
+def test_writes_each_query_with_the_text_the_runner_embeds(tmp_path, tiny_model_args):
+    suite = write_suite(tmp_path / "track")
+
+    result = run_script("embed_queries.py", suite, *tiny_model_args)
+
+    assert result.returncode == 0, result.stderr
+    rows = read_query_vectors(query_vectors(tmp_path / "track"))
+    assert rows["query_id"] == ["q-climate", "q-rates"]
+    assert rows["text"] == ["  climate change ", "central bank interest rates"]
+    norms = np.linalg.norm(np.array(rows["embedding"], dtype=np.float32), axis=1)
+    np.testing.assert_allclose(norms, 1.0, atol=1e-6)
+
+
+def test_descriptor_records_the_tag_query_recipe_and_suite_hash(
+    tmp_path, tiny_model, tiny_model_args
+):
+    suite = write_suite(tmp_path / "track")
+
+    run_script("embed_queries.py", suite, *tiny_model_args, "--dim", "64")
+
+    descriptor = json.loads(query_vectors(tmp_path / "track").read_text())
+    assert descriptor["embedding"] == {
+        "model": "tiny-qwen3",
+        "hfModel": str(tiny_model),
+        "revision": "test-rev",
+        "tag": "tiny-qwen3@64",
+        "dim": 64,
+        "recipe": "query-instruct-v1",
+        "pooling": "last_token",
+        "normalized": True,
+        "maxTokens": 512,
+    }
+    assert descriptor["suite"] == {"id": "cc-news-semantic", "hash": sha256_of(suite)}
+
+
+def test_query_instruct_v1_embeds_the_same_string_as_go_wrap_with_instruct(
+    tmp_path, tiny_model_args
+):
+    suite = write_suite(tmp_path / "track")
+    wrapped = "Instruct: Given a web search, retrieve all relevant news documents\nQuery:climate change"
+    canonical = write_canonical_package(
+        tmp_path / "canonical",
+        [article("11111111-1111-4111-8111-111111111111", wrapped)],
+    )
+
+    run_script("embed_queries.py", suite, *tiny_model_args)
+    run_script(
+        "embed_corpus.py",
+        canonical.descriptor,
+        "--output-root",
+        tmp_path / "out",
+        *tiny_model_args,
+        "--batch-size",
+        "1",
+    )
+
+    query = read_query_vectors(query_vectors(tmp_path / "track"))["embedding"][0]
+    (document_package,) = (tmp_path / "out").glob("embeddings/*/*/datapackage.json")
+    document = (
+        pq.read_table(document_package.parent / "embeddings.parquet")
+        .column("embedding")
+        .to_pylist()[0]
+    )
+    np.testing.assert_array_equal(
+        np.array(query, dtype=np.float32), np.array(document, dtype=np.float32)
+    )
+
+
+def test_refuses_a_query_whose_edges_go_and_python_trim_differently(
+    tmp_path, tiny_model_args
+):
+    suite = write_suite(
+        tmp_path / "track",
+        SUITE.replace('"  climate change "', '"climate change\\x1f"'),
+    )
+
+    result = run_script("embed_queries.py", suite, *tiny_model_args)
+
+    assert result.returncode != 0
+    assert "q-climate" in result.stderr
+    assert not query_vectors(tmp_path / "track").exists()
+
+
+def test_refuses_to_replace_vectors_embedded_from_another_suite(
+    tmp_path, tiny_model_args
+):
+    suite = write_suite(tmp_path / "track")
+    run_script("embed_queries.py", suite, *tiny_model_args)
+    before = sha256_of(
+        query_vectors(tmp_path / "track").parent / "query-vectors.parquet"
+    )
+    write_suite(tmp_path / "track", SUITE.replace("interest rates", "rate decision"))
+
+    result = run_script("embed_queries.py", suite, *tiny_model_args)
+
+    assert result.returncode != 0
+    assert "version" in result.stderr
+    assert (
+        sha256_of(query_vectors(tmp_path / "track").parent / "query-vectors.parquet")
+        == before
+    )
+
+
+def test_a_description_yaml_could_read_as_a_number_keeps_its_literal_text(
+    tmp_path, tiny_model_args
+):
+    suite = write_suite(
+        tmp_path / "track", SUITE.replace("central bank interest rates", "2024")
+    )
+
+    result = run_script("embed_queries.py", suite, *tiny_model_args)
+
+    assert result.returncode == 0, result.stderr
+    assert read_query_vectors(query_vectors(tmp_path / "track"))["text"][1] == "2024"
