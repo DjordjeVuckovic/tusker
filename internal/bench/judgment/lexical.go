@@ -25,7 +25,7 @@ func (LexicalStrategy) Describe() meta.Judge {
 func (LexicalStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) (int, error) {
 	terms := tokenize(q.Description)
 	if len(terms) == 0 {
-		return 0, fmt.Errorf("lexical strategy: query %q has no usable description (regenerate the pool or set --strategy manual)", q.ID)
+		return GradeUnjudged, &NoQueryTermsError{QueryID: q.ID}
 	}
 
 	titleTokens := tokenSet(doc.Title)
@@ -57,6 +57,16 @@ func (LexicalStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) 
 	default:
 		return GradeNotRelev, nil
 	}
+}
+
+// NoQueryTermsError reports a query with no gradable terms. It is a property of
+// the query, so every document fails the same way and no retry can fix it.
+type NoQueryTermsError struct {
+	QueryID string
+}
+
+func (e *NoQueryTermsError) Error() string {
+	return fmt.Sprintf("lexical strategy: query %q has no usable description (regenerate the pool or set --strategy manual)", e.QueryID)
 }
 
 var (

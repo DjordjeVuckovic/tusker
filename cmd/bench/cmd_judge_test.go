@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -109,4 +112,52 @@ func TestCheckResumeCompat_LegacyFileRefusesResume(t *testing.T) {
 	err := checkResumeCompat(prior, strat)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "judge mismatch")
+}
+
+func judgmentsWithGrades(grades ...int) *judgment.File {
+	docs := make([]judgment.GradedDoc, len(grades))
+	for i, g := range grades {
+		docs[i] = judgment.GradedDoc{DocID: uuid.New(), Grade: g}
+	}
+	return &judgment.File{
+		Meta:    meta.Meta{Judge: &meta.Judge{Strategy: string(judgment.StrategyBM25)}},
+		Queries: []judgment.Entry{{QueryID: "q1", Docs: docs}},
+	}
+}
+
+// A file in which every grade failed must still say so: an absent count reads
+// the same as a file that was never counted.
+func TestWriteJudgments_RecordsCountsWhenNothingWasGraded(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "annotations.bm25.yaml")
+
+	require.NoError(t, writeJudgments(judgmentsWithGrades(judgment.GradeUnjudged, judgment.GradeUnjudged), path))
+
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), "graded_count: 0")
+	assert.Contains(t, string(raw), "unjudged_count: 2")
+}
+
+func TestRequireJudged(t *testing.T) {
+	cases := []struct {
+		name          string
+		grades        []int
+		allowUnjudged bool
+		wantErr       bool
+	}{
+		{name: "every doc graded", grades: []int{0, 3}},
+		{name: "an unjudged doc fails", grades: []int{2, judgment.GradeUnjudged}, wantErr: true},
+		{name: "an unjudged doc is allowed on request", grades: []int{2, judgment.GradeUnjudged}, allowUnjudged: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := requireJudged(judgmentsWithGrades(tc.grades...), tc.allowUnjudged)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

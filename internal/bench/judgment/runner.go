@@ -190,8 +190,8 @@ func (r *Runner) dispatch(ctx context.Context, q GradingQuery, todo []pool.Poole
 		if err := r.runBatched(ctx, bs, q, gradables, gradedByID); err != nil {
 			return nil, err
 		}
-	} else {
-		r.runPerDoc(ctx, r.cfg.Strategy, q, gradables, gradedByID)
+	} else if err := r.runPerDoc(ctx, r.cfg.Strategy, q, gradables, gradedByID); err != nil {
+		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -231,7 +231,9 @@ func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuer
 				"query", q.ID, "batch", i+1, "missing", len(partial.Missing))
 			missingDocs := pickByID(batch, partial.Missing)
 			perDoc := map[uuid.UUID]int{}
-			r.runPerDoc(ctx, bs, q, missingDocs, perDoc)
+			if err := r.runPerDoc(ctx, bs, q, missingDocs, perDoc); err != nil {
+				return err
+			}
 			for id, g := range perDoc {
 				results = append(results, GradedDoc{DocID: id, Grade: g})
 			}
@@ -239,7 +241,9 @@ func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuer
 			slog.Warn("batch failed; falling back to per-doc",
 				"query", q.ID, "batch", i+1, "error", err)
 			perDoc := map[uuid.UUID]int{}
-			r.runPerDoc(ctx, bs, q, batch, perDoc)
+			if err := r.runPerDoc(ctx, bs, q, batch, perDoc); err != nil {
+				return err
+			}
 			results = nil
 			for id, g := range perDoc {
 				results = append(results, GradedDoc{DocID: id, Grade: g})
@@ -265,10 +269,13 @@ func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuer
 	return nil
 }
 
-func (r *Runner) runPerDoc(ctx context.Context, s Strategy, q GradingQuery, docs []GradingDoc, into map[uuid.UUID]int) {
+// runPerDoc leaves a doc unjudged when its grade fails, except for a
+// NoQueryTermsError, which fails every doc of the query and is returned.
+func (r *Runner) runPerDoc(ctx context.Context, s Strategy, q GradingQuery, docs []GradingDoc, into map[uuid.UUID]int) error {
 	sem := make(chan struct{}, r.cfg.Concurrency)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
+	var queryErr error
 
 	for _, d := range docs {
 		wg.Add(1)
@@ -282,6 +289,13 @@ func (r *Runner) runPerDoc(ctx context.Context, s Strategy, q GradingQuery, docs
 			defer func() { <-sem }()
 
 			grade, err := s.Grade(ctx, q, gd)
+			var noTerms *NoQueryTermsError
+			if errors.As(err, &noTerms) {
+				mu.Lock()
+				queryErr = err
+				mu.Unlock()
+				return
+			}
 			if err != nil {
 				slog.Warn("grade failed; leaving unjudged",
 					"query", q.ID, "doc_id", gd.ID, "error", err)
@@ -293,6 +307,7 @@ func (r *Runner) runPerDoc(ctx context.Context, s Strategy, q GradingQuery, docs
 		}(d)
 	}
 	wg.Wait()
+	return queryErr
 }
 
 func (r *Runner) fetchDocs(ctx context.Context, pooled []pool.PooledDoc) (map[uuid.UUID]GradingDoc, error) {

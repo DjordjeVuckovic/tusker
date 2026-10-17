@@ -25,6 +25,7 @@ type judgeFlags struct {
 	concurrency    int
 	batchSize      int
 	resume         bool
+	allowUnjudged  bool
 	apiKey         string
 	provider       string
 	model          string
@@ -82,6 +83,7 @@ graded. Atomic writes mean Ctrl-C is safe.`,
 	cmd.Flags().IntVar(&f.concurrency, "concurrency", 4, "Parallel Grade calls (per-doc strategies)")
 	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "Override LLM batch size (0 = strategy default)")
 	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output")
+	cmd.Flags().BoolVar(&f.allowUnjudged, "allow-unjudged", false, "Exit 0 even when some pooled docs end unjudged")
 	cmd.Flags().StringVar(&f.apiKey, "api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY)")
 	cmd.Flags().StringVar(&f.provider, "provider", string(judgment.DefaultProvider),
 		"LLM endpoint for --strategy llm: "+strings.Join(judgment.KnownProviders(), " | "))
@@ -132,7 +134,7 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 		jf.Meta = meta.New("judge")
 		jf.Meta.Judge = &judge
 		jf.Meta.PoolRef = poolPath
-		if err := judgment.WriteFile(jf, outPath); err != nil {
+		if err := writeJudgments(jf, outPath); err != nil {
 			return fmt.Errorf("write judgments: %w", err)
 		}
 		printDone(cmd.OutOrStdout(), fmt.Sprintf("Manual template written: %s  (queries=%d)", outPath, len(jf.Queries)))
@@ -227,14 +229,13 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 	final.Meta.Judge = &judge
 	final.Meta.PoolRef = poolPath
 	final.Meta.RelevanceScale = []int{0, 1, 2, 3}
-	final.Meta.GradedCount = countGraded(final)
-	if err := judgment.WriteFile(final, outPath); err != nil {
+	if err := writeJudgments(final, outPath); err != nil {
 		return fmt.Errorf("finalise judgments: %w", err)
 	}
 
 	printDone(cmd.OutOrStdout(), fmt.Sprintf("Judgments written: %s  (judge=%s  queries=%d  run_id=%s)",
 		outPath, judge, len(final.Queries), final.Meta.RunID))
-	return nil
+	return requireJudged(final, f.allowUnjudged)
 }
 
 // resolveJudge turns --strategy/--provider into the pair the strategy factory
@@ -338,16 +339,32 @@ func buildManualJudgments(pf *pool.PoolFile) *judgment.File {
 	return jf
 }
 
-func countGraded(jf *judgment.File) int {
-	n := 0
+func writeJudgments(jf *judgment.File, path string) error {
+	jf.Meta.GradedCount, jf.Meta.UnjudgedCount = countGrades(jf)
+	return judgment.WriteFile(jf, path)
+}
+
+// requireJudged fails when a pooled doc has no grade: bench run would score it
+// as non-relevant against whichever engine retrieved it.
+func requireJudged(jf *judgment.File, allowUnjudged bool) error {
+	_, unjudged := countGrades(jf)
+	if unjudged == 0 || allowUnjudged {
+		return nil
+	}
+	return fmt.Errorf("%d pooled docs are unjudged: re-run with --resume to retry them, or pass --allow-unjudged to keep the file as is", unjudged)
+}
+
+func countGrades(jf *judgment.File) (graded, unjudged int) {
 	for _, qe := range jf.Queries {
 		for _, d := range qe.Docs {
 			if d.Grade >= 0 {
-				n++
+				graded++
+			} else {
+				unjudged++
 			}
 		}
 	}
-	return n
+	return graded, unjudged
 }
 
 func formatHistogram(h map[int]int) string {

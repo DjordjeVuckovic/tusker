@@ -31,7 +31,8 @@ type Meta struct {
 	// Judgment-only fields.
 	Judge          *Judge `yaml:"judge,omitempty" json:"judge,omitempty"`
 	PoolRef        string `yaml:"pool_ref,omitempty" json:"pool_ref,omitempty"`
-	GradedCount    int    `yaml:"graded_count,omitempty" json:"graded_count,omitempty"`
+	GradedCount    int    `yaml:"graded_count" json:"graded_count"`
+	UnjudgedCount  int    `yaml:"unjudged_count" json:"unjudged_count"`
 	RelevanceScale []int  `yaml:"relevance_scale,omitempty" json:"relevance_scale,omitempty"`
 
 	// Legacy flat judgment fields, retained read-only so annotations written
