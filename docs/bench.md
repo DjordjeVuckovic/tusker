@@ -320,7 +320,7 @@ Grades every `(query, doc)` pair in the pool using the chosen strategy. Output: 
 
 Key flags:
 - `--resume` — skip docs already graded (errors if model or prompt version changed)
-- `--batch N` — override LLM batch size
+- `--batch N` — override LLM batch size (`bm25` and `hybrid` grade each query's whole pool at once and refuse it)
 - `--concurrency N` — parallel Grade calls (per-doc mode)
 - `--allow-unjudged` — exit 0 even when some pooled docs are left unjudged
 

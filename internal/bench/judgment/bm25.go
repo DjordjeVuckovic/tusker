@@ -2,6 +2,8 @@ package judgment
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -12,13 +14,9 @@ import (
 const (
 	bm25K1 = 1.5
 	bm25B  = 0.75
-
-	// poolBatchSize makes the runner hand a query's whole candidate pool to
-	// GradeBatch in one call, so BM25 statistics (idf, avgdl) are computed over
-	// the full pool rather than an arbitrary chunk of it. Per-query pools are
-	// pool_depth × engines deduped (≈50-150), comfortably under this.
-	poolBatchSize = 512
 )
+
+var errNeedsWholePool = errors.New("grades are relative to the whole pool, so a single doc cannot be graded alone")
 
 // BM25Strategy grades candidates with Okapi BM25 computed over the per-query
 // candidate pool as a local corpus: idf from pool document frequencies, avgdl
@@ -39,9 +37,7 @@ func (BM25Strategy) Describe() meta.Judge {
 	return meta.Judge{Strategy: string(StrategyBM25)}
 }
 
-func (BM25Strategy) PreferredBatchSize() int { return poolBatchSize }
-
-func (s BM25Strategy) GradeBatch(_ context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
+func (s BM25Strategy) GradePool(_ context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
 	norms := s.normScores(q, docs)
 	out := make([]GradedDoc, len(docs))
 	for i, d := range docs {
@@ -50,11 +46,8 @@ func (s BM25Strategy) GradeBatch(_ context.Context, q GradingQuery, docs []Gradi
 	return out, nil
 }
 
-// Grade is a per-doc fallback (the runner only reaches it if GradeBatch fails,
-// which the no-network BM25 path does not). Without the pool there is no idf or
-// avgdl to compute, so it degrades to the lexical coverage baseline.
-func (BM25Strategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc) (int, error) {
-	return LexicalStrategy{}.Grade(ctx, q, doc)
+func (BM25Strategy) Grade(context.Context, GradingQuery, GradingDoc) (int, error) {
+	return GradeUnjudged, fmt.Errorf("bm25 strategy: %w", errNeedsWholePool)
 }
 
 // normScores returns each doc's BM25 score normalised to [0,1] against the

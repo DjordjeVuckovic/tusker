@@ -54,6 +54,15 @@ type BatchStrategy interface {
 	GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error)
 }
 
+// PoolStrategy is an optional capability for strategies whose grades are
+// relative to the rest of the pool. The runner hands GradePool every doc in the
+// query's pool in one call, including docs a prior run already graded, so a
+// grade does not depend on batching or resume.
+type PoolStrategy interface {
+	Strategy
+	GradePool(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error)
+}
+
 type StrategyKind string
 
 // Strategy taxonomy. Heuristic strategies derive grades from algorithmic

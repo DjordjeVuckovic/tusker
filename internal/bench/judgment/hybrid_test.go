@@ -2,12 +2,14 @@ package judgment
 
 import (
 	"context"
+	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
 )
 
-func TestHybridGradeBatch_FusesSignals(t *testing.T) {
+func TestHybridGradePool_FusesSignals(t *testing.T) {
 	// lexicalHit shares query keywords but is semantically far;
 	// semanticHit shares no keywords but is semantically close.
 	// Both should land above NotRelev thanks to fusion.
@@ -25,9 +27,9 @@ func TestHybridGradeBatch_FusesSignals(t *testing.T) {
 	}
 	s := NewHybridStrategyWithStore(store, "fake")
 
-	got, err := s.GradeBatch(context.Background(), GradingQuery{ID: "q", Description: "climate change policy"}, []GradingDoc{lexicalHit, semanticHit, cold})
+	got, err := s.GradePool(context.Background(), GradingQuery{ID: "q", Description: "climate change policy"}, []GradingDoc{lexicalHit, semanticHit, cold})
 	if err != nil {
-		t.Fatalf("GradeBatch: %v", err)
+		t.Fatalf("GradePool: %v", err)
 	}
 	byID := map[uuid.UUID]int{}
 	for _, g := range got {
@@ -53,5 +55,37 @@ func TestHybridDescribe(t *testing.T) {
 	}
 	if got.Model != "bm25+qwen3" {
 		t.Errorf("Model = %q, want %q", got.Model, "bm25+qwen3")
+	}
+}
+
+// flakyVectorStore fails its first query embedding, the way an embedding
+// endpoint times out on a cold model, and serves every later call.
+type flakyVectorStore struct {
+	fakeVectorStore
+	calls atomic.Int32
+}
+
+func (f *flakyVectorStore) QueryVector(ctx context.Context, text string) ([]float32, error) {
+	if f.calls.Add(1) == 1 {
+		return nil, errors.New("embedding endpoint timed out")
+	}
+	return f.fakeVectorStore.QueryVector(ctx, text)
+}
+
+// A failed vector component leaves the pool unjudged. Grading each doc alone
+// instead would normalise its BM25 score against itself and inflate it.
+func TestHybrid_VectorFailureLeavesPoolUnjudged(t *testing.T) {
+	pf, reader := bm25Pool("climate report", "climate summit on change", "economy and markets")
+	store := &flakyVectorStore{fakeVectorStore: fakeVectorStore{query: []float32{1, 0}, docs: map[uuid.UUID][]float32{}}}
+	for id := range reader.articles {
+		store.docs[id] = []float32{0, 1}
+	}
+
+	grades := runGrades(t, RunnerConfig{Strategy: NewHybridStrategyWithStore(store, "fake"), Reader: reader}, pf)
+
+	for id, grade := range grades {
+		if grade != GradeUnjudged {
+			t.Errorf("doc %q: grade %d, want unjudged", reader.articles[id].Title, grade)
+		}
 	}
 }

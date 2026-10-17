@@ -49,6 +49,7 @@ type RunnerConfig struct {
 	Reader      storage.Reader
 	Concurrency int
 	// BatchSize overrides the strategy's preferred batch size. 0 = use preferred.
+	// A PoolStrategy refuses any other value.
 	BatchSize int
 	// Existing is an optional prior judgment file. Entries already present
 	// will be skipped on this run (resume support).
@@ -65,7 +66,8 @@ type RunnerConfig struct {
 
 // Runner orchestrates relevance grading. It:
 //   - Fetches articles per-query in one DB round-trip
-//   - Uses BatchStrategy.GradeBatch when supported, falling back to per-doc
+//   - Uses PoolStrategy.GradePool on the query's whole pool when supported
+//   - Otherwise uses BatchStrategy.GradeBatch when supported, falling back to per-doc
 //     Grade() for missing entries (Anthropic LLM-as-judge batched pattern)
 //   - Skips docs already graded in cfg.Existing (resume)
 //   - Streams results through Sink so callers can checkpoint to disk
@@ -87,6 +89,10 @@ func NewRunner(cfg RunnerConfig) *Runner {
 func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 	if r.cfg.Strategy == nil {
 		return nil, fmt.Errorf("runner: strategy is nil")
+	}
+
+	if _, ok := r.cfg.Strategy.(PoolStrategy); ok && r.cfg.BatchSize > 0 {
+		return nil, fmt.Errorf("%s grades each query's whole pool at once and takes no batch size", r.cfg.Strategy.Name())
 	}
 
 	prior := indexExisting(r.cfg.Existing)
@@ -142,13 +148,14 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 		return ge, prog, nil
 	}
 
-	docs, err := r.fetchDocs(ctx, todo)
-	if err != nil {
-		return ge, prog, fmt.Errorf("fetch docs: %w", err)
-	}
-
 	q := GradingQuery{ID: entry.QueryID, Description: entry.QueryDesc, Category: entry.Category}
-	gradedByID, err := r.dispatch(ctx, q, todo, docs)
+	var gradedByID map[uuid.UUID]int
+	var err error
+	if ps, ok := r.cfg.Strategy.(PoolStrategy); ok {
+		gradedByID, err = r.gradeWholePool(ctx, ps, q, entry.Docs)
+	} else {
+		gradedByID, err = r.gradeTodo(ctx, q, todo)
+	}
 	if err != nil {
 		return ge, prog, err
 	}
@@ -166,6 +173,52 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 		ge.Docs = append(ge.Docs, GradedDoc{DocID: pd.DocID, Grade: grade})
 	}
 	return ge, prog, nil
+}
+
+func (r *Runner) gradeTodo(ctx context.Context, q GradingQuery, todo []pool.PooledDoc) (map[uuid.UUID]int, error) {
+	docs, err := r.fetchDocs(ctx, todo)
+	if err != nil {
+		return nil, fmt.Errorf("fetch docs: %w", err)
+	}
+	return r.dispatch(ctx, q, todo, docs)
+}
+
+// gradeWholePool grades every pooled doc, graded before or not, and has no
+// per-doc fallback: a doc graded alone is normalised against itself. When the
+// strategy fails, the query's docs stay unjudged.
+func (r *Runner) gradeWholePool(ctx context.Context, ps PoolStrategy, q GradingQuery, pooled []pool.PooledDoc) (map[uuid.UUID]int, error) {
+	docs, err := r.fetchDocs(ctx, pooled)
+	if err != nil {
+		return nil, fmt.Errorf("fetch docs: %w", err)
+	}
+	gradables := make([]GradingDoc, 0, len(pooled))
+	for _, pd := range pooled {
+		gd, ok := docs[pd.DocID]
+		if !ok {
+			slog.Warn("article not found during enrichment; leaving unjudged",
+				"query", q.ID, "doc_id", pd.DocID)
+			continue
+		}
+		gradables = append(gradables, gd)
+	}
+
+	results, err := ps.GradePool(ctx, q, gradables)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
+	}
+	var width *VectorWidthError
+	if errors.As(err, &width) {
+		return nil, err
+	}
+	gradedByID := make(map[uuid.UUID]int, len(results))
+	if err != nil {
+		slog.Warn("pool grading failed; leaving the query unjudged", "query", q.ID, "error", err)
+		return gradedByID, nil
+	}
+	for _, gd := range results {
+		gradedByID[gd.DocID] = gd.Grade
+	}
+	return gradedByID, nil
 }
 
 // dispatch decides between batched and per-doc grading and runs it.

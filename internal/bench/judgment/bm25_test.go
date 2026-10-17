@@ -4,18 +4,20 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
 )
 
-func TestBM25GradeBatch_RanksByRelevance(t *testing.T) {
+func TestBM25GradePool_RanksByRelevance(t *testing.T) {
 	q := GradingQuery{ID: "q1", Description: "climate change policy"}
 	strong := GradingDoc{ID: uuid.New(), Title: "Climate change policy reshapes energy", Description: "New climate policy targets emissions"}
 	weak := GradingDoc{ID: uuid.New(), Title: "Climate mentioned once", Description: "A short note"}
 	none := GradingDoc{ID: uuid.New(), Title: "Local football results", Description: "Match report"}
 
-	got, err := BM25Strategy{}.GradeBatch(context.Background(), q, []GradingDoc{strong, weak, none})
+	got, err := BM25Strategy{}.GradePool(context.Background(), q, []GradingDoc{strong, weak, none})
 	if err != nil {
-		t.Fatalf("GradeBatch: %v", err)
+		t.Fatalf("GradePool: %v", err)
 	}
 	if len(got) != 3 {
 		t.Fatalf("got %d grades, want 3", len(got))
@@ -32,12 +34,12 @@ func TestBM25GradeBatch_RanksByRelevance(t *testing.T) {
 	}
 }
 
-func TestBM25GradeBatch_EmptyQueryDescription(t *testing.T) {
+func TestBM25GradePool_EmptyQueryDescription(t *testing.T) {
 	q := GradingQuery{ID: "q1", Description: "the a of"} // all stopwords/short
 	doc := GradingDoc{ID: uuid.New(), Title: "anything"}
-	got, err := BM25Strategy{}.GradeBatch(context.Background(), q, []GradingDoc{doc})
+	got, err := BM25Strategy{}.GradePool(context.Background(), q, []GradingDoc{doc})
 	if err != nil {
-		t.Fatalf("GradeBatch: %v", err)
+		t.Fatalf("GradePool: %v", err)
 	}
 	if got[0].Grade != GradeNotRelev {
 		t.Errorf("grade = %d, want %d for empty query", got[0].Grade, GradeNotRelev)
@@ -62,5 +64,104 @@ func TestGradeFromNorm(t *testing.T) {
 		if got := gradeFromNorm(c.norm); got != c.want {
 			t.Errorf("gradeFromNorm(%v) = %d, want %d", c.norm, got, c.want)
 		}
+	}
+}
+
+// bm25Pool builds a one-query pool whose articles carry the given titles, in
+// that order.
+func bm25Pool(titles ...string) (*pool.PoolFile, *stubStorageReader) {
+	reader := &stubStorageReader{articles: map[uuid.UUID]document.Article{}}
+	entry := pool.PoolEntry{QueryID: "q1", QueryDesc: "climate change"}
+	for _, title := range titles {
+		id := uuid.New()
+		reader.articles[id] = document.Article{ID: id, Title: title}
+		entry.Docs = append(entry.Docs, pool.PooledDoc{DocID: id})
+	}
+	return &pool.PoolFile{Queries: []pool.PoolEntry{entry}}, reader
+}
+
+func runGrades(t *testing.T, cfg RunnerConfig, pf *pool.PoolFile) map[uuid.UUID]int {
+	t.Helper()
+	jf, err := NewRunner(cfg).Run(context.Background(), pf)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	out := map[uuid.UUID]int{}
+	for _, d := range jf.Queries[0].Docs {
+		out[d.DocID] = d.Grade
+	}
+	return out
+}
+
+// A resumed run grades the remaining docs against the whole pool, so it lands
+// on the grades a fresh run gives them.
+func TestBM25_ResumedRunMatchesFreshRun(t *testing.T) {
+	pf, reader := bm25Pool(
+		"climate change climate change climate",
+		"climate report",
+		"change of policy",
+		"economy and markets",
+		"climate summit on change",
+		"weather update",
+	)
+	fresh := runGrades(t, RunnerConfig{Strategy: NewBM25Strategy(), Reader: reader}, pf)
+
+	interrupted := Entry{QueryID: "q1"}
+	for i, d := range pf.Queries[0].Docs {
+		grade := GradeUnjudged
+		if i == 0 || i == 4 {
+			grade = fresh[d.DocID]
+		}
+		interrupted.Docs = append(interrupted.Docs, GradedDoc{DocID: d.DocID, Grade: grade})
+	}
+	resumed := runGrades(t, RunnerConfig{
+		Strategy: NewBM25Strategy(),
+		Reader:   reader,
+		Existing: &File{Queries: []Entry{interrupted}},
+	}, pf)
+
+	for id, want := range fresh {
+		if resumed[id] != want {
+			t.Errorf("doc %q: resumed grade %d, fresh grade %d", reader.articles[id].Title, resumed[id], want)
+		}
+	}
+}
+
+// Pool order carries no meaning, so reversing it must not move a grade, however
+// many docs the pool holds.
+func TestBM25_GradesIgnorePoolOrder(t *testing.T) {
+	filler := func(titles []string, n int) []string {
+		for i := 0; i < n; i++ {
+			titles = append(titles, "economy and markets")
+		}
+		return titles
+	}
+	titles := filler([]string{"climate change climate change climate"}, 300)
+	titles = filler(append(titles, "climate report"), 300)
+	pf, reader := bm25Pool(titles...)
+	forward := runGrades(t, RunnerConfig{Strategy: NewBM25Strategy(), Reader: reader}, pf)
+
+	docs := pf.Queries[0].Docs
+	reversed := make([]pool.PooledDoc, len(docs))
+	for i, d := range docs {
+		reversed[len(docs)-1-i] = d
+	}
+	pf.Queries[0].Docs = reversed
+	backward := runGrades(t, RunnerConfig{Strategy: NewBM25Strategy(), Reader: reader}, pf)
+
+	for id, want := range forward {
+		if backward[id] != want {
+			t.Errorf("doc %q: reversed-pool grade %d, forward grade %d", reader.articles[id].Title, backward[id], want)
+		}
+	}
+}
+
+func TestBM25_RejectsBatchSize(t *testing.T) {
+	pf, reader := bm25Pool("climate report", "weather update")
+
+	_, err := NewRunner(RunnerConfig{Strategy: NewBM25Strategy(), Reader: reader, BatchSize: 1}).Run(context.Background(), pf)
+
+	if err == nil {
+		t.Fatal("Run with a batch size: want an error, got nil")
 	}
 }

@@ -52,9 +52,7 @@ func (s HybridStrategy) Describe() meta.Judge {
 	return meta.Judge{Strategy: string(StrategyHybrid), Model: "bm25+" + model}
 }
 
-func (HybridStrategy) PreferredBatchSize() int { return poolBatchSize }
-
-func (s HybridStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
+func (s HybridStrategy) GradePool(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
 	if len(docs) == 0 {
 		return nil, nil
 	}
@@ -82,13 +80,6 @@ func (s HybridStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []G
 	return out, nil
 }
 
-func (s HybridStrategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc) (int, error) {
-	res, err := s.GradeBatch(ctx, q, []GradingDoc{doc})
-	if err != nil {
-		return GradeUnjudged, err
-	}
-	if len(res) == 0 {
-		return GradeUnjudged, nil
-	}
-	return res[0].Grade, nil
+func (HybridStrategy) Grade(context.Context, GradingQuery, GradingDoc) (int, error) {
+	return GradeUnjudged, fmt.Errorf("hybrid strategy: %w", errNeedsWholePool)
 }
