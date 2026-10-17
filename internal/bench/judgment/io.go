@@ -90,24 +90,24 @@ func writeAtomic(path string, data []byte) error {
 // Runner's Sink and call Flush at the end to write the final file.
 type IncrementalWriter struct {
 	Path    string
+	stamp   meta.Meta
 	current File
 }
 
-// NewIncrementalWriter seeds the file with the judge block up front, so a run
-// interrupted mid-grade still leaves an artifact that names its grader — which
-// is what the resume guard reads back.
-func NewIncrementalWriter(path string, judge meta.Judge) *IncrementalWriter {
+// NewIncrementalWriter writes stamp as the meta block of every flush, so a run
+// interrupted mid-grade still leaves an artifact that names its grader and
+// whatever else the caller set, which is what the resume guard reads back.
+func NewIncrementalWriter(path string, stamp meta.Meta) *IncrementalWriter {
 	return &IncrementalWriter{
-		Path: path,
-		current: File{
-			Meta:    meta.Meta{Judge: &judge},
-			Queries: []Entry{},
-		},
+		Path:    path,
+		stamp:   stamp,
+		current: File{Queries: []Entry{}},
 	}
 }
 
 // LoadPrior reads the existing output file (if any) into the writer's state.
 // Returns the prior JudgmentFile so the caller can pass it as Runner.Existing.
+// The prior file's meta is not carried over; later flushes write the stamp.
 func (w *IncrementalWriter) LoadPrior() (*File, error) {
 	jf, err := ReadFileIfExists(w.Path)
 	if err != nil {
@@ -116,12 +116,7 @@ func (w *IncrementalWriter) LoadPrior() (*File, error) {
 	if jf == nil {
 		return nil, nil
 	}
-	// Keep this run's judge block: the caller validates compatibility against
-	// the prior file separately, and intermediate flushes should describe the
-	// grader currently running.
-	judge := w.current.Meta.Judge
 	w.current = *jf
-	w.current.Meta.Judge = judge
 	return jf, nil
 }
 
@@ -145,5 +140,6 @@ func (w *IncrementalWriter) Flush() error { return w.flush() }
 func (w *IncrementalWriter) Snapshot() *File { return &w.current }
 
 func (w *IncrementalWriter) flush() error {
+	w.current.Meta = w.stamp
 	return WriteFile(&w.current, w.Path)
 }

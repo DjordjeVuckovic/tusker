@@ -180,7 +180,7 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 	}
 
 	judge := strat.Describe()
-	writer := judgment.NewIncrementalWriter(outPath, judge)
+	writer := judgment.NewIncrementalWriter(outPath, meta.Meta{Judge: &judge})
 	var prior *judgment.File
 	if f.resume {
 		prior, err = writer.LoadPrior()

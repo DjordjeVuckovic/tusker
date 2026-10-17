@@ -40,7 +40,7 @@ func TestReadFileIfExists_MissingReturnsNil(t *testing.T) {
 func TestIncrementalWriter_AppendFlushesEachQuery(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ann.yaml")
-	w := NewIncrementalWriter(path, meta.Judge{Strategy: "test-strat"})
+	w := NewIncrementalWriter(path, meta.Meta{Judge: &meta.Judge{Strategy: "test-strat"}})
 
 	docID := uuid.New()
 	err := w.Append(QueryProgress{QueryID: "q1"}, Entry{
@@ -69,7 +69,7 @@ func TestIncrementalWriter_AppendFlushesEachQuery(t *testing.T) {
 func TestIncrementalWriter_AppendReplacesSameQuery(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ann.yaml")
-	w := NewIncrementalWriter(path, meta.Judge{Strategy: "test"})
+	w := NewIncrementalWriter(path, meta.Meta{Judge: &meta.Judge{Strategy: "test"}})
 
 	id := uuid.New()
 	require.NoError(t, w.Append(QueryProgress{QueryID: "q1"}, Entry{
@@ -99,7 +99,7 @@ func TestIncrementalWriter_LoadPriorRoundTrip(t *testing.T) {
 	}
 	require.NoError(t, WriteFile(prior, path))
 
-	w := NewIncrementalWriter(path, meta.Judge{Strategy: "test"})
+	w := NewIncrementalWriter(path, meta.Meta{Judge: &meta.Judge{Strategy: "test"}})
 	loaded, err := w.LoadPrior()
 	require.NoError(t, err)
 	require.NotNil(t, loaded)
@@ -118,4 +118,37 @@ func TestGradeCounts_StayOffPoolFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "graded_count")
 	assert.NotContains(t, string(raw), "unjudged_count")
+}
+
+// An interrupted run leaves only intermediate flushes behind, so each must carry
+// the caller's meta for a later resume to check it.
+func TestIncrementalWriter_StampsMetaOnEveryFlush(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ann.yaml")
+	require.NoError(t, WriteFile(&File{
+		Meta:    meta.Meta{Judge: &meta.Judge{Strategy: "test"}, PoolRef: "old-pool.yaml"},
+		Queries: []Entry{{QueryID: "q1", Docs: []GradedDoc{{DocID: uuid.New(), Grade: 2}}}},
+	}, path))
+	stamp := meta.Meta{Judge: &meta.Judge{Strategy: "test"}, PoolRef: "pool.yaml"}
+
+	w := NewIncrementalWriter(path, stamp)
+	_, err := w.LoadPrior()
+	require.NoError(t, err)
+	require.NoError(t, w.Append(QueryProgress{QueryID: "q2"}, Entry{QueryID: "q2"}))
+
+	jf, err := ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "pool.yaml", jf.Meta.PoolRef)
+	assert.Equal(t, stamp.Judge, jf.Meta.Judge)
+	assert.Len(t, jf.Queries, 2, "the prior query survives the stamp")
+}
+
+func TestIncrementalWriter_StampsMetaOnFirstFlush(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ann.yaml")
+
+	w := NewIncrementalWriter(path, meta.Meta{Judge: &meta.Judge{Strategy: "test"}, PoolRef: "pool.yaml"})
+	require.NoError(t, w.Append(QueryProgress{QueryID: "q1"}, Entry{QueryID: "q1"}))
+
+	jf, err := ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "pool.yaml", jf.Meta.PoolRef)
 }
