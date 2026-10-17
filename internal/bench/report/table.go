@@ -472,12 +472,13 @@ func fmtCorpusMatches(v *int64) string {
 	return fmt.Sprintf("%d", *v)
 }
 
-// ndcgGain is named in every NDCG header because trec_eval's ndcg_cut uses
-// linear gain (rel), and the two can order engines differently.
-const ndcgGain = "2^rel-1"
+// NDCGGain is the gain every NDCG uses, named in each NDCG header because
+// trec_eval's ndcg_cut uses linear gain (rel) and the two can order engines
+// differently.
+const NDCGGain = "2^rel-1"
 
 func ndcgHeader(k int) string {
-	return fmt.Sprintf("NDCG@%d (gain %s)", k, ndcgGain)
+	return fmt.Sprintf("NDCG@%d (gain %s)", k, NDCGGain)
 }
 
 func largestK(kValues []int) int {

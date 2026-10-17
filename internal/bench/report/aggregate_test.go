@@ -290,6 +290,8 @@ func TestWriters_NameTheNDCGGainInEveryNDCGHeader(t *testing.T) {
 	html, err := os.ReadFile(htmlPath)
 	require.NoError(t, err)
 
+	assert.Regexp(t, `<dt>NDCG@K</dt><dd>[^<]*2\^rel-1`, string(html), "glossary")
+
 	headers := map[string][]string{
 		"table":    regexp.MustCompile(`(?i)NDCG@\d+[^│]*`).FindAllString(terminal.String(), -1),
 		"markdown": regexp.MustCompile(`NDCG@\d+[^|]*`).FindAllString(markdown.String(), -1),

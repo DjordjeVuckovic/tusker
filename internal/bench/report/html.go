@@ -168,7 +168,7 @@ func buildViewModel(r *Report) htmlReport {
 		title = "Benchmark Report"
 	}
 	vm := htmlReport{
-		NDCGGain:  ndcgGain,
+		NDCGGain:  NDCGGain,
 		Title:     title,
 		RunID:     r.Provenance.RunID,
 		Tool:      r.Provenance.Tool,

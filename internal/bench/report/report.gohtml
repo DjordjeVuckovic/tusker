@@ -101,7 +101,7 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
 <details class="glossary">
   <summary>Metric Definitions</summary>
   <div class="glossary-body">
-    <div class="glossary-entry"><dt>NDCG@K</dt><dd>Normalized Discounted Cumulative Gain - measures ranking quality by rewarding relevant documents found at higher ranks. Score 0–1; 1 = perfect ranking.</dd></div>
+    <div class="glossary-entry"><dt>NDCG@K</dt><dd>Normalized Discounted Cumulative Gain with gain {{.NDCGGain}} - measures ranking quality by rewarding relevant documents found at higher ranks. Score 0–1; 1 = perfect ranking. trec_eval's ndcg_cut uses gain rel, so its values differ.</dd></div>
     <div class="glossary-entry"><dt>MAP</dt><dd>Mean Average Precision - average of precision values at every rank position where a relevant document appears, averaged across queries. Sensitive to recall.</dd></div>
     <div class="glossary-entry"><dt>MRR</dt><dd>Mean Reciprocal Rank - 1 ÷ rank of first relevant result, averaged across queries. Measures how quickly the first correct answer appears.</dd></div>
     <div class="glossary-entry"><dt>Bpref</dt><dd>Binary Preference - fraction of relevant documents ranked above non-relevant ones. More robust than MAP when judgments are incomplete.</dd></div>

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -219,4 +220,18 @@ func TestExecuteDiff_WithoutLatestPointerDiffsTheTwoNewestScoredReports(t *testi
 
 	assert.Regexp(t, `A \(before\):\s+2026-01-01T00-00-01-run-aaaaaa`, out.String())
 	assert.Regexp(t, `B \(after\):\s+\S*2026-01-01T00-00-02-run-bbbbbb`, out.String())
+}
+
+func TestPrintDiff_NDCGHeadersNameTheGain(t *testing.T) {
+	before := diffReport(diffRun{runID: "a", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1})
+	after := diffReport(diffRun{runID: "b", kValues: []int{10}, ndcg: map[int]float64{10: 0.7}, threshold: 1})
+
+	var out bytes.Buffer
+	printDiff(&out, before, after)
+
+	headers := regexp.MustCompile(`NDCG@\d+[^\t\n]*`).FindAllString(out.String(), -1)
+	require.Len(t, headers, 2, "the aggregate column and the per-query title")
+	for _, header := range headers {
+		assert.Contains(t, header, "2^rel-1")
+	}
 }

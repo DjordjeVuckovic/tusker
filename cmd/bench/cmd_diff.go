@@ -264,7 +264,7 @@ func printAggregateDiff(w io.Writer, jA, jB *report.JobReport, ndcgK int) {
 
 	ndcgHeader := "NDCG  A→B"
 	if ndcgK > 0 {
-		ndcgHeader = fmt.Sprintf("NDCG@%d  A→B", ndcgK)
+		ndcgHeader = fmt.Sprintf("NDCG@%d (gain %s)  A→B", ndcgK, report.NDCGGain)
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
@@ -332,7 +332,7 @@ func printQueryDiff(w io.Writer, jA, jB *report.JobReport, k int) {
 	// Sort: biggest regression first, then biggest improvement.
 	sort.Slice(deltas, func(i, j int) bool { return deltas[i].diff < deltas[j].diff })
 
-	fmt.Fprintf(w, "%s\n\n", cBold.Sprintf("Per-Query NDCG@%d Deltas (largest regression first):", k))
+	fmt.Fprintf(w, "%s\n\n", cBold.Sprintf("Per-Query NDCG@%d (gain %s) Deltas (largest regression first):", k, report.NDCGGain))
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(tw, "Query\tEngine\tA\tB\tΔ")
 	fmt.Fprintln(tw, "---\t---\t---\t---\t---")
