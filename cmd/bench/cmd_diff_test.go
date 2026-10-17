@@ -21,6 +21,7 @@ type diffRun struct {
 	threshold int
 	judge     *meta.Judge
 	judgments string
+	spec      string
 }
 
 func diffReport(run diffRun) *report.Report {
@@ -29,7 +30,7 @@ func diffReport(run diffRun) *report.Report {
 		Provenance: meta.Meta{
 			RunID:   run.runID,
 			Judge:   run.judge,
-			Sources: &meta.Sources{Judgments: run.judgments},
+			Sources: &meta.Sources{Judgments: run.judgments, Spec: run.spec},
 		},
 		Config: report.ReportConfig{KValues: run.kValues, RelevanceThreshold: run.threshold},
 		Jobs: []report.JobReport{{
@@ -245,4 +246,27 @@ func TestPrintDiff_NDCGHeadersNameTheGain(t *testing.T) {
 	for _, header := range headers {
 		assert.Contains(t, header, "2^rel-1")
 	}
+}
+
+func TestPrintDiff_SameJudgmentsFileInAMovedTrackIsNotAWarning(t *testing.T) {
+	judge := &meta.Judge{Strategy: "lexical"}
+	before := diffRun{
+		runID: "a", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1, judge: judge,
+		spec:      "/Users/me/projects/news-hunter/tracks/cc-news/fts/spec.yaml",
+		judgments: "/Users/me/projects/news-hunter/tracks/cc-news/fts/trec/annotations.lexical.yaml",
+	}
+	moved := before
+	moved.runID = "b"
+	moved.spec = "/Users/me/projects/news-hunter-wt/fix-x/tracks/cc-news/fts/spec.yaml"
+	moved.judgments = "/Users/me/projects/news-hunter-wt/fix-x/tracks/cc-news/fts/trec/annotations.lexical.yaml"
+	swapped := moved
+	swapped.judgments = "/Users/me/projects/news-hunter-wt/fix-x/tracks/cc-news/fts/trec/annotations.bm25.yaml"
+
+	var same bytes.Buffer
+	printDiff(&same, diffReport(before), diffReport(moved))
+	assert.NotContains(t, same.String(), "WARNING")
+
+	var different bytes.Buffer
+	printDiff(&different, diffReport(before), diffReport(swapped))
+	assert.Contains(t, different.String(), "judgments: trec/annotations.lexical.yaml → trec/annotations.bm25.yaml")
 }

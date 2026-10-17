@@ -492,11 +492,20 @@ func judgeOf(r *report.Report) string {
 	return judge.String() + " prompt " + judge.PromptVersion
 }
 
+// judgmentsOf names the judgments file relative to the track, so the same
+// file in a moved track or another worktree compares equal. Reports record no
+// digest of the file, so one regraded in place still compares equal.
 func judgmentsOf(r *report.Report) string {
-	if r.Provenance.Sources == nil || r.Provenance.Sources.Judgments == "" {
+	sources := r.Provenance.Sources
+	if sources == nil || sources.Judgments == "" {
 		return scoringNotRecorded
 	}
-	return r.Provenance.Sources.Judgments
+	if sources.Spec != "" {
+		if rel, err := filepath.Rel(filepath.Dir(sources.Spec), sources.Judgments); err == nil {
+			return rel
+		}
+	}
+	return filepath.Clean(sources.Judgments)
 }
 
 func durStr(d time.Duration) string {
