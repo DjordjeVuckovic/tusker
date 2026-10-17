@@ -120,7 +120,7 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
   <!-- NDCG@K chart -->
   {{if .NDCGChart}}
   <div class="section">
-    <div class="section-title">NDCG@K</div>
+    <div class="section-title">NDCG@K (gain {{$.NDCGGain}})</div>
     <div class="chart-wrap">
       {{.NDCGChart}}
       <div class="chart-legend">
@@ -149,7 +149,7 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
     <table class="sortable">
       <thead><tr>
         <th>Engine</th>
-        {{range .KValues}}<th>NDCG@{{.}}</th>{{end}}
+        {{range .KValues}}<th>NDCG@{{.}} (gain {{$.NDCGGain}})</th>{{end}}
         <th>MAP</th><th>MRR</th><th>Bpref</th><th>Judged</th><th>Errors</th>
       </tr></thead>
       <tbody>
@@ -210,7 +210,7 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
     </div>
     <table class="sortable" id="{{.FilterID}}">
       <thead><tr>
-        <th>Query</th><th>Engine</th><th>NDCG@K</th><th>P@K</th><th>AP</th><th>RR</th><th>Bpref</th><th>Returned</th><th>Corpus</th><th>p50</th><th>p95</th><th>Status</th>
+        <th>Query</th><th>Engine</th><th>NDCG@K (gain {{$.NDCGGain}})</th><th>P@K</th><th>AP</th><th>RR</th><th>Bpref</th><th>Returned</th><th>Corpus</th><th>p50</th><th>p95</th><th>Status</th>
       </tr></thead>
       <tbody>
       {{range .PerQuery}}<tr>

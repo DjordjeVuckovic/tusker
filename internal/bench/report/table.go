@@ -113,7 +113,7 @@ func writeMDMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry
 	hdr := make(table.Row, 0, 1+2*len(kValues)+5)
 	hdr = append(hdr, "Engine")
 	for _, k := range kValues {
-		hdr = append(hdr, fmt.Sprintf("NDCG@%d", k))
+		hdr = append(hdr, ndcgHeader(k))
 	}
 	for _, k := range kValues {
 		hdr = append(hdr, fmt.Sprintf("P@%d", k))
@@ -239,7 +239,7 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 	hdr := make(table.Row, 0, 1+2*len(kValues)+5)
 	hdr = append(hdr, "Engine")
 	for _, k := range kValues {
-		hdr = append(hdr, fmt.Sprintf("NDCG@%d", k))
+		hdr = append(hdr, ndcgHeader(k))
 	}
 	for _, k := range kValues {
 		hdr = append(hdr, fmt.Sprintf("P@%d", k))
@@ -414,7 +414,7 @@ func writePerQueryTable(w io.Writer, jr *JobReport, kValues []int) {
 	t := newTable(w)
 	t.AppendHeader(table.Row{
 		"Query", "Engine",
-		fmt.Sprintf("NDCG@%d", k), fmt.Sprintf("P@%d", k),
+		ndcgHeader(k), fmt.Sprintf("P@%d", k),
 		"AP", "RR", "Bpref",
 		"Ret", "Corpus", "p50", "p95", "Status",
 	})
@@ -454,6 +454,14 @@ func fmtCorpusMatches(v *int64) string {
 		return tDim.Sprint("—")
 	}
 	return fmt.Sprintf("%d", *v)
+}
+
+// ndcgGain is named in every NDCG header because trec_eval's ndcg_cut uses
+// linear gain (rel), and the two can order engines differently.
+const ndcgGain = "2^rel-1"
+
+func ndcgHeader(k int) string {
+	return fmt.Sprintf("NDCG@%d (gain %s)", k, ndcgGain)
 }
 
 func largestK(kValues []int) int {

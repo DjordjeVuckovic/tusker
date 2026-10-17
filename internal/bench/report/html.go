@@ -83,6 +83,7 @@ func findGitRoot(start string) string {
 // ─── view model ─────────────────────────────────────────────────────────────
 
 type htmlReport struct {
+	NDCGGain  string
 	Title     string
 	RunID     string
 	Tool      string
@@ -164,6 +165,7 @@ func buildViewModel(r *Report) htmlReport {
 		title = "Benchmark Report"
 	}
 	vm := htmlReport{
+		NDCGGain:  ndcgGain,
 		Title:     title,
 		RunID:     r.Provenance.RunID,
 		Tool:      r.Provenance.Tool,

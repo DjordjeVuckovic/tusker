@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -264,5 +267,35 @@ func TestWriters_ShowRawAndHolmAdjustedP(t *testing.T) {
 	for name, out := range map[string]string{"table": terminal.String(), "markdown": markdown.String()} {
 		assert.Contains(t, out, "0.0123", name)
 		assert.Contains(t, out, "0.0369", name)
+	}
+}
+
+func TestWriters_NameTheNDCGGainInEveryNDCGHeader(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{5, 10}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:    "gain",
+			PerQuery:   []Entry{{QueryID: "q1", EngineName: "a", Judged: true, NDCG: map[int]float64{10: 0.5}}},
+			Aggregated: []AggregatedEntry{{EngineName: "a", JudgedCount: 1, QueryCount: 1, NDCG: map[int]float64{5: 0.4, 10: 0.5}}},
+		}},
+	}
+	var terminal, markdown bytes.Buffer
+	WriteTable(r, &terminal)
+	WriteMarkdown(r, &markdown)
+	htmlPath := filepath.Join(t.TempDir(), "report.html")
+	require.NoError(t, WriteHTML(r, htmlPath))
+	html, err := os.ReadFile(htmlPath)
+	require.NoError(t, err)
+
+	headers := map[string][]string{
+		"table":    regexp.MustCompile(`(?i)NDCG@\d+[^│]*`).FindAllString(terminal.String(), -1),
+		"markdown": regexp.MustCompile(`NDCG@\d+[^|]*`).FindAllString(markdown.String(), -1),
+		"html":     regexp.MustCompile(`<(?:th|div class="section-title")>NDCG@[^<]*<`).FindAllString(string(html), -1),
+	}
+	for writer, found := range headers {
+		require.NotEmpty(t, found, writer)
+		for _, header := range found {
+			assert.Contains(t, strings.ToLower(header), "2^rel-1", "%s header %q", writer, header)
+		}
 	}
 }
