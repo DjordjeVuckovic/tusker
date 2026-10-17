@@ -11,7 +11,8 @@ import (
 )
 
 // S3Config reaches an S3-compatible store such as R2. With an Endpoint set,
-// requests use path-style addressing, which MinIO needs and R2 accepts.
+// requests use path-style addressing, which local S3 emulators need and R2
+// accepts.
 type S3Config struct {
 	Endpoint  string
 	Region    string

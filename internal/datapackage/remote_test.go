@@ -16,14 +16,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/minio"
+	"github.com/testcontainers/testcontainers-go/modules/s3mock"
 
 	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
 )
 
-// minio/minio RELEASE.2025-09-07T16-13-09Z. The repository is gone from Docker
-// Hub, so the image is pinned by digest and must already be in the local cache.
-const minioImage = "minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
+const s3MockImage = "adobe/s3mock:5.2.3@sha256:ab01a6946750f451ca215a47e91030695b260e4003b8a5a6201d25029b8fca92"
 
 // servePackage writes the full package under root/pkg and serves root over
 // TLS, so resource paths must resolve against the descriptor's directory
@@ -94,33 +92,34 @@ func TestOpenRefusesPlainHTTP(t *testing.T) {
 	}
 }
 
-func startMinIO(t *testing.T) (endpoint string, client *s3.Client) {
+// startS3Mock serves S3 from Adobe S3Mock, which accepts any credentials, so
+// these tests cover addressing and errors, not request signing.
+func startS3Mock(t *testing.T) *s3.Client {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("needs Docker")
 	}
 	ctx := context.Background()
-	container, err := minio.Run(ctx, minioImage)
+	container, err := s3mock.Run(ctx, s3MockImage)
 	testcontainers.CleanupContainer(t, container)
 	if err != nil {
-		t.Fatalf("start minio: %v", err)
+		t.Fatalf("start s3mock: %v", err)
 	}
-	host, err := container.ConnectionString(ctx)
+	endpoint, err := container.EndpointURL(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	endpoint = "http://" + host
-	client = s3.New(s3.Options{
+	const accessKey, secretKey = "fixture", "fixture"
+	t.Setenv("DATASET_S3_ENDPOINT", endpoint)
+	t.Setenv("DATASET_S3_REGION", "auto")
+	t.Setenv("DATASET_S3_ACCESS_KEY", accessKey)
+	t.Setenv("DATASET_S3_SECRET_KEY", secretKey)
+	return s3.New(s3.Options{
 		BaseEndpoint: aws.String(endpoint),
 		Region:       "auto",
 		UsePathStyle: true,
-		Credentials:  credentials.NewStaticCredentialsProvider(container.Username, container.Password, ""),
+		Credentials:  credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
 	})
-	t.Setenv("DATASET_S3_ENDPOINT", endpoint)
-	t.Setenv("DATASET_S3_REGION", "auto")
-	t.Setenv("DATASET_S3_ACCESS_KEY", container.Username)
-	t.Setenv("DATASET_S3_SECRET_KEY", container.Password)
-	return endpoint, client
 }
 
 func upload(t *testing.T, client *s3.Client, bucket, localDir, prefix string) {
@@ -151,7 +150,7 @@ func upload(t *testing.T, client *s3.Client, bucket, localDir, prefix string) {
 }
 
 func TestPackageOpensIdenticallyFromDiskHTTPSAndS3(t *testing.T) {
-	_, client := startMinIO(t)
+	client := startS3Mock(t)
 	root, written, srv := servePackage(t)
 	ctx := context.Background()
 	if _, err := client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String("datasets")}); err != nil {
@@ -187,7 +186,7 @@ func TestPackageOpensIdenticallyFromDiskHTTPSAndS3(t *testing.T) {
 }
 
 func TestOpenFromS3FailsOnAlteredOrMissingObjects(t *testing.T) {
-	_, client := startMinIO(t)
+	client := startS3Mock(t)
 	root, _, _ := servePackage(t)
 	ctx := context.Background()
 	if _, err := client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String("datasets")}); err != nil {
