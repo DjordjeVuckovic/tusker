@@ -11,14 +11,13 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
 	"github.com/DjordjeVuckovic/tusker/internal/api/router"
 	server2 "github.com/DjordjeVuckovic/tusker/internal/api/server"
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
-	pkgserver "github.com/DjordjeVuckovic/tusker/pkg/server"
 	"github.com/labstack/echo/v4"
 )
 
@@ -33,10 +32,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	heathChecker := pkgserver.NewOkHealthChecker()
+	appSettings := NewAppConfig()
+	cfg, err := appSettings.Load()
+	if err != nil {
+		slog.Error("Failed to load app configuration", "error", err)
+		os.Exit(1)
+	}
 
-	s := server2.New(sCfg, heathChecker).
-		SetupMiddlewares().
+	backend, err := openSearchBackend(context.Background(), cfg)
+	if err != nil {
+		slog.Error("Failed to open search backend", "error", err)
+		os.Exit(1)
+	}
+
+	s, err := server2.New(sCfg, backend.health)
+	if err != nil {
+		backend.close()
+		slog.Error("Failed to create server", "error", err)
+		os.Exit(1)
+	}
+	s.SetupMiddlewares().
 		SetupValidator().
 		SetupErrorHandler().
 		SetupHealthChecks("/health").
@@ -46,63 +61,25 @@ func main() {
 		return c.String(200, "Tusker API is running")
 	})
 
-	appSettings := NewAppConfig()
-	cfg, err := appSettings.Load()
-	if err != nil {
-		slog.Error("Failed to load app configuration", "error", err)
-		os.Exit(1)
-		return
-	}
-
-	searcher, err := factory.NewSearcher(s.Context(), cfg.StorageConfig)
-	if err != nil {
-		slog.Error("Failed to create storage searcher", "error", err)
-		os.Exit(1)
-		return
-	}
-
 	var routerOpts []router.SearchRouterOption
-	if cfg.EmbeddingConfig.Enabled {
-		embedClient, err := embedding.NewOllamaClient(cfg.EmbeddingConfig.BaseURL)
-		if err != nil {
-			slog.Error("Failed to create embedding client", "error", err)
-			os.Exit(1)
-			return
-		}
-		queryEmbedder := newQueryEmbedder(embedClient, cfg.EmbeddingConfig)
-		slog.Info("Embedding queries", "model", queryEmbedder.Model())
-
-		semanticSearcher, err := factory.NewSemanticSearcher(s.Context(), cfg.StorageConfig, queryEmbedder)
-		if err != nil {
-			slog.Error("Failed to create semantic searcher", "error", err)
-			os.Exit(1)
-			return
-		}
-		routerOpts = append(routerOpts, router.WithSemanticSearcher(semanticSearcher))
+	if backend.semantic != nil {
+		routerOpts = append(routerOpts, router.WithSemanticSearcher(backend.semantic))
 		slog.Info("Semantic search enabled")
-
-		hybridSearcher, err := factory.NewHybridSearcher(s.Context(), cfg.StorageConfig, queryEmbedder)
-		if err != nil {
-			slog.Warn("Hybrid search disabled: failed to create hybrid searcher", "error", err)
-		} else {
-			routerOpts = append(routerOpts, router.WithHybridSearcher(hybridSearcher))
-			slog.Info("Hybrid search enabled")
-		}
 	} else {
 		slog.Info("Semantic search disabled")
 	}
+	if backend.hybrid != nil {
+		routerOpts = append(routerOpts, router.WithHybridSearcher(backend.hybrid))
+		slog.Info("Hybrid search enabled")
+	}
 
-	searchrouter := router.NewSearchRouter(s.Echo, searcher, routerOpts...)
-	searchrouter.Bind()
-
-	go func() {
-		<-s.ShutdownSignal()
-		slog.Info("Shutdown started, cleaning up resources...")
-	}()
+	router.NewSearchRouter(s.Echo, backend.fts, routerOpts...).Bind()
 
 	err = s.Start()
+	backend.close()
+	slog.Info("Search backend closed")
 	if err != nil {
-		s.Echo.Logger.Error("Failed to start server: ", err)
+		slog.Error("Server stopped with an error", "error", err)
 		os.Exit(1)
 	}
 }

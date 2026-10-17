@@ -30,11 +30,7 @@ func newHybridTestEnv(t *testing.T, queryVec []float32) (*Indexer, *Embedder, *H
 		embedding.WithExecutorMaxLength(1024),
 		embedding.WithExecutorModel(embedding.DefaultModel),
 	)
-	searcher, err := NewHybridSearcher(cfg, qEmbedder, embedding.DefaultModel)
-	if err != nil {
-		t.Fatalf("NewHybridSearcher: %v", err)
-	}
-	return indexer, embIndexer, searcher
+	return indexer, embIndexer, NewHybridSearcher(newTestClient(t, cfg), qEmbedder, embedding.DefaultModel)
 }
 
 func TestHybridSearcher_SearchHybrid_RanksBothSignalsFirst(t *testing.T) {

@@ -10,9 +10,10 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage/in_mem"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg/native"
+	"github.com/DjordjeVuckovic/tusker/pkg/server"
 )
 
-// TODO: accept pool as param and reuse it across indexer and searcher when using PG, to avoid creating multiple pools
+// TODO: take the pool as a parameter in the indexer and reader constructors too, as the searchers do, instead of opening one each
 
 // NewIndexer creates a new storage.Indexer based on the storage type
 func NewIndexer(ctx context.Context, cfg StorageConfig) (storage.Indexer, error) {
@@ -67,23 +68,31 @@ func NewEmbedderIndexer(ctx context.Context, cfg StorageConfig) (storage.EmbedIn
 	return nil, fmt.Errorf(string(storage.ErrUnsupportedStorer), cfg.Type)
 }
 
+// SearcherConfig selects the backend searchers read from. Every PG searcher
+// runs on Pool and every ES searcher on EsClient, so each backend's searchers
+// share one set of connections; the caller owns and closes the pool.
+// Embedder is required for semantic and hybrid searchers.
+type SearcherConfig struct {
+	Type     storage.Type
+	Pool     *pg.ConnectionPool
+	EsClient *es.Client
+	Embedder *embedding.Embedder
+}
+
 // NewSearcher creates a new storage.FtsSearcher based on the storage type
-func NewSearcher(ctx context.Context, cfg StorageConfig) (storage.FtsSearcher, error) {
+func NewSearcher(cfg SearcherConfig) (storage.FtsSearcher, error) {
 	switch cfg.Type {
 	case storage.PG:
-		pgConfig := *cfg.Pg
-
-		pool, err := pg.NewConnectionPool(ctx, pgConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create PostgreSQL connection pool: %w", err)
+		if cfg.Pool == nil {
+			return nil, fmt.Errorf("postgres pool is not set")
 		}
-
-		return native.NewReader(pool)
+		return native.NewReader(cfg.Pool)
 
 	case storage.ES:
-		esConfig := *cfg.Es
-
-		return es.NewSearcher(esConfig)
+		if cfg.EsClient == nil {
+			return nil, fmt.Errorf("elasticsearch client is not set")
+		}
+		return es.NewSearcher(cfg.EsClient), nil
 
 	case storage.Solr:
 		return nil, fmt.Errorf("solr reader not yet implemented")
@@ -110,27 +119,22 @@ func NewReader(ctx context.Context, cfg StorageConfig) (storage.Reader, error) {
 	return pg.NewArticleReader(pool), nil
 }
 
-func NewSemanticSearcher(ctx context.Context, cfg StorageConfig, embedder *embedding.Embedder) (storage.SemanticSearcher, error) {
+func NewSemanticSearcher(cfg SearcherConfig) (storage.SemanticSearcher, error) {
+	if cfg.Embedder == nil {
+		return nil, fmt.Errorf("query embedder is not set")
+	}
 	switch cfg.Type {
 	case storage.PG:
-		pgConfig := pg.PoolConfig{
-			ConnStr:          cfg.Pg.ConnStr,
-			RegisterVecTypes: true,
+		if cfg.Pool == nil {
+			return nil, fmt.Errorf("postgres pool is not set")
 		}
-
-		pool, err := pg.NewConnectionPool(ctx, pgConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create PostgreSQL connection pool: %w", err)
-		}
-
-		return pg.NewSemanticSearcher(embedder, pool), nil
+		return pg.NewSemanticSearcher(cfg.Embedder, cfg.Pool), nil
 
 	case storage.ES:
-		if cfg.Es == nil {
-			return nil, fmt.Errorf("elasticsearch config is not set")
+		if cfg.EsClient == nil {
+			return nil, fmt.Errorf("elasticsearch client is not set")
 		}
-
-		return es.NewSemanticSearcher(*cfg.Es, embedder, embedder.Model())
+		return es.NewSemanticSearcher(cfg.EsClient, cfg.Embedder, cfg.Embedder.Model()), nil
 
 	case storage.Solr:
 		return nil, fmt.Errorf("solr semantic searcher not yet implemented")
@@ -143,27 +147,22 @@ func NewSemanticSearcher(ctx context.Context, cfg StorageConfig, embedder *embed
 	}
 }
 
-func NewHybridSearcher(ctx context.Context, cfg StorageConfig, embedder *embedding.Embedder) (storage.HybridSearcher, error) {
+func NewHybridSearcher(cfg SearcherConfig) (storage.HybridSearcher, error) {
+	if cfg.Embedder == nil {
+		return nil, fmt.Errorf("query embedder is not set")
+	}
 	switch cfg.Type {
 	case storage.PG:
-		pgConfig := pg.PoolConfig{
-			ConnStr:          cfg.Pg.ConnStr,
-			RegisterVecTypes: true,
+		if cfg.Pool == nil {
+			return nil, fmt.Errorf("postgres pool is not set")
 		}
-
-		pool, err := pg.NewConnectionPool(ctx, pgConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create PostgreSQL connection pool: %w", err)
-		}
-
-		return pg.NewHybridSearcher(embedder, pool), nil
+		return pg.NewHybridSearcher(cfg.Embedder, cfg.Pool), nil
 
 	case storage.ES:
-		if cfg.Es == nil {
-			return nil, fmt.Errorf("elasticsearch config is not set")
+		if cfg.EsClient == nil {
+			return nil, fmt.Errorf("elasticsearch client is not set")
 		}
-
-		return es.NewHybridSearcher(*cfg.Es, embedder, embedder.Model())
+		return es.NewHybridSearcher(cfg.EsClient, cfg.Embedder, cfg.Embedder.Model()), nil
 
 	case storage.Solr:
 		return nil, fmt.Errorf("solr hybrid searcher not yet implemented")
@@ -173,5 +172,25 @@ func NewHybridSearcher(ctx context.Context, cfg StorageConfig, embedder *embeddi
 
 	default:
 		return nil, fmt.Errorf(string(storage.ErrUnsupportedStorer), cfg.Type)
+	}
+}
+
+// NewHealthChecker reports the health of the backend the searchers in cfg read from.
+func NewHealthChecker(cfg SearcherConfig) (server.HealthChecker, error) {
+	switch cfg.Type {
+	case storage.PG:
+		if cfg.Pool == nil {
+			return nil, fmt.Errorf("postgres pool is not set")
+		}
+		return pg.NewHealthChecker(cfg.Pool), nil
+
+	case storage.ES:
+		if cfg.EsClient == nil {
+			return nil, fmt.Errorf("elasticsearch client is not set")
+		}
+		return es.NewHealthChecker(cfg.EsClient), nil
+
+	default:
+		return nil, fmt.Errorf("no health check for storage type %s", cfg.Type)
 	}
 }

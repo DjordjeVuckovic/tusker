@@ -47,7 +47,7 @@ type VectorIndexOptions struct {
 // DescribeIndex reads the cluster version and the analysis settings and text
 // and vector field mappings of cfg.IndexName.
 func DescribeIndex(ctx context.Context, cfg ClientConfig) (*IndexDescription, error) {
-	client, err := newClient(cfg)
+	client, err := newTypedClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create client: %w", err)
 	}

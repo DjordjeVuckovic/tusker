@@ -32,7 +32,7 @@ type Embedder struct {
 }
 
 func NewEmbedder(ctx context.Context, config ClientConfig) (*Embedder, error) {
-	client, err := newClient(config)
+	client, err := newTypedClient(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}

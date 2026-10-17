@@ -69,11 +69,7 @@ func newSearcherTestEnv(t *testing.T) (*Indexer, *Searcher) {
 	if err != nil {
 		t.Fatalf("NewIndexer: %v", err)
 	}
-	searcher, err := NewSearcher(cfg)
-	if err != nil {
-		t.Fatalf("NewSearcher: %v", err)
-	}
-	return indexer, searcher
+	return indexer, NewSearcher(newTestClient(t, cfg))
 }
 
 func indexArticles(t *testing.T, indexer *Indexer, titles ...string) []uuid.UUID {
