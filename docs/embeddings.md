@@ -236,7 +236,11 @@ vec, err := r.config.VectorStore.QueryVector(ctx, q.Description)
 
 The model input is that text wrapped by `query-instruct-v1`. Queries are embedded
 one per forward pass, so no query's vector depends on the others in the suite.
-`suite.hash` is the sha256 of `suite.yaml`. A later run against an edited suite
+`suite.hash` is the sha256 of `suite.yaml`, and a consumer refuses query vectors
+whose `suite.hash` differs from the current file. The version is
+`query-instruct-v1-<dim>-` plus 8 hex over the suite sha256, model revision,
+recipe, dim and maxTokens, encoded like the embeddings version. A later run
+against an edited suite
 refuses to replace the package until it is removed.
 
 On Kaggle, push `scripts/kaggle/queries/kernel-metadata.json`. Its dataset holds
