@@ -17,6 +17,8 @@ type Searcher struct {
 	db *pgxpool.Pool
 }
 
+var articleColumns = pg.ArticleColumnList("")
+
 func NewReader(pool *pg.ConnectionPool) (*Searcher, error) {
 	return &Searcher{db: pool.GetConn()}, nil
 }
@@ -48,27 +50,27 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 	var args []interface{}
 
 	if cursor == nil {
-		searchSQL = `
+		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				ts_rank(search_vector, plainto_tsquery('english', $1)) as rank
 			FROM articles
 			WHERE search_vector @@ plainto_tsquery('english', $1)
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
-		`
+		`, articleColumns)
 		args = []interface{}{query.Query, size + 1}
 	} else {
-		searchSQL = `
+		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				ts_rank(search_vector, plainto_tsquery('english', $1)) as rank
 			FROM articles
 			WHERE search_vector @@ plainto_tsquery('english', $1)
 			  AND (ts_rank(search_vector, plainto_tsquery('english', $1)), id) < ($2, $3)
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
-		`
+		`, articleColumns)
 		args = []interface{}{query.Query, cursor.Score, cursor.ID, size + 1}
 	}
 
@@ -179,25 +181,25 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
-		`, rankExpr, whereClause)
+		`, articleColumns, rankExpr, whereClause)
 		args = []interface{}{query.Query, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			  AND (%s, id) < ($2, $3)
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
-		`, rankExpr, whereClause, rankExpr)
+		`, articleColumns, rankExpr, whereClause, rankExpr)
 		args = []interface{}{query.Query, cursor.Score, cursor.ID, size + 1}
 	}
 
@@ -318,25 +320,25 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
-		`, rankExpr, whereClause)
+		`, articleColumns, rankExpr, whereClause)
 		args = []interface{}{query.Query, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			  AND (%s, id) < ($2, $3)
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
-		`, rankExpr, whereClause, rankExpr)
+		`, articleColumns, rankExpr, whereClause, rankExpr)
 		args = []interface{}{query.Query, cursor.Score, cursor.ID, size + 1}
 	}
 
@@ -505,25 +507,25 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		if cursor == nil {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+					%s,
 					%s as rank
 				FROM articles
 				WHERE %s
 				ORDER BY rank DESC, id DESC
 				LIMIT $2
-			`, rankExpr, whereClause)
+			`, articleColumns, rankExpr, whereClause)
 			args = []interface{}{query.Query, size + 1}
 		} else {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+					%s,
 					%s as rank
 				FROM articles
 				WHERE %s
 				  AND (%s, id) < ($2, $3)
 				ORDER BY rank DESC, id DESC
 				LIMIT $4
-			`, rankExpr, whereClause, rankExpr)
+			`, articleColumns, rankExpr, whereClause, rankExpr)
 			args = []interface{}{query.Query, cursor.Score, cursor.ID, size + 1}
 		}
 	} else {
@@ -531,25 +533,25 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		if cursor == nil {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+					%s,
 					%s as rank
 				FROM articles
 				WHERE %s
 				ORDER BY rank DESC, id DESC
 				LIMIT $1
-			`, rankExpr, whereClause)
+			`, articleColumns, rankExpr, whereClause)
 			args = []interface{}{size + 1}
 		} else {
 			searchSQL = fmt.Sprintf(`
 				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+					%s,
 					%s as rank
 				FROM articles
 				WHERE %s
 				  AND (%s, id) < ($1, $2)
 				ORDER BY rank DESC, id DESC
 				LIMIT $3
-			`, rankExpr, whereClause, rankExpr)
+			`, articleColumns, rankExpr, whereClause, rankExpr)
 			args = []interface{}{cursor.Score, cursor.ID, size + 1}
 		}
 	}
@@ -658,25 +660,25 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
-		`, rankExpr, whereClause)
+		`, articleColumns, rankExpr, whereClause)
 		args = []interface{}{tsqueryStr, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			  AND (%s, id) < ($2, $3)
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
-		`, rankExpr, whereClause, rankExpr)
+		`, articleColumns, rankExpr, whereClause, rankExpr)
 		args = []interface{}{tsqueryStr, cursor.Score, cursor.ID, size + 1}
 	}
 

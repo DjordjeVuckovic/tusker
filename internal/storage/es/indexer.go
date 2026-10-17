@@ -44,7 +44,10 @@ func NewIndexer(ctx context.Context, config ClientConfig) (*Indexer, error) {
 }
 
 func (e *Indexer) Save(ctx context.Context, article document.Article) (uuid.UUID, error) {
-	doc := e.indexBuilder.mapToESDocument(article)
+	doc, err := e.indexBuilder.mapToESDocument(article)
+	if err != nil {
+		return uuid.Nil, err
+	}
 
 	res, err := e.client.Index(e.indexName).Id(doc.ID).Document(doc).Do(ctx)
 	if err != nil {
@@ -65,6 +68,15 @@ func (e *Indexer) SaveBulk(ctx context.Context, articles []document.Article) err
 		return nil
 	}
 
+	docs := make([]ArticleDocument, len(articles))
+	for i, article := range articles {
+		doc, err := e.indexBuilder.mapToESDocument(article)
+		if err != nil {
+			return err
+		}
+		docs[i] = doc
+	}
+
 	bi, err := esutil.NewBulkIndexer(esutil.BulkIndexerConfig{
 		Index:         e.indexName,
 		Client:        e.client,
@@ -77,9 +89,7 @@ func (e *Indexer) SaveBulk(ctx context.Context, articles []document.Article) err
 		return fmt.Errorf("failed to create bulk indexer: %w", err)
 	}
 
-	for _, article := range articles {
-		doc := e.indexBuilder.mapToESDocument(article)
-
+	for _, doc := range docs {
 		docBytes, err := json.Marshal(doc)
 		if err != nil {
 			slog.Error("failed to marshal document", "error", err, "id", doc.ID)

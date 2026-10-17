@@ -6,6 +6,7 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
@@ -57,13 +58,13 @@ func TestHybridSearcher_SearchHybrid_RanksBothSignalsFirst(t *testing.T) {
 	lexicalOnlyID := uuid.New()
 	vectorOnlyID := uuid.New()
 
-	if _, err := indexer.Save(ctx, document.Article{ID: bothID, Title: "climate change policy", Language: "english"}); err != nil {
+	if _, err := indexer.Save(ctx, document.Article{ID: bothID, Title: "climate change policy", Language: language.English}); err != nil {
 		t.Fatalf("index both article: %v", err)
 	}
-	if _, err := indexer.Save(ctx, document.Article{ID: lexicalOnlyID, Title: "climate change report", Language: "english"}); err != nil {
+	if _, err := indexer.Save(ctx, document.Article{ID: lexicalOnlyID, Title: "climate change report", Language: language.English}); err != nil {
 		t.Fatalf("index lexical article: %v", err)
 	}
-	if _, err := indexer.Save(ctx, document.Article{ID: vectorOnlyID, Title: "unrelated cooking recipe", Language: "english"}); err != nil {
+	if _, err := indexer.Save(ctx, document.Article{ID: vectorOnlyID, Title: "unrelated cooking recipe", Language: language.English}); err != nil {
 		t.Fatalf("index vector article: %v", err)
 	}
 	refresh(t, embIndexer)

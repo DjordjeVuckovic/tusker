@@ -7,14 +7,15 @@ import (
 	"time"
 
 	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/jackc/pgx/v5"
 )
 
-// ArticleColumns is the projection every article-returning query selects, in
-// the order ScanArticle expects.
+// ArticleColumns is the article projection every query selects and the indexer
+// writes, in the order scanArticle expects.
 var ArticleColumns = []string{
-	"id", "title", "subtitle", "content", "author", "description", "url",
-	"language", "published_at", "created_at", "metadata",
+	"id", "url", "title", "description", "content", "published_at",
+	"language", "publisher_domain", "metadata",
 }
 
 // ArticleColumnList renders the projection, optionally table-qualified.
@@ -29,37 +30,47 @@ func ArticleColumnList(alias string) string {
 	return strings.Join(qualified, ", ")
 }
 
-// ScanArticle reads one row projected by ArticleColumns into a DTO. Trailing
-// targets — a score, a window count — are scanned after the article columns.
-func ScanArticle(rows pgx.Rows, trailing ...any) (*dto.Article, error) {
-	var article dto.Article
+// scanArticle reads one row projected by ArticleColumns. Trailing targets, such
+// as a score or a window count, are scanned after the article columns.
+func scanArticle(rows pgx.Rows, trailing ...any) (document.Article, error) {
+	var article document.Article
+	var publishedAt *time.Time
 	var metadataJSON []byte
 
 	targets := append([]any{
 		&article.ID,
-		&article.Title,
-		&article.Subtitle,
-		&article.Content,
-		&article.Author,
-		&article.Description,
 		&article.URL,
+		&article.Title,
+		&article.Description,
+		&article.Content,
+		&publishedAt,
 		&article.Language,
-		&article.PublishedAt,
-		&article.CreatedAt,
+		&article.PublisherDomain,
 		&metadataJSON,
 	}, trailing...)
 
 	if err := rows.Scan(targets...); err != nil {
-		return nil, fmt.Errorf("failed to scan article: %w", err)
+		return document.Article{}, fmt.Errorf("failed to scan article: %w", err)
 	}
 
-	if len(metadataJSON) > 0 {
-		if err := json.Unmarshal(metadataJSON, &article.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-		}
+	if publishedAt != nil {
+		article.PublishedAt = *publishedAt
+	}
+	if err := json.Unmarshal(metadataJSON, &article.Metadata); err != nil {
+		return document.Article{}, fmt.Errorf("failed to unmarshal metadata of article %s: %w", article.ID, err)
 	}
 
-	return &article, nil
+	return article, nil
+}
+
+// ScanArticle reads one row projected by ArticleColumns into a DTO.
+func ScanArticle(rows pgx.Rows, trailing ...any) (*dto.Article, error) {
+	article, err := scanArticle(rows, trailing...)
+	if err != nil {
+		return nil, err
+	}
+	result := dto.NewArticle(article)
+	return &result, nil
 }
 
 func MapToArticle(rows pgx.Rows) (*dto.Article, float32, error) {

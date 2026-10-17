@@ -213,6 +213,7 @@ func fuseRRF(lexical, vector []uuid.UUID, k int) []fusedCandidate {
 func (s *HybridSearcher) fetchDocs(ctx context.Context, candidates []fusedCandidate) (map[uuid.UUID]dto.Article, error) {
 	res, err := s.client.Search().
 		Index(s.indexName).
+		SourceExcludes_("embedding").
 		Query(&types.Query{
 			Terms: &types.TermsQuery{
 				TermsQuery: map[string]types.TermsQueryField{
@@ -228,32 +229,11 @@ func (s *HybridSearcher) fetchDocs(ctx context.Context, candidates []fusedCandid
 
 	docs := make(map[uuid.UUID]dto.Article, len(res.Hits.Hits))
 	for _, hit := range res.Hits.Hits {
-		var doc ArticleDocument
-		if err := json.Unmarshal(hit.Source_, &doc); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal document: %w", err)
-		}
-		id, err := uuid.Parse(doc.ID)
+		article, err := decodeArticle(hit.Source_)
 		if err != nil {
-			return nil, fmt.Errorf("parse document id %q: %w", doc.ID, err)
+			return nil, err
 		}
-		docs[id] = dto.Article{
-			ID:          id,
-			Title:       doc.Title,
-			Subtitle:    doc.Subtitle,
-			Content:     doc.Content,
-			Author:      doc.Author,
-			Description: doc.Description,
-			URL:         doc.URL,
-			Language:    doc.Language,
-			CreatedAt:   doc.CreatedAt,
-			PublishedAt: doc.PublishedAt,
-			Metadata: dto.ArticleMetadata{
-				SourceId:   doc.SourceId,
-				SourceName: doc.SourceName,
-				Category:   doc.Category,
-				ImportedAt: doc.ImportedAt,
-			},
-		}
+		docs[article.ID] = article
 	}
 	return docs, nil
 }

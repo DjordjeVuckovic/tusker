@@ -3,33 +3,63 @@ package dto
 import (
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
 )
 
 type Article struct {
-	ID          uuid.UUID `json:"id"`
-	Title       string    `json:"title"`
-	Subtitle    string    `json:"subtitle,omitempty"`
-	Content     string    `json:"content"`
-	Author      string    `json:"author,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Language    string    `json:"language,omitempty"`
-	URL         string    `json:"url,omitempty" swaggertype:"string" format:"string"`
-
-	PublishedAt *time.Time `json:"publishedAt,omitempty"`
-	CreatedAt   time.Time  `json:"createdAt"`
-
-	Metadata ArticleMetadata `json:"metadata,omitzero"`
+	ID              uuid.UUID  `json:"id"`
+	URL             string     `json:"url" swaggertype:"string" format:"string"`
+	Title           string     `json:"title"`
+	Description     string     `json:"description,omitempty"`
+	Content         string     `json:"content"`
+	PublishedAt     *time.Time `json:"publishedAt,omitempty"`
+	Language        string     `json:"language"`
+	PublisherDomain string     `json:"publisherDomain,omitempty"`
+	Metadata        Metadata   `json:"metadata,omitzero"`
 }
 
-type ArticleMetadata struct {
-	SourceId   string     `json:"sourceId,omitempty"`
-	SourceName string     `json:"sourceName,omitempty"`
-	Category   string     `json:"category,omitempty"`
-	ImportedAt *time.Time `json:"importedAt,omitempty"`
+type Metadata struct {
+	PublisherName string     `json:"publisherName,omitempty"`
+	Authors       []string   `json:"authors,omitempty"`
+	Section       string     `json:"section,omitempty"`
+	Keywords      []string   `json:"keywords,omitempty"`
+	Image         string     `json:"image,omitempty"`
+	DateModified  *time.Time `json:"dateModified,omitempty"`
 
 	// Extra carries dataset-specific fields that have no schema field.
 	Extra map[string]any `json:"extra,omitempty"`
+}
+
+func NewArticle(a document.Article) Article {
+	return Article{
+		ID:              a.ID,
+		URL:             a.URL,
+		Title:           a.Title,
+		Description:     a.Description,
+		Content:         a.Content,
+		PublishedAt:     optionalTime(a.PublishedAt),
+		Language:        string(a.Language),
+		PublisherDomain: a.PublisherDomain,
+		Metadata: Metadata{
+			PublisherName: a.Metadata.PublisherName,
+			Authors:       a.Metadata.Authors,
+			Section:       a.Metadata.Section,
+			Keywords:      a.Metadata.Keywords,
+			Image:         a.Metadata.Image,
+			DateModified:  optionalTime(a.Metadata.DateModified),
+			Extra:         a.Metadata.Extra,
+		},
+	}
+}
+
+// optionalTime maps the zero time to an absent value on the wire, so the API
+// never reports a year-1 date.
+func optionalTime(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
 }
 
 type ArticleSearchResult struct {

@@ -1,44 +1,36 @@
 package document
 
 import (
-	"reflect"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/google/uuid"
 )
 
-const ArticleDefaultLanguage = "english"
-
+// Article is one canonical news article. A field gets its own column on every
+// engine only when an engine filters, sorts or ranks on it; everything else
+// lives in Metadata.
 type Article struct {
-	ID          uuid.UUID `json:"id"`
-	Title       string    `json:"title"`
-	Subtitle    string    `json:"subtitle,omitempty"`
-	Content     string    `json:"content"`
-	Author      string    `json:"author,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Language    string    `json:"language,omitempty"`
-	URL         string    `json:"url,omitempty" format:"uri"`
-
-	PublishedAt time.Time `json:"publishedAt,omitzero"`
-	CreatedAt   time.Time `json:"createdAt"`
-
-	Metadata     ArticleMetadata `json:"metadata,omitzero"`
-	SearchVector any             `json:"search_vector"`
+	ID              uuid.UUID     `json:"id"`
+	URL             string        `json:"url"`
+	Title           string        `json:"title"`
+	Description     string        `json:"description,omitempty"`
+	Content         string        `json:"content"`
+	PublishedAt     time.Time     `json:"publishedAt,omitzero"`
+	Language        language.Code `json:"language"`
+	PublisherDomain string        `json:"publisherDomain,omitempty"`
+	Metadata        Metadata      `json:"metadata,omitzero"`
 }
 
-type ArticleMetadata struct {
-	SourceId   string    `json:"sourceId,omitempty"`
-	SourceName string    `json:"sourceName,omitempty"`
-	Category   string    `json:"category,omitempty"`
-	ImportedAt time.Time `json:"importedAt,omitzero"`
-
-	Extra map[string]any `json:"extra,omitempty"`
-}
-
-func (ar *Article) ContainsField(field string) bool {
-	reflectType := reflect.TypeOf(*ar)
-	_, found := reflectType.FieldByName(field)
-	return found
+// Metadata is stored and returned, never searched.
+type Metadata struct {
+	PublisherName string         `json:"publisherName,omitempty"`
+	Authors       []string       `json:"authors,omitempty"`
+	Section       string         `json:"section,omitempty"`
+	Keywords      []string       `json:"keywords,omitempty"`
+	Image         string         `json:"image,omitempty"`
+	DateModified  time.Time      `json:"dateModified,omitzero"`
+	Extra         map[string]any `json:"extra,omitempty"`
 }
 
 func NewArticleID() uuid.UUID {

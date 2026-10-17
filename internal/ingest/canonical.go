@@ -2,17 +2,20 @@ package ingest
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"time"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/parquet-go/parquet-go"
 )
 
 type CanonicalWriter interface {
-	Write(ar []document.CanonicalArticle) error
+	Write(ar []document.Article) error
 	Close() error
 }
 
+// JsonlCanonicalWriter writes one document.Article JSON object per line.
 type JsonlCanonicalWriter struct {
 	enc *json.Encoder
 }
@@ -23,7 +26,7 @@ func NewJsonlCanonicalWriter(writer io.Writer) *JsonlCanonicalWriter {
 	}
 }
 
-func (j *JsonlCanonicalWriter) Write(ars []document.CanonicalArticle) error {
+func (j *JsonlCanonicalWriter) Write(ars []document.Article) error {
 	for _, ar := range ars {
 		if err := j.enc.Encode(ar); err != nil {
 			return err
@@ -36,22 +39,63 @@ func (j *JsonlCanonicalWriter) Close() error {
 	return nil
 }
 
+// parquetArticle is the flat parquet shape of document.Article. Columns carry
+// the article's JSON keys, so one direct mapper reads both formats, and
+// metadata is a JSON string column.
+type parquetArticle struct {
+	ID              string `parquet:"id"`
+	URL             string `parquet:"url"`
+	Title           string `parquet:"title"`
+	Description     string `parquet:"description,optional"`
+	Content         string `parquet:"content"`
+	PublishedAt     string `parquet:"publishedAt,optional"`
+	Language        string `parquet:"language"`
+	PublisherDomain string `parquet:"publisherDomain,optional"`
+	Metadata        string `parquet:"metadata,optional"`
+}
+
+func toParquetArticle(ar document.Article) (parquetArticle, error) {
+	row := parquetArticle{
+		ID:              ar.ID.String(),
+		URL:             ar.URL,
+		Title:           ar.Title,
+		Description:     ar.Description,
+		Content:         ar.Content,
+		Language:        string(ar.Language),
+		PublisherDomain: ar.PublisherDomain,
+	}
+	if !ar.PublishedAt.IsZero() {
+		row.PublishedAt = ar.PublishedAt.Format(time.RFC3339)
+	}
+	metadata, err := json.Marshal(ar.Metadata)
+	if err != nil {
+		return parquetArticle{}, fmt.Errorf("marshal metadata of article %s: %w", ar.ID, err)
+	}
+	row.Metadata = string(metadata)
+	return row, nil
+}
+
 type ParquetCanonicalWriter struct {
-	w *parquet.GenericWriter[document.CanonicalArticle]
+	w *parquet.GenericWriter[parquetArticle]
 }
 
 func NewParquetCanonicalWriter(writer io.Writer) *ParquetCanonicalWriter {
 	return &ParquetCanonicalWriter{
-		w: parquet.NewGenericWriter[document.CanonicalArticle](writer),
+		w: parquet.NewGenericWriter[parquetArticle](writer),
 	}
 }
 
-func (p *ParquetCanonicalWriter) Write(ar []document.CanonicalArticle) error {
-	_, err := p.w.Write(ar)
-	if err != nil {
-		return err
+func (p *ParquetCanonicalWriter) Write(ars []document.Article) error {
+	rows := make([]parquetArticle, len(ars))
+	for i, ar := range ars {
+		row, err := toParquetArticle(ar)
+		if err != nil {
+			return err
+		}
+		rows[i] = row
 	}
-	return nil
+	_, err := p.w.Write(rows)
+	return err
 }
 
 func (p *ParquetCanonicalWriter) Close() error {

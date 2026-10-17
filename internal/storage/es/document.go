@@ -1,33 +1,32 @@
 package es
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorindexoptionstype"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorsimilarity"
 	"github.com/google/uuid"
 )
 
-// ArticleDocument ESDocument represents the document structure for Elasticsearch
+// ArticleDocument is an article as Elasticsearch stores it. The embedding
+// fields are written separately, by the embedder.
 type ArticleDocument struct {
-	ID          string     `json:"id"`
-	Title       string     `json:"title"`
-	Subtitle    string     `json:"subtitle"`
-	Description string     `json:"description"`
-	Content     string     `json:"content"`
-	Author      string     `json:"author"`
-	URL         string     `json:"url"`
-	Language    string     `json:"language"`
-	CreatedAt   time.Time  `json:"created_at"`
-	SourceId    string     `json:"source_id"`
-	SourceName  string     `json:"source_name"`
-	PublishedAt *time.Time `json:"published_at"`
-	Category    string     `json:"category"`
-	ImportedAt  *time.Time `json:"imported_at"`
-	IndexedAt   time.Time  `json:"indexed_at"`
+	ID              string            `json:"id"`
+	URL             string            `json:"url"`
+	Title           string            `json:"title"`
+	Description     string            `json:"description"`
+	Content         string            `json:"content"`
+	PublishedAt     *time.Time        `json:"published_at"`
+	Language        string            `json:"language"`
+	PublisherDomain string            `json:"publisher_domain"`
+	Metadata        document.Metadata `json:"metadata"`
 }
 
 // optionalTime maps the zero time to an absent value on the wire, so the API
@@ -39,37 +38,64 @@ func optionalTime(t time.Time) *time.Time {
 	return &t
 }
 
-type IndexBuilder struct {
-	defaultLanguage string
+func (d ArticleDocument) toArticle() (document.Article, error) {
+	id, err := uuid.Parse(d.ID)
+	if err != nil {
+		return document.Article{}, fmt.Errorf("parse article id %q: %w", d.ID, err)
+	}
+	article := document.Article{
+		ID:              id,
+		URL:             d.URL,
+		Title:           d.Title,
+		Description:     d.Description,
+		Content:         d.Content,
+		Language:        language.Code(d.Language),
+		PublisherDomain: d.PublisherDomain,
+		Metadata:        d.Metadata,
+	}
+	if d.PublishedAt != nil {
+		article.PublishedAt = *d.PublishedAt
+	}
+	return article, nil
 }
+
+// decodeArticle reads a hit's _source into the API shape.
+func decodeArticle(source json.RawMessage) (dto.Article, error) {
+	var doc ArticleDocument
+	if err := json.Unmarshal(source, &doc); err != nil {
+		return dto.Article{}, fmt.Errorf("unmarshal article document: %w", err)
+	}
+	article, err := doc.toArticle()
+	if err != nil {
+		return dto.Article{}, err
+	}
+	return dto.NewArticle(article), nil
+}
+
+type IndexBuilder struct{}
 
 func NewIndexBuilder() *IndexBuilder {
-	return &IndexBuilder{
-		defaultLanguage: document.ArticleDefaultLanguage,
-	}
+	return &IndexBuilder{}
 }
 
-func (b *IndexBuilder) mapToESDocument(article document.Article) ArticleDocument {
+func (b *IndexBuilder) mapToESDocument(article document.Article) (ArticleDocument, error) {
 	if article.ID == uuid.Nil {
 		article.ID = uuid.New()
 	}
-	return ArticleDocument{
-		ID:          article.ID.String(),
-		Title:       article.Title,
-		Subtitle:    article.Subtitle,
-		Description: article.Description,
-		Content:     article.Content,
-		Author:      article.Author,
-		URL:         article.URL,
-		Language:    article.Language,
-		CreatedAt:   article.CreatedAt,
-		SourceId:    article.Metadata.SourceId,
-		SourceName:  article.Metadata.SourceName,
-		PublishedAt: optionalTime(article.PublishedAt),
-		Category:    article.Metadata.Category,
-		ImportedAt:  optionalTime(article.Metadata.ImportedAt),
-		IndexedAt:   time.Now(),
+	if _, err := language.Parse(string(article.Language)); err != nil {
+		return ArticleDocument{}, fmt.Errorf("article %s: %w", article.ID, err)
 	}
+	return ArticleDocument{
+		ID:              article.ID.String(),
+		URL:             article.URL,
+		Title:           article.Title,
+		Description:     article.Description,
+		Content:         article.Content,
+		PublishedAt:     optionalTime(article.PublishedAt),
+		Language:        string(article.Language),
+		PublisherDomain: article.PublisherDomain,
+		Metadata:        article.Metadata,
+	}, nil
 }
 
 func (b *IndexBuilder) buildSettings() types.IndexSettings {
@@ -87,26 +113,29 @@ func (b *IndexBuilder) buildSettings() types.IndexSettings {
 func (b *IndexBuilder) buildMapping() types.TypeMapping {
 	return types.TypeMapping{
 		Properties: map[string]types.Property{
-			"id":           types.NewKeywordProperty(),
-			"title":        b.createTextPropertyWithKeyword("multilingual_analyzer"),
-			"subtitle":     b.createTextProperty("multilingual_analyzer"),
-			"description":  b.createTextProperty("multilingual_analyzer"),
-			"content":      b.createTextProperty("multilingual_analyzer"),
-			"author":       b.createTextPropertyWithKeyword(""),
-			"url":          types.NewKeywordProperty(),
-			"language":     types.NewKeywordProperty(),
-			"created_at":   types.NewDateProperty(),
-			"source_id":    types.NewKeywordProperty(),
-			"source_name":  b.createTextPropertyWithKeyword(""),
-			"published_at": types.NewDateProperty(),
-			"category":     types.NewKeywordProperty(),
-			"imported_at":  types.NewDateProperty(),
-			"indexed_at":   types.NewDateProperty(),
+			"id":               types.NewKeywordProperty(),
+			"url":              types.NewKeywordProperty(),
+			"title":            b.createTextPropertyWithKeyword("multilingual_analyzer"),
+			"description":      b.createTextProperty("multilingual_analyzer"),
+			"content":          b.createTextProperty("multilingual_analyzer"),
+			"published_at":     types.NewDateProperty(),
+			"language":         types.NewKeywordProperty(),
+			"publisher_domain": types.NewKeywordProperty(),
+			"metadata":         storedOnlyObject(),
 			// Document embedding lives on the article doc (see embedder.go).
 			"embedding":       b.denseVectorProperty(),
 			"embedding_model": types.NewKeywordProperty(),
 		},
 	}
+}
+
+// storedOnlyObject keeps an object in _source without indexing or mapping any
+// of its fields, so a new metadata key never grows the mapping.
+func storedOnlyObject() *types.ObjectProperty {
+	p := types.NewObjectProperty()
+	enabled := false
+	p.Enabled = &enabled
+	return p
 }
 
 // denseVectorProperty defines the kNN-searchable embedding field. The Qwen

@@ -8,6 +8,7 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
@@ -77,7 +78,7 @@ func indexArticles(t *testing.T, indexer *Indexer, titles ...string) []uuid.UUID
 
 	ids := make([]uuid.UUID, 0, len(titles))
 	for _, title := range titles {
-		id, err := indexer.Save(context.Background(), document.Article{ID: uuid.New(), Title: title, Language: "english"})
+		id, err := indexer.Save(context.Background(), document.Article{ID: uuid.New(), Title: title, Language: language.English})
 		if err != nil {
 			t.Fatalf("index %q: %v", title, err)
 		}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
@@ -59,10 +60,10 @@ func TestSemanticSearcher_SearchSemantic_ReturnsNearest(t *testing.T) {
 
 	nearID := uuid.New()
 	farID := uuid.New()
-	if _, err := indexer.Save(ctx, document.Article{ID: nearID, Title: "near", Language: "english"}); err != nil {
+	if _, err := indexer.Save(ctx, document.Article{ID: nearID, Title: "near", Language: language.English}); err != nil {
 		t.Fatalf("index near article: %v", err)
 	}
-	if _, err := indexer.Save(ctx, document.Article{ID: farID, Title: "far", Language: "english"}); err != nil {
+	if _, err := indexer.Save(ctx, document.Article{ID: farID, Title: "far", Language: language.English}); err != nil {
 		t.Fatalf("index far article: %v", err)
 	}
 	refresh(t, embIndexer)
@@ -105,7 +106,7 @@ func TestSemanticSearcher_SearchSemantic_OnlySeesTheQueryModel(t *testing.T) {
 	sameModel := uuid.New()
 	otherModel := uuid.New()
 	for _, id := range []uuid.UUID{sameModel, otherModel} {
-		if _, err := indexer.Save(ctx, document.Article{ID: id, Title: id.String(), Language: "english"}); err != nil {
+		if _, err := indexer.Save(ctx, document.Article{ID: id, Title: id.String(), Language: language.English}); err != nil {
 			t.Fatalf("index article: %v", err)
 		}
 	}

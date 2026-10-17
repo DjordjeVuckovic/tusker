@@ -28,9 +28,9 @@ func insertArticle(t *testing.T, pool *ConnectionPool, title string) uuid.UUID {
 	t.Helper()
 	var id uuid.UUID
 	err := pool.GetConn().QueryRow(testCtx, `
-		INSERT INTO articles (title, content, url, language)
-		VALUES ($1, $2, $3, $4) RETURNING id
-	`, title, "content", "http://test.com/"+title, "english").Scan(&id)
+		INSERT INTO articles (id, title, content, url, language)
+		VALUES (gen_random_uuid(), $1, $2, $3, $4) RETURNING id
+	`, title, "content", "http://test.com/"+title, "eng").Scan(&id)
 	if err != nil {
 		t.Fatalf("failed to insert article: %v", err)
 	}

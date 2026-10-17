@@ -6,6 +6,7 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/google/uuid"
 )
@@ -37,7 +38,7 @@ func TestSemanticSearcher_SearchSemantic_OnlySeesTheQueryModel(t *testing.T) {
 	}
 	sameModel, otherModel := uuid.New(), uuid.New()
 	for _, id := range []uuid.UUID{sameModel, otherModel} {
-		article := document.Article{ID: id, Title: id.String(), URL: "http://test.com/" + id.String(), Language: "english"}
+		article := document.Article{ID: id, Title: id.String(), URL: "http://test.com/" + id.String(), Language: language.English}
 		if _, err := indexer.Save(testCtx, article); err != nil {
 			t.Fatalf("index article: %v", err)
 		}

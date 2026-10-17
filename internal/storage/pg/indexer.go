@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,28 +17,24 @@ type Indexer struct {
 	db *pgxpool.Pool
 }
 
-var insertColumns = []string{
-	"id", "title", "subtitle", "content", "author", "description", "url",
-	"language", "published_at", "created_at", "metadata",
-}
-
 func NewIndexer(pool *ConnectionPool) (*Indexer, error) {
 
 	return &Indexer{db: pool.conn}, nil
 }
 
 func (s *Indexer) Save(ctx context.Context, article document.Article) (uuid.UUID, error) {
-	row, err := insertRow(article, time.Now())
+	row, err := insertRow(article)
 	if err != nil {
 		return uuid.UUID{}, err
 	}
 
-	cmd := `
-        INSERT INTO articles (id, title, subtitle, content, author, description, url, language,
-                              published_at, created_at, metadata)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        RETURNING id;
-    `
+	placeholders := make([]string, len(ArticleColumns))
+	for i := range placeholders {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+	}
+	cmd := fmt.Sprintf("INSERT INTO articles (%s) VALUES (%s) RETURNING id",
+		ArticleColumnList(""), strings.Join(placeholders, ", "))
+
 	var id uuid.UUID
 	if err := s.db.QueryRow(ctx, cmd, row...).Scan(&id); err != nil {
 		return uuid.UUID{}, fmt.Errorf("failed to insert article: %w", err)
@@ -48,10 +45,8 @@ func (s *Indexer) Save(ctx context.Context, article document.Article) (uuid.UUID
 
 func (s *Indexer) SaveBulk(ctx context.Context, articles []document.Article) error {
 	rows := make([][]any, len(articles))
-	now := time.Now()
-
 	for i, a := range articles {
-		row, err := insertRow(a, now)
+		row, err := insertRow(a)
 		if err != nil {
 			return fmt.Errorf("article %d: %w", i, err)
 		}
@@ -61,7 +56,7 @@ func (s *Indexer) SaveBulk(ctx context.Context, articles []document.Article) err
 	_, err := s.db.CopyFrom(
 		ctx,
 		pgx.Identifier{"articles"},
-		insertColumns,
+		ArticleColumns,
 		pgx.CopyFromRows(rows),
 	)
 
@@ -71,36 +66,28 @@ func (s *Indexer) SaveBulk(ctx context.Context, articles []document.Article) err
 	return nil
 }
 
-func insertRow(a document.Article, now time.Time) ([]any, error) {
+func insertRow(a document.Article) ([]any, error) {
 	if a.ID == uuid.Nil {
 		a.ID = uuid.New()
 	}
-	if a.Language == "" {
-		a.Language = document.ArticleDefaultLanguage
-	}
-	if a.CreatedAt.IsZero() {
-		a.CreatedAt = now
-	}
-	if a.Metadata.ImportedAt.IsZero() {
-		a.Metadata.ImportedAt = now
+	if _, err := language.Parse(string(a.Language)); err != nil {
+		return nil, fmt.Errorf("article %s: %w", a.ID, err)
 	}
 
 	metadataJSON, err := json.Marshal(a.Metadata)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		return nil, fmt.Errorf("failed to marshal metadata of article %s: %w", a.ID, err)
 	}
 
 	return []any{
 		a.ID,
-		a.Title,
-		a.Subtitle,
-		a.Content,
-		a.Author,
-		a.Description,
 		a.URL,
-		a.Language,
+		a.Title,
+		a.Description,
+		a.Content,
 		nullableTime(a.PublishedAt),
-		a.CreatedAt,
+		string(a.Language),
+		a.PublisherDomain,
 		metadataJSON,
 	}, nil
 }
