@@ -79,6 +79,7 @@ func (m *ArticleMapper) Map(record map[string]string) (document.Article, error) 
 	}
 
 	article.ID = m.idFor(article)
+	article.PublisherDomain = PublisherDomain(article.URL)
 	return article, nil
 }
 

@@ -125,6 +125,7 @@ var rejectedMappings = []struct {
 }{
 	{name: "a retired target", doc: withMappings(validMapping, "  - {source: author, target: Author}\n"), wantInErr: `"Author"`},
 	{name: "a retired metadata target", doc: withMappings(validMapping, "  - {source: domain, target: Metadata.SourceName}\n"), wantInErr: "Metadata.SourceName"},
+	{name: "a mapped publisher domain", doc: withMappings(validMapping, "  - {source: domain, target: PublisherDomain}\n"), wantInErr: "PublisherDomain"},
 	{name: "language as a mapped target", doc: withMappings(validMapping, "  - {source: lang, target: Language}\n"), wantInErr: `"Language"`},
 	{name: "an extra key with no name", doc: withMappings(validMapping, "  - {source: x, target: Metadata.Extra.}\n"), wantInErr: "Metadata.Extra."},
 	{name: "an extra key with a dot", doc: withMappings(validMapping, "  - {source: x, target: Metadata.Extra.a.b}\n"), wantInErr: "Metadata.Extra.a.b"},

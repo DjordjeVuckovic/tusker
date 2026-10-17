@@ -17,6 +17,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/DjordjeVuckovic/tusker/internal/types/language"
+	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -352,4 +353,65 @@ func TestPreprocess_RefusesAMistypedIdStrategyKey(t *testing.T) {
 
 	require.ErrorContains(t, err, "idStrategey")
 	assert.NoDirExists(t, run.outputRoot)
+}
+
+func TestPreprocess_DerivesEachIDFromTheNormalisedURL(t *testing.T) {
+	run := newPreprocessRun(t, ccNewsLikeMapping,
+		csvFile("part.csv", "title,text,url\nSpaced,Body,  https://example.com/a b \n"),
+	)
+
+	require.NoError(t, run.execute(t.Context()))
+
+	pkg, rows := readArticles(t, run.packageDir(t))
+	require.Equal(t, []string{"https://example.com/a%20b"}, rows.urls)
+	require.NotNil(t, pkg.IDStrategy)
+	assert.Equal(t, "uuidv5", string(pkg.IDStrategy.Kind))
+	assert.Equal(t, "url", pkg.IDStrategy.Source)
+	namespace, err := uuid.Parse(pkg.IDStrategy.Namespace)
+	require.NoError(t, err)
+	assert.Equal(t, uuid.NewSHA1(namespace, []byte("https://example.com/a%20b")), rows.byURL["https://example.com/a%20b"].ID)
+}
+
+func TestPreprocess_KeepsTheFirstOfRecordsSharingAURL(t *testing.T) {
+	run := newPreprocessRun(t, ccNewsLikeMapping,
+		csvFile("a.csv", "title,text,url\nFirst,Body,https://example.com/story\nOther,Body,https://example.com/other\n"),
+		csvFile("b.csv", "title,text,url\nRepeat,Body, https://example.com/story\nAgain,Body,https://example.com/other\n"),
+	)
+
+	require.NoError(t, run.execute(t.Context()))
+
+	pkg, rows := readArticles(t, run.packageDir(t))
+	assert.Equal(t, []string{"https://example.com/story", "https://example.com/other"}, rows.urls)
+	assert.Equal(t, "First", rows.byURL["https://example.com/story"].Title)
+	assert.Equal(t, "Other", rows.byURL["https://example.com/other"].Title)
+	assert.Equal(t, &datapackage.Report{Read: 4, Written: 2, Deduped: 2}, pkg.Report)
+}
+
+func TestPreprocess_DerivesThePublisherDomainFromTheURL(t *testing.T) {
+	tests := []struct {
+		url  string
+		want string
+	}{
+		{url: "https://uk.reuters.com/world/storm", want: "reuters.com"},
+		{url: "https://WWW.Reuters.com/markets", want: "reuters.com"},
+		{url: "https://news.bbc.co.uk/1", want: "bbc.co.uk"},
+		{url: "https://x.blogspot.com/post", want: "x.blogspot.com"},
+		{url: "http://192.168.0.7/feed", want: "192.168.0.7"},
+		{url: "http://localhost:8080/page", want: "localhost"},
+	}
+	var csv strings.Builder
+	csv.WriteString("title,text,url\n")
+	for _, tt := range tests {
+		csv.WriteString("Title,Body," + tt.url + "\n")
+	}
+	run := newPreprocessRun(t, ccNewsLikeMapping, csvFile("part.csv", csv.String()))
+
+	require.NoError(t, run.execute(t.Context()))
+
+	_, rows := readArticles(t, run.packageDir(t))
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			assert.Equal(t, tt.want, rows.byURL[tt.url].PublisherDomain)
+		})
+	}
 }

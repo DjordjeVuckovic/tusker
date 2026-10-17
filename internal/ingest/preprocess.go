@@ -18,10 +18,15 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
+	"github.com/google/uuid"
 )
 
 // canonicalVersionPrefix starts every canonical package version.
 const canonicalVersionPrefix = "article-v2"
+
+// articleIDNamespace is the namespace document.DeriveArticleID hashes under,
+// recorded so a descriptor alone says how its ids were derived.
+const articleIDNamespace = "697bf49f-ca14-4303-83eb-f9d05f7c7c42"
 
 // PreprocessOptions names the raw package to map, the mapping that maps it and
 // the folder that receives canonical/<version>.
@@ -89,7 +94,7 @@ func Preprocess(ctx context.Context, opts PreprocessOptions) (Preprocessed, erro
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return Preprocessed{}, fmt.Errorf("create canonical package folder: %w", err)
 	}
-	report, err := writeArticlesFile(ctx, filepath.Join(dir, pkg.Resources[0].Path), format, corpusSource{raw: opts.Raw, mapper: mapper})
+	report, err := writeArticlesFile(ctx, filepath.Join(dir, pkg.Resources[0].Path), format, corpusSource{raw: opts.Raw, mapper: mapper, seen: map[uuid.UUID]struct{}{}})
 	if err != nil {
 		return Preprocessed{}, err
 	}
@@ -129,7 +134,11 @@ func idStrategyOf(mapping *datamapping.DataMapper) *datapackage.IDStrategy {
 		}
 	}
 	kind, _ := mapping.IdStrategy.ResolvedKind()
-	return &datapackage.IDStrategy{Kind: kind, Source: mapping.IdStrategy.Source}
+	strategy := &datapackage.IDStrategy{Kind: kind, Source: mapping.IdStrategy.Source}
+	if kind == datamapping.IdStrategyUuidV5 {
+		strategy.Namespace = articleIDNamespace
+	}
+	return strategy
 }
 
 func rawRefOf(raw datapackage.Package) *datapackage.RawRef {
@@ -188,10 +197,12 @@ func newCanonicalWriter(w io.Writer, format datamapping.OutputFormat) CanonicalW
 	return NewParquetCanonicalWriter(w)
 }
 
-// corpusSource maps the records of a raw package onto articles.
+// corpusSource maps the records of a raw package onto articles. Of records
+// that share an id, the first in source order is kept.
 type corpusSource struct {
 	raw    *datapackage.Opened
 	mapper reader.Mapper
+	seen   map[uuid.UUID]struct{}
 }
 
 const writeBatchSize = 1000
@@ -255,6 +266,11 @@ func (s corpusSource) eachArticle(ctx context.Context, resource datapackage.Reso
 		if err != nil {
 			return fmt.Errorf("map record from %s: %w", resource.Name, err)
 		}
+		if _, duplicate := s.seen[article.ID]; duplicate {
+			report.Deduped++
+			continue
+		}
+		s.seen[article.ID] = struct{}{}
 		if err := emit(article); err != nil {
 			return fmt.Errorf("write articles: %w", err)
 		}
