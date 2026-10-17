@@ -49,11 +49,6 @@ func (r *Runner) RunAll(
 		return nil, err
 	}
 	bindings := queryBindings(bs)
-	for _, job := range bs.Jobs {
-		if err := checkEveryQueryHasABlock(job, suites[job.Suite], bindings); err != nil {
-			return nil, fmt.Errorf("run job %q: %w", job.Name, err)
-		}
-	}
 
 	for _, job := range bs.Jobs {
 		jr, err := r.RunJob(ctx, JobRequest{
@@ -146,6 +141,9 @@ func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
 			if reader.dialect == nil {
 				return nil, fmt.Errorf("job %q engine %q is not declared", job.Name, engName)
 			}
+			if err := checkEveryQueryHasABlock(loaded, engName, binding.QuerySource); err != nil {
+				return nil, fmt.Errorf("job %q: %w", job.Name, err)
+			}
 			blocks, err := loaded.Blocks(binding.QuerySource, binding.Params)
 			if err != nil {
 				return nil, fmt.Errorf("job %q engine %q: %w", job.Name, engName, err)
@@ -167,6 +165,21 @@ func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
 		}
 	}
 	return suites, nil
+}
+
+// checkEveryQueryHasABlock rejects an engine with no block for one of the
+// suite's queries, which would otherwise leave that cell of the report empty.
+func checkEveryQueryHasABlock(ls *suite.LoadedSuite, engName, source string) error {
+	for _, q := range ls.Suite.Queries {
+		if _, ok := q.Engines[source]; ok {
+			continue
+		}
+		if source != engName {
+			return fmt.Errorf("query %q has no %q block for engine %q", q.ID, source, engName)
+		}
+		return fmt.Errorf("query %q has no block for engine %q", q.ID, engName)
+	}
+	return nil
 }
 
 type templateInSuite struct {
@@ -268,9 +281,6 @@ type JobRequest struct {
 }
 
 func (r *Runner) RunJob(ctx context.Context, req JobRequest) (*JobResult, error) {
-	if err := checkEveryQueryHasABlock(req.Job, req.Suite, req.Bindings); err != nil {
-		return nil, err
-	}
 	jobExecutors := make(map[string]engine.Executor)
 	for _, engName := range req.Job.Engines {
 		exec, ok := req.Executors[engName]
@@ -338,33 +348,6 @@ func (r *Runner) runQueries(ctx context.Context, jr *JobResult, req JobRequest) 
 		}()
 	}
 	wg.Wait()
-}
-
-// checkEveryQueryHasABlock rejects a job in which an engine has no block for
-// one of the suite's queries, which would otherwise leave that cell empty.
-func checkEveryQueryHasABlock(job spec.Job, ls *suite.LoadedSuite, bindings map[string]spec.QueryBinding) error {
-	for _, q := range ls.Suite.Queries {
-		for _, engName := range job.Engines {
-			source := querySource(bindings, engName)
-			if _, ok := q.Engines[source]; ok {
-				continue
-			}
-			if source != engName {
-				return fmt.Errorf("query %q has no %q block for engine %q", q.ID, source, engName)
-			}
-			return fmt.Errorf("query %q has no block for engine %q", q.ID, engName)
-		}
-	}
-	return nil
-}
-
-// querySource is the engine whose block engName reads: its own, unless the
-// spec binds it to another's.
-func querySource(bindings map[string]spec.QueryBinding, engName string) string {
-	if binding, declared := bindings[engName]; declared {
-		return binding.QuerySource
-	}
-	return engName
 }
 
 // runEnginesForQuery fans out to all engines for a single query concurrently.

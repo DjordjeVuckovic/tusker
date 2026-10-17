@@ -3,6 +3,8 @@ package runner
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -141,8 +143,7 @@ func TestRunAll_FailedIterations(t *testing.T) {
 	}
 }
 
-func TestRunAll_EngineWithoutABlockForAQuery(t *testing.T) {
-	const suiteYAML = `queries:
+const suiteWithAnESGap = `queries:
   - id: q-both
     engines:
       pg: { query: "SELECT id FROM articles" }
@@ -151,13 +152,17 @@ func TestRunAll_EngineWithoutABlockForAQuery(t *testing.T) {
     engines:
       pg: { query: "SELECT id FROM articles" }
 `
+
+// LoadSuites is the load-time check every subcommand, validate included, runs
+// before it touches an engine.
+func TestLoadSuites_EngineWithoutABlockForAQuery(t *testing.T) {
 	tests := []struct {
 		name    string
 		engines map[string]spec.Engine
 		wantErr []string
 	}{
 		{
-			name:    "fails before any query runs, naming the query and the engine",
+			name:    "rejected, naming the query and the engine",
 			engines: map[string]spec.Engine{"pg": postgres, "es": elasticsearch},
 			wantErr: []string{"q-pg-only", `"es"`},
 		},
@@ -172,15 +177,7 @@ func TestRunAll_EngineWithoutABlockForAQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bs := oneJobTrack(t, suiteYAML, tt.engines, nil)
-			executors := map[string]engine.Executor{}
-			recorders := map[string]*recordingExecutor{}
-			for name := range tt.engines {
-				recorders[name] = &recordingExecutor{name: name}
-				executors[name] = templateStoringRecorder{recorders[name]}
-			}
-
-			_, err := New(DefaultConfig()).RunAll(context.Background(), bs, executors)
+			_, err := LoadSuites(oneJobTrack(t, suiteWithAnESGap, tt.engines, nil))
 
 			if len(tt.wantErr) == 0 {
 				assert.NoError(t, err)
@@ -190,17 +187,57 @@ func TestRunAll_EngineWithoutABlockForAQuery(t *testing.T) {
 			for _, want := range tt.wantErr {
 				assert.ErrorContains(t, err, want)
 			}
-			for name, rec := range recorders {
-				assert.Empty(t, rec.seen, "engine %s ran a query before the job was rejected", name)
-			}
 		})
 	}
 }
 
-// templateStoringRecorder lets a recording executor stand in for an engine type
-// that stores search templates.
-type templateStoringRecorder struct{ *recordingExecutor }
+func TestRunAll_AGapInALaterJobRunsAndStoresNothing(t *testing.T) {
+	dir := t.TempDir()
+	completeSuite := filepath.Join(dir, "complete.yaml")
+	require.NoError(t, os.WriteFile(completeSuite, []byte(`schema_version: 1
+id: complete
+templates:
+  - id: es_match
+    args: [terms]
+    query: '{"query": {"match": {"title": "{{terms}}"}}}'
+queries:
+  - id: q1
+    engines:
+      pg: { query: "SELECT id FROM articles" }
+      es: { template: es_match, params: { terms: climate } }
+`), 0o644))
+	gapSuite := filepath.Join(dir, "gap.yaml")
+	require.NoError(t, os.WriteFile(gapSuite, []byte("schema_version: 1\nid: gap\n"+suiteWithAnESGap), 0o644))
+	bs := &spec.BenchSpec{
+		ID:      "two_jobs",
+		Engines: map[string]spec.Engine{"pg": postgres, "es": elasticsearch},
+		Jobs: []spec.Job{
+			{Name: "complete", Suite: completeSuite, Engines: []string{"pg", "es"}},
+			{Name: "gap", Suite: gapSuite, Engines: []string{"pg", "es"}},
+		},
+	}
+	pg := &templateStoringRecorder{recordingExecutor: recordingExecutor{name: "pg"}}
+	es := &templateStoringRecorder{recordingExecutor: recordingExecutor{name: "es"}}
 
-func (templateStoringRecorder) RegisterSearchTemplate(context.Context, engine.SearchTemplate) error {
+	_, err := New(DefaultConfig()).RunAll(context.Background(), bs, map[string]engine.Executor{"pg": pg, "es": es})
+
+	assert.ErrorContains(t, err, "q-pg-only")
+	for _, rec := range []*templateStoringRecorder{pg, es} {
+		assert.Empty(t, rec.seen, "engine %s ran a query", rec.name)
+		assert.Empty(t, rec.stored, "engine %s stored a template", rec.name)
+	}
+}
+
+// templateStoringRecorder is a recording executor for an engine type that
+// stores search templates.
+type templateStoringRecorder struct {
+	recordingExecutor
+	stored []string
+}
+
+func (e *templateStoringRecorder) RegisterSearchTemplate(_ context.Context, template engine.SearchTemplate) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.stored = append(e.stored, template.ID)
 	return nil
 }
