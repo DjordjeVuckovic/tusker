@@ -19,7 +19,6 @@ const dataPackageSchemaFile = "datapackage-v1.json"
 func dataPackageSchema() ([]byte, error) {
 	generator := schema.NewGeneratorWithConfig(schema.GeneratorConfig{
 		StrictValidation:     true,
-		UseDefinitions:       true,
 		ClosedObjects:        true,
 		RequireUnlessOmitted: true,
 	})
