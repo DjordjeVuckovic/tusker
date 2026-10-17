@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"iter"
 	"strings"
 	"sync"
 
@@ -62,6 +63,29 @@ func (p *ParquetReader) Read() ([]map[string]string, error) {
 		}
 	}
 	return records, nil
+}
+
+// errStopRecords ends a row group walk once the consumer stops iterating.
+var errStopRecords = errors.New("stop reading records")
+
+func (p *ParquetReader) Records() iter.Seq2[map[string]string, error] {
+	return func(yield func(map[string]string, error) bool) {
+		for _, rg := range p.file.RowGroups() {
+			err := p.eachRecord(rg, func(record map[string]string) error {
+				if !yield(record, nil) {
+					return errStopRecords
+				}
+				return nil
+			})
+			if errors.Is(err, errStopRecords) {
+				return
+			}
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+		}
+	}
 }
 
 func (p *ParquetReader) ReadParallel(ctx context.Context, workerCount int) (<-chan ParallelReaderResult, error) {

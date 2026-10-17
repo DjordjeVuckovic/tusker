@@ -31,6 +31,7 @@ type Package struct {
 	Report        *Report       `json:"report,omitempty"`
 	Embedding     *Embedding    `json:"embedding,omitempty"`
 	Canonical     *Ref          `json:"canonical,omitempty"`
+	Raw           *RawRef       `json:"raw,omitempty"`
 	Suite         *Suite        `json:"suite,omitempty"`
 	Sources       []Source      `json:"sources,omitempty"`
 	Resources     []Resource    `json:"resources" schema:"required,minItems=1"`
@@ -92,6 +93,12 @@ type Ref struct {
 	Name         string `json:"name"`
 	Version      string `json:"version"`
 	ResourceHash string `json:"resourceHash"`
+}
+
+// RawRef names the raw package and its source version.
+type RawRef struct {
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
 }
 
 // Suite names the bench suite query vectors were embedded from.
