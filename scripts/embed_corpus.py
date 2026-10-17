@@ -14,10 +14,10 @@
 
 Reads the package's single resource (parquet or jsonl, or the slim projection
 slim_corpus.py writes), verifies its bytes and hash, and writes
-embeddings/<tag-dir>/<version>/ under the dataset root: embeddings.parquet with
-one (id, embedding) row per canonical row in canonical order, and a
-datapackage.json that records the model, recipe and canonical resource it came
-from.
+embeddings/<tag-dir>/<version>/ under the dataset root, where the version is the
+first 8 hex chars of the resource's sha256: embeddings.parquet with one
+(id, embedding) row per canonical row in canonical order, and a datapackage.json
+that records the model, recipe and canonical resource it came from.
 
 Doubles as a Kaggle script kernel. Kernels run with no argv, so omitting the
 package argument reads the one slim.datapackage.json under /kaggle/input and
@@ -653,7 +653,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output-root", type=Path, help="dataset root to write embeddings/ under"
     )
     parser.add_argument(
-        "--checkpoint-dir", type=Path, help="default: a dir beside the output package"
+        "--checkpoint-dir",
+        type=Path,
+        help="default: embeddings/<tag-dir>/.checkpoints-<settings>",
     )
     parser.add_argument(
         "--model",

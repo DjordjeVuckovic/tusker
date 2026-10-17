@@ -12,11 +12,11 @@
 
   uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
 
-Writes a package of its own to --out: articles.parquet holding id, title and
-description in canonical row order, and a slim.datapackage.json whose `canonical`
-property names the canonical package it came from. embed_corpus.py reads that
-property, so embedding the projection yields the same package version and bytes
-as embedding the canonical package. The article body is most of the bytes, so
+Writes a package of its own to <out>/<version>/, named after its bytes:
+articles.parquet holding id, title and description in canonical row order, and a
+slim.datapackage.json whose `canonical` property names the canonical package it
+came from. embed_corpus.py reads that property, so embedding the projection
+yields the same bytes as embedding the canonical package. The article body is most of the bytes, so
 this is what goes to the Kaggle dataset.
 
 The output is plain parquet next to its descriptor: Kaggle decompresses .gz
