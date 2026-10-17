@@ -109,8 +109,6 @@ func storedTemplateCall(search Request) ([]byte, error) {
 // RegisterSearchTemplate stores the template's Mustache source with
 // PUT _scripts/<id>, replacing any earlier version.
 func (e *EsExecutor) RegisterSearchTemplate(ctx context.Context, template SearchTemplate) error {
-	ctx, cancel := e.withDeadline(ctx)
-	defer cancel()
 	body, err := json.Marshal(map[string]any{
 		"script": map[string]string{"lang": "mustache", "source": template.Source},
 	})
