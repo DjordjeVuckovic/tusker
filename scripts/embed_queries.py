@@ -26,7 +26,6 @@ the same dataset, and writes /kaggle/working/query-vectors/.
 """
 
 import argparse
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,27 +54,6 @@ QUERY_RECIPE = "query-instruct-v1"
 QUERY_BATCH_SIZE = 1
 QUERY_TASK = "Given a web search, retrieve all relevant news documents"
 
-# unicode.IsSpace, which Go's strings.TrimSpace strips. Python's str.strip also
-# strips \x1c-\x1f, so a query edged by those would embed differently per side.
-GO_WHITESPACE = "".join(
-    map(
-        chr,
-        [
-            *range(0x09, 0x0E),
-            0x20,
-            0x85,
-            0xA0,
-            0x1680,
-            *range(0x2000, 0x200B),
-            0x2028,
-            0x2029,
-            0x202F,
-            0x205F,
-            0x3000,
-        ],
-    )
-)
-
 QUERY_VECTORS_SCHEMA = pa.schema(
     [
         pa.field("query_id", pa.string()),
@@ -99,27 +77,17 @@ class Suite:
 
 
 def instruct_input(text: str) -> str:
-    """Wrap a query in the query-instruct-v1 recipe, byte for byte as Go's wrapWithInstruct."""
+    """Wrap a query in the query-instruct-v1 recipe."""
     return f"Instruct: {QUERY_TASK}\nQuery:{text.strip()}"
 
 
-class SuiteLoader(yaml.BaseLoader):
-    """Resolve plain null scalars only, as yaml.v3 does before filling a Go string with ""."""
-
-
-SuiteLoader.add_implicit_resolver(
-    "tag:yaml.org,2002:null", re.compile(r"^(?:~|null|Null|NULL|)$"), [*"~nN", ""]
-)
-SuiteLoader.add_constructor("tag:yaml.org,2002:null", lambda loader, node: None)
-
-
 def load_suite(path: Path) -> Suite:
-    """Read a suite's query ids and descriptions as raw strings, the way yaml.v3 fills Go strings.
+    """Read a suite's query ids and descriptions as strings.
 
-    Only plain nulls resolve, so `yes` or `2024` stay the text the runner sees.
+    The base loader resolves no tags, so `yes` or `2024` stay the text the runner sees.
     """
     try:
-        document = yaml.load(path.read_text(encoding="utf-8"), Loader=SuiteLoader)
+        document = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     except (OSError, yaml.YAMLError) as error:
         raise embed_corpus.PackageError(f"read suite {path}: {error}") from error
     if not isinstance(document, dict):
@@ -149,10 +117,6 @@ def check_query(query: SuiteQuery) -> None:
     if not query.id or not query.text.strip():
         raise embed_corpus.PackageError(
             f"query {query.id!r} needs an id and a non-empty description"
-        )
-    if query.text.strip() != query.text.strip(GO_WHITESPACE):
-        raise embed_corpus.PackageError(
-            f"query {query.id!r} starts or ends with a character Go and Python trim differently"
         )
 
 

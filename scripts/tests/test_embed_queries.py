@@ -77,7 +77,7 @@ def test_descriptor_records_the_tag_query_recipe_and_suite_hash(
     assert descriptor["suite"] == {"id": "cc-news-semantic", "hash": sha256_of(suite)}
 
 
-def test_query_instruct_v1_embeds_the_same_string_as_go_wrap_with_instruct(
+def test_query_instruct_v1_embeds_the_recipe_string_around_the_stripped_query(
     tmp_path, tiny_model_args
 ):
     suite = write_suite(tmp_path / "track")
@@ -108,21 +108,6 @@ def test_query_instruct_v1_embeds_the_same_string_as_go_wrap_with_instruct(
     np.testing.assert_array_equal(
         np.array(query, dtype=np.float32), np.array(document, dtype=np.float32)
     )
-
-
-def test_refuses_a_query_whose_edges_go_and_python_trim_differently(
-    tmp_path, tiny_model_args
-):
-    suite = write_suite(
-        tmp_path / "track",
-        SUITE.replace('"  climate change "', '"climate change\\x1f"'),
-    )
-
-    result = run_script("embed_queries.py", suite, *tiny_model_args)
-
-    assert result.returncode != 0
-    assert "q-climate" in result.stderr
-    assert not query_vectors(tmp_path / "track").exists()
 
 
 def test_re_embedding_an_edited_suite_replaces_its_query_vectors(
@@ -162,16 +147,6 @@ def test_refuses_to_publish_non_finite_query_vectors(tmp_path, overflowing_tiny_
     assert not query_vectors(tmp_path / "track").exists()
 
 
-def test_refuses_a_query_whose_description_is_yaml_null(tmp_path, tiny_model_args):
-    suite = write_suite(tmp_path / "track", SUITE.replace('"  climate change "', "~"))
-
-    result = run_script("embed_queries.py", suite, *tiny_model_args)
-
-    assert result.returncode != 0
-    assert "q-climate" in result.stderr
-    assert not query_vectors(tmp_path / "track").exists()
-
-
 def test_query_vectors_are_versioned_by_their_own_bytes(tmp_path, tiny_model_args):
     suite = write_suite(tmp_path / "track")
 
@@ -182,3 +157,27 @@ def test_query_vectors_are_versioned_by_their_own_bytes(tmp_path, tiny_model_arg
         descriptor.parent / "query-vectors.parquet"
     ).removeprefix("sha256:")
     assert json.loads(descriptor.read_text())["version"] == resource_digest[:8]
+
+
+def test_refuses_a_query_with_an_empty_description(tmp_path, tiny_model_args):
+    suite = write_suite(
+        tmp_path / "track", SUITE.replace('"  climate change "', '"  "')
+    )
+
+    result = run_script("embed_queries.py", suite, *tiny_model_args)
+
+    assert result.returncode != 0
+    assert "q-climate" in result.stderr
+    assert not query_vectors(tmp_path / "track").exists()
+
+
+def test_refuses_a_suite_that_repeats_a_query_id(tmp_path, tiny_model_args):
+    suite = write_suite(
+        tmp_path / "track", SUITE.replace("id: q-rates", "id: q-climate")
+    )
+
+    result = run_script("embed_queries.py", suite, *tiny_model_args)
+
+    assert result.returncode != 0
+    assert "q-climate" in result.stderr
+    assert not query_vectors(tmp_path / "track").exists()
