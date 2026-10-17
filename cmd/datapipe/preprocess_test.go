@@ -536,3 +536,19 @@ func TestPreprocess_CancelledRunLeavesNoPackage(t *testing.T) {
 	}
 	assert.Empty(t, entries, "no package and no temporary folder remain")
 }
+
+func TestPreprocess_KeepsTheIDsADatasetCarries(t *testing.T) {
+	mapping := strings.Replace(
+		mappingWith(t, "idStrategy:\n  kind: uuidv5\n  source: url\n", ""),
+		"fieldMappings:\n", "fieldMappings:\n  - {source: uid, sourceType: uuid, target: ID, required: true}\n", 1)
+	run := newPreprocessRun(t, mapping, csvFile("part.csv", "uid,title,text,url\n"+
+		"3f2b8c1e-0d4a-4e7b-9c55-1a2b3c4d5e6f,One,Body,https://example.com/1\n"+
+		"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d,Two,Body,https://example.com/2\n"))
+
+	require.NoError(t, run.execute(t.Context()))
+
+	pkg, rows := readArticles(t, run.packageDir(t))
+	assert.Nil(t, pkg.IDStrategy)
+	assert.Equal(t, uuid.MustParse("3f2b8c1e-0d4a-4e7b-9c55-1a2b3c4d5e6f"), rows.byURL["https://example.com/1"].ID)
+	assert.Equal(t, uuid.MustParse("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"), rows.byURL["https://example.com/2"].ID)
+}
