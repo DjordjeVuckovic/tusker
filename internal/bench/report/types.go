@@ -118,19 +118,26 @@ type Entry struct {
 }
 
 type AggregatedEntry struct {
-	EngineName  string
-	NDCG        map[int]float64
-	NDCGStddev  map[int]float64 // sample stddev of per-query NDCG — measures consistency
-	Precision   map[int]float64
-	Recall      map[int]float64
-	F1          map[int]float64
-	MAP         float64
-	MRR         float64
-	MBpref      float64
-	Latency     LatencyStats
-	QueryCount  int
+	EngineName string
+	NDCG       map[int]float64
+	NDCGStddev map[int]float64 // sample stddev of per-query NDCG — measures consistency
+	Precision  map[int]float64
+	Recall     map[int]float64
+	F1         map[int]float64
+	MAP        float64
+	MRR        float64
+	MBpref     float64
+	// Latency covers only the queries every engine in the job answered;
+	// LatencyExcludedQueries counts the rest.
+	Latency                LatencyStats
+	LatencyExcludedQueries int
+	QueryCount             int
+	// JudgedCount is the size of the job's judged query set, the denominator
+	// of every quality mean. A query this engine failed or had no block for
+	// scores 0.
 	JudgedCount int
-	ErrorCount  int
+	// ErrorCount includes queries this engine had no block for.
+	ErrorCount int
 }
 
 type LatencyStats struct {
