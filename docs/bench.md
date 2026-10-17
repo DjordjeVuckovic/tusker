@@ -325,17 +325,22 @@ Key flags:
 
 ### `bench run [<name>] [--judgments <S|path>] [--jobs <name,...>]`
 
-Executes the suite against all engines, computes IR metrics and latency, prints a styled table with per-engine NDCG/MAP/MRR/Bpref + latency percentiles + statistical significance, then writes `reports/<run_id>.json` and updates `reports/latest.json`.
+Executes the suite against all engines, computes IR metrics and latency, prints a styled table with per-engine NDCG/MAP/MRR/Bpref + latency percentiles + statistical significance, then writes `reports/<run_id>.json`.
+
+`reports/latest.json` moves only when the run took every spec job at the spec's warmup, iterations and K, no (query, engine) execution errored, and the judgments grade every doc in the track's current pool. A run that misses any of these keeps its report, lists the reasons under `settings.incomplete`, and leaves `latest.json` alone. A failed run (an errored execution or unjudged pooled docs) also exits non-zero.
 
 Judgments resolution order:
 1. `--judgments <strategy|path>` (CLI flag)
-2. `spec.defaults.judgments` (per-track default)
-3. None → latency-only report, warning printed
+2. `spec.defaults.judgments` (per-track default; a relative path starts at the track folder)
+3. None → the run fails before measuring anything
+
+A judgments file that does not exist fails the run the same way, as do judgments whose `pool_run_id` is not the current pool's `run_id`. `--latency-only` measures latency without judgments; its report is marked `settings.latency_only` and never becomes `latest.json`.
 
 Flags:
 - `--jobs pg,es` — run only the named job(s) from the spec (useful during development)
 - `--k 3,5,10` — NDCG/P cut-off values
 - `--warmup N`, `--iterations N` — override spec settings
+- `--latency-only` — measure latency without judgments
 
 Retrieval depth is the suite's own `limit` param (or ES `size`); there is no run flag for it.
 
@@ -394,7 +399,7 @@ Pretty-prints a one-page summary of any artifact:
 
 ### `bench clean [<name>] [--keep N]`
 
-Removes old JSON, HTML, and Markdown files from `reports/`, keeping the `--keep` most-recent (default 5). `latest.json` is never deleted.
+Removes old JSON, HTML, and Markdown files from `reports/`, keeping the `--keep` most-recent (default 5). `latest.json` is never deleted, and neither is the report it points at. Of the JSON reports, complete runs fill the remaining slots before incomplete ones (failed, partial or latency-only), so those go first.
 
 ```bash
 bench clean tracks/global-news-dataset/fts_quality            # keep 5 most recent
