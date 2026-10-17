@@ -25,8 +25,9 @@ type Meta struct {
 	SuiteVersion string `yaml:"suite_version,omitempty" json:"suite_version,omitempty"`
 
 	// Pool-only fields.
-	PoolDepth int      `yaml:"pool_depth,omitempty" json:"pool_depth,omitempty"`
-	Engines   []string `yaml:"engines,omitempty" json:"engines,omitempty"`
+	PoolDepth         int                `yaml:"pool_depth,omitempty" json:"pool_depth,omitempty"`
+	Engines           []string           `yaml:"engines,omitempty" json:"engines,omitempty"`
+	DroppedExecutions []DroppedExecution `yaml:"dropped_executions,omitempty" json:"dropped_executions,omitempty"`
 
 	// Judgment-only fields.
 	Judge          *Judge `yaml:"judge,omitempty" json:"judge,omitempty"`
@@ -44,6 +45,14 @@ type Meta struct {
 
 	// Report-only fields.
 	Sources *Sources `yaml:"sources,omitempty" json:"sources,omitempty"`
+}
+
+// DroppedExecution is a (query, engine) pair a pool written with
+// --allow-partial holds no documents for, because every execution of it failed.
+type DroppedExecution struct {
+	QueryID string `yaml:"query_id" json:"query_id"`
+	Engine  string `yaml:"engine" json:"engine"`
+	Error   string `yaml:"error" json:"error"`
 }
 
 // Judge attests who graded an annotations file. Structured rather than flat so

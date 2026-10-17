@@ -90,6 +90,7 @@ type lineageTrack struct {
 
 func newLineageTrack(t *testing.T, clusterURL string) lineageTrack {
 	t.Helper()
+	t.Setenv("EMBEDDING_BASE_URL", "")
 	dir := t.TempDir()
 	tr := lineageTrack{dir: dir, judgments: filepath.Join(dir, "trec", "annotations.fixture.yaml")}
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "trec"), 0o755))
