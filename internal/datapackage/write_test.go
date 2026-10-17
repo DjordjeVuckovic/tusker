@@ -231,3 +231,19 @@ func TestWriteRejectsAnUnknownIDStrategyKind(t *testing.T) {
 		t.Error("a descriptor was written")
 	}
 }
+
+func TestWrittenDescriptorIsReadableByEveryone(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "hello.txt", "hello\n")
+	if _, err := datapackage.Write(context.Background(), dir, helloPackage()); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	info, err := os.Stat(filepath.Join(dir, datapackage.DescriptorName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o644 {
+		t.Errorf("descriptor mode = %o, want 644", got)
+	}
+}

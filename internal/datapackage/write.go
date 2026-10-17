@@ -105,6 +105,11 @@ func writeAtomic(path string, content []byte) error {
 		tmp.Close()
 		return fmt.Errorf("sync %s: %w", tmp.Name(), err)
 	}
+	// CreateTemp makes the file 0600; descriptors are committed and published.
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		return fmt.Errorf("chmod %s: %w", tmp.Name(), err)
+	}
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("close %s: %w", tmp.Name(), err)
 	}
