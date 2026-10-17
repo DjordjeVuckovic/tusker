@@ -213,7 +213,11 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	}
 	failures := runFailures(result, judgments)
 	rpt.Settings.Incomplete = append(slices.Clone(failures),
-		specDeviations(f, len(bs.Jobs) == specJobCount, measuredAsSpecified(runCfg, bs, defaultKValues(cmd)))...)
+		specConformance{
+			latencyOnly:         f.latencyOnly,
+			ranEveryJob:         len(bs.Jobs) == specJobCount,
+			measuredAsSpecified: measuredAsSpecified(runCfg, bs, defaultKValues(cmd)),
+		}.deviations()...)
 
 	report.WriteTable(rpt, os.Stdout)
 	fmt.Fprintf(os.Stdout, "%s %s\n", cDim.Sprint("Elapsed:"), elapsed.Round(time.Millisecond))
@@ -242,16 +246,23 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	return nil
 }
 
-// specDeviations lists how a run departs from the one its spec defines.
-func specDeviations(f runFlags, ranEveryJob, asSpecified bool) []string {
+// specConformance is how closely a run followed the one its spec defines.
+type specConformance struct {
+	latencyOnly         bool
+	ranEveryJob         bool
+	measuredAsSpecified bool
+}
+
+// deviations lists how the run departs from the one its spec defines.
+func (c specConformance) deviations() []string {
 	var deviations []string
-	if f.latencyOnly {
+	if c.latencyOnly {
 		deviations = append(deviations, "latency-only run, scored against no judgments")
 	}
-	if !ranEveryJob {
+	if !c.ranEveryJob {
 		deviations = append(deviations, "--jobs left out some of the spec's jobs")
 	}
-	if !asSpecified {
+	if !c.measuredAsSpecified {
 		deviations = append(deviations, "--warmup, --iterations or --k differ from spec.yaml")
 	}
 	return deviations
