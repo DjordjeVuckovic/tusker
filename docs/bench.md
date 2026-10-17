@@ -419,7 +419,7 @@ Metrics are computed per query, then averaged over the job's judged query set: e
 
 `Coverage@K` is the share of each engine's retrieved docs within the largest K, over the judged queries, that carry a grade. A low value means the pool missed what the engine returns and its scores undercount.
 
-Significance is a two-tailed Wilcoxon signed-rank test per engine pair for NDCG@K, MAP and MRR over the judged query set. Differences are rounded to 1e-12 before zeros are dropped and ranks assigned. The p-value is exact for up to 50 untied pairs, otherwise the normal approximation with tie and continuity correction. It needs ≥4 non-zero differences. p-values are Holm-adjusted across the job's engine pairs on each metric; reports keep the raw `P` next to `AdjustedP`, and `*` (p<0.05) / `**` (p<0.01) mark the adjusted value.
+Significance is a two-tailed Wilcoxon signed-rank test per engine pair for NDCG@K, MAP and MRR over the judged query set. Differences are rounded to 1e-12 before zeros are dropped and ranks assigned. The p-value is exact for up to 50 untied pairs, otherwise the normal approximation with tie and continuity correction. They match `scipy.stats.wilcoxon(d, method="exact")` and `scipy.stats.wilcoxon(d, method="approx", correction=True)` respectively, on the rounded differences `d`; a plain `wilcoxon(d)` goes exact even with ties and skips the correction, so it differs. It needs ≥4 non-zero differences. p-values are Holm-adjusted across the job's engine pairs on each metric; reports keep the raw `P` next to `AdjustedP`, and `*` (p<0.05) / `**` (p<0.01) mark the adjusted value.
 
 Latency (min/p50/p75/p90/p95/p99/max/mean/stddev) covers only the queries every engine in the job answered; `LatencyExcludedQueries` counts the rest.
 
