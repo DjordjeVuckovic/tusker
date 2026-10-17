@@ -3,6 +3,7 @@ package query
 import (
 	"fmt"
 
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 )
 
@@ -53,7 +54,7 @@ type String struct {
 	Query string `json:"query" validate:"required,min=1"`
 
 	// Language overrides the contract's analysis language when set.
-	Language Language `json:"language,omitempty"`
+	Language language.Code `json:"language,omitempty"`
 }
 
 // Contract returns the default search contract with the query's overrides applied.
@@ -83,12 +84,12 @@ type Boolean struct {
 	//   "(renewable OR sustainable) AND energy"
 	//   "Trump AND NOT biden"
 	//   "(climate OR weather) AND (change OR warming)"
-	Expression string   `json:"expression" validate:"required,min=1"`
-	Language   Language `json:"language,omitempty"`
+	Expression string        `json:"expression" validate:"required,min=1"`
+	Language   language.Code `json:"language,omitempty"`
 }
 
 // GetLanguage returns the language with default fallback
-func (q *Boolean) GetLanguage() Language {
+func (q *Boolean) GetLanguage() language.Code {
 	if q.Language == "" {
 		return DefaultLanguage
 	}
@@ -126,7 +127,7 @@ type Phrase struct {
 	Slop int `json:"slop,omitempty" validate:"min=0,max=3"`
 
 	// Language: Prompt analysis language
-	Language Language `json:"language,omitempty"`
+	Language language.Code `json:"language,omitempty"`
 }
 
 const MaxPhraseSlop = 3
@@ -175,14 +176,14 @@ func WithPhraseSlop(slop int) PhraseOption {
 }
 
 // WithPhraseLanguage sets the language for Phrase query
-func WithPhraseLanguage(lang Language) PhraseOption {
+func WithPhraseLanguage(lang language.Code) PhraseOption {
 	return func(q *Phrase) {
 		q.Language = lang
 	}
 }
 
 // GetLanguage returns the language with default fallback
-func (q *Phrase) GetLanguage() Language {
+func (q *Phrase) GetLanguage() language.Code {
 	if q.Language == "" {
 		return DefaultLanguage
 	}
@@ -236,7 +237,7 @@ func NewQueryString(query string, opts ...StringOption) *String {
 	return q
 }
 
-func WithQueryStringLanguage(lang Language) StringOption {
+func WithQueryStringLanguage(lang language.Code) StringOption {
 	return func(q *String) {
 		q.Language = lang
 	}
@@ -257,7 +258,7 @@ type Match struct {
 	Field Field `json:"field" validate:"required"`
 
 	// Language: Prompt search language configuration
-	Language Language `json:"language,omitempty"`
+	Language language.Code `json:"language,omitempty"`
 
 	// Operator combines the terms; nil leaves the engine's default.
 	Operator *operator.Operator `json:"operator,omitempty"`
@@ -269,7 +270,7 @@ type Match struct {
 }
 
 // GetLanguage returns the language with default fallback
-func (q *Match) GetLanguage() Language {
+func (q *Match) GetLanguage() language.Code {
 	if q.Language == "" {
 		return DefaultLanguage
 	}
@@ -326,7 +327,7 @@ func NewMatch(field Field, query string, opts ...MatchQueryOption) (*Match, erro
 }
 
 // WithMatchLanguage sets the language for Match query
-func WithMatchLanguage(lang Language) MatchQueryOption {
+func WithMatchLanguage(lang language.Code) MatchQueryOption {
 	return func(q *Match) {
 		q.Language = lang
 	}
@@ -389,7 +390,7 @@ type MultiMatch struct {
 	Fields []MultiMatchField `json:"fields,omitempty"`
 
 	// Language: Prompt search language configuration
-	Language Language `json:"language,omitempty"`
+	Language language.Code `json:"language,omitempty"`
 
 	// Operator combines the terms; nil leaves the engine's default.
 	Operator *operator.Operator `json:"operator,omitempty"`
@@ -425,7 +426,7 @@ func NewMultiMatchQuery(query string, fields []string, opts ...MultiMatchQueryOp
 	return q, nil
 }
 
-func WithMultiMatchLanguage(lang Language) MultiMatchQueryOption {
+func WithMultiMatchLanguage(lang language.Code) MultiMatchQueryOption {
 	return func(q *MultiMatch) {
 		q.Language = lang
 	}
@@ -449,7 +450,7 @@ func newMultiMatchFields(specs []string) ([]MultiMatchField, error) {
 	return fields, nil
 }
 
-func (q *MultiMatch) GetLanguage() Language {
+func (q *MultiMatch) GetLanguage() language.Code {
 	if q.Language == "" {
 		return DefaultLanguage
 	}
@@ -509,7 +510,7 @@ const DefaultRRFConstant = 60
 type Hybrid struct {
 	Query string `json:"query" validate:"required,min=1"`
 
-	Language Language `json:"language,omitempty"`
+	Language language.Code `json:"language,omitempty"`
 
 	// K is the RRF constant; higher values flatten rank contribution differences.
 	K int `json:"k,omitempty"`
@@ -531,7 +532,7 @@ func NewHybrid(query string, opts ...HybridOption) *Hybrid {
 	return q
 }
 
-func WithHybridLanguage(lang Language) HybridOption {
+func WithHybridLanguage(lang language.Code) HybridOption {
 	return func(q *Hybrid) {
 		q.Language = lang
 	}
@@ -543,7 +544,7 @@ func WithHybridK(k int) HybridOption {
 	}
 }
 
-func (q *Hybrid) GetLanguage() Language {
+func (q *Hybrid) GetLanguage() language.Code {
 	if q.Language == "" {
 		return DefaultLanguage
 	}

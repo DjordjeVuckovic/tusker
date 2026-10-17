@@ -127,8 +127,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "\"english\"",
-                        "description": "SearchStringQuery language: english, the only one supported (default: english)",
+                        "example": "\"eng\"",
+                        "description": "ISO 639-3 language code; only eng today (default: eng)",
                         "name": "lang",
                         "in": "query"
                     },
@@ -588,6 +588,15 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_DjordjeVuckovic_tusker_internal_types_language.Code": {
+            "type": "string",
+            "enum": [
+                "eng"
+            ],
+            "x-enum-varnames": [
+                "English"
+            ]
+        },
         "github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator": {
             "type": "string",
             "enum": [
@@ -641,7 +650,7 @@ const docTemplate = `{
                     }
                 },
                 "language": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Language"
+                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_language.Code"
                 },
                 "operator": {
                     "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator"
@@ -674,15 +683,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "github_com_DjordjeVuckovic_tusker_internal_types_query.Language": {
-            "type": "string",
-            "enum": [
-                "english"
-            ],
-            "x-enum-varnames": [
-                "LanguageEnglish"
-            ]
         }
     }
 }`

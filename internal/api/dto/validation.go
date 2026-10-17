@@ -2,6 +2,7 @@ package dto
 
 import (
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 )
@@ -9,8 +10,11 @@ import (
 // parseLanguage returns the default language for an empty value. An unknown
 // one is rejected rather than handed to ::regconfig, where it would stem with
 // the wrong dictionary.
-func parseLanguage(raw string) (query.Language, error) {
-	lang, err := query.Language(raw).Parse()
+func parseLanguage(raw string) (language.Code, error) {
+	if raw == "" {
+		return query.DefaultLanguage, nil
+	}
+	lang, err := language.Parse(raw)
 	if err != nil {
 		return "", apperr.NewValidationWrap("invalid language", err)
 	}

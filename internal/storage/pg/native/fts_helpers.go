@@ -106,7 +106,7 @@ func buildWeightsArray(fieldBoosts []query.FieldWeight) string {
 // under OR. plainto_tsquery joins terms with " & ", so OR swaps each for " | ",
 // leaving a lexeme that holds & itself (a URL) intact; the lexemes are already
 // normalised and the cast does not stem them again.
-func buildTsQuery(op operator.Operator, lang query.Language, paramNum int) string {
+func buildTsQuery(op operator.Operator, lang string, paramNum int) string {
 	plain := fmt.Sprintf("plainto_tsquery('%s'::regconfig, $%d)", lang, paramNum)
 	if op.IsOr() {
 		return fmt.Sprintf("replace(%s::text, ' & ', ' | ')::tsquery", plain)
@@ -119,7 +119,7 @@ func buildTsQuery(op operator.Operator, lang query.Language, paramNum int) strin
 // PostgreSQL's default weight values are: {0.1, 0.2, 0.4, 1.0} for {D, C, B, A}
 // Weight array format: {D-weight, C-weight, B-weight, A-weight} (REVERSE ORDER!)
 // Returns: "ts_rank('{0.0, 1.0, 1.5, 3.0}', search_vector, query)" or "ts_rank(search_vector, query)"
-func buildRankExpression(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
+func buildRankExpression(fieldBoosts []query.FieldWeight, lang string, op operator.Operator, paramNum int) string {
 	vectorExpr := "search_vector"
 	queryExpr := buildTsQuery(op, lang, paramNum)
 
@@ -141,7 +141,7 @@ const DefaultOperator = operator.And
 // fields, or fields covering every band, match the whole vector. Otherwise
 // the query also runs on the fields' weight bands; the whole-vector match goes
 // first so the GIN index narrows the rows.
-func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
+func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang string, op operator.Operator, paramNum int) string {
 	queryExpr := buildTsQuery(op, lang, paramNum)
 	match := fmt.Sprintf("search_vector @@ %s", queryExpr)
 
@@ -174,7 +174,7 @@ type booleanMatch struct {
 // fields, as Elasticsearch does. Every term carries the fields' weight labels,
 // so a negated term excludes only a match in those fields and the whole
 // predicate can still use the search_vector index.
-func buildBooleanMatch(tsquery string, lang query.Language) booleanMatch {
+func buildBooleanMatch(tsquery string, lang string) booleanMatch {
 	queryExpr := fmt.Sprintf("to_tsquery('%s'::regconfig, $1)", lang)
 	labels := buildWeightLabels(fieldsOf(query.DefaultSearchContract().Fields))
 	return booleanMatch{

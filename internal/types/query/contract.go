@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 )
 
@@ -63,7 +64,7 @@ func ParseFieldBoost(spec string) (FieldWeight, error) {
 type SearchContract struct {
 	Fields   []FieldWeight
 	Operator *operator.Operator
-	Language Language
+	Language language.Code
 }
 
 // Effective is the contract a search ran under once the engine filled in what
@@ -72,7 +73,7 @@ type SearchContract struct {
 type Effective struct {
 	Operator operator.Operator `json:"operator,omitempty"`
 	Fields   []Field           `json:"fields,omitempty"`
-	Language Language          `json:"language"`
+	Language language.Code     `json:"language"`
 }
 
 // Effective returns the contract with a nil Operator resolved to engineDefault.

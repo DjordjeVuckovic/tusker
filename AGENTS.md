@@ -180,7 +180,7 @@ Built with Echo framework providing:
 - Field-level weight control for relevance tuning
 - Operator control (AND/OR) for term combination
 - Fuzziness support for typo tolerance (Elasticsearch)
-- English language analysis only; any other language returns 400 until Serbian is implemented
+- Query language as an ISO 639-3 code: `eng` only (the default); any other value returns 400
 - Input validation and comprehensive error handling
 - PostgreSQL: tsvector with ts_rank scoring
 - Elasticsearch: match/multi_match queries with BM25 scoring
