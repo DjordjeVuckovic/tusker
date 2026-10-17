@@ -331,7 +331,7 @@ Executes the suite against all engines, computes IR metrics and latency, prints 
 
 Judgments resolution order:
 1. `--judgments <strategy|path>` (CLI flag)
-2. `spec.defaults.judgments` (per-track default; a relative path starts at the track folder)
+2. `spec.defaults.judgments` (per-track default; a relative path starts at the spec file's folder, like the spec's suite paths)
 3. None → the run fails before measuring anything
 
 A judgments file that does not exist fails the run the same way, as do judgments whose `pool_run_id` is not the current pool's `run_id`. `--latency-only` measures latency without judgments; its report is marked `settings.latency_only` and never becomes `latest.json`.

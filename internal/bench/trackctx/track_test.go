@@ -257,6 +257,21 @@ func TestDefaultJudgmentsPath_RelativePathIsFromTheTrack(t *testing.T) {
 	}
 }
 
+// Suites resolve from the spec file's folder, so a judgments path in the same
+// spec does too, even when --spec names a spec outside the track.
+func TestDefaultJudgmentsPath_RelativePathIsFromTheSpecFolder(t *testing.T) {
+	dir := t.TempDir()
+	track := filepath.Join(dir, "tracks", "demo")
+	makeTrack(t, track)
+	elsewhere := filepath.Join(dir, "specs", "variant.yaml")
+
+	tr, err := Resolve(Inputs{TrackArg: track, SpecPath: elsewhere})
+	require.NoError(t, err)
+
+	assert.Equal(t, filepath.Join(dir, "specs", "trec", "annotations.hand.yaml"),
+		tr.DefaultJudgmentsPath("trec/annotations.hand.yaml"))
+}
+
 func TestQrelsPath_StrategySuffix(t *testing.T) {
 	dir := t.TempDir()
 	track := filepath.Join(dir, "tracks", "demo")

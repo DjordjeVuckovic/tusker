@@ -49,7 +49,7 @@ or a glob, which runs every matching track and writes one report per track.
 
 The judgments file used for scoring resolves in this order:
   1. --judgments <name|path>      (CLI override)
-  2. spec.defaults.judgments      (per-track default; a relative path starts at the track)
+  2. spec.defaults.judgments      (per-track default; a relative path starts at the spec's folder)
   3. none → the run fails before measuring anything
 
 A missing judgments file fails the run the same way. --latency-only measures
