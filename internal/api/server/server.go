@@ -80,7 +80,9 @@ func (s *Server) Start() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), s.gracefulShutdownTimeout)
 	defer cancel()
 	if err := s.Echo.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("graceful shutdown: %w", err)
+		// Closing the connections cancels the handlers still running, so their
+		// backend calls return and the caller can release the pool.
+		return errors.Join(fmt.Errorf("graceful shutdown: %w", err), s.Echo.Close())
 	}
 	slog.Info("Server shut down gracefully ...")
 

@@ -22,7 +22,8 @@ const (
 	DefaultRequestTimeout = 90 * time.Second
 	DefaultWriteTimeout   = 120 * time.Second
 	DefaultIdleTimeout    = 120 * time.Second
-	DefaultBodyLimit      = 1_000_000
+	// DefaultBodyLimit is 1M as HTTP_BODY_LIMIT reads it: 1,048,576 bytes.
+	DefaultBodyLimit = 1 << 20
 )
 
 type Config struct {
@@ -87,7 +88,7 @@ func LoadConfig() (*Config, error) {
 		"HTTP_REQUEST_TIMEOUT":     &cfg.RequestTimeout,
 	}
 	for name, target := range timeouts {
-		if *target, err = durationFromEnv(name); err != nil {
+		if *target, err = env.PositiveDuration(name); err != nil {
 			return nil, err
 		}
 	}
@@ -103,19 +104,20 @@ func LoadConfig() (*Config, error) {
 // Config leaves the server unbounded, or an error if a bound is invalid.
 func (cfg Config) validated() (*Config, error) {
 	defaults := []struct {
+		name     string
 		value    *time.Duration
 		fallback time.Duration
 	}{
-		{value: &cfg.ReadHeaderTimeout, fallback: DefaultReadHeaderTimeout},
-		{value: &cfg.ReadTimeout, fallback: DefaultReadTimeout},
-		{value: &cfg.WriteTimeout, fallback: DefaultWriteTimeout},
-		{value: &cfg.IdleTimeout, fallback: DefaultIdleTimeout},
-		{value: &cfg.RequestTimeout, fallback: DefaultRequestTimeout},
-	}
-	if cfg.RequestTimeout < 0 {
-		return nil, fmt.Errorf("invalid request timeout %v: must be positive", cfg.RequestTimeout)
+		{name: "read header timeout", value: &cfg.ReadHeaderTimeout, fallback: DefaultReadHeaderTimeout},
+		{name: "read timeout", value: &cfg.ReadTimeout, fallback: DefaultReadTimeout},
+		{name: "write timeout", value: &cfg.WriteTimeout, fallback: DefaultWriteTimeout},
+		{name: "idle timeout", value: &cfg.IdleTimeout, fallback: DefaultIdleTimeout},
+		{name: "request timeout", value: &cfg.RequestTimeout, fallback: DefaultRequestTimeout},
 	}
 	for _, d := range defaults {
+		if *d.value < 0 {
+			return nil, fmt.Errorf("invalid %s %v: must be positive", d.name, *d.value)
+		}
 		if *d.value == 0 {
 			*d.value = d.fallback
 		}
@@ -131,21 +133,6 @@ func (cfg Config) validated() (*Config, error) {
 		cfg.BodyLimit = DefaultBodyLimit
 	}
 	return &cfg, nil
-}
-
-func durationFromEnv(name string) (time.Duration, error) {
-	raw := os.Getenv(name)
-	if raw == "" {
-		return 0, nil
-	}
-	d, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, fmt.Errorf("invalid %s %q: %w", name, raw, err)
-	}
-	if d <= 0 {
-		return 0, fmt.Errorf("invalid %s %q: must be positive", name, raw)
-	}
-	return d, nil
 }
 
 func byteSizeFromEnv(name string) (int64, error) {

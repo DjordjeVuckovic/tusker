@@ -304,6 +304,56 @@ func TestServer_StartReturnsErrorWhenRequestOutlivesGracePeriod(t *testing.T) {
 	}
 }
 
+func TestServer_StartCancelsRequestsThatOutliveTheGracePeriod(t *testing.T) {
+	s := newServer(t, &Config{Port: "0"}, pkgserver.NewOkHealthChecker())
+	s.gracefulShutdownTimeout = 50 * time.Millisecond
+	entered, cancelled := make(chan struct{}), make(chan struct{})
+	s.Echo.GET("/slow", func(c echo.Context) error {
+		close(entered)
+		<-c.Request().Context().Done()
+		close(cancelled)
+		return nil
+	})
+	baseURL, stopped := serve(t, s)
+
+	go func() {
+		if resp, err := http.Get(baseURL + "/slow"); err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	<-entered
+	if err := syscall.Kill(os.Getpid(), syscall.SIGINT); err != nil {
+		t.Fatalf("send SIGINT: %v", err)
+	}
+	if err := waitForStart(t, stopped); err == nil {
+		t.Error("Start = nil after a request outlived the grace period, want an error")
+	}
+
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Error("a request still running after the grace period kept its context, so the backend pool cannot close until it finishes")
+	}
+}
+
+func TestNew_RejectsNegativeBounds(t *testing.T) {
+	tests := map[string]Config{
+		"read header timeout": {Port: "0", ReadHeaderTimeout: -time.Second},
+		"read timeout":        {Port: "0", ReadTimeout: -time.Second},
+		"write timeout":       {Port: "0", WriteTimeout: -time.Second},
+		"idle timeout":        {Port: "0", IdleTimeout: -time.Second},
+		"request timeout":     {Port: "0", RequestTimeout: -time.Second},
+		"body limit":          {Port: "0", BodyLimit: -1},
+	}
+	for name, cfg := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := New(&cfg, pkgserver.NewOkHealthChecker()); err == nil {
+				t.Errorf("New accepted a negative %s, which net/http reads as no bound", name)
+			}
+		})
+	}
+}
+
 func TestServer_StartReturnsErrorWhenPortIsTaken(t *testing.T) {
 	taken, err := net.Listen("tcp", ":0")
 	if err != nil {
