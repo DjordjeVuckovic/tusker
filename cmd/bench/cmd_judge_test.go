@@ -370,3 +370,18 @@ func TestJudge_ManualForceDiscardsHandGrades(t *testing.T) {
 
 	assert.Equal(t, judgment.GradeUnjudged, fx.annotations(t, "manual").Queries[0].Docs[0].Grade)
 }
+
+// A query dropped from the pool since the last run is no longer judged, so its
+// leftover placeholders must not fail the resumed run.
+func TestJudge_ResumeDropsQueriesThatLeftThePool(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	judge := judgment.NewBM25Strategy().Describe()
+	require.NoError(t, judgment.WriteFile(&judgment.File{
+		Meta:    meta.Meta{Judge: &judge},
+		Queries: []judgment.Entry{{QueryID: "q-gone", Docs: []judgment.GradedDoc{{DocID: uuid.New(), Grade: judgment.GradeUnjudged}}}},
+	}, filepath.Join(fx.track, "trec", "annotations.bm25.yaml")))
+
+	require.NoError(t, fx.judge(t, "--strategy", "bm25", "--resume"))
+
+	assert.NotContains(t, gradesByQuery(fx.annotations(t, "bm25")), "q-gone")
+}

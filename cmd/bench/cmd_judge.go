@@ -239,7 +239,7 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 		},
 	})
 
-	_, runErr := jrunner.Run(cmd.Context(), pf)
+	final, runErr := jrunner.Run(cmd.Context(), pf)
 	var noTerms *judgment.NoQueryTermsError
 	if runErr != nil && !errors.As(runErr, &noTerms) {
 		return fmt.Errorf("judge run: %w", runErr)
@@ -248,8 +248,9 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 	// Final write with completed meta block. The judge descriptor captures what
 	// the strategy actually resolved to — including the model, which is empty on
 	// the flag whenever the user relied on the default — and the prompt version,
-	// so rubric drift is detectable on resume.
-	final := writer.Snapshot()
+	// so rubric drift is detectable on resume. Run returns only the queries
+	// still in the pool, so a query dropped since the last run is not carried
+	// over.
 	final.Meta = meta.New("judge")
 	final.Meta.Judge = &judge
 	final.Meta.PoolRef = poolPath
