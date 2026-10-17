@@ -104,7 +104,7 @@ func TestRun_RefusesJudgmentsGradedAgainstAnotherPool(t *testing.T) {
 		"b": {count: 10, ranked: map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}}},
 	})
 	tr := newLineageTrack(t, cluster)
-	tr.writePool(t, "2026-10-17T10-00-00-pool-new000")
+	tr.writePool(t, "2026-10-17T10-00-00-pool-new000", map[string][]uuid.UUID{"q1": {doc}, "q2": {doc}})
 	tr.writeJudgments(t, "2026-10-01T10-00-00-pool-old000", map[string]map[uuid.UUID]int{
 		"q1": {doc: 2}, "q2": {doc: 2},
 	})
@@ -118,7 +118,7 @@ func TestRun_RefusesJudgmentsGradedAgainstAnotherPool(t *testing.T) {
 
 func TestJudgeManual_RecordsThePoolItWasMadeFrom(t *testing.T) {
 	tr := newLineageTrack(t, "http://unused.invalid")
-	tr.writePool(t, "2026-10-17T10-00-00-pool-aaaaaa")
+	tr.writePool(t, "2026-10-17T10-00-00-pool-aaaaaa", map[string][]uuid.UUID{"q1": {uuid.New()}})
 	outPath := filepath.Join(tr.dir, "trec", "annotations.manual.yaml")
 
 	_, err := execute(t, newJudgeCmd(), tr.dir, "--strategy", "manual", "--output", outPath)

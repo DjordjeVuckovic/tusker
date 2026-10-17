@@ -21,7 +21,6 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 type runFlags struct {
@@ -225,7 +224,7 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	}
 	printDone(cmd.OutOrStdout(), "Report written: "+outPath)
 
-	failures := runFailures(result, judgments.unjudged)
+	failures := runFailures(result, judgments.coverage)
 	if len(failures) > 0 {
 		return fmt.Errorf("%s\n  • report written to %s; latest.json was not moved", strings.Join(failures, "\n"), outPath)
 	}
@@ -273,7 +272,7 @@ type runJudgments struct {
 	path     string
 	grades   map[string]map[string]int
 	meta     *meta.Meta
-	unjudged int
+	coverage judgmentCoverage
 }
 
 // loadRunJudgments resolves --judgments, else spec.defaults.judgments, and
@@ -309,43 +308,46 @@ func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJ
 	if err := checkPoolBinding(judgmentsMeta.PoolRunID, currentPool); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	unjudged, err := unjudgedCount(path)
-	if err != nil {
-		return nil, err
-	}
-	return &runJudgments{path: path, grades: grades, meta: judgmentsMeta, unjudged: unjudged}, nil
+	return &runJudgments{
+		path:     path,
+		grades:   grades,
+		meta:     judgmentsMeta,
+		coverage: poolCoverage(currentPool, grades),
+	}, nil
 }
 
-// unjudgedCount reads meta.unjudged_count, the pooled docs the judge failed to
-// grade. meta.Meta does not model the field, so it is decoded here; a file
-// without it counts as fully judged.
-func unjudgedCount(path string) (int, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return 0, fmt.Errorf("read judgments %s: %w", path, err)
+// judgmentCoverage counts the pool's (query, doc) pairs and how many of them
+// the judgments leave without a grade.
+type judgmentCoverage struct {
+	pooled   int
+	unjudged int
+}
+
+// poolCoverage checks the judgments against the pool itself rather than the
+// judge's own count, which an interrupted run leaves stale and which cannot
+// see queries the judge never reached.
+func poolCoverage(pf *pool.PoolFile, grades map[string]map[string]int) judgmentCoverage {
+	var c judgmentCoverage
+	for _, entry := range pf.Queries {
+		for _, doc := range entry.Docs {
+			c.pooled++
+			if _, graded := grades[entry.QueryID][doc.DocID.String()]; !graded {
+				c.unjudged++
+			}
+		}
 	}
-	var counts struct {
-		Meta struct {
-			UnjudgedCount *int `yaml:"unjudged_count"`
-		} `yaml:"meta"`
-	}
-	if err := yaml.Unmarshal(data, &counts); err != nil {
-		return 0, fmt.Errorf("parse judgments %s: %w", path, err)
-	}
-	if counts.Meta.UnjudgedCount == nil {
-		return 0, nil
-	}
-	return *counts.Meta.UnjudgedCount, nil
+	return c
 }
 
 // runFailures lists why a finished run cannot stand as the track's result.
-func runFailures(result *runner.BenchmarkResult, unjudged int) []string {
+func runFailures(result *runner.BenchmarkResult, coverage judgmentCoverage) []string {
 	var failures []string
 	if cells := erroredCells(result); len(cells) > 0 {
 		failures = append(failures, fmt.Sprintf("%d (query, engine) executions errored: %s", len(cells), strings.Join(cells, ", ")))
 	}
-	if unjudged > 0 {
-		failures = append(failures, fmt.Sprintf("the judgments leave %d pooled docs unjudged", unjudged))
+	if coverage.unjudged > 0 {
+		failures = append(failures, fmt.Sprintf("the judgments leave %d of %d pooled docs unjudged; finish judging (bench judge --resume)",
+			coverage.unjudged, coverage.pooled))
 	}
 	return failures
 }

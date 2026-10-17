@@ -9,23 +9,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// judgedTrack is a track whose pool and judgments agree, served by engines that
-// answer every query unless failing says otherwise.
+const judgedPoolRunID = "2026-10-17T10-00-00-pool-aaaaaa"
+
+// judgedTrack is a track whose judgments grade every doc in its pool, served by
+// engines that answer every query unless failing says otherwise.
 func judgedTrack(t *testing.T, failing map[string]bool) lineageTrack {
+	tr, _, _ := judgedTrackDocs(t, failing)
+	return tr
+}
+
+func judgedTrackDocs(t *testing.T, failing map[string]bool) (tr lineageTrack, relevant, other uuid.UUID) {
 	t.Helper()
-	relevant, other := uuid.New(), uuid.New()
+	relevant, other = uuid.New(), uuid.New()
 	cluster := fakeCluster(t, map[string]*fakeIndex{
 		"a": {count: 10, ranked: map[string][]uuid.UUID{"q1": {relevant, other}, "q2": {relevant}}},
 		"b": {count: 10, ranked: map[string][]uuid.UUID{"q1": {other, relevant}, "q2": {other}}, failing: failing},
 	})
-	tr := newLineageTrack(t, cluster)
-	const poolRunID = "2026-10-17T10-00-00-pool-aaaaaa"
-	tr.writePool(t, poolRunID)
-	tr.writeJudgments(t, poolRunID, map[string]map[uuid.UUID]int{
+	tr = newLineageTrack(t, cluster)
+	tr.writePool(t, judgedPoolRunID, map[string][]uuid.UUID{"q1": {relevant, other}, "q2": {relevant, other}})
+	tr.writeJudgments(t, judgedPoolRunID, map[string]map[uuid.UUID]int{
 		"q1": {relevant: 3, other: 0},
 		"q2": {relevant: 2, other: 0},
 	})
-	return tr
+	return tr, relevant, other
 }
 
 func TestRun_CompleteRunMovesLatest(t *testing.T) {
@@ -76,19 +82,32 @@ func TestRun_LatencyOnlyRejectsExplicitJudgments(t *testing.T) {
 
 func TestRun_FailedRunWritesTheReportButLeavesLatest(t *testing.T) {
 	tests := []struct {
-		name     string
-		failing  map[string]bool
-		unjudged int
-		wantErr  string
+		name    string
+		failing map[string]bool
+		regrade func(relevant, other uuid.UUID) map[string]map[uuid.UUID]int
+		wantErr string
 	}{
 		{name: "an engine errored on a query", failing: map[string]bool{"q2": true}, wantErr: "q2"},
-		{name: "the judgments hold unjudged pooled docs", unjudged: 4, wantErr: "unjudged"},
+		{
+			name: "a pooled doc the judge failed to grade",
+			regrade: func(relevant, other uuid.UUID) map[string]map[uuid.UUID]int {
+				return map[string]map[uuid.UUID]int{"q1": {relevant: 3, other: -1}, "q2": {relevant: 2, other: 0}}
+			},
+			wantErr: "1 of 4 pooled docs",
+		},
+		{
+			name: "a pooled query the judge never reached",
+			regrade: func(relevant, other uuid.UUID) map[string]map[uuid.UUID]int {
+				return map[string]map[uuid.UUID]int{"q1": {relevant: 3, other: 0}}
+			},
+			wantErr: "2 of 4 pooled docs",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr := judgedTrack(t, tt.failing)
-			if tt.unjudged > 0 {
-				tr.setUnjudgedCount(t, tt.unjudged)
+			tr, relevant, other := judgedTrackDocs(t, tt.failing)
+			if tt.regrade != nil {
+				tr.writeJudgments(t, judgedPoolRunID, tt.regrade(relevant, other))
 			}
 
 			_, err := execute(t, newRunCmd(), tr.dir)

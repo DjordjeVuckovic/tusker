@@ -21,7 +21,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 // fakeIndex is one engine's index in fakeCluster: its document count and the
@@ -143,20 +142,32 @@ queries:
 
 func (tr lineageTrack) poolPath() string { return filepath.Join(tr.dir, "trec", "pool.yaml") }
 
-// writePool stands in for a bench pool run that produced runID.
-func (tr lineageTrack) writePool(t *testing.T, runID string) {
+// writePool stands in for a bench pool run that produced runID and pooled
+// docs for q1 and q2.
+func (tr lineageTrack) writePool(t *testing.T, runID string, docs map[string][]uuid.UUID) {
 	t.Helper()
-	pf := &pool.PoolFile{Meta: meta.Meta{RunID: runID}, Queries: []pool.PoolEntry{{QueryID: "q1"}, {QueryID: "q2"}}}
+	pf := &pool.PoolFile{Meta: meta.Meta{RunID: runID}}
+	for _, queryID := range []string{"q1", "q2"} {
+		entry := pool.PoolEntry{QueryID: queryID}
+		for _, id := range docs[queryID] {
+			entry.Docs = append(entry.Docs, pool.PooledDoc{DocID: id, Sources: []string{"a"}})
+		}
+		pf.Queries = append(pf.Queries, entry)
+	}
 	require.NoError(t, pool.WritePoolFile(pf, tr.poolPath()))
 }
 
-// writeJudgments grades every listed doc against the pool with poolRunID.
+// writeJudgments grades every listed doc against the pool with poolRunID. A
+// query absent from grades has no entry, as when the judge never reached it.
 func (tr lineageTrack) writeJudgments(t *testing.T, poolRunID string, grades map[string]map[uuid.UUID]int) {
 	t.Helper()
 	jf := &judgment.File{Meta: meta.New("judge")}
 	jf.Meta.Judge = &meta.Judge{Strategy: "fixture"}
 	jf.Meta.PoolRunID = poolRunID
 	for _, queryID := range []string{"q1", "q2"} {
+		if _, ok := grades[queryID]; !ok {
+			continue
+		}
 		entry := judgment.Entry{QueryID: queryID}
 		for id, grade := range grades[queryID] {
 			entry.Docs = append(entry.Docs, judgment.GradedDoc{DocID: id, Grade: grade})
@@ -201,18 +212,4 @@ func (tr lineageTrack) latestReport(t *testing.T) *report.Report {
 	rpt, err := report.ReadLatestReport(tr.latestPath())
 	require.NoError(t, err)
 	return rpt
-}
-
-// setUnjudgedCount stamps meta.unjudged_count the way bench judge records
-// pooled docs it failed to grade.
-func (tr lineageTrack) setUnjudgedCount(t *testing.T, n int) {
-	t.Helper()
-	data, err := os.ReadFile(tr.judgments)
-	require.NoError(t, err)
-	var doc map[string]any
-	require.NoError(t, yaml.Unmarshal(data, &doc))
-	doc["meta"].(map[string]any)["unjudged_count"] = n
-	data, err = yaml.Marshal(doc)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(tr.judgments, data, 0o644))
 }
