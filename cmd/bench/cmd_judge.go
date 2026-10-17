@@ -162,7 +162,7 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 		return err
 	}
 
-	reader, err := openArticleReader(cmd, f.pg)
+	reader, err := articleReader(cmd, f.pg)
 	if err != nil {
 		return err
 	}
@@ -324,6 +324,10 @@ func buildVectorStore(ctx context.Context, f judgeFlags) (storage.VectorStore, s
 	}
 	return store, model, nil
 }
+
+// articleReader opens the reader judging enriches pooled docs from; tests
+// replace it to judge without Postgres.
+var articleReader = openArticleReader
 
 // openArticleReader creates a PG reader for article enrichment. Centralised so
 // the no-key-needed case (manual strategy) can skip it cleanly.

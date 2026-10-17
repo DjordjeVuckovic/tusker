@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -127,4 +131,48 @@ func TestJudgeManual_RecordsThePoolItWasMadeFrom(t *testing.T) {
 	jf, err := judgment.ReadFile(outPath)
 	require.NoError(t, err)
 	assert.Equal(t, "2026-10-17T10-00-00-pool-aaaaaa", jf.Meta.PoolRunID)
+}
+
+type poolArticles map[uuid.UUID]document.Article
+
+func (a poolArticles) GetByIDs(_ context.Context, ids []uuid.UUID) ([]document.Article, error) {
+	out := make([]document.Article, 0, len(ids))
+	for _, id := range ids {
+		if article, ok := a[id]; ok {
+			out = append(out, article)
+		}
+	}
+	return out, nil
+}
+
+func TestJudgeGrading_RecordsThePoolItWasMadeFrom(t *testing.T) {
+	tr := newLineageTrack(t, "http://unused.invalid")
+	climate, election := uuid.New(), uuid.New()
+	pf := &pool.PoolFile{
+		Meta: meta.Meta{RunID: "2026-10-17T10-00-00-pool-aaaaaa", Engines: []string{"a"}},
+		Queries: []pool.PoolEntry{{
+			QueryID:   "q1",
+			QueryDesc: "climate policy",
+			Docs: []pool.PooledDoc{
+				{DocID: climate, Sources: []string{"a"}},
+				{DocID: election, Sources: []string{"a"}},
+			},
+		}},
+	}
+	require.NoError(t, pool.WritePoolFile(pf, tr.poolPath()))
+	articles := poolArticles{
+		climate:  {ID: climate, Title: "Climate policy talks resume", Content: "Negotiators met on climate policy."},
+		election: {ID: election, Title: "Election results", Content: "Votes were counted overnight."},
+	}
+	previous := articleReader
+	articleReader = func(*cobra.Command, string) (storage.Reader, error) { return articles, nil }
+	t.Cleanup(func() { articleReader = previous })
+	outPath := filepath.Join(tr.dir, "trec", "annotations.bm25.yaml")
+
+	_, err := execute(t, newJudgeCmd(), tr.dir, "--strategy", "bm25", "--output", outPath)
+	require.NoError(t, err)
+
+	jf, err := judgment.ReadFile(outPath)
+	require.NoError(t, err)
+	assert.Equal(t, pf.Meta.RunID, jf.Meta.PoolRunID)
 }
