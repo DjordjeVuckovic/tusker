@@ -305,8 +305,7 @@ func (in *loadInputs) Close() {
 	}
 }
 
-// canonicalArticles reads the canonical resource in file order, which is the
-// order the embeddings follow.
+// canonicalArticles reads in file order, which the embeddings follow.
 func canonicalArticles(ctx context.Context, file *datapackage.ResourceFile, format string) iter.Seq2[document.Article, error] {
 	return func(yield func(document.Article, error) bool) {
 		var source reader.RawParallelReader
@@ -358,9 +357,8 @@ func canonicalArticles(ctx context.Context, file *datapackage.ResourceFile, form
 	}
 }
 
-// embeddingRow is one row of an embeddings resource. `,list` matches the
-// 3-level LIST encoding pyarrow writes, which parquet-go otherwise decodes to
-// nil.
+// embeddingRow needs `,list` to read the 3-level LIST encoding pyarrow writes,
+// which parquet-go otherwise decodes to nil.
 type embeddingRow struct {
 	ID        string    `parquet:"id"`
 	Embedding []float32 `parquet:"embedding,list"`
@@ -368,8 +366,6 @@ type embeddingRow struct {
 
 const vectorReadBatch = 256
 
-// packageVectors reads the embeddings resource in row order, tagging each
-// vector with the package's model tag.
 func packageVectors(ctx context.Context, file *datapackage.ResourceFile, tag string) iter.Seq2[embedding.Vec, error] {
 	return func(yield func(embedding.Vec, error) bool) {
 		rows := parquet.NewGenericReader[embeddingRow](file)

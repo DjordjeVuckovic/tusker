@@ -50,8 +50,7 @@ func newSet(e storage.Engine, dir, table string) (Set, error) {
 	return Set{files: sub, table: table}, nil
 }
 
-// Migration is one up file. Name is the file name without its version and
-// suffix.
+// Migration is one up file; Name is its file name minus version and suffix.
 type Migration struct {
 	Version uint64
 	Name    string
@@ -61,7 +60,6 @@ type Migration struct {
 // upFile is golang-migrate's file name pattern, restricted to up migrations.
 var upFile = regexp.MustCompile(`^([0-9]+)_(.*)\.up\.sql$`)
 
-// Migrations lists the set's migrations in version order.
 func (s Set) Migrations() ([]Migration, error) {
 	entries, err := fs.ReadDir(s.files, ".")
 	if err != nil {
@@ -83,8 +81,7 @@ func (s Set) Migrations() ([]Migration, error) {
 	return list, nil
 }
 
-// DirtyError reports a version table left dirty by a migration that failed
-// midway, whose effects are unknown until someone inspects them.
+// DirtyError reports a version table left dirty by a migration that failed midway.
 type DirtyError struct {
 	Table   string
 	Version uint64
@@ -155,7 +152,6 @@ func (s Set) Apply(ctx context.Context, conn *pgx.Conn, m Migration) error {
 	return s.setVersion(ctx, conn, m.Version, false)
 }
 
-// Up applies every pending migration in order.
 func (s Set) Up(ctx context.Context, conn *pgx.Conn) error {
 	pending, err := s.Pending(ctx, conn)
 	if err != nil {

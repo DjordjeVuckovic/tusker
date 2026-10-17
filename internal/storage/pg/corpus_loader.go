@@ -211,9 +211,8 @@ func (l *CorpusLoader) refuseLoaded(ctx context.Context, conn *pgx.Conn) error {
 // indexBuildSettings are the session settings every index migration declares.
 var indexBuildSettings = []string{"maintenance_work_mem", "max_parallel_maintenance_workers"}
 
-// buildIndexes applies each index migration as its own stage and records the
-// build settings as the session reports them. Migrations that disagree on a
-// setting are refused, since the record holds one value per setting.
+// buildIndexes refuses index migrations that disagree on a build setting,
+// since the record holds one value per setting.
 func (l *CorpusLoader) buildIndexes(ctx context.Context, conn *pgx.Conn, record *storage.LoadRecord) error {
 	pending, err := l.indexes.Pending(ctx, conn)
 	if err != nil {
@@ -243,7 +242,6 @@ func now() time.Time {
 	return time.Now().UTC().Truncate(time.Microsecond)
 }
 
-// timed runs one stage of the load and appends its duration to record.
 func timed(record *storage.LoadRecord, stage string, run func() error) error {
 	start := time.Now()
 	if err := run(); err != nil {
@@ -253,8 +251,7 @@ func timed(record *storage.LoadRecord, stage string, run func() error) error {
 	return nil
 }
 
-// copyArticles COPYs the corpus in batches and returns the ids in corpus
-// order, which the vectors must follow.
+// copyArticles returns the ids in corpus order, which the vectors must follow.
 func copyArticles(ctx context.Context, tx pgx.Tx, c storage.Corpus, batchSize int) ([]uuid.UUID, error) {
 	var ids []uuid.UUID
 	toRow := func(a document.Article) ([]any, error) {
@@ -267,15 +264,15 @@ func copyArticles(ctx context.Context, tx pgx.Tx, c storage.Corpus, batchSize in
 		ids = append(ids, a.ID)
 		return insertRow(a)
 	}
-	if err := copyBatches(ctx, tx, "articles", ArticleColumns, c.Articles, toRow, batchSize); err != nil {
+	plan := copyPlan[document.Article]{Table: "articles", Columns: ArticleColumns, Items: c.Articles, ToRow: toRow, BatchSize: batchSize}
+	if err := copyBatches(ctx, tx, plan); err != nil {
 		return nil, fmt.Errorf("copy articles: %w", err)
 	}
 	return ids, nil
 }
 
-// copyVectors COPYs one vector per article, tagged with the corpus model. A
-// vector out of step with the articles is refused, which also refuses one
-// whose article is not in the corpus.
+// copyVectors refuses a vector out of step with the articles, which also
+// refuses one whose article is not in the corpus.
 func copyVectors(ctx context.Context, tx pgx.Tx, c storage.Corpus, ids []uuid.UUID, batchSize int) (int64, error) {
 	var n int64
 	toRow := func(v embedding.Vec) ([]any, error) {
@@ -288,20 +285,34 @@ func copyVectors(ctx context.Context, tx pgx.Tx, c storage.Corpus, ids []uuid.UU
 		n++
 		return []any{v.ID, c.ModelTag, pgvector.NewVector(v.Embedding)}, nil
 	}
-	if err := copyBatches(ctx, tx, "article_embeddings", []string{"article_id", "model_name", "embedding"}, c.Vectors, toRow, batchSize); err != nil {
+	plan := copyPlan[embedding.Vec]{
+		Table:     "article_embeddings",
+		Columns:   []string{"article_id", "model_name", "embedding"},
+		Items:     c.Vectors,
+		ToRow:     toRow,
+		BatchSize: batchSize,
+	}
+	if err := copyBatches(ctx, tx, plan); err != nil {
 		return 0, fmt.Errorf("copy embeddings: %w", err)
 	}
 	return n, nil
 }
 
-// copyBatches streams items into table with one COPY per batch.
-func copyBatches[T any](ctx context.Context, tx pgx.Tx, table string, columns []string, items iter.Seq2[T, error], toRow func(T) ([]any, error), batchSize int) error {
-	next, stop := iter.Pull2(items)
+type copyPlan[T any] struct {
+	Table     string
+	Columns   []string
+	Items     iter.Seq2[T, error]
+	ToRow     func(T) ([]any, error)
+	BatchSize int
+}
+
+func copyBatches[T any](ctx context.Context, tx pgx.Tx, plan copyPlan[T]) error {
+	next, stop := iter.Pull2(plan.Items)
 	defer stop()
-	src := &batchSource[T]{next: next, toRow: toRow}
+	src := &batchSource[T]{next: next, toRow: plan.ToRow}
 	for !src.exhausted {
-		src.left = batchSize
-		if _, err := tx.CopyFrom(ctx, pgx.Identifier{table}, columns, src); err != nil {
+		src.left = plan.BatchSize
+		if _, err := tx.CopyFrom(ctx, pgx.Identifier{plan.Table}, plan.Columns, src); err != nil {
 			return err
 		}
 	}
