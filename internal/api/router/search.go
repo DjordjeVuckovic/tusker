@@ -112,7 +112,7 @@ func (r *SearchRouter) checkCapabilities(c echo.Context, params dquery.Params) (
 // Results are cacheable and URLs are bookmarkable.
 //
 // @Summary Simple query string search
-// @Description Simple text search with automatic field selection and weighting. Cacheable and bookmarkable. Application determines optimal search strategy based on index configuration.
+// @Description Free-text search over title, description and content: operators and quotes are read as words. Terms combine under the engine's default operator (PostgreSQL AND, Elasticsearch OR); the response echoes it in `effective`. Cacheable and bookmarkable.
 // @Tags search
 // @Accept json
 // @Produce json
@@ -120,6 +120,7 @@ func (r *SearchRouter) checkCapabilities(c echo.Context, params dquery.Params) (
 // @Param size query int false "Results per page (default: 100, max: 10000)" example(10)
 // @Param cursor query string false "Pagination cursor (base64-encoded from previous response)"
 // @Param lang query string false "SearchStringQuery language: english, the only one supported (default: english)" example("english")
+// @Param Prefer header string false "handling=lenient drops a parameter the engine cannot honour and lists it in ignored, instead of a 400"
 // @Success 200 {object} dto.SearchResponse "SearchStringQuery results with pagination metadata"
 // @Failure 400 {object} map[string]string "Bad request - missing or invalid parameters"
 // @Failure 500 {object} map[string]string "Internal server error"
@@ -187,16 +188,17 @@ func (r *SearchRouter) searchHandler(c echo.Context) error {
 // Query types: match, multi_match (more coming: bool, phrase, query_string)
 //
 // @Summary Structured search API
-// @Description Execute structured search queries with explicit control over fields, weights, and operators. Supports match and multi_match query types. Follows Elasticsearch query DSL pattern.
+// @Description Structured match, multi_match, phrase, boolean or hybrid search. A stated operator, field, fuzziness or language is honoured by the engine or the request is a 400 naming the parameter and the engine. An omitted operator takes the engine's default (PostgreSQL AND, Elasticsearch OR). Boosts are best effort. With `Prefer: handling=lenient` an unsupported parameter is dropped instead and listed in `ignored`. Every response echoes `effective` and `ignored`.
 // @Tags search
 // @Accept json
 // @Produce json
 // @Param request body dto.SearchRequest true "Structured search request with query wrapper"
+// @Param Prefer header string false "handling=lenient drops a parameter the engine cannot honour and lists it in ignored, instead of a 400"
 // @Success 200 {object} dto.SearchResponse "SearchStringQuery results with pagination metadata"
 // @Failure 400 {object} map[string]string "Bad request - invalid query structure or parameters"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Failure 501 {object} map[string]string "Query type not supported by searcher backend"
-// @Router /v1/articles/structured [post]
+// @Router /v1/articles/_search [post]
 // @Example Match Request:
 //
 //	{

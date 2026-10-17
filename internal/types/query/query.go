@@ -258,7 +258,7 @@ type Match struct {
 
 	// Fuzziness: Typo tolerance (general search concept)
 	// Elasticsearch: Native support via fuzziness parameter
-	// PostgreSQL: Ignored (would require pg_trgm extension)
+	// PostgreSQL: Not supported; see Capabilities
 	Fuzziness Fuzziness `json:"fuzziness,omitempty"`
 }
 

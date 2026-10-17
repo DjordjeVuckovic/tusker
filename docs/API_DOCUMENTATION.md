@@ -9,6 +9,29 @@ The Search Router provides two complementary search APIs following Elasticsearch
 
 ---
 
+## Search Contract
+
+Every engine answers the same request in the same way, or says it cannot:
+
+- **A stated parameter that changes which articles match** (`operator`, `fields`/`field`, `fuzziness`, `language`) is honoured by the engine, or the request fails with 400 naming the parameter and the engine.
+- **An omitted operator** is filled by the engine's own default. The defaults differ on purpose: Postgres favours precision, Elasticsearch recall.
+- **Boosts** (`title^3`) only change ranking. They are best effort, and one the engine drops is listed in `ignored`.
+- **Lenient handling** is opt-in with the RFC 7240 header `Prefer: handling=lenient`. A parameter that would have been a 400 is then dropped and listed in `ignored`, and the response carries `Preference-Applied: handling=lenient`. An unrecognised `handling` value is ignored, so the request stays strict.
+- **Every search response** carries `effective`, the contract the search ran under with every default filled in, and `ignored`, the stated parameters the engine did not honour.
+
+| | PostgreSQL | Elasticsearch |
+|---|---|---|
+| Operator when none is given | AND (every term) | OR (any term) |
+| Fields it can match alone | title, description, content | title, subtitle, description, content, author |
+| `fuzziness` | 400, or ignored when lenient | honoured |
+| Phrase `slop` | honoured | honoured |
+| Boosts | applied to title, description, content | applied |
+| `language` | `english` stems in English | `english` accepted; analysis is fixed by the index mapping |
+
+Postgres keeps subtitle and author in one weight band (D), so it cannot match either alone; naming one is a 400 unless the request is lenient. `GET /v1/capabilities` reports the running engine's row of this table.
+
+---
+
 ## Endpoints
 
 ### 1. Simple Search - `GET /v1/articles/search`
@@ -64,14 +87,17 @@ GET /v1/articles/search?q=climate%20change&size=10&lang=english
   "has_more": true,
   "max_score": 2.589,
   "page_max_score": 2.456,
-  "total_matches": 1523
+  "total_matches": 1523,
+  "effective": {"operator": "OR", "fields": ["title", "description", "content"], "language": "english"},
+  "ignored": []
 }
 ```
 
 **Behavior:**
-- Application automatically searches across: `title`, `description`, `content`
-- Default field weights: equal (1.0)
-- Default operator: OR
+- The query is free text: operators, quotes and `-` are read as words, not syntax
+- Searches `title`, `description` and `content`, each term in any of them
+- Terms combine under the engine's default operator (see [Search Contract](#search-contract))
+- Elasticsearch ranks with title boosted 3 and description 2; Postgres ranks with its default weight bands
 - Results sorted by relevance score (descending)
 
 ---
@@ -109,17 +135,17 @@ GET /v1/articles/search?q=climate%20change&size=10&lang=english
 
 **When to use:**
 - Search in specific field only (e.g., titles only)
-- Need typo tolerance (fuzziness)
+- Need typo tolerance (fuzziness, Elasticsearch only)
 - Require all terms (AND operator)
 
 **Parameters:**
 
 | Field | Type | Required | Description | Example |
 |-------|------|----------|-------------|---------|
-| `field` | string | Yes | Field to search: title, description, content | `"title"` |
+| `field` | string | Yes | Field to search: title, subtitle, description, content, author (Postgres: title, description, content) | `"title"` |
 | `query` | string | Yes | Search text | `"climate change"` |
-| `operator` | string | No | "and" or "or" (default: "or") | `"and"` |
-| `fuzziness` | string | No | Typo tolerance: AUTO, 0, 1, 2 (ES only) | `"AUTO"` |
+| `operator` | string | No | "and" or "or" (default: the engine's) | `"and"` |
+| `fuzziness` | string | No | Typo tolerance: NONE, AUTO, 0, 1, 2. Elasticsearch only; Postgres returns 400 unless lenient | `"AUTO"` |
 | `language` | string | No | english only (default); any other value returns 400 | `"english"` |
 
 **Example Request:**
@@ -148,7 +174,7 @@ POST /v1/articles/_search
 // Require all terms (higher precision)
 {"field": "content", "query": "climate change", "operator": "and"}
 
-// Allow typos (Elasticsearch only)
+// Allow typos (Elasticsearch only; 400 on Postgres)
 {"field": "title", "query": "climte changge", "fuzziness": "AUTO"}
 ```
 
@@ -156,21 +182,19 @@ POST /v1/articles/_search
 
 ### 2.2 Multi-Match Query
 
-**Description:** Multi-field search with custom weights
+**Description:** Multi-field search; each term may match any of the fields
 
 **When to use:**
 - Search across multiple fields
-- Fine-tune relevance with field weights
-- Boost important fields (e.g., title 3x)
+- Boost important fields (e.g., `title^3`)
 
 **Parameters:**
 
 | Field           | Type   | Required | Description                            | Example                |
 |-----------------|--------|----------|----------------------------------------|------------------------|
 | `query`         | string | Yes      | Search text                            | `"renewable energy"`   |
-| `fields`        | array  | Yes      | Fields to search                       | `["title", "content"]` |
-| `field_weights` | object | No       | Field boost multipliers (default: 1.0) | `{"title": 3.0}`       |
-| `operator`      | string | No       | "and" or "or" (default: "or")          | `"or"`                 |
+| `fields`        | array  | Yes      | Fields to search, each optionally boosted as `field^boost` | `["title^3", "content"]` |
+| `operator`      | string | No       | "and" or "or" (default: the engine's)  | `"or"`                 |
 | `language`      | string | No       | english only (default); any other value returns 400 | `"english"` |
 
 **Example Request:**
@@ -182,12 +206,7 @@ POST /v1/articles/_search
   "query": {
     "multi_match": {
       "query": "renewable energy",
-      "fields": ["title", "description", "content"],
-      "field_weights": {
-        "title": 3.0,
-        "description": 2.0,
-        "content": 1.0
-      },
+      "fields": ["title^3", "description^2", "content"],
       "operator": "or",
       "language": "english"
     }
@@ -206,11 +225,7 @@ POST /v1/articles/_search
 // Boost title matches heavily
 {
   "query": "climate change",
-  "fields": ["title", "content"],
-  "field_weights": {
-    "title": 5.0,
-    "content": 1.0
-  }
+  "fields": ["title^5", "content"]
 }
 
 // Require all terms across fields
@@ -234,7 +249,9 @@ All endpoints return the same structure:
   "has_more": boolean,
   "max_score": float64,
   "page_max_score": float64,
-  "total_matches": int64
+  "total_matches": int64,
+  "effective": {"operator": "AND | OR", "fields": [string], "language": "english"},
+  "ignored": [{"param": string, "engine": string, "reason": string}]
 }
 ```
 
@@ -248,6 +265,8 @@ All endpoints return the same structure:
 | `max_score` | float64 | Highest relevance score across all matching documents |
 | `page_max_score` | float64 | Highest score in current page |
 | `total_matches` | int64 | Total number of documents matching the query |
+| `effective` | object | Operator, fields and language the search ran under. A phrase has no operator; hybrid leaves the fields to the engine |
+| `ignored` | array | Stated parameters the engine did not honour, each with the engine and a reason. Empty when everything was honoured |
 
 **ArticleSearchResult Structure:**
 ```json
@@ -319,8 +338,17 @@ GET /v1/articles/search?q=climate&size=10&cursor=eyJzY29yZSI6...
 }
 ```
 
+A parameter the engine cannot honour names itself and the engine:
+```json
+{
+  "error": "fuzziness is not supported by postgres: terms match exactly",
+  "title": "validation error"
+}
+```
+
 **Common causes:**
 - Missing required parameter (`q` or `query` field)
+- A parameter the engine cannot honour in a strict request (see [Search Contract](#search-contract))
 - Invalid operator value
 - Unsupported language (anything but `english`)
 - Invalid size (exceeds max or negative)
@@ -346,7 +374,7 @@ GET /v1/articles/search?q=climate&size=10&cursor=eyJzY29yZSI6...
 ```
 
 **Common causes:**
-- Query type not implemented by active storage (e.g., fuzziness on PostgreSQL)
+- Query type not implemented by active storage
 
 ---
 
@@ -355,11 +383,13 @@ GET /v1/articles/search?q=climate&size=10&cursor=eyJzY29yZSI6...
 | Feature | PostgreSQL | Elasticsearch |
 |---------|------------|---------------|
 | Simple Search (GET) | ✅ Full | ✅ Full |
-| Match Query | ✅ Full | ✅ Full |
-| MultiMatch Query | ✅ Full | ✅ Full |
-| Fuzziness | ❌ Ignored | ✅ Full |
-| Language Analysis | ✅ Full | ✅ Full |
+| Match Query | ✅ title, description, content | ✅ Full |
+| MultiMatch Query | ✅ title, description, content | ✅ Full |
+| Fuzziness | ❌ 400, or ignored when lenient | ✅ Full |
+| Language Analysis | ✅ English stemming | ⚠️ Fixed by the index mapping |
 | Cursor Pagination | ✅ Full | ✅ Full |
+
+`GET /v1/capabilities` returns the query types the server serves (`query_types`) and what the running engine honours (`full_text`: `engine`, `default_operator`, `fuzziness`, `phrase_slop`, `boosts`, `fields`).
 
 ---
 
@@ -385,7 +415,7 @@ GET /v1/articles/search?q=climate&size=10&cursor=eyJzY29yZSI6...
 - ✅ Use `cursor` for pagination (not multiple requests)
 - ✅ Specify only needed `fields` in multi_match
 - ✅ Cache GET responses (5-15 minutes)
-- ✅ Use field weights to improve relevance
+- ✅ Use field boosts to improve relevance
 
 ### 3. Relevance Tuning
 
@@ -394,27 +424,17 @@ GET /v1/articles/search?q=climate&size=10&cursor=eyJzY29yZSI6...
 {"fields": ["title", "content"]}
 
 // Better: Boost important fields
-{
-  "fields": ["title", "content"],
-  "field_weights": {
-    "title": 3.0,
-    "content": 1.0
-  }
-}
+{"fields": ["title^3", "content"]}
 
 // Best: Test and tune based on user feedback
-{
-  "field_weights": {
-    "title": 3.0,
-    "description": 2.0,
-    "content": 1.0
-  }
-}
+{"fields": ["title^3", "description^2", "content"]}
 ```
 
 ### 4. Operator Selection
 
-**OR (default):**
+Leaving `operator` out applies the engine's default: AND on Postgres, OR on Elasticsearch. State it when two engines must answer the same question.
+
+**OR:**
 - Higher recall (more results)
 - "climate" OR "change" - documents with either term
 - Good for discovery

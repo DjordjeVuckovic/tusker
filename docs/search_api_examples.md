@@ -9,6 +9,8 @@ The Tusker API provides comprehensive search capabilities across multiple paradi
 - **Boolean Logic**: Complex queries with AND/OR/NOT operators
 - **Phrase Matching**: Exact phrase search
 
+A stated parameter that changes which articles match is honoured by the engine or rejected with 400; an omitted operator takes the engine's default (Postgres AND, Elasticsearch OR). Send `Prefer: handling=lenient` to run anyway and get the dropped parameters back in `ignored`. Every response echoes `effective` and `ignored`. See the search contract in [API_DOCUMENTATION.md](API_DOCUMENTATION.md#search-contract).
+
 ## API Endpoints
 
 ### 1. Simple Search (GET)
@@ -63,7 +65,9 @@ GET /v1/articles/search?q=renewable energy&cursor=eyJzY29yZSI6...
   "has_more": true,
   "max_score": 1.0,
   "page_max_score": 0.95,
-  "total_matches": 1523
+  "total_matches": 1523,
+  "effective": {"operator": "AND", "fields": ["title", "description", "content"], "language": "english"},
+  "ignored": []
 }
 ```
 
@@ -114,10 +118,10 @@ POST /v1/articles/_search
 ```
 
 **Parameters:**
-- `field` (required): Field to search ("title", "description", "content")
+- `field` (required): Field to search ("title", "subtitle", "description", "content", "author"; Postgres can match only title, description and content alone)
 - `query` (required): Search text
-- `operator` (optional): "and" or "or" (default: "or")
-- `fuzziness` (optional): Typo tolerance - "AUTO", "0", "1", "2" (ES only)
+- `operator` (optional): "and" or "or" (default: the engine's, AND on Postgres and OR on Elasticsearch)
+- `fuzziness` (optional): Typo tolerance - "NONE", "AUTO", "0", "1", "2" (Elasticsearch only; 400 on Postgres unless lenient)
 - `language` (optional): Language for text analysis. Only `"english"` (the default) is supported; any other value returns 400
 
 **Use Cases:**
@@ -130,7 +134,7 @@ POST /v1/articles/_search
 
 ### 2.2. Multi-Match Query
 
-**Description:** Multi-field search with custom field weights
+**Description:** Multi-field search; each term may match any of the fields
 
 **Example:**
 ```json
@@ -140,12 +144,7 @@ POST /v1/articles/_search
   "query": {
     "multi_match": {
       "query": "climate change",
-      "fields": ["title", "description", "content"],
-      "field_weights": {
-        "title": 3.0,
-        "description": 2.0,
-        "content": 1.0
-      },
+      "fields": ["title^3", "description^2", "content"],
       "operator": "or",
       "language": "english"
     }
@@ -155,13 +154,12 @@ POST /v1/articles/_search
 
 **Parameters:**
 - `query` (required): Search text
-- `fields` (required): Array of fields to search
-- `field_weights` (optional): Field boost multipliers (default: 1.0 for all)
-- `operator` (optional): "and" or "or" (default: "or")
+- `fields` (required): Array of fields to search, each optionally boosted as `field^boost`
+- `operator` (optional): "and" or "or" (default: the engine's)
 - `language` (optional): Language for text analysis. Only `"english"` (the default) is supported; any other value returns 400
 
 **Use Cases:**
-- Boost title matches: `"title": 3.0`
+- Boost title matches: `"title^3"`
 - Search across all fields: `fields: ["title", "description", "content"]`
 - Fine-tune relevance: Adjust weights based on importance
 
@@ -282,7 +280,9 @@ All endpoints return the same response structure:
   "has_more": boolean,
   "max_score": float64,
   "page_max_score": float64,
-  "total_matches": int64
+  "total_matches": int64,
+  "effective": {"operator": "AND | OR", "fields": [string], "language": "english"},
+  "ignored": [{"param": string, "engine": string, "reason": string}]
 }
 ```
 
@@ -293,6 +293,8 @@ All endpoints return the same response structure:
 - `max_score`: Highest score across all results
 - `page_max_score`: Highest score in current page
 - `total_matches`: Total number of matching documents
+- `effective`: Operator, fields and language the search ran under, defaults filled in
+- `ignored`: Stated parameters the engine did not honour
 
 ---
 
@@ -333,8 +335,8 @@ All endpoints return the same response structure:
 | Query Type | PostgreSQL | Elasticsearch |
 |------------|------------|---------------|
 | Simple (GET) | ✅ Full | ✅ Full |
-| Match | ✅ Full | ✅ Full + Fuzziness |
-| Multi-Match | ✅ Full | ✅ Full |
+| Match | ✅ No fuzziness; title, description, content | ✅ Full + Fuzziness |
+| Multi-Match | ✅ title, description, content | ✅ Full |
 | Boolean | 🚧 Planned | 🚧 Planned |
 | Phrase | 🚧 Planned | 🚧 Planned |
 
@@ -385,7 +387,7 @@ POST /v1/articles/_search
 }
 ```
 
-### Fuzzy search (typo tolerance)
+### Fuzzy search (typo tolerance, Elasticsearch only)
 ```json
 POST /v1/articles/_search
 {
@@ -406,11 +408,7 @@ POST /v1/articles/_search
   "query": {
     "multi_match": {
       "query": "renewable energy",
-      "fields": ["title", "content"],
-      "field_weights": {
-        "title": 3.0,
-        "content": 1.0
-      }
+      "fields": ["title^3", "content"]
     }
   }
 }
