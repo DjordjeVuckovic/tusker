@@ -19,18 +19,20 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 type runFlags struct {
-	trackArg  string
-	specPath  string
-	suitePath string
-	judgments string
-	output    string
-	kValues   string
-	jobs      string // comma-separated job name filter
-	warmup    int
-	iters     int
+	trackArg    string
+	specPath    string
+	suitePath   string
+	judgments   string
+	output      string
+	kValues     string
+	jobs        string // comma-separated job name filter
+	warmup      int
+	iters       int
+	latencyOnly bool
 }
 
 func newRunCmd() *cobra.Command {
@@ -47,7 +49,15 @@ or a glob, which runs every matching track and writes one report per track.
 The judgments file used for scoring resolves in this order:
   1. --judgments <name|path>      (CLI override)
   2. spec.defaults.judgments      (per-track default)
-  3. none → metrics-less report, warning printed`,
+  3. none → the run fails before measuring anything
+
+A missing judgments file fails the run the same way. --latency-only measures
+latency without judgments; its report is marked latency_only and never becomes
+latest.json.
+
+The report is always written, but bench run exits non-zero and leaves
+latest.json alone when any (query, engine) execution errored or the judgments
+hold pooled docs left unjudged.`,
 		Example: `  bench run tracks/global-news-dataset/fts_quality
   bench run tracks/global-news-dataset/news_semantic
   bench run 'tracks/global-news-dataset/*'        # every paradigm of the dataset
@@ -66,6 +76,7 @@ The judgments file used for scoring resolves in this order:
 	cmd.Flags().StringVar(&f.jobs, "jobs", "", "Comma-separated job names to run (default: all jobs in spec)")
 	cmd.Flags().IntVar(&f.warmup, "warmup", 0, "Warmup iterations")
 	cmd.Flags().IntVar(&f.iters, "iterations", 0, "Measured iterations (0 = spec.runs.iterations)")
+	cmd.Flags().BoolVar(&f.latencyOnly, "latency-only", false, "Measure latency without judgments; the report never becomes latest.json")
 	return cmd
 }
 
@@ -106,33 +117,13 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		return fmt.Errorf("load spec: %w", err)
 	}
 
-	// Wire judgments: --judgments wins, else spec.defaults.judgments, else nothing.
-	// "Explicit" (CLI flag) → missing file is a hard error so typos surface
-	// loudly. "Default" (from spec) → missing is silent so validate/pool can
-	// run before any judging has happened.
-	judgmentsValue := f.judgments
-	explicit := judgmentsValue != ""
-	if !explicit {
-		judgmentsValue = bs.Defaults.Judgments
-	}
-	jPath := tr.JudgmentsPath(judgmentsValue)
-
-	judgmentsMap, judgmentsMeta, err := loadJudgmentsMap(jPath, explicit)
+	judgments, err := loadRunJudgments(f, bs, tr)
 	if err != nil {
 		return err
 	}
-	if judgmentsMeta != nil {
-		currentPool, err := pool.ReadPoolFile(tr.Pool)
-		if err != nil {
-			return fmt.Errorf("read the track's pool to check what %s was graded against: %w", jPath, err)
-		}
-		if err := checkPoolBinding(judgmentsMeta.PoolRunID, currentPool); err != nil {
-			return fmt.Errorf("%s: %w", jPath, err)
-		}
-	}
 
 	runCfg := newRunConfig(f, bs, ks, cmd.Flags().Changed("k"))
-	runCfg.Judgments = judgmentsMap
+	runCfg.Judgments = judgments.grades
 
 	printSpecWarnings(cmd.OutOrStdout(), bs)
 
@@ -198,13 +189,14 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		Spec:      tr.Spec,
 		Suite:     tr.Suite,
 		Pool:      tr.Pool,
-		Judgments: jPath,
+		Judgments: judgments.path,
 	}
-	if judgmentsMeta != nil {
-		rpt.Provenance.Judge = judgmentsMeta.Judge
-		rpt.Provenance.GradedCount = judgmentsMeta.GradedCount
-		rpt.Provenance.PoolRef = judgmentsMeta.PoolRef
+	if judgments.meta != nil {
+		rpt.Provenance.Judge = judgments.meta.Judge
+		rpt.Provenance.GradedCount = judgments.meta.GradedCount
+		rpt.Provenance.PoolRef = judgments.meta.PoolRef
 	}
+	rpt.Settings.LatencyOnly = f.latencyOnly
 
 	report.WriteTable(rpt, os.Stdout)
 	fmt.Fprintf(os.Stdout, "%s %s\n", cDim.Sprint("Elapsed:"), elapsed.Round(time.Millisecond))
@@ -216,34 +208,135 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	if err := report.WriteJSON(rpt, outPath); err != nil {
 		return fmt.Errorf("write report: %w", err)
 	}
-	if outPath != "" && f.output == "" {
+	printDone(cmd.OutOrStdout(), "Report written: "+outPath)
+
+	failures := runFailures(result, judgments.unjudged)
+	if len(failures) > 0 {
+		return fmt.Errorf("%s\n  • report written to %s; latest.json was not moved", strings.Join(failures, "\n"), outPath)
+	}
+	switch {
+	case f.output != "":
+	case f.latencyOnly:
+		printWarn(cmd.OutOrStdout(), "latest.json not moved: a latency-only run is not the track's result")
+	default:
 		if err := updateLatestPointer(tr.LatestReportPath(), outPath); err != nil {
 			printWarn(cmd.OutOrStdout(), fmt.Sprintf("could not update latest.json pointer: %v", err))
 		}
 	}
-	printDone(cmd.OutOrStdout(), "Report written: "+outPath)
 	return nil
 }
 
-// loadJudgmentsMap reads a judgments YAML and flattens to a runner-friendly
-// map[queryID][docID]grade. Filters out unjudged entries (grade < 0).
-//
-// Missing-file semantics depend on explicit:
-//   - explicit=true (user passed --judgments) → error, so typos surface loud.
-//   - explicit=false (spec.defaults.judgments) → return nil, runner reports
-//     "no judgments" in the table. This lets validate/pool run on a fresh
-//     track that hasn't been judged yet.
-func loadJudgmentsMap(path string, explicit bool) (map[string]map[string]int, *meta.Meta, error) {
-	if path == "" {
-		return nil, nil, nil
+// runJudgments is what a run scores against. A latency-only run has none.
+type runJudgments struct {
+	path     string
+	grades   map[string]map[string]int
+	meta     *meta.Meta
+	unjudged int
+}
+
+// loadRunJudgments resolves --judgments, else spec.defaults.judgments, and
+// refuses a run with neither unless it is latency-only, so an unscored report
+// never stands in for the track's results.
+func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJudgments, error) {
+	if f.latencyOnly {
+		if f.judgments != "" {
+			return nil, errors.New("--latency-only scores nothing, so --judgments would be ignored; pass one of them")
+		}
+		return &runJudgments{}, nil
 	}
+
+	value := f.judgments
+	explicit := value != ""
+	if !explicit {
+		value = bs.Defaults.Judgments
+	}
+	path := tr.JudgmentsPath(value)
+	if path == "" {
+		return nil, errors.New("no judgments to score against: set spec.defaults.judgments or pass --judgments\n" +
+			"  • or pass --latency-only to measure latency without scoring")
+	}
+
+	grades, judgmentsMeta, err := loadJudgmentsMap(path, explicit)
+	if err != nil {
+		return nil, err
+	}
+	currentPool, err := pool.ReadPoolFile(tr.Pool)
+	if err != nil {
+		return nil, fmt.Errorf("read the track's pool to check what %s was graded against: %w", path, err)
+	}
+	if err := checkPoolBinding(judgmentsMeta.PoolRunID, currentPool); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	unjudged, err := unjudgedCount(path)
+	if err != nil {
+		return nil, err
+	}
+	return &runJudgments{path: path, grades: grades, meta: judgmentsMeta, unjudged: unjudged}, nil
+}
+
+// unjudgedCount reads meta.unjudged_count, the pooled docs the judge failed to
+// grade. meta.Meta does not model the field, so it is decoded here; a file
+// without it counts as fully judged.
+func unjudgedCount(path string) (int, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, fmt.Errorf("read judgments %s: %w", path, err)
+	}
+	var counts struct {
+		Meta struct {
+			UnjudgedCount *int `yaml:"unjudged_count"`
+		} `yaml:"meta"`
+	}
+	if err := yaml.Unmarshal(data, &counts); err != nil {
+		return 0, fmt.Errorf("parse judgments %s: %w", path, err)
+	}
+	if counts.Meta.UnjudgedCount == nil {
+		return 0, nil
+	}
+	return *counts.Meta.UnjudgedCount, nil
+}
+
+// runFailures lists why a finished run cannot stand as the track's result.
+func runFailures(result *runner.BenchmarkResult, unjudged int) []string {
+	var failures []string
+	if cells := erroredCells(result); len(cells) > 0 {
+		failures = append(failures, fmt.Sprintf("%d (query, engine) executions errored: %s", len(cells), strings.Join(cells, ", ")))
+	}
+	if unjudged > 0 {
+		failures = append(failures, fmt.Sprintf("the judgments leave %d pooled docs unjudged", unjudged))
+	}
+	return failures
+}
+
+func erroredCells(result *runner.BenchmarkResult) []string {
+	var cells []string
+	for _, jr := range result.Jobs {
+		for _, queryID := range jr.QueryOrder {
+			for _, engineName := range jr.EngineNames {
+				if qr, ok := jr.Results[queryID][engineName]; ok && qr.Error != nil {
+					cells = append(cells, fmt.Sprintf("%s:%s/%s", jr.JobName, queryID, engineName))
+				}
+			}
+		}
+	}
+	return cells
+}
+
+// loadJudgmentsMap reads a judgments YAML and flattens to a runner-friendly
+// map[queryID][docID]grade. Filters out unjudged entries (grade < 0). A missing
+// file is an error; explicit says whether it came from --judgments or the
+// spec default, which only changes the advice.
+func loadJudgmentsMap(path string, explicit bool) (map[string]map[string]int, *meta.Meta, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if explicit {
 			return nil, nil, fmt.Errorf("--judgments file not found: %s\n"+
 				"  • check the strategy name (lexical, claude-cli, claude-api, manual)\n"+
-				"  • or pass an explicit path to an existing YAML", path)
+				"  • or pass an explicit path to an existing YAML\n"+
+				"  • or pass --latency-only to measure latency without scoring", path)
 		}
-		return nil, nil, nil
+		return nil, nil, fmt.Errorf("spec.defaults.judgments file not found: %s\n"+
+			"  • judge the track first (bench judge)\n"+
+			"  • or pass --latency-only to measure latency without scoring", path)
 	}
 	jf, err := judgment.ReadFile(path)
 	if err != nil {

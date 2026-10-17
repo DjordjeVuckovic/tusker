@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // fakeIndex is one engine's index in fakeCluster: its document count and the
@@ -185,4 +187,32 @@ func execute(t *testing.T, cmd *cobra.Command, args ...string) (string, error) {
 	cmd.SetArgs(args)
 	err := cmd.ExecuteContext(context.Background())
 	return out.String(), err
+}
+
+func (tr lineageTrack) latestPath() string { return filepath.Join(tr.dir, "reports", "latest.json") }
+
+// latestReport returns the report latest.json points at, or nil when there is
+// no pointer.
+func (tr lineageTrack) latestReport(t *testing.T) *report.Report {
+	t.Helper()
+	if _, err := os.Stat(tr.latestPath()); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	rpt, err := report.ReadLatestReport(tr.latestPath())
+	require.NoError(t, err)
+	return rpt
+}
+
+// setUnjudgedCount stamps meta.unjudged_count the way bench judge records
+// pooled docs it failed to grade.
+func (tr lineageTrack) setUnjudgedCount(t *testing.T, n int) {
+	t.Helper()
+	data, err := os.ReadFile(tr.judgments)
+	require.NoError(t, err)
+	var doc map[string]any
+	require.NoError(t, yaml.Unmarshal(data, &doc))
+	doc["meta"].(map[string]any)["unjudged_count"] = n
+	data, err = yaml.Marshal(doc)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(tr.judgments, data, 0o644))
 }

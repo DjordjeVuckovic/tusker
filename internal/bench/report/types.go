@@ -24,6 +24,7 @@ type Report struct {
 	Environment   RunEnvironment `json:"environment"`
 	Jobs          []JobReport    `json:"jobs"`
 	Config        ReportConfig   `json:"config"`
+	Settings      RunSettings    `json:"settings"`
 }
 
 // RunEnvironment captures the runtime context of a bench run — engines tested,
@@ -160,3 +161,11 @@ func (s LatencyStats) P75() time.Duration { return s.Percentiles[75] }
 func (s LatencyStats) P90() time.Duration { return s.Percentiles[90] }
 func (s LatencyStats) P95() time.Duration { return s.Percentiles[95] }
 func (s LatencyStats) P99() time.Duration { return s.Percentiles[99] }
+
+// RunSettings are the choices a run was made with beyond the spec's measured
+// knobs.
+type RunSettings struct {
+	// LatencyOnly marks a run made without judgments: its quality metrics are
+	// absent, not zero.
+	LatencyOnly bool `json:"latency_only"`
+}
