@@ -297,7 +297,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		}
 	}
 
-	whereClause := buildFieldMatch(query.Params().Fields, phraseExpr, true)
+	whereClause := buildPhraseFieldMatch(query.Fields, phraseExpr)
 	rankExpr := fmt.Sprintf("ts_rank(search_vector, %s)", phraseExpr)
 
 	slog.Debug("PostgreSQL phrase query components",

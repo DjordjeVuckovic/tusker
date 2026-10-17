@@ -169,6 +169,22 @@ func buildFieldMatch(fieldBoosts []query.FieldWeight, queryExpr string, prefilte
 	return fmt.Sprintf("%s AND %s", match, bandMatch)
 }
 
+// buildPhraseFieldMatch matches a phrase within one weight band at a time. The
+// search_vector concatenates the fields, so the last word of one sits next to
+// the first word of the next, and a phrase matched across bands could span
+// that boundary. No fields means every band.
+func buildPhraseFieldMatch(fields []query.Field, phraseExpr string) string {
+	labels := buildWeightLabels(fields)
+	if labels == "" {
+		labels = "ABCD"
+	}
+	perBand := make([]string, 0, len(labels))
+	for _, label := range strings.ToLower(labels) {
+		perBand = append(perBand, fmt.Sprintf("ts_filter(search_vector, '{%c}') @@ %s", label, phraseExpr))
+	}
+	return fmt.Sprintf("search_vector @@ %s AND (%s)", phraseExpr, strings.Join(perBand, " OR "))
+}
+
 // buildPhraseSlopQuery joins tsquery lexemes, already quoted, into the phrase
 // with every gap of up to slop words between neighbours. <N> means N-1 words
 // apart, so slop 2 for ['climat' 'chang'] gives

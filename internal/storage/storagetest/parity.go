@@ -40,6 +40,7 @@ var (
 	termsApartInTitle      = uuid.MustParse("00000000-0000-0000-0000-00000000c010")
 	tariffDescriptionOnly  = uuid.MustParse("00000000-0000-0000-0000-00000000c011")
 	agreedOneWordApart     = uuid.MustParse("00000000-0000-0000-0000-00000000c012")
+	phraseInDescription    = uuid.MustParse("00000000-0000-0000-0000-00000000c013")
 )
 
 // ParityCorpus returns the articles every ParityCase searches.
@@ -57,6 +58,7 @@ func ParityCorpus() []document.Article {
 		{ID: termsApartInTitle, Title: "budget harbor tariff"},
 		{ID: tariffDescriptionOnly, Title: "harbor", Description: "tariff"},
 		{ID: agreedOneWordApart, Title: "harbor deal agreed"},
+		{ID: phraseInDescription, Title: "harbor", Description: "budget tariff talks"},
 	}
 	for i := range articles {
 		articles[i].URL = "https://example.com/" + articles[i].ID.String()
@@ -80,10 +82,12 @@ type ParityCase struct {
 var (
 	titleEveryTerm    = []uuid.UUID{bothInTitle, termsApartInTitle}
 	titleAnyTerm      = []uuid.UUID{bothInTitle, titleAndContent, tariffTitleAuthor, budgetTitleOnly, budgetTitleSubtitle, termsApartInTitle}
-	contractEveryTerm = []uuid.UUID{bothInTitle, titleAndContent, descriptionAndContent, descriptionThenContent, termsApartInTitle}
-	contractAnyTerm   = []uuid.UUID{
+	contractEveryTerm = []uuid.UUID{
+		bothInTitle, titleAndContent, descriptionAndContent, descriptionThenContent, termsApartInTitle, phraseInDescription,
+	}
+	contractAnyTerm = []uuid.UUID{
 		bothInTitle, titleAndContent, descriptionAndContent, tariffTitleAuthor, budgetTitleOnly,
-		budgetTitleSubtitle, descriptionThenContent, termsApartInTitle, tariffDescriptionOnly,
+		budgetTitleSubtitle, descriptionThenContent, termsApartInTitle, tariffDescriptionOnly, phraseInDescription,
 	}
 	titleOrContentEveryTerm = []uuid.UUID{bothInTitle, titleAndContent, termsApartInTitle}
 	titleOrContentAnyTerm   = []uuid.UUID{
@@ -148,7 +152,7 @@ func ParityCases() []ParityCase {
 			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
 				return searchFields(ctx, s, []string{"description^2.5", "content"}, query.WithMultiMatchOperator(operator.And))
 			},
-			Want: []uuid.UUID{descriptionAndContent, descriptionThenContent},
+			Want: []uuid.UUID{descriptionAndContent, descriptionThenContent, phraseInDescription},
 		},
 		{
 			Name: "multi_match with OR",
@@ -186,6 +190,22 @@ func ParityCases() []ParityCase {
 				return searchPhrase(ctx, s, "budget tariff", []query.Field{query.FieldContent}, 1)
 			},
 			Want: nil,
+		},
+		{
+			// descriptionThenContent's phrase spans the end of one field and
+			// the start of the next; only phraseInDescription holds it in one.
+			Name: "phrase over several fields matches within each field",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return searchPhrase(ctx, s, "budget tariff", []query.Field{query.FieldDescription, query.FieldContent}, 0)
+			},
+			Want: []uuid.UUID{phraseInDescription},
+		},
+		{
+			Name: "phrase with slop over several fields matches within each field",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return searchPhrase(ctx, s, "budget tariff", []query.Field{query.FieldDescription, query.FieldContent}, 1)
+			},
+			Want: []uuid.UUID{phraseInDescription},
 		},
 		{
 			Name: "phrase with slop allows a word between the terms",
