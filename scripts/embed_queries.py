@@ -249,6 +249,11 @@ def run(args: argparse.Namespace) -> Path:
         max_tokens=spec.max_tokens,
         dim=spec.dim,
     )
+    broken = embed_corpus.non_finite_ids([query.id for query in suite.queries], vectors)
+    if broken:
+        raise embed_corpus.PackageError(
+            f"queries {broken} embedded to non-finite vectors"
+        )
     rows = pa.Table.from_arrays(
         [
             pa.array([query.id for query in suite.queries], type=pa.string()),

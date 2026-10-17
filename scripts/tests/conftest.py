@@ -147,6 +147,23 @@ def padded_tiny_model(
     return directory
 
 
+@pytest.fixture(scope="session")
+def overflowing_tiny_model(
+    tiny_model: Path, tmp_path_factory: pytest.TempPathFactory
+) -> Path:
+    """The tiny model with an infinite final-norm weight, so every vector it emits is non-finite."""
+    import torch
+    from transformers.models.qwen3 import Qwen3Model
+
+    directory = tmp_path_factory.mktemp("tiny-qwen3-overflow")
+    shutil.copytree(tiny_model, directory, dirs_exist_ok=True)
+    model = Qwen3Model.from_pretrained(tiny_model)
+    with torch.no_grad():
+        model.norm.weight[0] = float("inf")
+    model.save_pretrained(directory)
+    return directory
+
+
 def model_args(model: Path) -> list[str]:
     return [
         "--model",

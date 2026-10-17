@@ -3,7 +3,13 @@ from pathlib import Path
 
 import numpy as np
 import pyarrow.parquet as pq
-from conftest import article, run_script, sha256_of, write_canonical_package
+from conftest import (
+    article,
+    model_args,
+    run_script,
+    sha256_of,
+    write_canonical_package,
+)
 
 SUITE = """\
 schema_version: 1
@@ -148,3 +154,13 @@ def test_a_description_yaml_could_read_as_a_number_keeps_its_literal_text(
 
     assert result.returncode == 0, result.stderr
     assert read_query_vectors(query_vectors(tmp_path / "track"))["text"][1] == "2024"
+
+
+def test_refuses_to_publish_non_finite_query_vectors(tmp_path, overflowing_tiny_model):
+    suite = write_suite(tmp_path / "track")
+
+    result = run_script("embed_queries.py", suite, *model_args(overflowing_tiny_model))
+
+    assert result.returncode != 0
+    assert "q-climate" in result.stderr
+    assert not query_vectors(tmp_path / "track").exists()

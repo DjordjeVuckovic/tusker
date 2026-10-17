@@ -420,6 +420,12 @@ def encode(
     return vectors
 
 
+def non_finite_ids(ids: list[str], vectors: np.ndarray) -> list[str]:
+    """Return the ids whose vector holds a NaN or inf, which fp16 overflow produces silently."""
+    broken_rows = np.flatnonzero(~np.isfinite(vectors).all(axis=1))
+    return [ids[row] for row in broken_rows]
+
+
 def sweep_batch_size(
     encoder: Encoder, texts: list[str], *, max_tokens: int, dim: int
 ) -> int:
@@ -832,6 +838,11 @@ def embed_shards(source: SourcePackage, encoder: Encoder, plan: EmbedPlan) -> No
             max_tokens=plan.spec.max_tokens,
             dim=plan.spec.dim,
         )
+        broken = non_finite_ids(shard.ids, vectors)
+        if broken:
+            raise PackageError(
+                f"shard {shard.index} has {len(broken)} non-finite vectors, first ids: {broken[:5]}"
+            )
         save_shard(plan.checkpoint_dir, shard, vectors)
         embedded += len(shard.ids)
         rate = embedded / max(time.monotonic() - started, 1e-9)

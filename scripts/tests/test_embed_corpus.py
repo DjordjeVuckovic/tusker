@@ -517,3 +517,16 @@ def test_a_vector_is_the_model_card_last_token_pool_sliced_then_normalised(
     expected = torch.nn.functional.normalize(pooled, p=2, dim=1).numpy()
     _, vectors = read_embeddings(only_package(tmp_path / "out"))
     np.testing.assert_allclose(vectors, expected, atol=1e-5)
+
+
+def test_refuses_to_publish_non_finite_vectors(tmp_path, overflowing_tiny_model):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    result = embed(
+        canonical.descriptor, tmp_path / "out", *model_args(overflowing_tiny_model)
+    )
+
+    assert result.returncode != 0
+    assert "shard 0" in result.stderr
+    assert ROWS[0]["id"] in result.stderr
+    assert package_dirs(tmp_path / "out") == []
