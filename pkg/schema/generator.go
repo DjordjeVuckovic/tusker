@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -39,6 +40,9 @@ type JSONSchema struct {
 	If          *JSONSchema            `json:"if,omitempty"`
 	Then        *JSONSchema            `json:"then,omitempty"`
 	Else        *JSONSchema            `json:"else,omitempty"`
+	// AdditionalProperties is false to close an object, or the schema of a
+	// map's values.
+	AdditionalProperties any `json:"additionalProperties,omitempty"`
 }
 
 // ValidationError represents schema validation errors
@@ -58,6 +62,12 @@ type GeneratorConfig struct {
 	UseDefinitions      bool
 	BaseURI             string
 	SkipSchemaReference bool
+	// ClosedObjects sets additionalProperties: false on every struct, so an
+	// unknown or misspelled key fails validation.
+	ClosedObjects bool
+	// RequireUnlessOmitted marks every field whose json tag lacks omitempty or
+	// omitzero as required, on top of the schema:"required" tag.
+	RequireUnlessOmitted bool
 }
 
 const schemaRef = "https://json-schema.org/draft/2020-12/schema"
@@ -138,6 +148,8 @@ func (g *Generator) generateSchemaForType(t reflect.Type, isRoot bool) (*JSONSch
 		return g.generateStructSchema(t, isRoot)
 	case reflect.Slice:
 		return g.generateSliceSchema(t)
+	case reflect.Map:
+		return g.generateMapSchema(t)
 	case reflect.String:
 		schema.Type = "string"
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -164,6 +176,9 @@ func (g *Generator) generateStructSchema(t reflect.Type, isRoot bool) (*JSONSche
 	schema := &JSONSchema{
 		Type:       "object",
 		Properties: make(map[string]*JSONSchema),
+	}
+	if g.config.ClosedObjects {
+		schema.AdditionalProperties = false
 	}
 
 	if isRoot {
@@ -231,6 +246,17 @@ func (g *Generator) generateSliceSchema(t reflect.Type) (*JSONSchema, error) {
 
 	schema.Items = itemSchema
 	return schema, nil
+}
+
+func (g *Generator) generateMapSchema(t reflect.Type) (*JSONSchema, error) {
+	if t.Key().Kind() != reflect.String {
+		return nil, fmt.Errorf("unsupported map key type: %s", t.Key().Kind())
+	}
+	valueSchema, err := g.generateSchemaForType(t.Elem(), false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate schema for map values: %w", err)
+	}
+	return &JSONSchema{Type: "object", AdditionalProperties: valueSchema}, nil
 }
 
 func (g *Generator) generateFieldSchema(field reflect.StructField) (*JSONSchema, error) {
@@ -430,8 +456,14 @@ func (g *Generator) getFieldName(field reflect.StructField) string {
 }
 
 func (g *Generator) isFieldRequired(field reflect.StructField) bool {
-	schemaTag := field.Tag.Get("schema")
-	return strings.Contains(schemaTag, "required")
+	if strings.Contains(field.Tag.Get("schema"), "required") {
+		return true
+	}
+	if !g.config.RequireUnlessOmitted {
+		return false
+	}
+	options := strings.Split(field.Tag.Get("json"), ",")[1:]
+	return !slices.Contains(options, "omitempty") && !slices.Contains(options, "omitzero")
 }
 
 func (g *Generator) getTypeComment(t reflect.Type) string {

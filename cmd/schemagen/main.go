@@ -18,8 +18,15 @@ func main() {
 		includeExamples = flag.Bool("examples", true, "Include example configurations")
 		baseURI         = flag.String("base-uri", "https://schemas.tusker.sh", "Base URI for schema IDs")
 		verbose         = flag.Bool("verbose", false, "Enable verbose logging")
+		dataPackageDir  = flag.String("datapackage-output", "api/datapackage-spec", "Output directory for the data package descriptor schema")
 	)
 	flag.Parse()
+
+	dataPackageFile, err := writeDataPackageSchema(*dataPackageDir)
+	if err != nil {
+		log.Fatalf("Failed to generate data package schema: %v", err)
+	}
+	fmt.Printf("✅ Generated JSON schema: %s\n", dataPackageFile)
 
 	if *verbose {
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
