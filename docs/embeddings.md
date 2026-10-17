@@ -56,7 +56,13 @@ the width. The tag carries the width: `qwen3-embedding:0.6b@1024`.
 
 A row with neither a title nor a description is refused before the model loads.
 Loaders pair vectors with articles by position, so no row can be skipped. In
-cc-news 18.8% of articles have no description and embed as title only.
+cc-news 180,295 of 707,910 canonical rows (25.5%) have no description and embed
+as title only. Ids have to be canonical lowercase uuid text, because loaders
+compare them byte for byte; anything else is refused rather than rewritten.
+
+A shard or a query whose vector comes out NaN or inf, which fp16 overflow does
+silently, is refused before it is written, with the shard number and the first
+ids.
 
 ### The embeddings package
 
@@ -145,9 +151,14 @@ pip install kaggle          # token from kaggle.com/settings/api -> ~/.kaggle/ka
 ```bash
 uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
 kaggle datasets init -p /tmp/tusker-payload
-# edit /tmp/tusker-payload/dataset-metadata.json: set title and id
-kaggle datasets create -p /tmp/tusker-payload
+# edit /tmp/tusker-payload/dataset-metadata.json: set the title, and the id that
+# datasets/cc-news/kernel-metadata.json lists under dataset_sources
+kaggle datasets version -p /tmp/tusker-payload -m "slim <canonical version>"
 ```
+
+`version` adds a new version to `djordjevuckovic/tusker-cc-news`, which the
+kernel already reads. `kaggle datasets create` fails on a dataset that exists;
+use it only for a new dataset, then point `dataset_sources` at that id.
 
 **3. Push the kernel.** Set your username in
 `datasets/cc-news/kernel-metadata.json` first. Pushing also starts the run.
@@ -208,7 +219,7 @@ the track's `suite.yaml` and a copy of `scripts/embed_corpus.py`, which
 mkdir -p /tmp/tusker-queries
 cp tracks/cc-news/<paradigm>/suite.yaml scripts/embed_corpus.py /tmp/tusker-queries/
 kaggle datasets init -p /tmp/tusker-queries        # set title and id
-kaggle datasets create -p /tmp/tusker-queries
+kaggle datasets create -p /tmp/tusker-queries      # first time; later runs use `kaggle datasets version`
 kaggle kernels push -p scripts/kaggle/queries
 kaggle kernels output djordjevuckovic/tusker-embed-queries -p /tmp/tusker-queries-out
 mv /tmp/tusker-queries-out/query-vectors tracks/cc-news/<paradigm>/trec/
@@ -228,8 +239,9 @@ saved, which cuts padding waste (2.2x on an M4 Pro) without changing the order.
   never be resumed as, or mistaken for, the full package.
 - Re-running a finished package verifies it and exits. A package that no longer
   verifies is refused, never overwritten.
-- `--clean-checkpoints` drops the shards once the package is written. That
-  halves peak disk, about 5.8 GB down to 2.9 GB for cc-news.
+- `--clean-checkpoints` drops the shards once the package is written. The merge
+  still runs with every shard on disk, so peak disk stays at shards plus Parquet,
+  about 5.8 GB for cc-news; only what is left afterwards halves, to 2.9 GB.
 
 `--batch-size` defaults to 64. Wider batches have measured slower on every device
 tried so far: on an M4 Pro 64 beat 128 and 256 fell off a cliff, and on a Colab
@@ -250,7 +262,10 @@ uv run --no-project --python 3.11 --with-requirements scripts/tests/requirements
 ### Running
 
 ```bash
-cp cmd/datapipe/embeddings.env.example cmd/datapipe/embeddings.env   # then edit
+cp cmd/datapipe/embeddings.env.example cmd/datapipe/embeddings.env   # then edit the file path
+# The example's model name has no width and would match no query vector.
+sed -i.bak 's/^EMBEDDING_MODEL=.*/EMBEDDING_MODEL=qwen3-embedding:0.6b@1024/' cmd/datapipe/embeddings.env
+rm cmd/datapipe/embeddings.env.bak
 go run ./cmd/datapipe load embeddings
 ```
 
@@ -259,8 +274,8 @@ Re-runnable: each batch is COPYed into a temp staging table, then upserted
 repeated safely.
 
 The loader reads the model name from Parquet metadata, which `embed_corpus.py`
-no longer writes; the descriptor holds it. Set `EMBEDDING_MODEL` to the
-descriptor's `embedding.tag`.
+no longer writes; the descriptor holds it, as `embedding.tag`. That is why
+`EMBEDDING_MODEL` has to be set to the full tag above.
 
 When loading from S3 the file is first downloaded to a temp file (via
 `os.CreateTemp`, cleaned up on exit). The corpus embeddings file can be several
@@ -277,5 +292,5 @@ GB — ensure the system temp dir (`$TMPDIR`) has enough space, or set
 | `EMBEDDING_S3_REGION` / `_BUCKET` / `_KEY` | object location |
 | `EMBEDDING_S3_ACCESS_KEY` / `_SECRET_KEY` | credentials (falls back to default AWS chain if unset) |
 | `EMBEDDING_S3_USE_PATH_STYLE` | `true` for MinIO, `false` for AWS S3 |
-| `EMBEDDING_MODEL` | model name stored as `model_name`; required for packages `embed_corpus.py` writes |
+| `EMBEDDING_MODEL` | model name stored as `model_name`; required for packages `embed_corpus.py` writes, as the full tag (`qwen3-embedding:0.6b@1024`) |
 | `EMBEDDING_BATCH_SIZE` | rows per bulk upsert (default 5000) |

@@ -668,7 +668,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--clean-checkpoints",
         action="store_true",
-        help="delete the checkpoints once the package is written; halves peak disk, forfeits resume",
+        help="delete the checkpoints once the package is written; halves what stays on disk, not the peak, and forfeits resume",
     )
     return parser.parse_args(argv)
 
