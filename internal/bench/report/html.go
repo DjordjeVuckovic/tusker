@@ -112,17 +112,19 @@ type htmlJob struct {
 	LatencyChart template.HTML
 	EngineLegend []htmlLegendItem
 	KValues      []int
+	CoverageK    int
 	FilterID     string // unique ID for per-query filter input
 }
 
 type htmlAggRow struct {
-	Engine string
-	NDCG   []htmlCell
-	MAP    htmlCell
-	MRR    htmlCell
-	Bpref  htmlCell
-	Judged string
-	Errors string
+	Engine   string
+	NDCG     []htmlCell
+	MAP      htmlCell
+	MRR      htmlCell
+	Bpref    htmlCell
+	Coverage string
+	Judged   string
+	Errors   string
 }
 
 type htmlCell struct {
@@ -186,9 +188,10 @@ func buildViewModel(r *Report) htmlReport {
 
 	for ji, jr := range r.Jobs {
 		job := htmlJob{
-			Name:     jr.JobName,
-			KValues:  kVals,
-			FilterID: fmt.Sprintf("pq-filter-%d", ji),
+			Name:      jr.JobName,
+			KValues:   kVals,
+			CoverageK: largestK(kVals),
+			FilterID:  fmt.Sprintf("pq-filter-%d", ji),
 		}
 
 		for i, agg := range jr.Aggregated {
@@ -206,6 +209,7 @@ func buildViewModel(r *Report) htmlReport {
 			row.MAP = htmlCell{Val: fmt.Sprintf("%.4f", agg.MAP)}
 			row.MRR = htmlCell{Val: fmt.Sprintf("%.4f", agg.MRR)}
 			row.Bpref = htmlCell{Val: fmt.Sprintf("%.4f", agg.MBpref)}
+			row.Coverage = fmtRecorded(agg.JudgedCoverage)
 			row.Judged = fmt.Sprintf("%d/%d", agg.JudgedCount, agg.QueryCount)
 			row.Errors = fmt.Sprintf("%d/%d", agg.ErrorCount, agg.QueryCount)
 			job.Aggregated = append(job.Aggregated, row)

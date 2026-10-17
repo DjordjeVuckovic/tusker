@@ -361,3 +361,25 @@ func TestWriters_LatencyTablesShowExcludedQueries(t *testing.T) {
 	assert.Contains(t, string(html), "<th>Excluded</th>")
 	assert.Contains(t, string(html), "<td>7</td>")
 }
+
+func TestWriters_MarkdownAndHTMLShowJudgedCoverage(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:    "coverage",
+			PerQuery:   []Entry{{QueryID: "q1", EngineName: "pg", Judged: true}},
+			Aggregated: []AggregatedEntry{{EngineName: "pg", JudgedCount: 1, QueryCount: 1, JudgedCoverage: ptr(0.625)}},
+		}},
+	}
+	var markdown bytes.Buffer
+	WriteMarkdown(r, &markdown)
+	htmlPath := filepath.Join(t.TempDir(), "report.html")
+	require.NoError(t, WriteHTML(r, htmlPath))
+	html, err := os.ReadFile(htmlPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, markdown.String(), "Coverage@10")
+	assert.Contains(t, markdown.String(), "| 0.6250 |")
+	assert.Contains(t, string(html), "<th>Coverage@10</th>")
+	assert.Contains(t, string(html), "0.6250")
+}

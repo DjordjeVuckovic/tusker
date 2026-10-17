@@ -131,10 +131,10 @@ func writeMDMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry
 	for _, k := range kValues {
 		hdr = append(hdr, fmt.Sprintf("P@%d", k))
 	}
-	hdr = append(hdr, "MAP", "MRR", "Bpref", "Judged", "Errors")
+	hdr = append(hdr, "MAP", "MRR", "Bpref", fmt.Sprintf("Coverage@%d", largestK(kValues)), "Judged", "Errors")
 	t.AppendHeader(hdr)
 
-	numMetricCols := len(kValues)*2 + 3
+	numMetricCols := len(kValues)*2 + 4
 	for _, agg := range aggregated {
 		row := table.Row{agg.EngineName}
 		if agg.JudgedCount > 0 {
@@ -148,6 +148,7 @@ func writeMDMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry
 				fmt.Sprintf("%.4f", agg.MAP),
 				fmt.Sprintf("%.4f", agg.MRR),
 				fmt.Sprintf("%.4f", agg.MBpref),
+				fmtRecorded(agg.JudgedCoverage),
 			)
 		} else {
 			for i := 0; i < numMetricCols; i++ {

@@ -150,7 +150,7 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
       <thead><tr>
         <th>Engine</th>
         {{range .KValues}}<th>NDCG@{{.}} (gain {{$.NDCGGain}})</th>{{end}}
-        <th>MAP</th><th>MRR</th><th>Bpref</th><th>Judged</th><th>Errors</th>
+        <th>MAP</th><th>MRR</th><th>Bpref</th><th>Coverage@{{.CoverageK}}</th><th>Judged</th><th>Errors</th>
       </tr></thead>
       <tbody>
       {{range .Aggregated}}<tr>
@@ -159,6 +159,7 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
         <td class="val-main">{{.MAP.Val}}</td>
         <td class="val-main">{{.MRR.Val}}</td>
         <td class="val-main">{{.Bpref.Val}}</td>
+        <td class="val-main">{{.Coverage}}</td>
         <td>{{.Judged}}</td>
         <td>{{.Errors}}</td>
       </tr>{{end}}
