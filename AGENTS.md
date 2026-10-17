@@ -64,8 +64,6 @@ The project follows a layered architecture pattern:
 
 
 - **tracks/**: Benchmark tracks — each a self-contained folder with `spec.yaml`, `suite.yaml`, `trec/` (pool + judgments), and `reports/`
-- **configs/**: Configuration files
-    - `mappings/`: YAML configuration files for data field mappings
 - **db/**: Database-related files
     - `migrations/`: SQL migration files for database schema
     - `query/`: SQL query files for database operations

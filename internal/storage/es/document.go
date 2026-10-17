@@ -103,7 +103,7 @@ func newArticleDocument(article document.Article) ArticleDocument {
 
 // buildSettings declares every index knob the benchmark compares on rather than
 // inheriting Elasticsearch's defaults: one shard, no replica on a single node,
-// and a result window one past the deepest page the bench reads.
+// and the result window.
 //
 // The analyzer mirrors PostgreSQL's english regconfig: stopwords are removed
 // before stemming, and the stemmer is Snowball, not the Porter stemmer behind
