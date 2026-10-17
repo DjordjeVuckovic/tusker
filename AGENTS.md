@@ -242,6 +242,7 @@ Commands expect environment variables (typically in `.env` files):
 - `PG_CONNECTION_STRING`: PostgreSQL connection string
 - `ES_ADDRESSES`: Elasticsearch cluster addresses (comma-separated)
 - `ES_INDEX_NAME`: Elasticsearch index name
+- `ES_DIAL_TIMEOUT`, `ES_RESPONSE_HEADER_TIMEOUT`: Go durations bounding each Elasticsearch request, bulk flushes included (default 5s, 30s); a timed-out request is not retried
 - `BULK_ENABLED`: Enable bulk operations (`true`/`false`)
 - `BULK_SIZE`: Bulk operation batch size
 
