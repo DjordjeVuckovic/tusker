@@ -185,3 +185,21 @@ func TestExecuteDiff_BaselineSearchSkipsUnreadableReports(t *testing.T) {
 	err := executeDiff(&bytes.Buffer{}, diffFlags{pathA: "2026-01-01T00-00-02-run-bbbbbb"}, []string{"demo"})
 	assert.Error(t, err, "an explicitly named unreadable report is still an error")
 }
+
+func TestExecuteDiff_FallsBackToTheNewestEarlierReportWhenNoneIsFullyScored(t *testing.T) {
+	reports := scaffoldDiffTrack(t)
+	latencyOnly := func(r *report.Report) {
+		r.Jobs[0].Aggregated[0].JudgedCount = 0
+		r.Jobs[0].PerQuery[0].Judged = false
+	}
+	writeTrackReport(t, reports, "2026-01-01T00-00-01-run-aaaaaa", latencyOnly)
+	writeTrackReport(t, reports, "2026-01-01T00-00-02-run-bbbbbb", latencyOnly)
+	writeTrackReport(t, reports, "2026-01-01T00-00-03-run-cccccc", latencyOnly)
+	require.NoError(t, updateLatestPointer(filepath.Join(reports, "latest.json"),
+		filepath.Join(reports, "2026-01-01T00-00-03-run-cccccc.json")))
+
+	var out bytes.Buffer
+	require.NoError(t, executeDiff(&out, diffFlags{}, []string{"demo"}))
+
+	assert.Regexp(t, `A \(before\):\s+2026-01-01T00-00-02-run-bbbbbb`, out.String())
+}

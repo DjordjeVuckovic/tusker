@@ -34,8 +34,8 @@ func newDiffCmd() *cobra.Command {
 per-query NDCG regressions sorted by magnitude.
 
 Without --b, B is the report latest.json points at. Without --a, A is the
-newest earlier report that has judged metrics and no failed queries, so a
-latency-only or partial run is never the baseline. --a and --b accept run IDs
+newest earlier report that has judged metrics and no failed queries, or the
+newest earlier report, with a warning, when none has. --a and --b accept run IDs
 (e.g. 2026-05-26T23-39-05-run-7e0750) or direct paths to report.json files.`,
 		Example: `  bench diff tracks/global-news-dataset/fts_quality                               # latest two runs
   bench diff tracks/global-news-dataset/fts_quality --b 2026-05-26T23-39-05-run-7e0750
@@ -122,7 +122,8 @@ func readExplicitReport(tr *trackctx.Track, flag string) (*report.Report, error)
 }
 
 // previousScoredReport returns the newest report in dir whose run ID sorts
-// before beforeRunID (any, when empty) and that is fully scored.
+// before beforeRunID (any, when empty) and that is fully scored, falling back
+// to the newest readable one when none is.
 func previousScoredReport(dir, beforeRunID string) (*report.Report, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -136,6 +137,7 @@ func previousScoredReport(dir, beforeRunID string) (*report.Report, error) {
 	}
 	// Run IDs are timestamped, so lexicographic order is chronological.
 	sort.Sort(sort.Reverse(sort.StringSlice(names)))
+	var newestReadable *report.Report
 	for _, name := range names {
 		if beforeRunID != "" && strings.TrimSuffix(name, ".json") >= beforeRunID {
 			continue
@@ -148,8 +150,16 @@ func previousScoredReport(dir, beforeRunID string) (*report.Report, error) {
 		if fullyScored(rpt) {
 			return rpt, nil
 		}
+		if newestReadable == nil {
+			newestReadable = rpt
+		}
 	}
-	return nil, fmt.Errorf("no earlier report in %s has judged metrics and no failed queries", dir)
+	if newestReadable == nil {
+		return nil, fmt.Errorf("no earlier readable report in %s", dir)
+	}
+	slog.Warn("no earlier report has judged metrics and no failed queries; diffing against the newest one",
+		"report", newestReadable.Provenance.RunID)
+	return newestReadable, nil
 }
 
 // fullyScored reports whether every job carries quality metrics and no

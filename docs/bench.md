@@ -378,7 +378,7 @@ Prints a one-glance dashboard showing which artifacts exist, when they were last
 
 ### `bench diff [<name>]`
 
-Compares the report `latest.json` points at with the newest earlier report that has judged metrics and no failed queries, so a latency-only or partial run is never the baseline. It warns when the judge, relevance threshold or judgments file differ, lists the index provenance fields that changed, then shows per-engine metric deltas (NDCG, MAP, MRR, latency) and per-query NDCG regressions sorted by magnitude. NDCG is compared at the largest K both runs computed. Pass `--a` / `--b` to compare specific run IDs.
+Compares the report `latest.json` points at with the newest earlier report that has judged metrics and no failed queries. When no earlier report qualifies, it warns and falls back to the newest earlier one. It warns when the judge, relevance threshold or judgments file differ, lists the index provenance fields that changed, then shows per-engine metric deltas (NDCG, MAP, MRR, latency) and per-query NDCG regressions sorted by magnitude. NDCG is compared at the largest K both runs computed. Pass `--a` / `--b` to compare specific run IDs.
 
 ### `bench show <subcommand> [<name>|path]`
 
