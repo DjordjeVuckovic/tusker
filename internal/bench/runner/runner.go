@@ -389,6 +389,8 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 			}
 
 			result := r.measure(ctx, measurement{
+				queryID:  q.ID,
+				engine:   engName,
 				executor: exec,
 				request:  req.Dialects[engName].Request(req.Track, resolved),
 				timeout:  req.QueryTimeout,
@@ -473,34 +475,36 @@ type execResult struct {
 // measurement is one query on one engine, executed for warmup and then for the
 // measured iterations.
 type measurement struct {
+	queryID  string
+	engine   string
 	executor engine.Executor
 	request  engine.Request
 	timeout  time.Duration
 }
 
+// measure fails on the first failed measured iteration: keeping the others
+// would drop a timeout from the latency tail and report the query as answered.
 func (r *Runner) measure(ctx context.Context, m measurement) execResult {
 	for i := 0; i < r.config.WarmupRuns; i++ {
-		_, _ = m.execute(ctx)
+		if _, err := m.execute(ctx); err != nil {
+			slog.Warn("warmup failed", "query", m.queryID, "engine", m.engine, "iteration", i+1, "error", err)
+		}
 	}
 
 	var latencies []time.Duration
 	var lastExec *engine.Execution
-	var lastErr error
-
 	for i := 0; i < r.config.Runs; i++ {
 		result, err := m.execute(ctx)
 		if err != nil {
-			lastErr = err
-			continue
+			return execResult{err: fmt.Errorf("measured iteration %d of %d: %w", i+1, r.config.Runs, err)}
 		}
 		lastExec = result
 		latencies = append(latencies, result.Latency)
 	}
 
 	if lastExec == nil {
-		return execResult{err: lastErr}
+		return execResult{}
 	}
-
 	return execResult{
 		rankedIDs:     lastExec.RankedDocIDs,
 		corpusMatches: lastExec.CorpusMatches,

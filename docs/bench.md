@@ -356,6 +356,8 @@ runs:
 
 The clock covers sending the query and receiving the whole result. For postgres that means reading every row; for elasticsearch and the API it means reading the full response body. Decoding the result into document ids happens after the clock stops, on every engine.
 
+One failed measured iteration fails the query with that iteration's error, so a timeout can never vanish from p95, p99 and max behind the iterations that succeeded. A failed warmup does not fail the query; it is logged with the query and the engine.
+
 #### Index provenance
 
 Before the first query, `bench run` reads from each live engine how it indexed the corpus and records it under `environment.engines.<name>.index` in the report. It also fills `version`.

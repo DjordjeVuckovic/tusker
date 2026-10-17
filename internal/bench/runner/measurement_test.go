@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -81,4 +82,61 @@ queries:
 	})
 
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+var errEngineDown = errors.New("engine down")
+
+// failingCallExecutor fails only its failOnCall-th Execute, counting from 1.
+type failingCallExecutor struct {
+	name       string
+	failOnCall int
+	calls      int
+}
+
+func (e *failingCallExecutor) Execute(context.Context, engine.Request) (*engine.Execution, error) {
+	e.calls++
+	if e.calls == e.failOnCall {
+		return nil, errEngineDown
+	}
+	return &engine.Execution{Latency: time.Millisecond}, nil
+}
+
+func (e *failingCallExecutor) Name() string { return e.name }
+func (e *failingCallExecutor) Close() error { return nil }
+
+func TestRunAll_FailedIterations(t *testing.T) {
+	tests := []struct {
+		name       string
+		warmup     int
+		failOnCall int
+		wantErr    error
+	}{
+		{name: "a failed measured iteration fails the query", failOnCall: 2, wantErr: errEngineDown},
+		{name: "a failed warmup does not", warmup: 1, failOnCall: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bs := oneJobTrack(t, `queries:
+  - id: q1
+    engines:
+      pg: { query: "SELECT id FROM articles" }
+`, map[string]spec.Engine{"pg": postgres}, nil)
+			cfg := DefaultConfig()
+			cfg.WarmupRuns = tt.warmup
+			cfg.Runs = 3
+
+			result, err := New(cfg).RunAll(context.Background(), bs, map[string]engine.Executor{
+				"pg": &failingCallExecutor{name: "pg", failOnCall: tt.failOnCall},
+			})
+
+			require.NoError(t, err)
+			got := result.Jobs[0].Results["q1"]["pg"].Error
+			if tt.wantErr == nil {
+				assert.NoError(t, got)
+				return
+			}
+			assert.ErrorIs(t, got, tt.wantErr)
+		})
+	}
 }
