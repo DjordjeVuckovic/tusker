@@ -125,6 +125,22 @@ jobs:
 		assert.Equal(t, 150*time.Second, s.Runs.QueryTimeout)
 	})
 
+	t.Run("negative query timeout", func(t *testing.T) {
+		yaml := validSpecHeader + `engines:
+  pg:
+    type: postgres
+    connection: "postgresql://localhost/test"
+runs:
+  query_timeout: -5s
+jobs:
+  - name: test
+    suite: suite.yaml
+    engines: [pg]
+`
+		_, err := Parse([]byte(yaml))
+		assert.ErrorContains(t, err, "runs.query_timeout")
+	})
+
 	t.Run("invalid engine type", func(t *testing.T) {
 		yaml := validSpecHeader + `engines:
   bad:
