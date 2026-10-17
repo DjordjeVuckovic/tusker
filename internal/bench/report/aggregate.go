@@ -136,10 +136,11 @@ func (s jobScope) answeredByEveryEngine(qID string) bool {
 }
 
 // gradedInTopK counts the cell's retrieved docs within the largest K, and how
-// many of them carry a grade.
+// many of them carry a grade. A query graded only in the suite file counts
+// nothing, since its grades are not visible here.
 func (s jobScope) gradedInTopK(qID, engName string) (graded, retrieved int) {
 	qr, ok := s.job.Results[qID][engName]
-	if !ok || qr.Error != nil {
+	if !ok || qr.Error != nil || len(s.grades[qID]) == 0 {
 		return 0, 0
 	}
 	top := qr.RankedDocIDs[:min(largestK(s.kValues), len(qr.RankedDocIDs))]

@@ -383,3 +383,22 @@ func TestWriters_MarkdownAndHTMLShowJudgedCoverage(t *testing.T) {
 	assert.Contains(t, string(html), "<th>Coverage@10</th>")
 	assert.Contains(t, string(html), "0.6250")
 }
+
+func TestGenerate_JudgedCoverageIsUnknownForSuiteEmbeddedGrades(t *testing.T) {
+	qr := answered("q1", "pg", 0.5, time.Millisecond)
+	qr.RankedDocIDs = []uuid.UUID{uuid.New(), uuid.New()}
+	br := &runner.BenchmarkResult{
+		Config: runner.Config{KValues: []int{10}, RelevanceThreshold: 1},
+		Jobs: []*runner.JobResult{{
+			JobName:     "suite-graded",
+			EngineNames: []string{"pg"},
+			QueryOrder:  []string{"q1"},
+			Results:     map[string]map[string]runner.QueryResult{"q1": {"pg": qr}},
+		}},
+	}
+
+	agg := Generate(br, nil).Jobs[0].Aggregated[0]
+
+	require.Equal(t, 1, agg.JudgedCount)
+	assert.Nil(t, agg.JudgedCoverage, "the report never sees suite-embedded grades, so coverage is unknown, not 0")
+}
