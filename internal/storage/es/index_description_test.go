@@ -39,13 +39,13 @@ func TestDescribeIndex_ReadsTheLiveIndex(t *testing.T) {
 			if description.Index != cfg.IndexName {
 				t.Errorf("index = %q, want the concrete index %q", description.Index, cfg.IndexName)
 			}
-			if !strings.Contains(string(description.Analysis), `"multilingual_analyzer"`) {
-				t.Errorf("analysis = %s, want it to define multilingual_analyzer", description.Analysis)
+			if !strings.Contains(string(description.Analysis), `"english_analyzer"`) {
+				t.Errorf("analysis = %s, want it to define english_analyzer", description.Analysis)
 			}
 
 			title := description.Fields["title"]
-			if title.Type != "text" || title.Analyzer != "multilingual_analyzer" {
-				t.Errorf("title = %+v, want a text field analysed by multilingual_analyzer", title)
+			if title.Type != "text" || title.Analyzer != "english_analyzer" {
+				t.Errorf("title = %+v, want a text field analysed by english_analyzer", title)
 			}
 
 			embedding := description.Fields["embedding"]

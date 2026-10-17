@@ -12,6 +12,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorindexoptionstype"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorsimilarity"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/snowballlanguage"
 	"github.com/google/uuid"
 )
 
@@ -96,26 +97,51 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) (ArticleDocumen
 	}, nil
 }
 
+// buildSettings declares every index knob the benchmark compares on rather than
+// inheriting Elasticsearch's defaults: one shard, no replica on a single node,
+// and a result window one past the deepest page the bench reads.
+//
+// The analyzer mirrors PostgreSQL's english regconfig: stopwords are removed
+// before stemming, and the stemmer is Snowball, not the Porter stemmer behind
+// the built-in english analyzer, which reduces "news" to "new". The standard
+// tokenizer keeps "don't" whole where PostgreSQL's parser splits it at the
+// apostrophe, so apostrophes become spaces before tokenizing.
 func (b *IndexBuilder) buildSettings() types.IndexSettings {
+	shards, replicas, maxResultWindow := "1", "0", 10001
+	english := snowballlanguage.English
 	return types.IndexSettings{
+		NumberOfShards:   &shards,
+		NumberOfReplicas: &replicas,
+		MaxResultWindow:  &maxResultWindow,
 		Analysis: &types.IndexSettingsAnalysis{
 			Analyzer: map[string]types.Analyzer{
-				"multilingual_analyzer": types.StandardAnalyzer{
-					Stopwords: []string{"_none_"},
+				language.English.Analysis().ElasticsearchAnalyzer: types.CustomAnalyzer{
+					CharFilter: []string{"apostrophe_to_space"},
+					Tokenizer:  "standard",
+					Filter:     []string{"lowercase", "postgres_english_stop", "english_snowball"},
 				},
+			},
+			CharFilter: map[string]types.CharFilter{
+				"apostrophe_to_space": types.MappingCharFilter{
+					Mappings: []string{"' => \\u0020", "’ => \\u0020"},
+				},
+			},
+			Filter: map[string]types.TokenFilter{
+				"postgres_english_stop": types.StopTokenFilter{Stopwords: PostgresEnglishStopwords},
+				"english_snowball":      types.SnowballTokenFilter{Language: &english},
 			},
 		},
 	}
 }
 
-func (b *IndexBuilder) buildMapping() types.TypeMapping {
+func (b *IndexBuilder) buildMapping(analyzer string) types.TypeMapping {
 	return types.TypeMapping{
 		Properties: map[string]types.Property{
 			"id":               types.NewKeywordProperty(),
 			"url":              types.NewKeywordProperty(),
-			"title":            b.createTextPropertyWithKeyword("multilingual_analyzer"),
-			"description":      b.createTextProperty("multilingual_analyzer"),
-			"content":          b.createTextProperty("multilingual_analyzer"),
+			"title":            b.createTextPropertyWithKeyword(analyzer),
+			"description":      b.createTextProperty(analyzer),
+			"content":          b.createTextProperty(analyzer),
 			"published_at":     types.NewDateProperty(),
 			"language":         types.NewKeywordProperty(),
 			"publisher_domain": types.NewKeywordProperty(),
