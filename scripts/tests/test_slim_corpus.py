@@ -117,3 +117,32 @@ def test_the_slim_payload_uploads_whole_through_the_kaggle_cli(tmp_path):
         "slim.datapackage.json",
     }
     assert not skipped_by_kaggle & {path.name for path in slim.iterdir()}
+
+
+def test_reslimming_the_same_canonical_package_is_a_no_op(tmp_path):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    slim = tmp_path / "payload"
+    run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
+    before = sha256_of(slim / "articles.parquet")
+
+    result = run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
+
+    assert result.returncode == 0, result.stderr
+    assert sha256_of(slim / "articles.parquet") == before
+
+
+def test_refuses_to_reslim_different_bytes_under_the_same_canonical_version(tmp_path):
+    slim = tmp_path / "payload"
+    first = write_canonical_package(tmp_path / "first", ROWS)
+    run_script("slim_corpus.py", first.descriptor, "--out", slim)
+    before = sha256_of(slim / "articles.parquet")
+    changed = write_canonical_package(
+        tmp_path / "changed",
+        [*ROWS, article("e5d4c3b2-a1f0-4e9d-8c7b-6a5f4e3d2c1b", "Late addition")],
+    )
+
+    result = run_script("slim_corpus.py", changed.descriptor, "--out", slim)
+
+    assert result.returncode != 0
+    assert "hash" in result.stderr
+    assert sha256_of(slim / "articles.parquet") == before

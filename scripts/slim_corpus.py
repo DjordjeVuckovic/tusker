@@ -100,8 +100,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def run(args: argparse.Namespace) -> None:
-    if args.out.exists():
-        raise PackageError(f"{args.out} already exists")
     source = open_package(args.package)
     descriptor = read_descriptor(args.package)
     carried = {
@@ -112,7 +110,9 @@ def run(args: argparse.Namespace) -> None:
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     publish_package(
-        args.out, lambda directory: write_slim_package(source, carried, directory)
+        args.out,
+        lambda directory: write_slim_package(source, carried, directory),
+        descriptor_name=SLIM_DESCRIPTOR,
     )
 
     before = source.resource.stat().st_size

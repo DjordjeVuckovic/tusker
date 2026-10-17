@@ -254,8 +254,15 @@ def run(args: argparse.Namespace) -> Path:
         str(spec.dim),
         str(spec.max_tokens),
     )
-    if out.exists():
-        embed_corpus.verify_existing_package(out, package_version)
+    embedding = embed_corpus.embedding_descriptor(
+        spec,
+        embed_corpus.Inference(
+            batch_size=QUERY_BATCH_SIZE, dtype=embed_corpus.dtype_name(device)
+        ),
+    )
+    if embed_corpus.existing_package_matches(
+        out, version=package_version, embedding=embedding
+    ):
         print(f"{out} is already complete")
         return out
 
@@ -283,12 +290,7 @@ def run(args: argparse.Namespace) -> Path:
         "$schema": embed_corpus.DATAPACKAGE_PROFILE,
         "name": f"{suite.id}-query-vectors",
         "version": package_version,
-        "embedding": embed_corpus.embedding_descriptor(
-            spec,
-            embed_corpus.Inference(
-                batch_size=QUERY_BATCH_SIZE, dtype=embed_corpus.dtype_name(device)
-            ),
-        ),
+        "embedding": embedding,
         "suite": {"id": suite.id, "hash": suite.hash},
     }
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -265,8 +265,15 @@ saved, which cuts padding waste (2.2x on an M4 Pro) without changing the order.
   `--limit`. A run with any other setting is refused instead of mixing shards.
 - `--limit N` embeds the first N rows into `<version>-limit-N`, so a trial can
   never be resumed as, or mistaken for, the full package.
-- Re-running a finished package verifies it and exits. A package that no longer
-  verifies is refused, never overwritten.
+- Writing into a version that already exists compares each resource's name,
+  hash and bytes, and nothing else. A match keeps the existing package; a
+  difference is refused as non-determinism, never overwritten. A rerun with the
+  same settings verifies the existing package and exits without embedding again.
+  `batchSize` and `dtype` move the bytes without moving the version, so a rerun
+  with another batch size is embedded, compared and usually refused; the error
+  names the batch size and dtype to reuse. `--auto-batch-size` reuses the batch
+  size the existing package or checkpoints recorded. `slim_corpus.py` and
+  `embed_queries.py` follow the same rule.
 - `--clean-checkpoints` drops the shards once the package is written. The merge
   still runs with every shard on disk, so peak disk stays at shards plus Parquet,
   about 5.8 GB for cc-news; only what is left afterwards halves, to 2.9 GB.
