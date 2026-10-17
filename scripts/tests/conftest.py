@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -130,11 +131,26 @@ def tiny_model(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return build_tiny_model(tmp_path_factory.mktemp("tiny-qwen3"))
 
 
-@pytest.fixture
-def tiny_model_args(tiny_model: Path) -> list[str]:
+@pytest.fixture(scope="session", params=["left", "right"])
+def padded_tiny_model(
+    request: pytest.FixtureRequest,
+    tiny_model: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Path:
+    """The tiny model with its tokenizer padding on each side; the pinned Qwen tokenizer pads right."""
+    directory = tmp_path_factory.mktemp(f"tiny-qwen3-{request.param}")
+    shutil.copytree(tiny_model, directory, dirs_exist_ok=True)
+    tokenizer_config = directory / "tokenizer_config.json"
+    settings = json.loads(tokenizer_config.read_text(encoding="utf-8"))
+    settings["padding_side"] = request.param
+    tokenizer_config.write_text(json.dumps(settings), encoding="utf-8")
+    return directory
+
+
+def model_args(model: Path) -> list[str]:
     return [
         "--model",
-        str(tiny_model),
+        str(model),
         "--revision",
         TINY_REVISION,
         "--model-name",
@@ -142,6 +158,11 @@ def tiny_model_args(tiny_model: Path) -> list[str]:
         "--device",
         "cpu",
     ]
+
+
+@pytest.fixture
+def tiny_model_args(tiny_model: Path) -> list[str]:
+    return model_args(tiny_model)
 
 
 def run_script(script: str, *args: str | Path) -> subprocess.CompletedProcess[str]:

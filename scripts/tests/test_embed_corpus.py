@@ -4,7 +4,13 @@ from pathlib import Path
 import numpy as np
 import pyarrow.parquet as pq
 import pytest
-from conftest import article, run_script, sha256_of, write_canonical_package
+from conftest import (
+    article,
+    model_args,
+    run_script,
+    sha256_of,
+    write_canonical_package,
+)
 
 ROWS = [
     article(
@@ -430,3 +436,35 @@ def test_writes_under_the_dataset_root_of_a_canonical_package_by_default(
 
     assert result.returncode == 0, result.stderr
     assert only_package(tmp_path / "cc-news").is_file()
+
+
+def vectors_by_id(descriptor: Path) -> dict[str, np.ndarray]:
+    ids, vectors = read_embeddings(descriptor)
+    return dict(zip(ids, vectors, strict=True))
+
+
+def test_each_vector_belongs_to_its_row_when_a_batch_pads_mixed_lengths(
+    tmp_path, padded_tiny_model
+):
+    rows = [
+        article(
+            "11111111-1111-4111-8111-111111111111",
+            "Markets rally after the long weekend",
+        ),
+        article("22222222-2222-4222-8222-222222222222", "Q"),
+        article("33333333-3333-4333-8333-333333333333", "Election results are in"),
+        article("44444444-4444-4444-8444-444444444444", "Storm"),
+    ]
+    args = [*model_args(padded_tiny_model), "--batch-size", "3"]
+    canonical = write_canonical_package(tmp_path / "canonical", rows)
+
+    embed(canonical.descriptor, tmp_path / "batched", *args)
+    singles = {}
+    for row in rows:
+        single = write_canonical_package(tmp_path / f"single-{row['id']}", [row])
+        embed(single.descriptor, tmp_path / f"out-{row['id']}", *args)
+        singles |= vectors_by_id(only_package(tmp_path / f"out-{row['id']}"))
+
+    batched = vectors_by_id(only_package(tmp_path / "batched"))
+    for row in rows:
+        np.testing.assert_allclose(batched[row["id"]], singles[row["id"]], atol=1e-5)
