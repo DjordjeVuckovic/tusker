@@ -250,9 +250,8 @@ documents. `scripts/embed_queries.py` writes the package. The bench refuses it w
 - its `embedding.tag` differs from the engines' `embedding_model`, or no engine declares one
 
 A query whose text the package doesn't hold fails with the text in the error. Without a
-package, queries are embedded through Ollama (`EMBEDDING_BASE_URL`, `EMBEDDING_MODEL` and
-`EMBEDDING_DIM`, defaulting to `qwen3-embedding:0.6b` at 1024, tagged
-`qwen3-embedding:0.6b@1024`).
+package, queries are embedded through Ollama (`EMBEDDING_BASE_URL`, and `EMBEDDING_MODEL`
+defaulting to `qwen3-embedding:0.6b`) at width 1024, tagged `qwen3-embedding:0.6b@1024`.
 
 The Elasticsearch arm needs no such filter — its vector is a `dense_vector` field on the
 article document, so re-embedding overwrites rather than accumulates — but it declares
