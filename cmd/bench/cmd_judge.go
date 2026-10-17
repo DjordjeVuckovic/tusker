@@ -151,6 +151,10 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 			if existing, err = judgment.ReadFileIfExists(outPath); err != nil {
 				return fmt.Errorf("read existing manual judgments: %w", err)
 			}
+			if existing != nil && existing.Judge().Strategy != string(judgment.StrategyManual) {
+				return fmt.Errorf("%s was graded by %q, not by hand: merging would relabel its grades as manual; pass --force to replace it",
+					outPath, existing.Judge())
+			}
 		}
 		jf := buildManualJudgments(pf, existing)
 		judge := judgment.NewManualStrategy().Describe()

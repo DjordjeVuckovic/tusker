@@ -385,3 +385,25 @@ func TestJudge_ResumeDropsQueriesThatLeftThePool(t *testing.T) {
 
 	assert.NotContains(t, gradesByQuery(fx.annotations(t, "bm25")), "q-gone")
 }
+
+// Merging into another judge's file would relabel its grades as hand grades.
+func TestJudge_ManualRefusesAnotherJudgesFile(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	require.NoError(t, fx.judge(t, "--strategy", "bm25"))
+	bm25Path := filepath.Join(fx.track, "trec", "annotations.bm25.yaml")
+
+	err := fx.judge(t, "--strategy", "manual", "--output", bm25Path)
+
+	require.Error(t, err)
+	assert.Equal(t, string(judgment.StrategyBM25), fx.annotations(t, "bm25").Judge().Strategy)
+}
+
+func TestJudge_ManualForceReplacesAnotherJudgesFile(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	require.NoError(t, fx.judge(t, "--strategy", "bm25"))
+	bm25Path := filepath.Join(fx.track, "trec", "annotations.bm25.yaml")
+
+	require.NoError(t, fx.judge(t, "--strategy", "manual", "--output", bm25Path, "--force"))
+
+	assert.Equal(t, string(judgment.StrategyManual), fx.annotations(t, "bm25").Judge().Strategy)
+}
