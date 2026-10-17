@@ -46,10 +46,10 @@ Both write only into `datasets/<ds>/raw/` (`--mirror` is the Hugging Face raw st
 
 Neither fetcher knows about mapping files. They land raw data under its published column names, and `datapipe preprocess` maps those onto articles through `mapping.yaml`.
 
-Script tests run offline against a fake Hub and a prepopulated kagglehub cache:
+Script tests run offline against a fake Hub and a prepopulated kagglehub cache, and validate each raw descriptor against `api/datapackage-spec/datapackage-v1.json`:
 
 ```bash
-uv run --with pytest --with duckdb --with kagglehub pytest -p no:cacheprovider scripts/tests
+uv run --with pytest --with jsonschema --with duckdb --with kagglehub pytest -p no:cacheprovider scripts/tests
 ```
 
 Files from before this layout, such as `dataset-canonical.jsonl` and `embeddings.parquet` at the top of a dataset folder, stay until the packages that replace them verify by hash.

@@ -1,6 +1,6 @@
 """fetch_hf_dataset.py --mirror, run as a CLI against a local fake of the Hub.
 
-  uv run --with pytest --with duckdb pytest scripts/tests/test_fetch_hf_dataset.py
+  uv run --with pytest --with jsonschema --with duckdb pytest scripts/tests/test_fetch_hf_dataset.py
 
 Any request that escapes to the real network hits a dead proxy and fails.
 """
@@ -18,9 +18,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+import jsonschema
 import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "fetch_hf_dataset.py"
+DESCRIPTOR_SCHEMA = (
+    Path(__file__).resolve().parents[2] / "api" / "datapackage-spec" / "datapackage-v1.json"
+)
 REPO = "vblagoje/cc_news"
 COMMIT = "81eb2ce0d2a9dad6ad16b68ef750ec290880fa36"
 
@@ -168,6 +172,7 @@ def test_mirror_writes_the_pinned_shards_and_a_raw_descriptor(
     assert [path.name for path in (tmp_path / "cc-news").iterdir()] == ["raw"]
 
     package = descriptor(tmp_path)
+    jsonschema.validate(package, json.loads(DESCRIPTOR_SCHEMA.read_text()))
     assert package["$schema"] == "https://datapackage.org/profiles/2.0/datapackage.json"
     assert package["version"] == COMMIT
     [source] = package["sources"]

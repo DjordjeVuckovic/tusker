@@ -1,6 +1,6 @@
 """fetch_kaggle_dataset.py, run as a CLI against a prepopulated kagglehub cache.
 
-  uv run --with pytest --with kagglehub pytest scripts/tests/test_fetch_kaggle_dataset.py
+  uv run --with pytest --with jsonschema --with kagglehub pytest scripts/tests/test_fetch_kaggle_dataset.py
 
 kagglehub serves a pinned version from its cache without a request; any
 request that escapes to the network hits a dead proxy and fails.
@@ -15,9 +15,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import jsonschema
 import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "fetch_kaggle_dataset.py"
+DESCRIPTOR_SCHEMA = (
+    Path(__file__).resolve().parents[2] / "api" / "datapackage-spec" / "datapackage-v1.json"
+)
 
 ARTICLES = b"title,text\nfirst,body\n"
 ARTICLES_HASH = "sha256:2c92f3c5112cf88622ecf84ab749f868db4c0646c7e5954f36746f3e71653a43"
@@ -95,6 +99,7 @@ def test_fetch_copies_the_version_into_raw_with_a_descriptor(cache: Path, tmp_pa
     assert [path.name for path in (datasets_root / "news").iterdir()] == ["raw"]
 
     package = descriptor(raw)
+    jsonschema.validate(package, json.loads(DESCRIPTOR_SCHEMA.read_text()))
     assert package["$schema"] == "https://datapackage.org/profiles/2.0/datapackage.json"
     assert package["version"] == "3"
     [source] = package["sources"]
