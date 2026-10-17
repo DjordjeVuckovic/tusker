@@ -52,12 +52,12 @@ func (e *EsExecutor) Execute(ctx context.Context, search Request) (*Execution, e
 		return nil, fmt.Errorf("es request: %w", err)
 	}
 	defer resp.Body.Close()
-	latency := time.Since(start)
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("es read response: %w", err)
 	}
+	latency := time.Since(start)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("es status %d: %s", resp.StatusCode, string(respBody))
