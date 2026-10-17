@@ -30,7 +30,6 @@ const (
 	cleanupTimeout      = 30 * time.Second
 	maxFailuresReported = 10
 	mergedSegments      = 1
-	engineName          = "elasticsearch"
 	loadMetaKey         = "load"
 )
 
@@ -144,7 +143,7 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 		return storage.LoadRecord{}, err
 	}
 	record = storage.LoadRecord{
-		Engine:        engineName,
+		Engine:        string(storage.ES),
 		EngineVersion: info.Version.Int,
 		StartedAt:     startedAt,
 		FinishedAt:    time.Now().UTC(),
@@ -381,11 +380,11 @@ type writeCounts struct {
 // an error at once; a document that cannot be encoded or is rejected counts as
 // a failure, and any failure fails the load once every article was tried.
 func (l *CorpusLoader) writeDocuments(ctx context.Context, c storage.Corpus, batchSize int) (writeCounts, error) {
-	var nextVector func() (embedding.Vec, error, bool)
+	vectors := vectorZip{modelTag: c.ModelTag}
 	if c.Vectors != nil {
 		next, stop := iter.Pull2(c.Vectors)
 		defer stop()
-		nextVector = next
+		vectors.next = next
 	}
 
 	var batch bulkBatch
@@ -414,21 +413,12 @@ func (l *CorpusLoader) writeDocuments(ctx context.Context, c storage.Corpus, bat
 		if err != nil {
 			return counts, fmt.Errorf("article %d: %w", position, err)
 		}
-		if nextVector != nil {
-			vec, err, ok := nextVector()
-			if !ok {
-				return counts, fmt.Errorf("vectors end before article %d (%s)", position, article.ID)
-			}
-			if err != nil {
-				return counts, fmt.Errorf("read vector %d: %w", position, err)
-			}
-			if vec.ID != article.ID {
-				return counts, fmt.Errorf("vector %d is for %s, article %d is %s", position, vec.ID, position, article.ID)
-			}
-			if vec.Model != "" && vec.Model != c.ModelTag {
-				return counts, fmt.Errorf("vector %d (%s) is tagged %q, the corpus %q", position, vec.ID, vec.Model, c.ModelTag)
-			}
-			doc.Embedding, doc.EmbeddingModel = vec.Embedding, c.ModelTag
+		vector, err := vectors.vectorFor(article.ID, position)
+		if err != nil {
+			return counts, err
+		}
+		if vector != nil {
+			doc.Embedding, doc.EmbeddingModel = vector, c.ModelTag
 		}
 		position++
 
@@ -445,15 +435,50 @@ func (l *CorpusLoader) writeDocuments(ctx context.Context, c storage.Corpus, bat
 	if err := flush(); err != nil {
 		return counts, err
 	}
-	if nextVector != nil {
-		if vec, _, ok := nextVector(); ok {
-			return counts, fmt.Errorf("vectors outlast the %d articles, starting with %s", position, vec.ID)
-		}
+	if id, ok := vectors.leftover(); ok {
+		return counts, fmt.Errorf("vectors outlast the %d articles, starting with %s", position, id)
 	}
 	if failures.Failed > 0 {
 		return counts, failures
 	}
 	return counts, nil
+}
+
+// vectorZip pairs each article with the vector at its position. A trial
+// embeddings package covers only a prefix of the corpus, so the vectors may end
+// first, and the articles after them carry none.
+type vectorZip struct {
+	next     func() (embedding.Vec, error, bool)
+	modelTag string
+}
+
+func (z *vectorZip) vectorFor(articleID uuid.UUID, position int) ([]float32, error) {
+	if z.next == nil {
+		return nil, nil
+	}
+	vec, err, ok := z.next()
+	if !ok {
+		z.next = nil
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read vector %d: %w", position, err)
+	}
+	if vec.ID != articleID {
+		return nil, fmt.Errorf("vector %d is for %s, article %d is %s", position, vec.ID, position, articleID)
+	}
+	if vec.Model != "" && vec.Model != z.modelTag {
+		return nil, fmt.Errorf("vector %d (%s) is tagged %q, the corpus %q", position, vec.ID, vec.Model, z.modelTag)
+	}
+	return vec.Embedding, nil
+}
+
+func (z *vectorZip) leftover() (uuid.UUID, bool) {
+	if z.next == nil {
+		return uuid.Nil, false
+	}
+	vec, _, ok := z.next()
+	return vec.ID, ok
 }
 
 func documentFor(article document.Article, corpusLanguage language.Code) (loadedDocument, error) {

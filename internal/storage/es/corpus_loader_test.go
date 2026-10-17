@@ -133,8 +133,8 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 		})
 
 		t.Run("records what was loaded and how", func(t *testing.T) {
-			if record.Engine != "elasticsearch" || record.EngineVersion != "8.12.0" {
-				t.Errorf("engine = %q %q, want elasticsearch 8.12.0", record.Engine, record.EngineVersion)
+			if record.Engine != "es" || record.EngineVersion != "8.12.0" {
+				t.Errorf("engine = %q %q, want es 8.12.0", record.Engine, record.EngineVersion)
 			}
 			if record.Articles != 2000 || record.Vectors != 2000 {
 				t.Errorf("articles, vectors = %d, %d, want 2000, 2000", record.Articles, record.Vectors)
@@ -267,11 +267,6 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 			pairing: func(vecs []embedding.Vec) []embedding.Vec { vecs[1], vecs[2] = vecs[2], vecs[1]; return vecs },
 		},
 		{
-			name:    "fewer vectors than articles",
-			index:   "articles_missing_vector_test",
-			pairing: func(vecs []embedding.Vec) []embedding.Vec { return vecs[:len(vecs)-1] },
-		},
-		{
 			name:  "more vectors than articles",
 			index: "articles_extra_vector_test",
 			pairing: func(vecs []embedding.Vec) []embedding.Vec {
@@ -316,6 +311,28 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 			t.Fatalf("LoadCorpus error = %v, want context.Canceled", err)
 		}
 		assertNoIndex(t, container.Address, index)
+	})
+
+	t.Run("a trial's vector prefix leaves the remaining articles without a vector", func(t *testing.T) {
+		index := "articles_trial_prefix_test"
+		articles := testArticles(6)
+		record, err := loadCorpus(t, container.Address, index, corpusOf(articles, testVectors(articles)[:3]), 2)
+		if err != nil {
+			t.Fatalf("LoadCorpus: %v", err)
+		}
+		if record.Articles != 6 || record.Vectors != 3 {
+			t.Errorf("articles, vectors = %d, %d, want 6, 3", record.Articles, record.Vectors)
+		}
+		stored := fetchByID(t, container.Address, index, articles)
+		for i, a := range articles {
+			doc := stored[a.ID.String()]
+			if i < 3 && (!slices.Equal(doc.Embedding, vectorFor(i)) || doc.EmbeddingModel != loadTestModelTag) {
+				t.Errorf("article %d lost its vector or tag: model %q", i, doc.EmbeddingModel)
+			}
+			if i >= 3 && (doc.Embedding != nil || doc.EmbeddingModel != "") {
+				t.Errorf("article %d past the prefix carries a vector tagged %q", i, doc.EmbeddingModel)
+			}
+		}
 	})
 
 	t.Run("refuses a corpus language with no declared analyzer and creates no index", func(t *testing.T) {
