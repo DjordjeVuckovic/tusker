@@ -13,23 +13,25 @@ import (
 
 func main() {
 	var (
-		outputDir       = flag.String("output", "api", "Output directory for generated schemas")
-		strictMode      = flag.Bool("strict", true, "Enable strict validation mode")
-		includeExamples = flag.Bool("examples", true, "Include example configurations")
-		baseURI         = flag.String("base-uri", "https://schemas.tusker.sh", "Base URI for schema IDs")
+		outputDir       = flag.String("output", "api", "Output directory for the data mapping schema")
+		strictMode      = flag.Bool("strict", true, "Enable strict validation mode for the data mapping schema")
+		includeExamples = flag.Bool("examples", true, "Include the data mapping example configuration")
+		baseURI         = flag.String("base-uri", "https://schemas.tusker.sh", "Base URI for the data mapping schema ID")
 		verbose         = flag.Bool("verbose", false, "Enable verbose logging")
-		dataPackageDir  = flag.String("datapackage-output", "api/datapackage-spec", "Output directory for the data package descriptor schema")
+		dataPackageDir  = flag.String("datapackage-output", "", "Output directory for the data package descriptor schema; written only when set")
 	)
 	flag.Parse()
 
-	dataPackageFile, err := writeDataPackageSchema(*dataPackageDir)
-	if err != nil {
-		log.Fatalf("Failed to generate data package schema: %v", err)
-	}
-	fmt.Printf("✅ Generated JSON schema: %s\n", dataPackageFile)
-
 	if *verbose {
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
+	}
+
+	if *dataPackageDir != "" {
+		dataPackageFile, err := writeDataPackageSchema(*dataPackageDir)
+		if err != nil {
+			log.Fatalf("Failed to generate data package schema: %v", err)
+		}
+		fmt.Printf("✅ Generated JSON schema: %s\n", dataPackageFile)
 	}
 
 	if err := os.MkdirAll(*outputDir, 0755); err != nil {
