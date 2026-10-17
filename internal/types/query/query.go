@@ -193,6 +193,12 @@ func (q *Phrase) Params() Params {
 	return Params{Fields: unboostedFields(q.Fields), Slop: q.GetSlop()}
 }
 
+// Apply narrows the query to params, a subset of its own Params.
+func (q *Phrase) Apply(params Params) {
+	q.Fields = fieldWeights(params.Fields).fields()
+	q.Slop = params.Slop
+}
+
 func (q *Phrase) Effective() Effective {
 	return Effective{Fields: unboostedFields(q.Fields).fields(), Language: q.GetLanguage()}
 }
@@ -272,6 +278,12 @@ func (q *Match) GetLanguage() Language {
 
 func (q *Match) Params() Params {
 	return Params{Fields: unboostedFields([]Field{q.Field}), Fuzziness: q.GetFuzziness()}
+}
+
+// Apply narrows the query to params, a subset of its own Params. Its one field
+// always survives: a check that would drop it rejects the request instead.
+func (q *Match) Apply(params Params) {
+	q.Fuzziness = params.Fuzziness
 }
 
 func (q *Match) Effective(engineDefault operator.Operator) Effective {
@@ -446,6 +458,15 @@ func (q *MultiMatch) GetLanguage() Language {
 
 func (q *MultiMatch) Params() Params {
 	return Params{Fields: q.fieldWeights()}
+}
+
+// Apply narrows the query to params, a subset of its own Params.
+func (q *MultiMatch) Apply(params Params) {
+	fields := make([]MultiMatchField, 0, len(params.Fields))
+	for _, f := range params.Fields {
+		fields = append(fields, NewMultiMatchBoostedField(f.Field, f.Weight))
+	}
+	q.Fields = fields
 }
 
 func (q *MultiMatch) Effective(engineDefault operator.Operator) Effective {

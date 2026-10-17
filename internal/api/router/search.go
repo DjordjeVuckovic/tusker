@@ -90,17 +90,30 @@ func (r *SearchRouter) capabilitiesHandler(c echo.Context) error {
 	})
 }
 
-// checkCapabilities applies the request's Prefer handling to the params the
-// engine cannot honour: an error for a strict request, the ignored list for a
-// lenient one.
-func (r *SearchRouter) checkCapabilities(c echo.Context, params dquery.Params) ([]dquery.Ignored, error) {
+// paramQuery is a query whose stated params an engine may not honour.
+type paramQuery interface {
+	Params() dquery.Params
+	Apply(dquery.Params)
+}
+
+// honour applies the request's Prefer handling to the params of q the engine
+// cannot honour: an error for a strict request; for a lenient one q loses them
+// before it runs and they are returned as ignored. A nil q states no params.
+func (r *SearchRouter) honour(c echo.Context, q paramQuery) ([]dquery.Ignored, error) {
 	handling := dto.HandlingFromPrefer(c.Request().Header.Values("Prefer"))
 	if handling == dquery.HandlingLenient {
 		c.Response().Header().Set("Preference-Applied", "handling=lenient")
 	}
-	ignored, err := dquery.CheckCapabilities(r.searcher.Capabilities(), params, handling)
+	var stated dquery.Params
+	if q != nil {
+		stated = q.Params()
+	}
+	honoured, ignored, err := dquery.CheckCapabilities(r.searcher.Capabilities(), stated, handling)
 	if err != nil {
 		return nil, apperr.NewValidationWrap(err.Error(), err)
+	}
+	if q != nil {
+		q.Apply(honoured)
 	}
 	return ignored, nil
 }
@@ -155,7 +168,7 @@ func (r *SearchRouter) searchHandler(c echo.Context) error {
 		}
 	}
 
-	ignored, err := r.checkCapabilities(c, dquery.Params{})
+	ignored, err := r.honour(c, nil)
 	if err != nil {
 		return err
 	}
@@ -283,7 +296,7 @@ func (r *SearchRouter) handleHybridQuery(c echo.Context, params *dto.HybridParam
 		return err
 	}
 
-	ignored, err := r.checkCapabilities(c, dquery.Params{})
+	ignored, err := r.honour(c, nil)
 	if err != nil {
 		return err
 	}
@@ -306,7 +319,7 @@ func (r *SearchRouter) handleMatchQuery(c echo.Context, params *dto.MatchParams,
 		return err
 	}
 
-	ignored, err := r.checkCapabilities(c, domainQuery.Params())
+	ignored, err := r.honour(c, domainQuery)
 	if err != nil {
 		return err
 	}
@@ -329,7 +342,7 @@ func (r *SearchRouter) handleMultiMatchQuery(c echo.Context, params *dto.MultiMa
 		return err
 	}
 
-	ignored, err := r.checkCapabilities(c, domainQuery.Params())
+	ignored, err := r.honour(c, domainQuery)
 	if err != nil {
 		return err
 	}
@@ -352,7 +365,7 @@ func (r *SearchRouter) handlePhraseQuery(c echo.Context, params *dto.PhraseParam
 		return err
 	}
 
-	ignored, err := r.checkCapabilities(c, domainQuery.Params())
+	ignored, err := r.honour(c, domainQuery)
 	if err != nil {
 		return err
 	}
@@ -375,7 +388,7 @@ func (r *SearchRouter) handleBooleanQuery(c echo.Context, params *dto.BooleanPar
 		return err
 	}
 
-	ignored, err := r.checkCapabilities(c, dquery.Params{})
+	ignored, err := r.honour(c, nil)
 	if err != nil {
 		return err
 	}

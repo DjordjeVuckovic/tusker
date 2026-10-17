@@ -146,16 +146,19 @@ func TestLenientSearchRunsAndReportsWhatItIgnored(t *testing.T) {
 		name        string
 		body        string
 		wantIgnored []string
+		wantFields  []dquery.Field
 	}{
 		{
 			name:        "fuzziness",
 			body:        `{"query":{"match":{"field":"title","query":"climate","fuzziness":"auto"}}}`,
 			wantIgnored: []string{"fuzziness"},
+			wantFields:  []dquery.Field{dquery.FieldTitle},
 		},
 		{
 			name:        "a boosted field sharing a weight band",
 			body:        `{"query":{"multi_match":{"fields":["title","author^2"],"query":"climate"}}}`,
-			wantIgnored: []string{"boost", "fields"},
+			wantIgnored: []string{"fields"},
+			wantFields:  []dquery.Field{dquery.FieldTitle},
 		},
 	}
 	for _, tt := range tests {
@@ -173,6 +176,9 @@ func TestLenientSearchRunsAndReportsWhatItIgnored(t *testing.T) {
 			slices.Sort(params)
 			if !slices.Equal(params, tt.wantIgnored) {
 				t.Errorf("ignored params = %v, want %v", params, tt.wantIgnored)
+			}
+			if !slices.Equal(got.Effective.Fields, tt.wantFields) {
+				t.Errorf("effective fields = %v, want %v", got.Effective.Fields, tt.wantFields)
 			}
 			if applied := rec.Header().Get("Preference-Applied"); applied != "handling=lenient" {
 				t.Errorf("Preference-Applied = %q, want handling=lenient", applied)

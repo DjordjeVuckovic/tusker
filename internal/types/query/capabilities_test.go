@@ -29,84 +29,93 @@ var (
 )
 
 func TestCheckCapabilities(t *testing.T) {
+	title := FieldWeight{Field: FieldTitle, Weight: 1}
 	tests := []struct {
-		name        string
-		caps        Capabilities
-		params      Params
-		handling    Handling
-		wantErrFor  string
-		wantIgnored []string
+		name         string
+		caps         Capabilities
+		params       Params
+		handling     Handling
+		wantErrFor   string
+		wantIgnored  []string
+		wantHonoured Params
 	}{
 		{
-			name:     "every parameter honoured",
-			caps:     elasticsearchLike,
-			params:   Params{Fields: []FieldWeight{{Field: FieldAuthor, Weight: 2}}, Fuzziness: FuzzinessAuto, Slop: 2},
-			handling: HandlingStrict,
+			name:         "every parameter honoured",
+			caps:         elasticsearchLike,
+			params:       Params{Fields: []FieldWeight{{Field: FieldAuthor, Weight: 2}}, Fuzziness: FuzzinessAuto, Slop: 2},
+			handling:     HandlingStrict,
+			wantHonoured: Params{Fields: []FieldWeight{{Field: FieldAuthor, Weight: 2}}, Fuzziness: FuzzinessAuto, Slop: 2},
 		},
 		{
 			name:       "strict rejects fuzziness the engine lacks",
 			caps:       postgresLike,
-			params:     Params{Fuzziness: FuzzinessAuto},
+			params:     Params{Fields: []FieldWeight{title}, Fuzziness: FuzzinessAuto},
 			handling:   HandlingStrict,
 			wantErrFor: "fuzziness",
 		},
 		{
-			name:        "lenient drops fuzziness the engine lacks",
-			caps:        postgresLike,
-			params:      Params{Fuzziness: Fuzziness1},
-			handling:    HandlingLenient,
-			wantIgnored: []string{"fuzziness"},
+			name:         "lenient drops fuzziness the engine lacks",
+			caps:         postgresLike,
+			params:       Params{Fields: []FieldWeight{title}, Fuzziness: Fuzziness1},
+			handling:     HandlingLenient,
+			wantIgnored:  []string{"fuzziness"},
+			wantHonoured: Params{Fields: []FieldWeight{title}, Fuzziness: NoFuzziness},
 		},
 		{
-			name:     "no fuzziness is not a fuzziness request",
-			caps:     postgresLike,
-			params:   Params{Fuzziness: NoFuzziness},
-			handling: HandlingStrict,
+			name:         "no fuzziness is not a fuzziness request",
+			caps:         postgresLike,
+			params:       Params{Fields: []FieldWeight{title}, Fuzziness: NoFuzziness},
+			handling:     HandlingStrict,
+			wantHonoured: Params{Fields: []FieldWeight{title}, Fuzziness: NoFuzziness},
 		},
 		{
-			name:     "an edit distance of zero is exact matching",
-			caps:     postgresLike,
-			params:   Params{Fuzziness: Fuzziness0},
-			handling: HandlingStrict,
+			name:         "an edit distance of zero is exact matching",
+			caps:         postgresLike,
+			params:       Params{Fields: []FieldWeight{title}, Fuzziness: Fuzziness0},
+			handling:     HandlingStrict,
+			wantHonoured: Params{Fields: []FieldWeight{title}, Fuzziness: Fuzziness0},
 		},
 		{
 			name:       "strict rejects a field the engine cannot isolate",
 			caps:       postgresLike,
-			params:     Params{Fields: []FieldWeight{{Field: FieldTitle, Weight: 1}, {Field: FieldAuthor, Weight: 1}}},
+			params:     Params{Fields: []FieldWeight{title, {Field: FieldAuthor, Weight: 1}}},
 			handling:   HandlingStrict,
 			wantErrFor: "fields",
 		},
 		{
-			name:        "lenient drops a field the engine cannot isolate",
-			caps:        postgresLike,
-			params:      Params{Fields: []FieldWeight{{Field: FieldSubtitle, Weight: 1}}},
-			handling:    HandlingLenient,
-			wantIgnored: []string{"fields"},
+			name:         "lenient drops a field the engine cannot isolate, boost and all",
+			caps:         postgresLike,
+			params:       Params{Fields: []FieldWeight{title, {Field: FieldAuthor, Weight: 2}}},
+			handling:     HandlingLenient,
+			wantIgnored:  []string{"fields"},
+			wantHonoured: Params{Fields: []FieldWeight{title}},
 		},
 		{
-			name:     "a boost on a field the engine isolates is honoured",
-			caps:     postgresLike,
-			params:   Params{Fields: []FieldWeight{{Field: FieldTitle, Weight: 3}, {Field: FieldContent, Weight: 1}}},
-			handling: HandlingStrict,
+			name:       "lenient rejects dropping every field",
+			caps:       postgresLike,
+			params:     Params{Fields: []FieldWeight{{Field: FieldSubtitle, Weight: 1}, {Field: FieldAuthor, Weight: 1}}},
+			handling:   HandlingLenient,
+			wantErrFor: "fields",
 		},
 		{
-			name:        "lenient reports the field and its boost",
-			caps:        postgresLike,
-			params:      Params{Fields: []FieldWeight{{Field: FieldAuthor, Weight: 2}}},
-			handling:    HandlingLenient,
-			wantIgnored: []string{"boost", "fields"},
+			name:         "a boost on a field the engine isolates is honoured",
+			caps:         postgresLike,
+			params:       Params{Fields: []FieldWeight{{Field: FieldTitle, Weight: 3}, {Field: FieldContent, Weight: 1}}},
+			handling:     HandlingStrict,
+			wantHonoured: Params{Fields: []FieldWeight{{Field: FieldTitle, Weight: 3}, {Field: FieldContent, Weight: 1}}},
 		},
 		{
-			name:        "a boost is ranking only, so strict drops it rather than reject",
-			caps:        Capabilities{Engine: "plain", Fields: SearchableFields()},
-			params:      Params{Fields: []FieldWeight{{Field: FieldTitle, Weight: 2}}},
-			handling:    HandlingStrict,
-			wantIgnored: []string{"boost"},
+			name:         "a boost is ranking only, so strict drops it rather than reject",
+			caps:         Capabilities{Engine: "plain", Fields: SearchableFields()},
+			params:       Params{Fields: []FieldWeight{{Field: FieldTitle, Weight: 2}}},
+			handling:     HandlingStrict,
+			wantIgnored:  []string{"boost"},
+			wantHonoured: Params{Fields: []FieldWeight{title}},
 		},
 		{
 			name:       "strict rejects slop the engine lacks",
 			caps:       Capabilities{Engine: "plain", Fields: SearchableFields()},
-			params:     Params{Slop: 1},
+			params:     Params{Fields: []FieldWeight{title}, Slop: 1},
 			handling:   HandlingStrict,
 			wantErrFor: "slop",
 		},
@@ -114,7 +123,7 @@ func TestCheckCapabilities(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ignored, err := CheckCapabilities(tt.caps, tt.params, tt.handling)
+			honoured, ignored, err := CheckCapabilities(tt.caps, tt.params, tt.handling)
 			if tt.wantErrFor != "" {
 				var unsupported *UnsupportedParamError
 				if !errors.As(err, &unsupported) {
@@ -138,6 +147,10 @@ func TestCheckCapabilities(t *testing.T) {
 			slices.Sort(got)
 			if !slices.Equal(got, tt.wantIgnored) {
 				t.Errorf("ignored = %v, want %v", got, tt.wantIgnored)
+			}
+			if !slices.Equal(honoured.Fields, tt.wantHonoured.Fields) || honoured.Fuzziness != tt.wantHonoured.Fuzziness ||
+				honoured.Slop != tt.wantHonoured.Slop {
+				t.Errorf("honoured = %+v, want %+v", honoured, tt.wantHonoured)
 			}
 		})
 	}
