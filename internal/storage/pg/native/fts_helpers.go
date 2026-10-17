@@ -83,19 +83,15 @@ func buildWeightsArray(fieldBoosts []query.FieldWeight) string {
 	return fmt.Sprintf("{%.4f, %.4f, %.4f, %.4f}", weights[0], weights[1], weights[2], weights[3])
 }
 
-// buildTsQuery constructs a PostgreSQL tsquery expression based on operator
-// paramNum: The parameter number to use ($1, $2, etc.)
-// Returns: "plainto_tsquery('english'::regconfig, $1)" or "websearch_to_tsquery(...)"
+// buildTsQuery turns free text into a tsquery: every term under AND, any term
+// under OR. plainto_tsquery joins terms with &, so OR swaps each & for |; the
+// lexemes are already normalised and the cast does not stem them again.
 func buildTsQuery(op operator.Operator, lang query.Language, paramNum int) string {
-
+	plain := fmt.Sprintf("plainto_tsquery('%s'::regconfig, $%d)", lang, paramNum)
 	if op.IsOr() {
-		// websearch_to_tsquery supports OR operator via "term1 OR term2" syntax
-		return fmt.Sprintf("websearch_to_tsquery('%s'::regconfig, $%d)", lang, paramNum)
+		return fmt.Sprintf("replace(%s::text, '&', '|')::tsquery", plain)
 	}
-
-	// plainto_tsquery uses AND by default for simple searches
-	// "climate change" -> "climat & chang"
-	return fmt.Sprintf("plainto_tsquery('%s'::regconfig, $%d)", lang, paramNum)
+	return plain
 }
 
 // buildRankExpression constructs a ts_rank expression with custom field weights
@@ -119,10 +115,8 @@ func buildRankExpression(fieldBoosts []query.FieldWeight, lang query.Language, o
 
 // buildTsWhereClause matches the query against the requested fields only.
 // No fields, or fields covering all four bands, match the whole vector.
-// Otherwise the query runs on the fields' weight bands. Under AND that implies
-// a match on the whole vector, which goes first so the GIN index narrows the
-// rows. Under OR the query may negate a term, so a row whose fields qualify can
-// fail the whole vector; there the bands are matched alone.
+// Otherwise the query also runs on the fields' weight bands; the whole-vector
+// match goes first so the GIN index narrows the rows.
 func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
 	queryExpr := buildTsQuery(op, lang, paramNum)
 	match := fmt.Sprintf("search_vector @@ %s", queryExpr)
@@ -137,11 +131,7 @@ func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op
 	}
 
 	bands := strings.Split(strings.ToLower(labels), "")
-	bandMatch := fmt.Sprintf("ts_filter(search_vector, '{%s}') @@ %s", strings.Join(bands, ","), queryExpr)
-	if op.IsOr() {
-		return bandMatch
-	}
-	return fmt.Sprintf("%s AND %s", match, bandMatch)
+	return fmt.Sprintf("%s AND ts_filter(search_vector, '{%s}') @@ %s", match, strings.Join(bands, ","), queryExpr)
 }
 
 // buildPhraseSlopQuery constructs a phrase query with slop support

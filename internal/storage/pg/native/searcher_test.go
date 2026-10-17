@@ -110,7 +110,7 @@ func TestSearcher_StringQueryRecallFollowsSearchContract(t *testing.T) {
 	}
 }
 
-func TestSearcher_OrMatchWithNegationOnFieldSubsetKeepsRowsThatQualify(t *testing.T) {
+func TestSearcher_OrMatchReturnsRowsWithAnyTermInTheField(t *testing.T) {
 	s := newSearcher(t)
 	articles, _ := storagetest.SearchContractCorpus()
 	indexer, err := pg.NewIndexer(testPool)
@@ -120,23 +120,37 @@ func TestSearcher_OrMatchWithNegationOnFieldSubsetKeepsRowsThatQualify(t *testin
 	if err := indexer.SaveBulk(testCtx, articles); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
 	}
-
-	// c002 has tariff only outside the title, so its title alone qualifies.
-	match := dquery.NewMatch("title", "budget -tariff", dquery.WithMatchOperator(operator.Or))
-	res, err := s.SearchField(testCtx, match, &dquery.BaseOptions{Size: 100})
-	if err != nil {
-		t.Fatalf("SearchField: %v", err)
-	}
-	got := make([]uuid.UUID, 0, len(res.Hits))
-	for _, hit := range res.Hits {
-		got = append(got, hit.Article.ID)
-	}
-	want := []uuid.UUID{
+	titleHasEitherTerm := []uuid.UUID{
+		uuid.MustParse("00000000-0000-0000-0000-00000000c001"),
 		uuid.MustParse("00000000-0000-0000-0000-00000000c002"),
+		uuid.MustParse("00000000-0000-0000-0000-00000000c004"),
 		uuid.MustParse("00000000-0000-0000-0000-00000000c006"),
 	}
-	if !slices.Equal(sortedIDs(got), sortedIDs(want)) {
-		t.Errorf("hits = %v, want %v", sortedIDs(got), sortedIDs(want))
+
+	tests := []struct {
+		name  string
+		query string
+		want  []uuid.UUID
+	}{
+		{name: "two terms", query: "budget tariff", want: titleHasEitherTerm},
+		{name: "a leading minus is not negation", query: "budget -tariff", want: titleHasEitherTerm},
+		{name: "only stopwords", query: "the of", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			match := dquery.NewMatch("title", tt.query, dquery.WithMatchOperator(operator.Or))
+			res, err := s.SearchField(testCtx, match, &dquery.BaseOptions{Size: 100})
+			if err != nil {
+				t.Fatalf("SearchField: %v", err)
+			}
+			got := make([]uuid.UUID, 0, len(res.Hits))
+			for _, hit := range res.Hits {
+				got = append(got, hit.Article.ID)
+			}
+			if !slices.Equal(sortedIDs(got), sortedIDs(tt.want)) {
+				t.Errorf("hits = %v, want %v", sortedIDs(got), sortedIDs(tt.want))
+			}
+		})
 	}
 }
 
