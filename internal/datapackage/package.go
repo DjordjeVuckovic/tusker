@@ -83,7 +83,9 @@ type Report struct {
 }
 
 // Embedding describes how the vectors of an embeddings package were made.
-// MaxTokens caps the model input; Dim is the output width.
+// MaxTokens caps the model input; Dim is the output width. BatchSize and DType
+// shift output bytes slightly but are not version inputs. Limit is set only on
+// a --limit trial, which loaders refuse unless asked to load one.
 type Embedding struct {
 	Model            string `json:"model"`
 	HuggingFaceModel string `json:"hfModel"`
@@ -94,6 +96,9 @@ type Embedding struct {
 	Pooling          string `json:"pooling"`
 	Normalized       bool   `json:"normalized"`
 	MaxTokens        int    `json:"maxTokens"`
+	BatchSize        int    `json:"batchSize"`
+	DType            string `json:"dtype"`
+	Limit            *int   `json:"limit,omitempty"`
 }
 
 // Ref names another package and pins the hash of the resource it was built from.

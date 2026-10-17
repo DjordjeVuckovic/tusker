@@ -90,8 +90,8 @@ func fullPackage() datapackage.Package {
 		},
 		Embedding: &datapackage.Embedding{
 			Model: "qwen3-embedding:0.6b", HuggingFaceModel: "Qwen/Qwen3-Embedding-0.6B", Revision: "abc123",
-			Tag: "qwen3-embedding:0.6b@1024", Dim: 1024, Recipe: "lead-v1", Pooling: "last-token",
-			Normalized: true, MaxTokens: 512,
+			Tag: "qwen3-embedding:0.6b@1024", Dim: 1024, Recipe: "lead-v1", Pooling: "last_token",
+			Normalized: true, MaxTokens: 512, BatchSize: 64, DType: "float16",
 		},
 		Canonical: &datapackage.Ref{Name: "cc-news-canonical", Version: "article-v2-601d5476", ResourceHash: "sha256:" + zeros64},
 		Sources:   []datapackage.Source{{Title: "huggingface vblagoje/cc_news", Path: "https://huggingface.co/datasets/vblagoje/cc_news", Version: "81eb2ce0d2a9dad6ad16b68ef750ec290880fa36"}},
@@ -137,9 +137,11 @@ func TestWrittenDescriptorUsesContractPropertyNames(t *testing.T) {
 		"embedding/tag":              "qwen3-embedding:0.6b@1024",
 		"embedding/dim":              1024.0,
 		"embedding/recipe":           "lead-v1",
-		"embedding/pooling":          "last-token",
+		"embedding/pooling":          "last_token",
 		"embedding/normalized":       true,
 		"embedding/maxTokens":        512.0,
+		"embedding/batchSize":        64.0,
+		"embedding/dtype":            "float16",
 		"canonical/name":             "cc-news-canonical",
 		"canonical/version":          "article-v2-601d5476",
 		"canonical/resourceHash":     "sha256:" + zeros64,
@@ -148,6 +150,9 @@ func TestWrittenDescriptorUsesContractPropertyNames(t *testing.T) {
 		if got := lookup(doc, pointer); got != value {
 			t.Errorf("%s = %v, want %v", pointer, got, value)
 		}
+	}
+	if _, ok := doc["embedding"].(map[string]any)["limit"]; ok {
+		t.Errorf("embedding.limit is written for a package that is not a trial: %v", doc["embedding"])
 	}
 	resources := doc["resources"].([]any)
 	for i, name := range []string{"articles", "embeddings"} {
