@@ -104,4 +104,37 @@ func TestEsExecutor_Execute_ReportsCorpusMatchesOnlyWhenCounted(t *testing.T) {
 	}
 }
 
+func TestEsExecutor_Execute_ReadsTheDocumentIDFromTheHitID(t *testing.T) {
+	articleID, otherID := uuid.New(), uuid.New()
+	tests := []struct {
+		name    string
+		hit     string
+		want    uuid.UUID
+		wantErr string
+	}{
+		{name: "id only, source disabled", hit: `{"_id": "` + articleID.String() + `"}`, want: articleID},
+		{name: "hit id wins over the source id", hit: `{"_id": "` + articleID.String() + `", "_source": {"id": "` + otherID.String() + `"}}`, want: articleID},
+		{name: "source id when the hit id is not a uuid", hit: `{"_id": "Xk3a9pQB", "_source": {"id": "` + articleID.String() + `"}}`, want: articleID},
+		{name: "neither parses", hit: `{"_id": "Xk3a9pQB"}`, wantErr: "Xk3a9pQB"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(`{"hits": {"total": {"value": 1, "relation": "eq"}, "hits": [` + tt.hit + `]}}`))
+			}))
+			defer es.Close()
+
+			got, err := NewEsExecutor("es", es.URL, "articles").Execute(context.Background(), Request{Query: `{"query": {"match_all": {}}, "_source": false}`})
+
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, []uuid.UUID{tt.want}, got.RankedDocIDs)
+		})
+	}
+}
+
 func ptr[T any](v T) *T { return &v }

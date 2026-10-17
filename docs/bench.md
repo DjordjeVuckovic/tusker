@@ -358,6 +358,12 @@ The clock covers sending the query and receiving the whole result. For postgres 
 
 One failed measured iteration fails the query with that iteration's error, so a timeout can never vanish from p95, p99 and max behind the iterations that succeeded. A failed warmup does not fail the query; it is logged with the query and the engine.
 
+Every engine ships the same payload: document ids only. Postgres templates `SELECT id`, so elasticsearch templates set `"_source": false`. Without it each hit carries the full article and its 1024-dim embedding, and a `size: 100` search times shipping a hundred articles against postgres shipping a hundred ids. The executor reads the id from `hit._id`, which the indexer sets to the article id, and falls back to `_source.id` only when `_id` is not a UUID.
+
+```json
+{"query": {"multi_match": {"query": "{{terms}}", "fields": ["title^3", "description^2", "content"]}}, "size": 100, "_source": false}
+```
+
 #### Index provenance
 
 Before the first query, `bench run` reads from each live engine how it indexed the corpus and records it under `environment.engines.<name>.index` in the report. It also fills `version`.

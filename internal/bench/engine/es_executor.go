@@ -70,9 +70,9 @@ func (e *EsExecutor) Execute(ctx context.Context, search Request) (*Execution, e
 
 	ids := make([]uuid.UUID, 0, len(esResp.Hits.Hits))
 	for _, hit := range esResp.Hits.Hits {
-		id, err := uuid.Parse(hit.Source.ID)
+		id, err := hit.articleID()
 		if err != nil {
-			return nil, fmt.Errorf("es parse doc id %q: %w", hit.Source.ID, err)
+			return nil, err
 		}
 		ids = append(ids, id)
 	}
@@ -400,7 +400,22 @@ func (t esTotal) exactCount() *int64 {
 }
 
 type esHit struct {
+	ID     string   `json:"_id"`
 	Source esSource `json:"_source"`
+}
+
+// articleID reads the article id from _id, which the indexer sets to it, so a
+// search can disable _source. _source.id covers an index whose _id is not the
+// article id.
+func (h esHit) articleID() (uuid.UUID, error) {
+	if id, err := uuid.Parse(h.ID); err == nil {
+		return id, nil
+	}
+	id, err := uuid.Parse(h.Source.ID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("es parse doc id: _id %q and _source.id %q are not uuids: %w", h.ID, h.Source.ID, err)
+	}
+	return id, nil
 }
 
 type esSource struct {
