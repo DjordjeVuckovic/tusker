@@ -47,6 +47,9 @@ by the run timestamp in their filename (lexicographic = chronological).`,
 }
 
 func executeClean(cmd *cobra.Command, f cleanFlags, args []string) error {
+	if f.keep < 0 {
+		return fmt.Errorf("--keep must be 0 or more, got %d", f.keep)
+	}
 	tr, err := trackctx.Resolve(trackInputs(f.trackArg, args))
 	if err != nil {
 		return err
@@ -172,7 +175,7 @@ func latestTarget(latestPath string) string {
 
 // collectStale returns all items after index keep (i.e. the ones to delete).
 func collectStale(sorted []string, keep int) []string {
-	if keep < 0 || len(sorted) <= keep {
+	if len(sorted) <= keep {
 		return nil
 	}
 	return sorted[keep:]

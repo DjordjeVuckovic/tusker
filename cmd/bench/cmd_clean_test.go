@@ -62,3 +62,16 @@ func TestClean_KeepsLatestAndDropsIncompleteRunsFirst(t *testing.T) {
 		})
 	}
 }
+
+func TestClean_RejectsNegativeKeep(t *testing.T) {
+	tr := newLineageTrack(t, "http://unused.invalid")
+	kept := writeCleanReport(t, tr, "2026-10-01T00-00-00-run-r1-complete")
+	newer := writeCleanReport(t, tr, "2026-10-02T00-00-00-run-r2-complete")
+	require.NoError(t, updateLatestPointer(tr.latestPath(), newer))
+
+	_, err := execute(t, newCleanCmd(), tr.dir, "--keep=-1")
+
+	require.Error(t, err)
+	assert.FileExists(t, kept)
+	assert.FileExists(t, newer)
+}
