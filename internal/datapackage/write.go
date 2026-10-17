@@ -16,6 +16,12 @@ import (
 // dir/datapackage.json atomically, replacing any descriptor already there, and
 // returns the descriptor as written.
 func Write(ctx context.Context, dir string, pkg Package) (Package, error) {
+	return write(ctx, dir, pkg, false)
+}
+
+// write is Write that, when versionFromResource is set, also names the
+// package's version after its one resource's bytes.
+func write(ctx context.Context, dir string, pkg Package, versionFromResource bool) (Package, error) {
 	if pkg.Name == "" {
 		return Package{}, errors.New("package has no name")
 	}
@@ -33,6 +39,9 @@ func Write(ctx context.Context, dir string, pkg Package) (Package, error) {
 		resources[i] = r
 	}
 	pkg.Resources = resources
+	if versionFromResource {
+		pkg.Version = versionOf(resources[0])
+	}
 
 	descriptor, err := json.MarshalIndent(pkg, "", "  ")
 	if err != nil {

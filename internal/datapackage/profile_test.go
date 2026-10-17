@@ -85,7 +85,7 @@ func TestWrittenDescriptorConformsToDataPackageV2Profile(t *testing.T) {
 func fullPackage() datapackage.Package {
 	return datapackage.Package{
 		Name:          "cc-news-canonical",
-		Version:       "article-v2-601d5476",
+		Version:       "601d5476",
 		ArticleSchema: datapackage.ArticleSchema,
 		Language:      "eng",
 		IDStrategy:    &datapackage.IDStrategy{Kind: "uuidv5", Source: "url", Namespace: "6ba7b811-9dad-11d1-80b4-00c04fd430c8"},
@@ -99,7 +99,7 @@ func fullPackage() datapackage.Package {
 			Tag: "qwen3-embedding:0.6b@1024", Dim: 1024, Recipe: "lead-v1", Pooling: "last_token",
 			Normalized: true, MaxTokens: 512, BatchSize: 64, DType: "float16",
 		},
-		Canonical: &datapackage.Ref{Name: "cc-news-canonical", Version: "article-v2-601d5476", ResourceHash: "sha256:" + zeros64},
+		Canonical: &datapackage.Ref{Name: "cc-news-canonical", Version: "601d5476", ResourceHash: "sha256:" + zeros64},
 		Sources:   []datapackage.Source{{Title: "huggingface vblagoje/cc_news", Path: "https://huggingface.co/datasets/vblagoje/cc_news", Version: "81eb2ce0d2a9dad6ad16b68ef750ec290880fa36"}},
 		Resources: []datapackage.Resource{
 			{Name: datapackage.ArticlesResource, Path: "articles.parquet", Format: "parquet"},
@@ -124,7 +124,7 @@ func TestWrittenDescriptorUsesContractPropertyNames(t *testing.T) {
 	want := map[string]any{
 		"$schema":                    "https://datapackage.org/profiles/2.0/datapackage.json",
 		"name":                       "cc-news-canonical",
-		"version":                    "article-v2-601d5476",
+		"version":                    "601d5476",
 		"articleSchema":              "article/v2",
 		"language":                   "eng",
 		"idStrategy/kind":            "uuidv5",
@@ -147,7 +147,7 @@ func TestWrittenDescriptorUsesContractPropertyNames(t *testing.T) {
 		"embedding/batchSize":        64.0,
 		"embedding/dtype":            "float16",
 		"canonical/name":             "cc-news-canonical",
-		"canonical/version":          "article-v2-601d5476",
+		"canonical/version":          "601d5476",
 		"canonical/resourceHash":     "sha256:" + zeros64,
 	}
 	for pointer, value := range want {
