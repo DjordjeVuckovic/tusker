@@ -38,7 +38,17 @@ type judgeFlags struct {
 	embeddingModel string
 }
 
-func newJudgeCmd() *cobra.Command {
+// articleReaderOpener opens the store bench judge reads pooled articles from.
+type articleReaderOpener func(cmd *cobra.Command, pgConn string) (storage.Reader, error)
+
+type judgeCommand struct {
+	flags      judgeFlags
+	openReader articleReaderOpener
+}
+
+func newJudgeCmd() *cobra.Command { return newJudgeCmdWithReader(openArticleReader) }
+
+func newJudgeCmdWithReader(openReader articleReaderOpener) *cobra.Command {
 	var f judgeFlags
 	cmd := &cobra.Command{
 		Use:   "judge [track]",
@@ -77,7 +87,7 @@ graded. Atomic writes mean Ctrl-C is safe.`,
   bench judge --pool /tmp/p.yaml --strategy lexical --output /tmp/a.yaml`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return executeJudge(cmd, f, args)
+			return judgeCommand{flags: f, openReader: openReader}.execute(cmd, args)
 		},
 	}
 	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
@@ -102,16 +112,17 @@ graded. Atomic writes mean Ctrl-C is safe.`,
 	return cmd
 }
 
-func executeJudge(cmd *cobra.Command, f judgeFlags, args []string) error {
-	in := trackInputs(f.trackArg, args)
-	in.PoolPath = f.poolPath
-	in.OutputPath = f.output
+func (j judgeCommand) execute(cmd *cobra.Command, args []string) error {
+	in := trackInputs(j.flags.trackArg, args)
+	in.PoolPath = j.flags.poolPath
+	in.OutputPath = j.flags.output
 	return forEachTrack(cmd.Context(), cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
-		return judgeTrack(cmd, f, tr)
+		return j.judgeTrack(cmd, tr)
 	})
 }
 
-func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
+func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
+	f := j.flags
 	poolPath := f.poolPath
 	if poolPath == "" {
 		poolPath = tr.Pool
@@ -175,7 +186,7 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 		return err
 	}
 
-	reader, err := openArticleReader(cmd, f.pg)
+	reader, err := j.openReader(cmd, f.pg)
 	if err != nil {
 		return err
 	}

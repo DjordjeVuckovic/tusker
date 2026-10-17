@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,7 +10,10 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/google/uuid"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -228,4 +232,141 @@ func gradesByQuery(jf *judgment.File) map[string]map[uuid.UUID]int {
 		}
 	}
 	return out
+}
+
+type articleStore map[uuid.UUID]document.Article
+
+func (s articleStore) GetByIDs(_ context.Context, ids []uuid.UUID) ([]document.Article, error) {
+	out := make([]document.Article, 0, len(ids))
+	for _, id := range ids {
+		if a, ok := s[id]; ok {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+// judgeFixture is a track on disk whose pool holds one query, plus the store
+// its pooled articles are read from.
+type judgeFixture struct {
+	track    string
+	articles articleStore
+	pool     *pool.PoolFile
+}
+
+func newJudgeFixture(t *testing.T, queryDesc string, titles ...string) *judgeFixture {
+	t.Helper()
+	track := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(track, "trec"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(track, "spec.yaml"), []byte("schema_version: 1\nid: judge\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(track, "suite.yaml"), []byte("schema_version: 1\nid: judge\n"), 0o644))
+
+	fx := &judgeFixture{track: track, articles: articleStore{}}
+	entry := pool.PoolEntry{QueryID: "q1", QueryDesc: queryDesc}
+	for _, title := range titles {
+		id := uuid.New()
+		fx.articles[id] = document.Article{ID: id, Title: title}
+		entry.Docs = append(entry.Docs, pool.PooledDoc{DocID: id})
+	}
+	fx.pool = &pool.PoolFile{Meta: meta.New("pool"), Queries: []pool.PoolEntry{entry}}
+	fx.writePool(t)
+	return fx
+}
+
+func (fx *judgeFixture) writePool(t *testing.T) {
+	t.Helper()
+	require.NoError(t, pool.WritePoolFile(fx.pool, filepath.Join(fx.track, "trec", "pool.yaml")))
+}
+
+func (fx *judgeFixture) judge(t *testing.T, args ...string) error {
+	t.Helper()
+	cmd := newJudgeCmdWithReader(func(*cobra.Command, string) (storage.Reader, error) {
+		return fx.articles, nil
+	})
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs(append([]string{fx.track}, args...))
+	return cmd.ExecuteContext(context.Background())
+}
+
+func (fx *judgeFixture) annotations(t *testing.T, set string) *judgment.File {
+	t.Helper()
+	jf, err := judgment.ReadFile(filepath.Join(fx.track, "trec", "annotations."+set+".yaml"))
+	require.NoError(t, err)
+	return jf
+}
+
+func TestJudge_UnjudgedDocFailsAfterWritingTheFile(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit", "climate report")
+	for id := range fx.articles {
+		delete(fx.articles, id)
+		break
+	}
+
+	err := fx.judge(t, "--strategy", "bm25")
+
+	require.Error(t, err)
+	jf := fx.annotations(t, "bm25")
+	require.NotNil(t, jf.Meta.UnjudgedCount)
+	assert.Equal(t, 1, *jf.Meta.UnjudgedCount)
+}
+
+func TestJudge_AllowUnjudgedExitsZero(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit", "climate report")
+	for id := range fx.articles {
+		delete(fx.articles, id)
+		break
+	}
+
+	assert.NoError(t, fx.judge(t, "--strategy", "bm25", "--allow-unjudged"))
+}
+
+func TestJudge_FullyGradedPoolExitsZero(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit", "climate report")
+
+	require.NoError(t, fx.judge(t, "--strategy", "bm25"))
+
+	jf := fx.annotations(t, "bm25")
+	require.NotNil(t, jf.Meta.UnjudgedCount)
+	assert.Zero(t, *jf.Meta.UnjudgedCount)
+}
+
+func TestJudge_QueryWithoutTermsFailsAfterWritingTheFile(t *testing.T) {
+	fx := newJudgeFixture(t, "the news", "climate change summit")
+
+	err := fx.judge(t, "--strategy", "bm25", "--allow-unjudged")
+
+	var noTerms *judgment.NoQueryTermsError
+	require.ErrorAs(t, err, &noTerms)
+	assert.Equal(t, "q1", noTerms.QueryID)
+	assert.Equal(t, judgment.GradeUnjudged, fx.annotations(t, "bm25").Queries[0].Docs[0].Grade)
+}
+
+func TestJudge_ManualRerunKeepsHandGrades(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	require.NoError(t, fx.judge(t, "--strategy", "manual"))
+	handGraded := fx.annotations(t, "manual")
+	handGraded.Queries[0].Docs[0].Grade = judgment.GradeHighly
+	require.NoError(t, judgment.WriteFile(handGraded, filepath.Join(fx.track, "trec", "annotations.manual.yaml")))
+	newDoc := uuid.New()
+	fx.pool.Queries[0].Docs = append(fx.pool.Queries[0].Docs, pool.PooledDoc{DocID: newDoc})
+	fx.writePool(t)
+
+	require.NoError(t, fx.judge(t, "--strategy", "manual"))
+
+	got := gradesByQuery(fx.annotations(t, "manual"))["q1"]
+	assert.Equal(t, judgment.GradeHighly, got[handGraded.Queries[0].Docs[0].DocID])
+	assert.Equal(t, judgment.GradeUnjudged, got[newDoc])
+}
+
+func TestJudge_ManualForceDiscardsHandGrades(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	require.NoError(t, fx.judge(t, "--strategy", "manual"))
+	handGraded := fx.annotations(t, "manual")
+	handGraded.Queries[0].Docs[0].Grade = judgment.GradeHighly
+	require.NoError(t, judgment.WriteFile(handGraded, filepath.Join(fx.track, "trec", "annotations.manual.yaml")))
+
+	require.NoError(t, fx.judge(t, "--strategy", "manual", "--force"))
+
+	assert.Equal(t, judgment.GradeUnjudged, fx.annotations(t, "manual").Queries[0].Docs[0].Grade)
 }
