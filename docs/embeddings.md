@@ -14,10 +14,11 @@ The `file` path exists because embedding generation is a one-time, GPU-bound job
 ## Offline workflow (`file`)
 
 ```
-slim_corpus.py     project away the article body   2.0 GB → 76 MB
-  → embed_corpus.py on a GPU                       Qwen3-0.6B, last-token pool, L2-norm
-  → embeddings.parquet
-  → datapipe load embeddings                       → article_embeddings
+datasets/<ds>/canonical/<version>/      canonical package (preprocess)
+  → slim_corpus.py                      id, title, description only; the cloud upload
+  → embed_corpus.py on a cloud GPU      Kaggle or Colab; Qwen3-Embedding-0.6B, lead-v1
+  → datasets/<ds>/embeddings/<tag-dir>/<version>/
+  → datapipe load embeddings            → article_embeddings
 ```
 
 **Order matters.** Articles have to be ingested first.
@@ -30,34 +31,116 @@ is in before spending GPU time on it:
 docker compose exec -T pg-news-native psql -U news_user -d news_db -c "select count(*) from articles;"
 ```
 
-### One engine, three places to run it
+GPU work runs on Kaggle or Colab, never on the laptop. `--device auto` resolves to CUDA
+or CPU and never to Apple's MPS.
 
-`scripts/embed_corpus.py` is the whole implementation. It auto-detects CUDA, MPS
-or CPU, so the same script backs every path below:
+### Recipes
 
-| Where  | Driver                                       | Notes                                    |
-|--------|----------------------------------------------|------------------------------------------|
-| Laptop | `uv run scripts/embed_corpus.py <corpus>`    | No GPU rental, but slow and hot          |
-| Colab  | `scripts/embed_colab.ipynb`                  | Payload on Drive, checkpoints too        |
-| Kaggle | `scripts/embed_corpus.py` as a script kernel | Headless round trip via the `kaggle` CLI |
+| Recipe              | Model input                                                                                     | Used for  |
+|---------------------|-------------------------------------------------------------------------------------------------|-----------|
+| `lead-v1`           | `" ".join` of the stripped, non-empty `title` and `description`. Never the body.                | documents |
+| `query-instruct-v1` | `"Instruct: Given a web search, retrieve all relevant news documents\nQuery:" + strip(query)`   | queries   |
 
-Colab needs a notebook because there is no API for running a script on a free
-Colab GPU; the browser cell is the only way onto that machine. Kaggle accepts a
-plain `.py` as a script kernel, so it needs no notebook at all.
+There is no space after `Query:`. Both recipes have to match the Go side byte for
+byte, `mapDocToPrompt` and `wrapWithInstruct` in `internal/embedding/embedder.go`,
+because the API embeds queries through Ollama and those vectors have to land in
+the same space. Python's `strip` also removes `\x1c`–`\x1f` and Go's
+`strings.TrimSpace` doesn't, so `embed_queries.py` refuses a query that starts or
+ends with one.
 
-#### Kaggle script kernel
+Both recipes use `Qwen/Qwen3-Embedding-0.6B` pinned to revision
+`97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3`, last-token pooling, then a slice to
+`--dim` and L2 normalisation. `--dim` defaults to the model's native 1024.
+`--max-tokens` (default 512) caps the input tokens and has nothing to do with
+the width. The tag carries the width: `qwen3-embedding:0.6b@1024`.
 
-Kaggle runs plain `.py` files, so this path needs no notebook. `kaggle kernels
-push` uploads exactly one `code_file`, which is `embed_corpus.py` itself, and the
-dataset payload is just the corpus. The kernel config lives at
-`datasets/<corpus>/kernel-metadata.json`, since the kernel slug and its
-`dataset_sources` are per corpus, and `code_file` points back at the shared
-script.
+A row with neither a title nor a description is refused before the model loads.
+Loaders pair vectors with articles by position, so no row can be skipped. In
+cc-news 180,295 of 707,910 canonical rows (25.5%) have no description and embed
+as title only. Ids have to be canonical lowercase uuid text, because loaders
+compare them byte for byte; anything else is refused rather than rewritten.
 
-Kernels run with no argv, so omitting the corpus argument switches the script to
-Kaggle conventions: it reads `/kaggle/input`, writes to `/kaggle/working`, removes
-checkpoints after the merge, and sweeps batch size. Passing a corpus path disables
-all of that.
+A shard or a query whose vector comes out NaN or inf, which fp16 overflow does
+silently, is refused before it is written, with the shard number and the first
+ids.
+
+### The embeddings package
+
+```
+datasets/<ds>/embeddings/qwen3-embedding-0.6b@1024/lead-v1-1024-<8 hex>/
+  datapackage.json
+  embeddings.parquet        id (string uuid), embedding (list<float32>), canonical row order
+```
+
+The descriptor is a Frictionless Data Package v2:
+
+```json
+{
+  "$schema": "https://datapackage.org/profiles/2.0/datapackage.json",
+  "name": "cc-news-embeddings",
+  "version": "lead-v1-1024-<8 hex>",
+  "language": "eng",
+  "embedding": {
+    "model": "qwen3-embedding:0.6b",
+    "hfModel": "Qwen/Qwen3-Embedding-0.6B",
+    "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+    "tag": "qwen3-embedding:0.6b@1024",
+    "dim": 1024,
+    "recipe": "lead-v1",
+    "pooling": "last_token",
+    "normalized": true,
+    "maxTokens": 512,
+    "batchSize": 64,
+    "dtype": "float16"
+  },
+  "canonical": {"name": "cc-news", "version": "article-v2-<8 hex>", "resourceHash": "sha256:<hex>"},
+  "resources": [
+    {"name": "embeddings", "path": "embeddings.parquet", "format": "parquet",
+     "mediatype": "application/vnd.apache.parquet", "bytes": 0, "hash": "sha256:<hex>"}
+  ]
+}
+```
+
+`batchSize` is the batch size the run used, including one `--auto-batch-size`
+picked, and `dtype` the inference dtype (`float16` on a GPU, `float32` on CPU).
+Both move the last bits of a float, so they are recorded, but they are not version
+inputs. A `--limit N` trial also records `limit`.
+
+The version is `<recipe>-<dim>-` plus the first 8 hex of a sha256 over the
+canonical resource hash, model revision, recipe, dim and maxTokens, each input
+prefixed with its 8-byte big-endian length. The same inputs always give the same
+version, and the same version, batch size and device give byte-identical files.
+The input package's resource is checked against its `bytes` and `hash` before
+anything is embedded.
+
+### Shrink the upload first
+
+`embed_corpus.py` reads only `id`, `title` and `description`. The article body is
+most of the bytes, so project it away before moving anything to a cloud box:
+
+```bash
+uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
+```
+
+The output is a package of its own: `articles.parquet` plus a
+`slim.datapackage.json` whose `canonical` property names the package it came
+from. The descriptor isn't called `datapackage.json` because the kaggle CLI
+never uploads a file by that name. `embed_corpus.py`
+takes the canonical reference from there, so embedding the slim package gives
+the same version and the same bytes as embedding the canonical one. The output
+stays plain parquet, since Kaggle decompresses `.gz` uploads and that would break
+the recorded hash.
+
+### Kaggle script kernel
+
+`kaggle kernels push` uploads exactly one `code_file`, which is `embed_corpus.py`
+itself. The kernel config lives at `datasets/<corpus>/kernel-metadata.json`. The
+kernel slug and its `dataset_sources` are per corpus, and `code_file` points back
+at the shared script.
+
+Kernels run with no argv. Without a package argument the script reads the one
+`slim.datapackage.json` under `/kaggle/input`, writes to `/kaggle/working`, removes
+checkpoints after the package is written, and sweeps the batch size.
 
 **0. Verify your phone** at kaggle.com/settings. The CLI sends `enable_gpu` and
 `enable_internet`, but the server drops both on unverified accounts, silently. You
@@ -70,19 +153,19 @@ first thing to check when a kernel logs `device : cpu`.
 pip install kaggle          # token from kaggle.com/settings/api -> ~/.kaggle/kaggle.json
 ```
 
-**2. Upload the corpus as a dataset.**
+**2. Upload the slim package as a dataset.**
 
 ```bash
-mkdir -p /tmp/tusker-payload
-cp datasets/cc-news/canonical-dataset-slim.jsonl.gz /tmp/tusker-payload/
+uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
 kaggle datasets init -p /tmp/tusker-payload
-# edit /tmp/tusker-payload/dataset-metadata.json: set title and id
-kaggle datasets create -p /tmp/tusker-payload
+# edit /tmp/tusker-payload/dataset-metadata.json: set the title, and the id that
+# datasets/cc-news/kernel-metadata.json lists under dataset_sources
+kaggle datasets version -p /tmp/tusker-payload -m "slim <canonical version>"
 ```
 
-`create` fails with "Please upload at least one file" if only the metadata is in
-the folder. Kaggle decompresses `.gz` during processing, which is fine, the script
-reads either form.
+`version` adds a new version to `djordjevuckovic/tusker-cc-news`, which the
+kernel already reads. `kaggle datasets create` fails on a dataset that exists;
+use it only for a new dataset, then point `dataset_sources` at that id.
 
 **3. Push the kernel.** Set your username in
 `datasets/cc-news/kernel-metadata.json` first. Pushing also starts the run.
@@ -98,97 +181,140 @@ kaggle kernels status djordjevuckovic/tusker-embed
 kaggle kernels logs   djordjevuckovic/tusker-embed
 ```
 
-**5. Collect the Parquet.**
+**5. Collect the package.** Only `/kaggle/working` is downloadable. Fetch it to a
+scratch dir, then move the version directory in; nothing in `datasets/` is
+overwritten.
 
 ```bash
-kaggle kernels output djordjevuckovic/tusker-embed -p datasets/cc-news/
+kaggle kernels output djordjevuckovic/tusker-embed -p /tmp/tusker-out
+mkdir -p datasets/cc-news/embeddings/qwen3-embedding-0.6b@1024
+mv /tmp/tusker-out/embeddings/qwen3-embedding-0.6b@1024/lead-v1-1024-<8 hex> \
+   datasets/cc-news/embeddings/qwen3-embedding-0.6b@1024/
 ```
 
-Only `/kaggle/working` is downloadable. The kernel relies on the Kaggle image's
-preinstalled transformers, which has to be at least 4.51 for Qwen3, since a script
-kernel has no `pip install` step.
+The kernel relies on the Kaggle image's preinstalled transformers, which has to
+be at least 4.51 for Qwen3, since a script kernel has no `pip install` step. The
+scripts stay on Python 3.11 syntax for the same image.
 
-### Shrink the upload first
+### Colab notebook
 
-`embed_corpus.py` reads only `id`, `title` and `description`. In cc-news the
-article body is 86% of the bytes and none of the input, so project it away before
-moving anything to a cloud box:
+`scripts/embed_colab.ipynb` is the other GPU path. It drives the same scripts from
+Drive, for when Kaggle's GPU quota is spent:
+
+1. Copy `scripts/embed_corpus.py` and `scripts/embed_queries.py` to
+   `MyDrive/tusker/`, and the slim package (`slim.datapackage.json` plus
+   `articles.parquet`) to `MyDrive/tusker/<corpus>/payload/`. The full canonical
+   package works too.
+2. Open the notebook in Colab with a GPU runtime, set `DATASET` in its settings
+   cell, and run the cells in order.
+3. The run cell calls `embed_corpus.py` with `--device cuda`, `--dim`,
+   `--max-tokens` and checkpoints in `MyDrive/tusker/<corpus>/checkpoints`. After
+   a disconnect, re-running the cell resumes from the finished shards.
+4. The package lands at `MyDrive/tusker/<corpus>/embeddings/<tag-dir>/<version>/`.
+   Copy that version directory into `datasets/<corpus>/embeddings/<tag-dir>/`.
+
+The notebook can't run locally. `scripts/tests/test_colab_notebook.py` checks that
+every script call in it parses against the scripts' CLIs, which have abbreviations
+turned off so a stale flag fails instead of matching a longer one.
+
+### Query vectors
+
+A track's queries are embedded with the same runtime into
+`tracks/<ds>/<paradigm>/trec/query-vectors/`:
+
+```
+datapackage.json          embedding {…, recipe: query-instruct-v1}, suite {id, hash}
+query-vectors.parquet     query_id, text, embedding; suite order
+```
+
+`text` is the query's `description` exactly as the bench runner passes it to the
+vector store, in `internal/bench/runner/runner.go`:
+
+```go
+vec, err := r.config.VectorStore.QueryVector(ctx, q.Description)
+```
+
+The model input is that text wrapped by `query-instruct-v1`. Queries are embedded
+one per forward pass, so no query's vector depends on the others in the suite.
+`suite.hash` is the sha256 of `suite.yaml`, and a consumer refuses query vectors
+whose `suite.hash` differs from the current file. The version is
+`query-instruct-v1-<dim>-` plus 8 hex over the suite sha256, model revision,
+recipe, dim and maxTokens, encoded like the embeddings version. A later run
+against an edited suite
+refuses to replace the package until it is removed.
+
+On Kaggle, push `scripts/kaggle/queries/kernel-metadata.json`. Its dataset holds
+the track's `suite.yaml` and a copy of `scripts/embed_corpus.py`, which
+`embed_queries.py` imports:
 
 ```bash
-uv run scripts/slim_corpus.py datasets/cc-news/canonical-dataset.jsonl
-# 708,241 docs -> canonical-dataset-slim.jsonl.gz
-# 2029.9 MB -> 75.8 MB  (26.8x smaller)
+mkdir -p /tmp/tusker-queries
+cp tracks/cc-news/<paradigm>/suite.yaml scripts/embed_corpus.py /tmp/tusker-queries/
+kaggle datasets init -p /tmp/tusker-queries        # set title and id
+kaggle datasets create -p /tmp/tusker-queries      # first time; later runs use `kaggle datasets version`
+kaggle kernels push -p scripts/kaggle/queries
+kaggle kernels output djordjevuckovic/tusker-embed-queries -p /tmp/tusker-queries-out
+mv /tmp/tusker-queries-out/query-vectors tracks/cc-news/<paradigm>/trec/
 ```
 
-`embed_corpus.py` reads the `.gz` directly and produces the same vectors as the
-unprojected file. Ids are random UUIDs assigned at preprocess time
-(`document.NewArticleID`), not hashes, so they cannot be regenerated upstream and
-have to travel with the text.
+### Checkpoints and re-runs
 
-The return trip is the harder one. The Parquet is about 2.9 GB for cc-news
-(708,241 × 1024 × 4 bytes), and `--clean-checkpoints` drops the shard files once
-the merge succeeds, halving peak disk from roughly 5.8 GB.
+The corpus is streamed and checkpointed every `--shard-size` rows (default
+20,000). Shards are cut in canonical row order, so shard N always covers the same
+rows. Length sorting happens inside a shard and is undone before the vectors are
+saved, which cuts padding waste (2.2x on an M4 Pro) without changing the order.
 
-### How it behaves
-
-The JSONL is streamed and checkpointed every 20k documents. Re-running skips
-finished shards, so a dropped session resumes.
-
-Shards are cut in strict file order, so shard N always addresses the same
-documents. Length sorting happens inside a shard and is undone before the vectors
-are saved, which keeps resume exact while still cutting padding waste (2.2x on an
-M4 Pro).
+- The checkpoint dir records the run's settings: input hash, canonical hash,
+  model, revision, recipe, dim, maxTokens, shard size, batch size, dtype and
+  `--limit`. A run with any other setting is refused instead of mixing shards.
+- `--limit N` embeds the first N rows into `<version>-limit-N`, so a trial can
+  never be resumed as, or mistaken for, the full package.
+- Writing into a version that already exists compares each resource's name,
+  hash and bytes, and nothing else. A match keeps the existing package; a
+  difference is refused as non-determinism, never overwritten. A rerun with the
+  same settings verifies the existing package and exits without embedding again.
+  `batchSize` and `dtype` move the bytes without moving the version, so a rerun
+  with another batch size is embedded, compared and usually refused; the error
+  names the batch size and dtype to reuse. `--auto-batch-size` reuses the batch
+  size the existing package or checkpoints recorded. `slim_corpus.py` and
+  `embed_queries.py` follow the same rule.
+- `--clean-checkpoints` drops the shards once the package is written. The merge
+  still runs with every shard on disk, so peak disk stays at shards plus Parquet,
+  about 5.8 GB for cc-news; only what is left afterwards halves, to 2.9 GB.
 
 `--batch-size` defaults to 64. Wider batches have measured slower on every device
 tried so far: on an M4 Pro 64 beat 128 and 256 fell off a cliff, and on a Colab
 CUDA GPU the fall-off was monotonic (64 at 199 docs/s, 256 at 158, 512 at 128).
-The length sort is why. It groups each batch by document length, so more, smaller
-batches pad less than a few wide ones. `--auto-batch-size` times a 2,000-doc slice
-at 64, 256 and 512 and uses the fastest rather than assuming; both cloud paths
-turn it on.
+The length sort is why: more, smaller batches pad less than a few wide ones.
+`--auto-batch-size` times a 2,000-row slice at 64, 256 and 512 and uses the
+fastest. A resumed run reuses the batch size its checkpoints recorded.
 
-### Embedded fields
+### Testing the scripts
 
-Default is title plus description, matching how gl-news was embedded. Its
-`content` was API-truncated (`"… [+1826 chars]"`), so there was never a real body
-to use there.
+The tests build a random one-layer Qwen3 at width 1024 on the fly, run every
+script as a CLI on CPU, and never touch the network:
 
-cc-news does have real bodies (100% filled, median 1635 chars), and 18.8% of its
-documents have no description, leaving those as title-only vectors (median 59
-chars). If the semantic track looks weak on cc-news, `--full-content` on both
-`slim_corpus.py` and `embed_corpus.py` is the lever, at roughly a 700 MB upload
-and a substantially slower run. Each corpus is its own benchmark track, so the
-PG-vs-ES comparison holds either way.
-
-### Artifact format
-
-Parquet with two columns:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | `string` | article UUID |
-| `embedding` | `list<float32>` | 1024-dim, L2-normalised |
-
-Plus file-level metadata read by the loader:
-
-| Key | Purpose |
-|-----|---------|
-| `model` | stored as `article_embeddings.model_name`; must match the query-time model |
-| `hf_model_id`, `dim`, `pooling`, `normalized`, `row_count`, `created_at` | provenance / validation |
-
-The loader uses `model` from the file so document-side and query-side embeddings
-always agree on `model_name`. Override with `EMBEDDING_MODEL` if needed.
+```bash
+uv run --no-project --python 3.11 --with-requirements scripts/tests/requirements.txt pytest scripts/tests
+```
 
 ### Running
 
 ```bash
-cp cmd/datapipe/embeddings.env.example cmd/datapipe/embeddings.env   # then edit
+cp cmd/datapipe/embeddings.env.example cmd/datapipe/embeddings.env   # then edit the file path
+# The example's model name has no width and would match no query vector.
+sed -i.bak 's/^EMBEDDING_MODEL=.*/EMBEDDING_MODEL=qwen3-embedding:0.6b@1024/' cmd/datapipe/embeddings.env
+rm cmd/datapipe/embeddings.env.bak
 go run ./cmd/datapipe load embeddings
 ```
 
 Re-runnable: each batch is COPYed into a temp staging table, then upserted
 (`ON CONFLICT (article_id, model_name) DO UPDATE`), so partial runs can be
 repeated safely.
+
+The loader reads the model name from Parquet metadata, which `embed_corpus.py`
+no longer writes; the descriptor holds it, as `embedding.tag`. That is why
+`EMBEDDING_MODEL` has to be set to the full tag above.
 
 When loading from S3 the file is first downloaded to a temp file (via
 `os.CreateTemp`, cleaned up on exit). The corpus embeddings file can be several
@@ -205,5 +331,5 @@ GB — ensure the system temp dir (`$TMPDIR`) has enough space, or set
 | `EMBEDDING_S3_REGION` / `_BUCKET` / `_KEY` | object location |
 | `EMBEDDING_S3_ACCESS_KEY` / `_SECRET_KEY` | credentials (falls back to default AWS chain if unset) |
 | `EMBEDDING_S3_USE_PATH_STYLE` | `true` for MinIO, `false` for AWS S3 |
-| `EMBEDDING_MODEL` | optional override of the file's `model` metadata |
+| `EMBEDDING_MODEL` | model name stored as `model_name`; required for packages `embed_corpus.py` writes, as the full tag (`qwen3-embedding:0.6b@1024`) |
 | `EMBEDDING_BATCH_SIZE` | rows per bulk upsert (default 5000) |

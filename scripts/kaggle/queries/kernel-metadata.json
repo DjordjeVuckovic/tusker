@@ -1,0 +1,16 @@
+{
+  "id": "djordjevuckovic/tusker-embed-queries",
+  "title": "tusker-embed-queries",
+  "code_file": "../../embed_queries.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [
+    "djordjevuckovic/tusker-queries"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

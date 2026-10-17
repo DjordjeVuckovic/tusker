@@ -1,0 +1,148 @@
+import json
+
+import pyarrow.parquet as pq
+from conftest import article, run_script, sha256_of, write_canonical_package
+
+ROWS = [
+    article(
+        "6f1c2b8e-0d5a-4a57-9a0e-1b2c3d4e5f60",
+        "Markets rally",
+        "Stocks rose on Monday.",
+        "long body " * 50,
+    ),
+    article(
+        "0a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d",
+        "Storm hits coast",
+        "",
+        "another long body " * 50,
+    ),
+    article(
+        "d4c3b2a1-9f8e-4d7c-b6a5-0f1e2d3c4b5a",
+        "Election results",
+        "Polls closed at eight.",
+        "third body",
+    ),
+]
+
+
+def only_package(output_root):
+    (descriptor,) = output_root.glob("embeddings/*/*/datapackage.json")
+    return descriptor
+
+
+def test_embedding_the_slim_projection_reproduces_the_canonical_package(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    slim = tmp_path / "payload"
+
+    sliming = run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
+    run_script(
+        "embed_corpus.py",
+        canonical.descriptor,
+        "--output-root",
+        tmp_path / "direct",
+        *tiny_model_args,
+    )
+    run_script(
+        "embed_corpus.py",
+        slim / "slim.datapackage.json",
+        "--output-root",
+        tmp_path / "slim",
+        *tiny_model_args,
+    )
+
+    assert sliming.returncode == 0, sliming.stderr
+    direct, projected = (
+        only_package(tmp_path / "direct"),
+        only_package(tmp_path / "slim"),
+    )
+    assert projected.parent.name == direct.parent.name
+    assert (
+        json.loads(projected.read_text())["canonical"]
+        == json.loads(direct.read_text())["canonical"]
+    )
+    assert sha256_of(projected.parent / "embeddings.parquet") == sha256_of(
+        direct.parent / "embeddings.parquet"
+    )
+
+
+def test_the_slim_payload_carries_only_what_the_embedder_reads(tmp_path):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS, "jsonl")
+    slim = tmp_path / "payload"
+
+    run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
+
+    descriptor = json.loads((slim / "slim.datapackage.json").read_text())
+    (resource,) = descriptor["resources"]
+    table = pq.read_table(slim / resource["path"])
+    assert table.column_names == ["id", "title", "description"]
+    assert table.column("id").to_pylist() == [row["id"] for row in ROWS]
+    assert descriptor["canonical"] == {
+        "name": "cc-news",
+        "version": "article-v2-0badcafe",
+        "resourceHash": sha256_of(canonical.resource),
+    }
+
+
+def test_refuses_to_slim_a_canonical_resource_that_does_not_verify(tmp_path):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS, "jsonl")
+    canonical.resource.write_bytes(
+        canonical.resource.read_bytes().replace(b"Markets", b"Murkets")
+    )
+
+    result = run_script(
+        "slim_corpus.py", canonical.descriptor, "--out", tmp_path / "payload"
+    )
+
+    assert result.returncode != 0
+    assert "hash" in result.stderr
+    assert not (tmp_path / "payload").exists()
+
+
+def test_the_slim_payload_uploads_whole_through_the_kaggle_cli(tmp_path):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    slim = tmp_path / "payload"
+
+    run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
+
+    # `kaggle datasets create` never uploads files with these names.
+    skipped_by_kaggle = {
+        "datapackage.json",
+        "dataset-metadata.json",
+        "kernel-metadata.json",
+    }
+    assert {path.name for path in slim.iterdir()} == {
+        "articles.parquet",
+        "slim.datapackage.json",
+    }
+    assert not skipped_by_kaggle & {path.name for path in slim.iterdir()}
+
+
+def test_reslimming_the_same_canonical_package_is_a_no_op(tmp_path):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    slim = tmp_path / "payload"
+    run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
+    before = sha256_of(slim / "articles.parquet")
+
+    result = run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
+
+    assert result.returncode == 0, result.stderr
+    assert sha256_of(slim / "articles.parquet") == before
+
+
+def test_refuses_to_reslim_different_bytes_under_the_same_canonical_version(tmp_path):
+    slim = tmp_path / "payload"
+    first = write_canonical_package(tmp_path / "first", ROWS)
+    run_script("slim_corpus.py", first.descriptor, "--out", slim)
+    before = sha256_of(slim / "articles.parquet")
+    changed = write_canonical_package(
+        tmp_path / "changed",
+        [*ROWS, article("e5d4c3b2-a1f0-4e9d-8c7b-6a5f4e3d2c1b", "Late addition")],
+    )
+
+    result = run_script("slim_corpus.py", changed.descriptor, "--out", slim)
+
+    assert result.returncode != 0
+    assert "hash" in result.stderr
+    assert sha256_of(slim / "articles.parquet") == before
