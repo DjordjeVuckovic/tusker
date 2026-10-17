@@ -378,6 +378,51 @@ func TestReciprocalRank(t *testing.T) {
 	}
 }
 
+func TestBinaryPreference(t *testing.T) {
+	ids := newIDs(6)
+	rel1, rel2, rel3, nonrel1, nonrel2, unjudged := ids[0], ids[1], ids[2], ids[3], ids[4], ids[5]
+
+	// Expected values are trec_eval 10.0 bpref on the same qrels and ranking.
+	tests := []struct {
+		name      string
+		ranked    []uuid.UUID
+		judgments map[uuid.UUID]int
+		want      float64
+	}{
+		{
+			name:      "fewer judged non-relevant than relevant",
+			ranked:    []uuid.UUID{nonrel1, rel1, rel2, rel3},
+			judgments: map[uuid.UUID]int{rel1: 1, rel2: 1, rel3: 1, nonrel1: 0},
+			want:      0.0,
+		},
+		{
+			name:      "three relevant, two non-relevant",
+			ranked:    []uuid.UUID{nonrel1, rel1, rel2, nonrel2, rel3},
+			judgments: map[uuid.UUID]int{rel1: 1, rel2: 1, rel3: 1, nonrel1: 0, nonrel2: 0},
+			want:      1.0 / 3.0,
+		},
+		{
+			name:      "relevant doc never retrieved",
+			ranked:    []uuid.UUID{nonrel1, rel1, nonrel2},
+			judgments: map[uuid.UUID]int{rel1: 1, rel2: 1, nonrel1: 0, nonrel2: 0},
+			want:      0.25,
+		},
+		{
+			name:      "no judged non-relevant docs",
+			ranked:    []uuid.UUID{unjudged, rel1, rel2},
+			judgments: map[uuid.UUID]int{rel1: 1, rel2: 1},
+			want:      1.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := BinaryPreference(tt.ranked, tt.judgments, 1)
+			assert.InDelta(t, tt.want, got, 1e-9)
+		})
+	}
+}
+
 func TestComputeAll(t *testing.T) {
 	ids := newIDs(3)
 	judgments := map[uuid.UUID]int{
