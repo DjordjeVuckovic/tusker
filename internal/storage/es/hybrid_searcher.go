@@ -142,8 +142,8 @@ func (s *HybridSearcher) lexicalLeg(ctx context.Context, query string, depth int
 	return idsFromHits(res.Hits.Hits)
 }
 
-// vectorLeg embeds the query and runs a kNN search over the embedding field,
-// returning matched doc IDs in rank order.
+// vectorLeg embeds the query and runs a kNN search over the vectors tagged with
+// the query's model, returning matched doc IDs in rank order.
 func (s *HybridSearcher) vectorLeg(ctx context.Context, query string, depth int) ([]uuid.UUID, error) {
 	vec, err := s.embedder.EmbedQuery(ctx, query)
 	if err != nil {
@@ -159,6 +159,9 @@ func (s *HybridSearcher) vectorLeg(ctx context.Context, query string, depth int)
 		QueryVector:   vec.Embedding,
 		K:             &depth,
 		NumCandidates: &numCandidates,
+		Filter: []types.Query{{
+			Term: map[string]types.TermQuery{"embedding_model": {Value: vec.Model}},
+		}},
 	}
 
 	res, err := s.client.Search().
