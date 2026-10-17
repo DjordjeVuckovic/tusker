@@ -366,6 +366,8 @@ Every engine ships the same payload: document ids only. Postgres templates `SELE
 
 Every engine in a job answers every query of its suite. If an engine has no block for one of them (its own, or the one its `queries_from` names), `bench run` and `bench pool` stop before the first query runs and name the query and the engine. `bench validate` still lists that pair as `SKIP`.
 
+Measured elasticsearch templates should set `"track_total_hits": false` until its cost has been measured. By default elasticsearch counts matches up to 10,000 to fill `hits.total`, which delays its early termination of a top-k search, while postgres reports no total at all. Leaving it on makes elasticsearch do work postgres does not, by an amount nobody has sized yet. With it off, elasticsearch omits `hits.total`, and the executor currently records a `corpus_matches` of 0 for those queries rather than leaving it empty, so disregard that column for those templates.
+
 #### Index provenance
 
 Before the first query, `bench run` reads from each live engine how it indexed the corpus and records it under `environment.engines.<name>.index` in the report. It also fills `version`.
