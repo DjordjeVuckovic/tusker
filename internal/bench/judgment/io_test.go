@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
 )
 
 func TestWriteAtomic_NoLeftoverTempOnSuccess(t *testing.T) {
@@ -103,4 +104,18 @@ func TestIncrementalWriter_LoadPriorRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, loaded)
 	assert.Len(t, loaded.Queries, 1)
+}
+
+// Grade counts describe a judgment set; pools share the meta block but have
+// nothing to count.
+func TestGradeCounts_StayOffPoolFiles(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pool.yaml")
+	pf := &pool.PoolFile{Meta: meta.New("pool"), Queries: []pool.PoolEntry{{QueryID: "q1", Docs: []pool.PooledDoc{{DocID: uuid.New()}}}}}
+
+	require.NoError(t, pool.WritePoolFile(pf, path))
+
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "graded_count")
+	assert.NotContains(t, string(raw), "unjudged_count")
 }

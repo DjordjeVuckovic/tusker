@@ -380,7 +380,8 @@ func buildManualJudgments(pf *pool.PoolFile, existing *judgment.File) *judgment.
 }
 
 func writeJudgments(jf *judgment.File, path string) error {
-	jf.Meta.GradedCount, jf.Meta.UnjudgedCount = countGrades(jf)
+	graded, unjudged := countGrades(jf)
+	jf.Meta.GradedCount, jf.Meta.UnjudgedCount = &graded, &unjudged
 	return judgment.WriteFile(jf, path)
 }
 

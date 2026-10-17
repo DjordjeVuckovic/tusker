@@ -139,6 +139,16 @@ func TestWriteJudgments_RecordsCountsWhenNothingWasGraded(t *testing.T) {
 	assert.Contains(t, string(raw), "unjudged_count: 2")
 }
 
+func TestWriteJudgments_RecordsZeroUnjudged(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "annotations.bm25.yaml")
+
+	require.NoError(t, writeJudgments(judgmentsWithGrades(judgment.GradeRelevant), path))
+
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), "unjudged_count: 0")
+}
+
 func TestRequireJudged(t *testing.T) {
 	cases := []struct {
 		name          string
