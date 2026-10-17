@@ -80,7 +80,9 @@ Multiple strategies live side-by-side; switch which one bench run scores
 against via --judgments <name>.
 
 Resumable: re-run with the same --strategy and --resume to skip docs already
-graded. Atomic writes mean Ctrl-C is safe.`,
+graded. bm25 and hybrid grade relative to the whole pool, so they skip only
+queries that are fully graded and regrade the rest whole. Atomic writes mean
+Ctrl-C is safe.`,
 		Example: `  bench judge tracks/global-news-dataset/fts_quality --strategy lexical
   bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-cli
   bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-api --model sonnet --batch 20 --resume
@@ -97,7 +99,7 @@ graded. Atomic writes mean Ctrl-C is safe.`,
 	cmd.Flags().StringVar(&f.pg, "pg", "", "Postgres connection (or set PG_CONNECTION_STRING)")
 	cmd.Flags().IntVar(&f.concurrency, "concurrency", 4, "Parallel Grade calls (per-doc strategies)")
 	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "Override LLM batch size (0 = strategy default)")
-	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output")
+	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output; bm25 and hybrid skip only fully graded queries")
 	cmd.Flags().BoolVar(&f.allowUnjudged, "allow-unjudged", false, "Exit 0 even when some pooled docs end unjudged")
 	cmd.Flags().BoolVar(&f.force, "force", false, "Manual only: discard existing hand grades and rewrite the placeholders")
 	cmd.Flags().StringVar(&f.apiKey, "api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY)")

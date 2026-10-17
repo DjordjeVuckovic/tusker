@@ -168,3 +168,31 @@ func TestBM25_RejectsBatchSize(t *testing.T) {
 		t.Fatal("Run with a batch size: want an error, got nil")
 	}
 }
+
+// Grades from a run that could not read every pooled article were scaled to a
+// smaller pool, so resuming once the article is back must regrade the query.
+func TestBM25_ResumeAfterMissingArticleMatchesFreshRun(t *testing.T) {
+	pf, reader := bm25Pool(
+		"climate change climate change climate",
+		"climate report",
+		"change of policy",
+	)
+	fresh := runGrades(t, RunnerConfig{Strategy: NewBM25Strategy(), Reader: reader}, pf)
+
+	strongest := pf.Queries[0].Docs[0].DocID
+	missing := reader.articles[strongest]
+	delete(reader.articles, strongest)
+	partial, err := NewRunner(RunnerConfig{Strategy: NewBM25Strategy(), Reader: reader}).Run(context.Background(), pf)
+	if err != nil {
+		t.Fatalf("Run with a missing article: %v", err)
+	}
+	reader.articles[strongest] = missing
+
+	resumed := runGrades(t, RunnerConfig{Strategy: NewBM25Strategy(), Reader: reader, Existing: partial}, pf)
+
+	for id, want := range fresh {
+		if resumed[id] != want {
+			t.Errorf("doc %q: resumed grade %d, fresh grade %d", reader.articles[id].Title, resumed[id], want)
+		}
+	}
+}

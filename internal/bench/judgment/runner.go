@@ -143,16 +143,24 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 		return ge, prog, nil
 	}
 
-	// Partition: resume hits vs. work-to-do.
-	var todo []pool.PooledDoc
+	var todo, kept []pool.PooledDoc
 	for _, pd := range entry.Docs {
 		if g, ok := prior[pd.DocID]; ok && g >= 0 {
-			ge.Docs = append(ge.Docs, GradedDoc{DocID: pd.DocID, Grade: g})
-			prog.Skipped++
-			prog.Histogram[g]++
-			continue
+			kept = append(kept, pd)
+		} else {
+			todo = append(todo, pd)
 		}
-		todo = append(todo, pd)
+	}
+	// A pool grade is relative to the pool the prior run could read, so a
+	// query with anything left to grade is regraded whole.
+	if _, wholePool := r.cfg.Strategy.(PoolStrategy); wholePool && len(todo) > 0 {
+		todo, kept = entry.Docs, nil
+	}
+	for _, pd := range kept {
+		g := prior[pd.DocID]
+		ge.Docs = append(ge.Docs, GradedDoc{DocID: pd.DocID, Grade: g})
+		prog.Skipped++
+		prog.Histogram[g]++
 	}
 	if r.cfg.OnQueryStart != nil {
 		r.cfg.OnQueryStart(entry.QueryID, len(entry.Docs), prog.Skipped)
