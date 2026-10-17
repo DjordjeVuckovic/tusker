@@ -267,7 +267,9 @@ func (p templateOnEngine) register(ctx context.Context, exec engine.Executor, ti
 }
 
 // JobRequest is everything one job needs to run: its declaration, the loaded
-// suite, the executors to drive, and how each engine reaches its queries.
+// suite, the executors to drive, and how each engine reaches its queries. The
+// suite must come from LoadSuites, which guarantees every engine a block for
+// every query.
 type JobRequest struct {
 	// Track is the spec id, which namespaces the job's stored search templates.
 	Track     string
@@ -400,9 +402,6 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 					present: true,
 				}
 				slog.Warn("resolve query failed", "query", q.ID, "engine", engName, "error", err)
-				return
-			}
-			if resolved == nil {
 				return
 			}
 
