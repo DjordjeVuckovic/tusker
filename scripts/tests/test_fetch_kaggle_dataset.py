@@ -37,12 +37,27 @@ def cache(tmp_path: Path) -> Path:
     return root
 
 
-def fetch(cache: Path, datasets_root: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+ENV_CREDENTIALS = {"KAGGLE_USERNAME": "fixture", "KAGGLE_KEY": "fixture"}
+
+
+def fetch(
+    cache: Path,
+    datasets_root: Path,
+    *extra: str,
+    home: Path | None = None,
+    credentials: dict[str, str] = ENV_CREDENTIALS,
+) -> subprocess.CompletedProcess[str]:
+    """Run the CLI with only the given credentials: HOME is a fixture, never ~."""
+    inherited = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith("KAGGLE") and name != "HOME"
+    }
     env = {
-        **os.environ,
+        **inherited,
+        **credentials,
+        "HOME": str(home or datasets_root.parent / "home"),
         "KAGGLEHUB_CACHE": str(cache),
-        "KAGGLE_USERNAME": "fixture",
-        "KAGGLE_KEY": "fixture",
         "HTTPS_PROXY": "http://127.0.0.1:9",
         "HTTP_PROXY": "http://127.0.0.1:9",
     }
@@ -139,3 +154,45 @@ def test_a_file_no_descriptor_reader_accepts_is_refused(cache: Path, tmp_path: P
     assert result.returncode != 0
     assert ".DS_Store" in result.stderr
     assert not (datasets_root / "news" / "raw" / "datapackage.json").exists()
+
+
+OAUTH_LOGIN = {
+    "refresh_token": "fixture-refresh",
+    "access_token": "fixture-access",
+    "access_token_expiration": "2999-01-01T00:00:00+00:00",
+    "username": "fixture",
+    "scopes": ["resources.admin:*"],
+}
+API_TOKEN_FILE = {"username": "fixture", "key": "fixture"}
+
+
+@pytest.mark.parametrize(
+    ("file_name", "content"),
+    [("credentials.json", OAUTH_LOGIN), ("kaggle.json", API_TOKEN_FILE)],
+)
+def test_a_credentials_file_in_the_home_kaggle_folder_is_accepted(
+    cache: Path, tmp_path: Path, file_name: str, content: dict[str, object]
+) -> None:
+    home = tmp_path / "home"
+    (home / ".kaggle").mkdir(parents=True)
+    credentials_file = home / ".kaggle" / file_name
+    credentials_file.write_text(json.dumps(content))
+    datasets_root = tmp_path / "datasets"
+
+    result = fetch(cache, datasets_root, home=home, credentials={})
+
+    assert result.returncode == 0, result.stderr
+    assert (datasets_root / "news" / "raw" / "datapackage.json").exists()
+    assert json.loads(credentials_file.read_text()) == content
+
+
+def test_without_credentials_the_fetch_stops_with_setup_help(cache: Path, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    datasets_root = tmp_path / "datasets"
+
+    result = fetch(cache, datasets_root, home=home, credentials={})
+
+    assert result.returncode != 0
+    assert "credentials.json" in result.stderr
+    assert not (datasets_root / "news").exists()

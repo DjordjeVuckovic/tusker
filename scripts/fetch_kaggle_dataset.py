@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["kagglehub>=1.0"]
+# dependencies = ["kagglehub>=1.0", "kagglesdk>=0.1.22,<1.0"]
 # ///
 """Fetch Kaggle datasets into datasets/<dir>/raw/.
 
@@ -20,7 +20,9 @@ handle, the version and each file's sha256. A file already in raw/ with the
 same hash is kept, and one that differs is refused unless --force, which
 clears raw/ and nothing else.
 
-Credentials: KAGGLE_USERNAME and KAGGLE_KEY, or ~/.kaggle/kaggle.json.
+Credentials: anything kagglehub reads (KAGGLE_USERNAME and KAGGLE_KEY,
+KAGGLE_API_TOKEN, ~/.kaggle/kaggle.json), or the ~/.kaggle/credentials.json
+that `kaggle auth login` writes.
 """
 
 from __future__ import annotations
@@ -37,6 +39,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import kagglehub
+import kagglehub.config
+from kagglesdk import KaggleClient, KaggleCredentials
 
 ROOT = Path(__file__).resolve().parents[1]
 DATASETS_ROOT = ROOT / "datasets"
@@ -45,6 +49,10 @@ DESCRIPTOR = "datapackage.json"
 CHUNK = 1024 * 1024
 
 CREDENTIALS_HELP = """Kaggle credentials not found. Either:
+
+  kaggle auth login                (writes ~/.kaggle/credentials.json)
+
+or export a key:
 
   export KAGGLE_USERNAME=<username> KAGGLE_KEY=<key>
 
@@ -104,11 +112,17 @@ def rel(path: Path) -> Path:
 
 
 def check_credentials() -> None:
-    if os.environ.get("KAGGLE_USERNAME") and os.environ.get("KAGGLE_KEY"):
-        return
-    if (Path.home() / ".kaggle" / "kaggle.json").exists():
-        return
-    raise SystemExit(CREDENTIALS_HELP)
+    try:
+        if kagglehub.config.get_kaggle_credentials() is not None:
+            return
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
+    login = KaggleCredentials.load(KaggleClient())
+    if login is None:
+        raise SystemExit(CREDENTIALS_HELP)
+    # kagglehub never reads credentials.json, so pass its access token the way
+    # kagglehub reads one. An expired token is refreshed and saved back first.
+    os.environ["KAGGLE_API_TOKEN"] = login.get_access_token()
 
 
 def version_of(landed: Path) -> str:
