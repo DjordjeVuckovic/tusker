@@ -91,7 +91,13 @@ func Preprocess(ctx context.Context, opts PreprocessOptions) (Preprocessed, erro
 		}},
 	}
 
-	return writePackage(ctx, opts.OutputRoot, pkg, corpusSource{raw: opts.Raw, mapper: mapper, seen: map[uuid.UUID]struct{}{}})
+	builder := &canonicalBuilder{
+		raw:    opts.Raw,
+		mapper: mapper,
+		seen:   map[uuid.UUID]struct{}{},
+		report: datapackage.Report{Dropped: map[string]int64{}},
+	}
+	return builder.writePackage(ctx, opts.OutputRoot, pkg)
 }
 
 // writePackage builds the package in a temporary folder beside its version
@@ -99,7 +105,7 @@ func Preprocess(ctx context.Context, opts PreprocessOptions) (Preprocessed, erro
 // cancelled run leaves nothing behind. A version folder that already exists is
 // never touched: matching content makes the run a no-op, and anything else is
 // a *datapackage.DescriptorConflictError.
-func writePackage(ctx context.Context, outputRoot string, pkg datapackage.Package, source corpusSource) (_ Preprocessed, err error) {
+func (b *canonicalBuilder) writePackage(ctx context.Context, outputRoot string, pkg datapackage.Package) (_ Preprocessed, err error) {
 	if err := os.MkdirAll(outputRoot, 0o755); err != nil {
 		return Preprocessed{}, fmt.Errorf("create canonical output folder: %w", err)
 	}
@@ -116,11 +122,10 @@ func writePackage(ctx context.Context, outputRoot string, pkg datapackage.Packag
 		}
 	}()
 
-	report, err := writeArticlesFile(ctx, filepath.Join(tmp, pkg.Resources[0].Path), datamapping.OutputFormat(pkg.Resources[0].Format), source)
-	if err != nil {
+	if err := b.writeArticlesFile(ctx, filepath.Join(tmp, pkg.Resources[0].Path), datamapping.OutputFormat(pkg.Resources[0].Format)); err != nil {
 		return Preprocessed{}, err
 	}
-	pkg.Report = &report
+	pkg.Report = &b.report
 
 	dir := filepath.Join(outputRoot, pkg.Version)
 	exists, err := copyExistingDescriptor(dir, tmp)
@@ -215,10 +220,10 @@ func httpsSources(sources []datapackage.Source) []datapackage.Source {
 	return kept
 }
 
-func writeArticlesFile(ctx context.Context, path string, format datamapping.OutputFormat, source corpusSource) (report datapackage.Report, err error) {
+func (b *canonicalBuilder) writeArticlesFile(ctx context.Context, path string, format datamapping.OutputFormat) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
-		return datapackage.Report{}, fmt.Errorf("create %s: %w", path, err)
+		return fmt.Errorf("create %s: %w", path, err)
 	}
 	defer func() {
 		if closeErr := f.Close(); closeErr != nil && err == nil {
@@ -228,20 +233,19 @@ func writeArticlesFile(ctx context.Context, path string, format datamapping.Outp
 	buffered := bufio.NewWriterSize(f, 1<<20)
 	writer := newCanonicalWriter(buffered, format)
 
-	report, err = source.writeTo(ctx, writer)
-	if err != nil {
-		return datapackage.Report{}, err
+	if err := b.writeTo(ctx, writer); err != nil {
+		return err
 	}
 	if err := writer.Close(); err != nil {
-		return datapackage.Report{}, fmt.Errorf("finish %s: %w", path, err)
+		return fmt.Errorf("finish %s: %w", path, err)
 	}
 	if err := buffered.Flush(); err != nil {
-		return datapackage.Report{}, fmt.Errorf("flush %s: %w", path, err)
+		return fmt.Errorf("flush %s: %w", path, err)
 	}
 	if err := f.Sync(); err != nil {
-		return datapackage.Report{}, fmt.Errorf("sync %s: %w", path, err)
+		return fmt.Errorf("sync %s: %w", path, err)
 	}
-	return report, nil
+	return nil
 }
 
 func newCanonicalWriter(w io.Writer, format datamapping.OutputFormat) CanonicalWriter {
@@ -251,21 +255,22 @@ func newCanonicalWriter(w io.Writer, format datamapping.OutputFormat) CanonicalW
 	return NewParquetCanonicalWriter(w)
 }
 
-// corpusSource maps the records of a raw package onto articles. Of records
-// that share an id, the first in source order is kept.
-type corpusSource struct {
+// canonicalBuilder maps the records of a raw package onto articles and counts
+// them into report. Of records that share an id, the first in source order is
+// kept.
+type canonicalBuilder struct {
 	raw    *datapackage.Opened
 	mapper reader.Mapper
 	seen   map[uuid.UUID]struct{}
+	report datapackage.Report
 }
 
 const writeBatchSize = 1000
 
-func (s corpusSource) writeTo(ctx context.Context, w CanonicalWriter) (datapackage.Report, error) {
-	report := datapackage.Report{Dropped: map[string]int64{}}
+func (b *canonicalBuilder) writeTo(ctx context.Context, w CanonicalWriter) error {
 	batch := make([]document.Article, 0, writeBatchSize)
-	for _, resource := range s.raw.Package.Resources {
-		err := s.eachArticle(ctx, resource, &report, func(article document.Article) error {
+	for _, resource := range b.raw.Package.Resources {
+		err := b.eachArticle(ctx, resource, func(article document.Article) error {
 			batch = append(batch, article)
 			if len(batch) < writeBatchSize {
 				return nil
@@ -275,20 +280,20 @@ func (s corpusSource) writeTo(ctx context.Context, w CanonicalWriter) (datapacka
 			return err
 		})
 		if err != nil {
-			return datapackage.Report{}, err
+			return err
 		}
 	}
 	if err := w.Write(batch); err != nil {
-		return datapackage.Report{}, err
+		return fmt.Errorf("write articles: %w", err)
 	}
-	if report.Written == 0 {
-		return datapackage.Report{}, fmt.Errorf("no article survived mapping out of %d records read: %v", report.Read, report.Dropped)
+	if b.report.Written == 0 {
+		return fmt.Errorf("no article survived mapping out of %d records read: %v", b.report.Read, b.report.Dropped)
 	}
-	return report, nil
+	return nil
 }
 
-func (s corpusSource) eachArticle(ctx context.Context, resource datapackage.Resource, report *datapackage.Report, emit func(document.Article) error) error {
-	file, err := s.raw.Resource(ctx, resource.Name)
+func (b *canonicalBuilder) eachArticle(ctx context.Context, resource datapackage.Resource, emit func(document.Article) error) error {
+	file, err := b.raw.Resource(ctx, resource.Name)
 	if err != nil {
 		return fmt.Errorf("open raw resource %s: %w", resource.Name, err)
 	}
@@ -301,34 +306,34 @@ func (s corpusSource) eachArticle(ctx context.Context, resource datapackage.Reso
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}
-		report.Read++
+		b.report.Read++
 		var malformed *reader.MalformedRecordError
 		if errors.As(err, &malformed) {
-			report.Dropped[dropMalformed]++
+			b.report.Dropped[dropMalformed]++
 			continue
 		}
 		if err != nil {
 			return fmt.Errorf("read raw resource %s: %w", resource.Name, err)
 		}
-		article, err := s.mapper.Map(record)
+		article, err := b.mapper.Map(record)
 		var drop *reader.MappingDropError
 		if errors.As(err, &drop) {
 			slog.Debug("dropped record", "resource", resource.Name, "error", err)
-			report.Dropped[string(drop.Reason)+"/"+drop.Target]++
+			b.report.Dropped[string(drop.Reason)+"/"+drop.Target]++
 			continue
 		}
 		if err != nil {
 			return fmt.Errorf("map record from %s: %w", resource.Name, err)
 		}
-		if _, duplicate := s.seen[article.ID]; duplicate {
-			report.Deduped++
+		if _, duplicate := b.seen[article.ID]; duplicate {
+			b.report.Deduped++
 			continue
 		}
-		s.seen[article.ID] = struct{}{}
+		b.seen[article.ID] = struct{}{}
 		if err := emit(article); err != nil {
 			return fmt.Errorf("write articles: %w", err)
 		}
-		report.Written++
+		b.report.Written++
 	}
 	return nil
 }
