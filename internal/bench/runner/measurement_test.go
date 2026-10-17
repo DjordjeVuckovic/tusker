@@ -140,3 +140,67 @@ func TestRunAll_FailedIterations(t *testing.T) {
 		})
 	}
 }
+
+func TestRunAll_EngineWithoutABlockForAQuery(t *testing.T) {
+	const suiteYAML = `queries:
+  - id: q-both
+    engines:
+      pg: { query: "SELECT id FROM articles" }
+      es: { query: '{"query": {"match_all": {}}}' }
+  - id: q-pg-only
+    engines:
+      pg: { query: "SELECT id FROM articles" }
+`
+	tests := []struct {
+		name    string
+		engines map[string]spec.Engine
+		wantErr []string
+	}{
+		{
+			name:    "fails before any query runs, naming the query and the engine",
+			engines: map[string]spec.Engine{"pg": postgres, "es": elasticsearch},
+			wantErr: []string{"q-pg-only", `"es"`},
+		},
+		{
+			name: "an engine reusing another's blocks has every block",
+			engines: map[string]spec.Engine{
+				"pg":       postgres,
+				"pg-tuned": {Type: spec.EnginePostgres, QueriesFrom: "pg"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bs := oneJobTrack(t, suiteYAML, tt.engines, nil)
+			executors := map[string]engine.Executor{}
+			recorders := map[string]*recordingExecutor{}
+			for name := range tt.engines {
+				recorders[name] = &recordingExecutor{name: name}
+				executors[name] = templateStoringRecorder{recorders[name]}
+			}
+
+			_, err := New(DefaultConfig()).RunAll(context.Background(), bs, executors)
+
+			if len(tt.wantErr) == 0 {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			for _, want := range tt.wantErr {
+				assert.ErrorContains(t, err, want)
+			}
+			for name, rec := range recorders {
+				assert.Empty(t, rec.seen, "engine %s ran a query before the job was rejected", name)
+			}
+		})
+	}
+}
+
+// templateStoringRecorder lets a recording executor stand in for an engine type
+// that stores search templates.
+type templateStoringRecorder struct{ *recordingExecutor }
+
+func (templateStoringRecorder) RegisterSearchTemplate(context.Context, engine.SearchTemplate) error {
+	return nil
+}

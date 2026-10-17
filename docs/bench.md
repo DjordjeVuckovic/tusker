@@ -364,6 +364,8 @@ Every engine ships the same payload: document ids only. Postgres templates `SELE
 {"query": {"multi_match": {"query": "{{terms}}", "fields": ["title^3", "description^2", "content"]}}, "size": 100, "_source": false}
 ```
 
+Every engine in a job answers every query of its suite. If an engine has no block for one of them (its own, or the one its `queries_from` names), `bench run` and `bench pool` stop before the first query runs and name the query and the engine. `bench validate` still lists that pair as `SKIP`.
+
 #### Index provenance
 
 Before the first query, `bench run` reads from each live engine how it indexed the corpus and records it under `environment.engines.<name>.index` in the report. It also fills `version`.
