@@ -179,3 +179,33 @@ func TestDescriptorSchemaRejectsKeysTheContractDoesNotList(t *testing.T) {
 		})
 	}
 }
+
+func TestAResourceMediaTypeIsKeptAndAllowed(t *testing.T) {
+	const parquet = "application/vnd.apache.parquet"
+	pkg := embeddingsPackage()
+	pkg.Resources[0].MediaType = parquet
+	dir := t.TempDir()
+	writeFile(t, dir, "embeddings.parquet", "placeholder")
+
+	written, err := datapackage.Write(context.Background(), dir, pkg)
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if written.Resources[0].MediaType != parquet {
+		t.Errorf("Write returned mediatype %q, want %q", written.Resources[0].MediaType, parquet)
+	}
+	descriptor, err := os.ReadFile(filepath.Join(dir, datapackage.DescriptorName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateDescriptor(t, compileDescriptorSchema(t), descriptor); err != nil {
+		t.Errorf("a resource with mediatype violates %s: %v", descriptorSchemaPath, err)
+	}
+	opened, err := datapackage.Open(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if got := opened.Package.Resources[0].MediaType; got != parquet {
+		t.Errorf("Open returned mediatype %q, want %q", got, parquet)
+	}
+}

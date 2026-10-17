@@ -42,11 +42,12 @@ type Package struct {
 // Resource is one file of the package. Path is relative to the descriptor;
 // Hash is "sha256:<hex>".
 type Resource struct {
-	Name   string `json:"name"`
-	Path   string `json:"path"`
-	Format string `json:"format"`
-	Bytes  int64  `json:"bytes"`
-	Hash   string `json:"hash"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Format    string `json:"format"`
+	MediaType string `json:"mediatype,omitempty"`
+	Bytes     int64  `json:"bytes"`
+	Hash      string `json:"hash"`
 }
 
 type Source struct {

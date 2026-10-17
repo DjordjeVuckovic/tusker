@@ -195,6 +195,9 @@
           "hash": {
             "type": "string"
           },
+          "mediatype": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
