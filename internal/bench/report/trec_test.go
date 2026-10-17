@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
@@ -89,6 +91,45 @@ func trecFixtureQrels(t *testing.T, path string) {
 	require.NoError(t, judgment.WriteQrels(jf, path))
 }
 
+// assertRunMatchesRankings checks the run lists each answered query's docs in
+// the fixture's order with ranks 1..n and strictly decreasing scores, the only
+// things trec_eval reads. A failed query has no lines.
+func assertRunMatchesRankings(t *testing.T, run, engine string) {
+	t.Helper()
+	type line struct {
+		docID string
+		rank  string
+		score float64
+	}
+	byQuery := make(map[string][]line)
+	for _, text := range strings.Split(strings.TrimSpace(run), "\n") {
+		fields := strings.Fields(text)
+		require.Len(t, fields, 6, text)
+		assert.Equal(t, "Q0", fields[1])
+		assert.Equal(t, engine, fields[5])
+		score, err := strconv.ParseFloat(fields[4], 64)
+		require.NoError(t, err, text)
+		byQuery[fields[0]] = append(byQuery[fields[0]], line{docID: fields[2], rank: fields[3], score: score})
+	}
+
+	for qid, rankings := range trecFixtureRankings {
+		ranked, answered := rankings[engine]
+		if !answered {
+			assert.NotContains(t, byQuery, qid, "%s failed %s, so the run has no lines for it", engine, qid)
+			continue
+		}
+		got := byQuery[qid]
+		require.Len(t, got, len(ranked), "%s %s", engine, qid)
+		for i, docID := range ranked {
+			assert.Equal(t, docID.String(), got[i].docID, "%s %s rank %d", engine, qid, i+1)
+			assert.Equal(t, strconv.Itoa(i+1), got[i].rank)
+			if i > 0 {
+				assert.Less(t, got[i].score, got[i-1].score, "%s %s scores must strictly decrease", engine, qid)
+			}
+		}
+	}
+}
+
 // The expected values are trec_eval 10.0 output for
 // `trec_eval -c -l 1 -m map -m P.5,10 qrels <engine>.run`, on the qrels
 // trecFixtureQrels writes and the run files below.
@@ -107,30 +148,11 @@ func TestWriteTRECRun_ReproducesReportMetricsUnderTrecEval(t *testing.T) {
 		assert.InDelta(t, want.p10, agg.Precision[10], 5e-5, agg.EngineName)
 	}
 
-	var pgRun bytes.Buffer
-	require.NoError(t, WriteTRECRun(&pgRun, job, "pg"))
-	assert.Equal(t, `q1 Q0 00000000-0000-0000-0000-000000000003 1 5 pg
-q1 Q0 00000000-0000-0000-0000-000000000002 2 4 pg
-q1 Q0 00000000-0000-0000-0000-000000000001 3 3 pg
-q1 Q0 00000000-0000-0000-0000-000000000009 4 2 pg
-q1 Q0 00000000-0000-0000-0000-000000000004 5 1 pg
-q2 Q0 00000000-0000-0000-0000-000000000007 1 2 pg
-q2 Q0 00000000-0000-0000-0000-000000000006 2 1 pg
-`, pgRun.String())
-
-	var esRun bytes.Buffer
-	require.NoError(t, WriteTRECRun(&esRun, job, "es"))
-	assert.Equal(t, `q1 Q0 00000000-0000-0000-0000-000000000001 1 3 es
-q1 Q0 00000000-0000-0000-0000-000000000004 2 2 es
-q1 Q0 00000000-0000-0000-0000-000000000003 3 1 es
-q2 Q0 00000000-0000-0000-0000-000000000006 1 4 es
-q2 Q0 00000000-0000-0000-0000-000000000001 2 3 es
-q2 Q0 00000000-0000-0000-0000-000000000007 3 2 es
-q2 Q0 00000000-0000-0000-0000-000000000009 4 1 es
-q3 Q0 00000000-0000-0000-0000-000000000008 1 3 es
-q3 Q0 00000000-0000-0000-0000-000000000005 2 2 es
-q3 Q0 00000000-0000-0000-0000-000000000002 3 1 es
-`, esRun.String())
+	for _, engine := range []string{"pg", "es"} {
+		var run bytes.Buffer
+		require.NoError(t, WriteTRECRun(&run, job, engine))
+		assertRunMatchesRankings(t, run.String(), engine)
+	}
 
 	qrelsPath := filepath.Join(t.TempDir(), "qrels.tsv")
 	trecFixtureQrels(t, qrelsPath)

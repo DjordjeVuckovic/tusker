@@ -402,3 +402,24 @@ func TestGenerate_JudgedCoverageIsUnknownForSuiteEmbeddedGrades(t *testing.T) {
 	require.Equal(t, 1, agg.JudgedCount)
 	assert.Nil(t, agg.JudgedCoverage, "the report never sees suite-embedded grades, so coverage is unknown, not 0")
 }
+
+func TestGenerate_LatencyExcludesAQueryAnEngineHadNoBlockFor(t *testing.T) {
+	judged := map[string]int{"11111111-1111-1111-1111-111111111111": 1}
+	br := &runner.BenchmarkResult{
+		Config: runner.Config{KValues: []int{10}, RelevanceThreshold: 1, Judgments: map[string]map[string]int{"q1": judged, "q2": judged}},
+		Jobs: []*runner.JobResult{{
+			JobName:     "missing-block",
+			EngineNames: []string{"pg", "es"},
+			QueryOrder:  []string{"q1", "q2"},
+			Results: map[string]map[string]runner.QueryResult{
+				"q1": {"pg": answered("q1", "pg", 0.5, 10*time.Millisecond), "es": answered("q1", "es", 0.5, 10*time.Millisecond)},
+				"q2": {"pg": answered("q2", "pg", 0.5, time.Second)},
+			},
+		}},
+	}
+
+	agg := aggregatedByEngine(Generate(br, nil).Jobs[0].Aggregated)
+
+	assert.Less(t, agg["pg"].Latency.Max, time.Second, "es had no block for q2, so pg's q2 latency stays out")
+	assert.Equal(t, 1, agg["pg"].LatencyExcludedQueries)
+}

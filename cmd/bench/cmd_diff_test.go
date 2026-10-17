@@ -76,6 +76,10 @@ func TestPrintDiff_WarnsWhenTheRunsWereScoredDifferently(t *testing.T) {
 		warning string
 	}{
 		{name: "judge", after: func(r diffRun) diffRun { r.judge = llm; return r }, warning: "judge"},
+		{name: "judge prompt version", after: func(r diffRun) diffRun {
+			r.judge = &meta.Judge{Strategy: "lexical", PromptVersion: "v2"}
+			return r
+		}, warning: "judge"},
 		{name: "relevance threshold", after: func(r diffRun) diffRun { r.threshold = 2; return r }, warning: "relevance threshold"},
 		{name: "judgments source", after: func(r diffRun) diffRun { r.judgments = "trec/annotations.llm-cli.yaml"; return r }, warning: "judgments"},
 	}
@@ -202,4 +206,17 @@ func TestExecuteDiff_FallsBackToTheNewestEarlierReportWhenNoneIsFullyScored(t *t
 	require.NoError(t, executeDiff(&out, diffFlags{}, []string{"demo"}))
 
 	assert.Regexp(t, `A \(before\):\s+2026-01-01T00-00-02-run-bbbbbb`, out.String())
+}
+
+func TestExecuteDiff_WithoutLatestPointerDiffsTheTwoNewestScoredReports(t *testing.T) {
+	reports := scaffoldDiffTrack(t)
+	writeTrackReport(t, reports, "2026-01-01T00-00-01-run-aaaaaa", nil)
+	writeTrackReport(t, reports, "2026-01-01T00-00-02-run-bbbbbb", nil)
+	require.NoFileExists(t, filepath.Join(reports, "latest.json"))
+
+	var out bytes.Buffer
+	require.NoError(t, executeDiff(&out, diffFlags{}, []string{"demo"}))
+
+	assert.Regexp(t, `A \(before\):\s+2026-01-01T00-00-01-run-aaaaaa`, out.String())
+	assert.Regexp(t, `B \(after\):\s+\S*2026-01-01T00-00-02-run-bbbbbb`, out.String())
 }

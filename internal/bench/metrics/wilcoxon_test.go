@@ -69,12 +69,15 @@ func TestWilcoxon(t *testing.T) {
 // differences rounded to 1e-12: method="exact" for the untied cases up to
 // n=50, method="approx" with correction=True otherwise.
 func TestWilcoxon_MatchesScipy(t *testing.T) {
-	d51 := make([]float64, 51)
-	for i := range d51 {
-		d51[i] = float64(i+1) / 100
-		if i%3 == 0 {
-			d51[i] = -d51[i]
+	untiedDifferences := func(n int) []float64 {
+		d := make([]float64, n)
+		for i := range d {
+			d[i] = float64(i+1) / 100
+			if i%3 == 0 {
+				d[i] = -d[i]
+			}
 		}
+		return d
 	}
 
 	tests := []struct {
@@ -106,8 +109,15 @@ func TestWilcoxon_MatchesScipy(t *testing.T) {
 			wantP: 0.00927734375,
 		},
 		{
+			name:  "fifty untied pairs still use the exact distribution",
+			a:     untiedDifferences(50),
+			b:     make([]float64, 50),
+			wantW: 425,
+			wantP: 0.03996834652842374,
+		},
+		{
 			name:  "fifty-one untied pairs use the normal approximation",
-			a:     d51,
+			a:     untiedDifferences(51),
 			b:     make([]float64, 51),
 			wantW: 425,
 			wantP: 0.026000896360930642,
