@@ -218,7 +218,7 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 			judgmentsOverridden: f.judgments != "" && !samePath(judgments.path, tr.DefaultJudgmentsPath(bs.Defaults.Judgments)),
 			latencyOnly:         f.latencyOnly,
 			ranEveryJob:         len(bs.Jobs) == specJobCount,
-			measuredAsSpecified: measuredAsSpecified(runCfg, bs, defaultKValues(cmd)),
+			measuredAsSpecified: measuredAsSpecified(runCfg, bs),
 		}.deviations()...)
 
 	report.WriteTable(rpt, os.Stdout)
@@ -279,18 +279,12 @@ func (c specConformance) deviations() []string {
 }
 
 // measuredAsSpecified reports whether cfg measures with the spec's own warmup,
-// iterations and K, however they were spelled on the command line.
-func measuredAsSpecified(cfg runner.Config, bs *spec.BenchSpec, defaultKs []int) bool {
-	specCfg := newRunConfig(runFlags{}, bs, defaultKs, false)
-	return cfg.WarmupRuns == specCfg.WarmupRuns &&
-		cfg.Runs == specCfg.Runs &&
-		slices.Equal(cfg.KValues, specCfg.KValues)
-}
-
-// defaultKValues is the K a spec without metrics.k_values is measured at.
-func defaultKValues(cmd *cobra.Command) []int {
-	ks, _ := parseKList(cmd.Flags().Lookup("k").DefValue)
-	return ks
+// iterations and K, however they were spelled on the command line. The spec
+// loader fills all three, so the spec is compared as loaded.
+func measuredAsSpecified(cfg runner.Config, bs *spec.BenchSpec) bool {
+	return cfg.WarmupRuns == bs.Runs.Warmup &&
+		cfg.Runs == bs.Runs.Iterations &&
+		slices.Equal(cfg.KValues, bs.Metrics.KValues)
 }
 
 func declaredEngineParams(bs *spec.BenchSpec) map[string]map[string]any {
