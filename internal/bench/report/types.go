@@ -162,10 +162,15 @@ func (s LatencyStats) P90() time.Duration { return s.Percentiles[90] }
 func (s LatencyStats) P95() time.Duration { return s.Percentiles[95] }
 func (s LatencyStats) P99() time.Duration { return s.Percentiles[99] }
 
-// RunSettings are the choices a run was made with beyond the spec's measured
-// knobs.
+// RunSettings are the knobs a run was measured with. K is Config.KValues.
 type RunSettings struct {
+	Warmup     int `json:"warmup"`
+	Iterations int `json:"iterations"`
+	// JobFilter is the --jobs selection; empty when the run took every job.
+	JobFilter []string `json:"job_filter,omitempty"`
 	// LatencyOnly marks a run made without judgments: its quality metrics are
 	// absent, not zero.
 	LatencyOnly bool `json:"latency_only"`
+	// EngineParams are the template defaults each engine declares in the spec.
+	EngineParams map[string]map[string]any `json:"engine_params,omitempty"`
 }

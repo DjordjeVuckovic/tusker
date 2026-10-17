@@ -49,7 +49,7 @@ func TestRun_MissingDefaultJudgmentsFailsBeforeRunning(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "--latency-only")
 	assert.Empty(t, tr.reports(t))
-	assert.Nil(t, tr.latestReport(t))
+	assert.NoFileExists(t, tr.latestPath(), "latest.json must not move")
 }
 
 func TestRun_LatencyOnlyWritesAMarkedReportAndLeavesLatest(t *testing.T) {
@@ -62,7 +62,7 @@ func TestRun_LatencyOnlyWritesAMarkedReportAndLeavesLatest(t *testing.T) {
 	reports := tr.reports(t)
 	require.Len(t, reports, 1)
 	assert.True(t, reports[0].Settings.LatencyOnly)
-	assert.Nil(t, tr.latestReport(t))
+	assert.NoFileExists(t, tr.latestPath(), "latest.json must not move")
 }
 
 func TestRun_LatencyOnlyRejectsExplicitJudgments(t *testing.T) {
@@ -97,7 +97,54 @@ func TestRun_FailedRunWritesTheReportButLeavesLatest(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.wantErr)
 			assert.Contains(t, err.Error(), "latest.json")
 			assert.Len(t, tr.reports(t), 1, "the report is kept for inspection")
-			assert.Nil(t, tr.latestReport(t))
+			assert.NoFileExists(t, tr.latestPath(), "latest.json must not move")
 		})
 	}
+}
+
+func TestRun_LatestMovesOnlyForTheSpecsOwnRun(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		wantMoved bool
+	}{
+		{name: "spec settings", wantMoved: true},
+		{name: "every job named", args: []string{"--jobs", "a-only,both"}, wantMoved: true},
+		{name: "iterations equal to the spec", args: []string{"--iterations", "2"}, wantMoved: true},
+		{name: "a subset of jobs", args: []string{"--jobs", "a-only"}},
+		{name: "more iterations", args: []string{"--iterations", "5"}},
+		{name: "more warmup", args: []string{"--warmup", "3"}},
+		{name: "other cut-offs", args: []string{"--k", "1"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := judgedTrack(t, nil)
+
+			_, err := execute(t, newRunCmd(), append([]string{tr.dir}, tt.args...)...)
+
+			require.NoError(t, err)
+			require.Len(t, tr.reports(t), 1)
+			if tt.wantMoved {
+				assert.NotNil(t, tr.latestReport(t))
+			} else {
+				assert.NoFileExists(t, tr.latestPath(), "latest.json must not move")
+			}
+		})
+	}
+}
+
+func TestRun_ReportRecordsItsSettings(t *testing.T) {
+	tr := judgedTrack(t, nil)
+
+	_, err := execute(t, newRunCmd(), tr.dir, "--jobs", "a-only", "--iterations", "4")
+	require.NoError(t, err)
+
+	reports := tr.reports(t)
+	require.Len(t, reports, 1)
+	settings := reports[0].Settings
+	assert.Equal(t, 1, settings.Warmup, "spec warmup")
+	assert.Equal(t, 4, settings.Iterations)
+	assert.Equal(t, []string{"a-only"}, settings.JobFilter)
+	assert.Equal(t, map[string]any{"boost": float64(2)}, settings.EngineParams["a"], "a declares boost: 2 in the spec")
+	assert.Equal(t, []int{1, 2}, reports[0].Config.KValues)
 }

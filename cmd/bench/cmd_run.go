@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -57,7 +59,8 @@ latest.json.
 
 The report is always written, but bench run exits non-zero and leaves
 latest.json alone when any (query, engine) execution errored or the judgments
-hold pooled docs left unjudged.`,
+hold pooled docs left unjudged. latest.json also stays put unless the run took
+every spec job at the spec's warmup, iterations and K.`,
 		Example: `  bench run tracks/global-news-dataset/fts_quality
   bench run tracks/global-news-dataset/news_semantic
   bench run 'tracks/global-news-dataset/*'        # every paradigm of the dataset
@@ -137,6 +140,8 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	runCfg.VectorStore = vectorStore
 
 	// Apply --jobs filter: keep only the named jobs.
+	specJobCount := len(bs.Jobs)
+	var jobFilter []string
 	if f.jobs != "" {
 		wanted := make(map[string]bool)
 		for _, name := range strings.Split(f.jobs, ",") {
@@ -144,6 +149,7 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 				wanted[n] = true
 			}
 		}
+		jobFilter = slices.Sorted(maps.Keys(wanted))
 		filtered := bs.Jobs[:0]
 		for _, job := range bs.Jobs {
 			if wanted[job.Name] {
@@ -196,7 +202,13 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		rpt.Provenance.GradedCount = judgments.meta.GradedCount
 		rpt.Provenance.PoolRef = judgments.meta.PoolRef
 	}
-	rpt.Settings.LatencyOnly = f.latencyOnly
+	rpt.Settings = report.RunSettings{
+		Warmup:       runCfg.WarmupRuns,
+		Iterations:   runCfg.Runs,
+		JobFilter:    jobFilter,
+		LatencyOnly:  f.latencyOnly,
+		EngineParams: declaredEngineParams(bs),
+	}
 
 	report.WriteTable(rpt, os.Stdout)
 	fmt.Fprintf(os.Stdout, "%s %s\n", cDim.Sprint("Elapsed:"), elapsed.Round(time.Millisecond))
@@ -218,12 +230,39 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	case f.output != "":
 	case f.latencyOnly:
 		printWarn(cmd.OutOrStdout(), "latest.json not moved: a latency-only run is not the track's result")
+	case len(bs.Jobs) != specJobCount || !measuredAsSpecified(runCfg, bs, defaultKValues(cmd)):
+		printWarn(cmd.OutOrStdout(), "latest.json not moved: --jobs, --warmup, --iterations or --k made this run differ from spec.yaml")
 	default:
 		if err := updateLatestPointer(tr.LatestReportPath(), outPath); err != nil {
 			printWarn(cmd.OutOrStdout(), fmt.Sprintf("could not update latest.json pointer: %v", err))
 		}
 	}
 	return nil
+}
+
+// measuredAsSpecified reports whether cfg measures with the spec's own warmup,
+// iterations and K, however they were spelled on the command line.
+func measuredAsSpecified(cfg runner.Config, bs *spec.BenchSpec, defaultKs []int) bool {
+	specCfg := newRunConfig(runFlags{}, bs, defaultKs, false)
+	return cfg.WarmupRuns == specCfg.WarmupRuns &&
+		cfg.Runs == specCfg.Runs &&
+		slices.Equal(cfg.KValues, specCfg.KValues)
+}
+
+// defaultKValues is the K a spec without metrics.k_values is measured at.
+func defaultKValues(cmd *cobra.Command) []int {
+	ks, _ := parseKList(cmd.Flags().Lookup("k").DefValue)
+	return ks
+}
+
+func declaredEngineParams(bs *spec.BenchSpec) map[string]map[string]any {
+	params := make(map[string]map[string]any)
+	for name, eng := range bs.Engines {
+		if len(eng.Params) > 0 {
+			params[name] = eng.Params
+		}
+	}
+	return params
 }
 
 // runJudgments is what a run scores against. A latency-only run has none.
