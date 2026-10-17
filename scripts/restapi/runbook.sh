@@ -17,7 +17,7 @@ curl -X GET "${API_BASE}/v1/articles/search?q=climate%20change&size=5" \
   -H "Accept: application/json" | jq '.'
 
 echo -e "\n[2] Search with language"
-curl -X GET "${API_BASE}/v1/articles/search?q=promene%20klime&lang=serbian&size=5" \
+curl -X GET "${API_BASE}/v1/articles/search?q=climate%20change&lang=eng&size=5" \
   -H "Accept: application/json" | jq '.'
 
 echo -e "\n[3] Search with pagination"
@@ -48,7 +48,7 @@ curl -X POST "${API_BASE}/v1/articles/_search" \
         "field": "title",
         "query": "climate change",
         "operator": "and",
-        "language": "english"
+        "language": "eng"
       }
     }
   }' | jq '.'
@@ -95,16 +95,16 @@ curl -X POST "${API_BASE}/v1/articles/_search" \
     }
   }' | jq '.'
 
-echo -e "\n[8] Multi-Match Query - Serbian language"
+echo -e "\n[8] Multi-Match Query - explicit language"
 curl -X POST "${API_BASE}/v1/articles/_search" \
   -H "Content-Type: application/json" \
   -d '{
     "size": 5,
     "query": {
       "multi_match": {
-        "query": "obnovljiva energija",
+        "query": "renewable energy",
         "fields": ["title", "description", "content"],
-        "language": "serbian",
+        "language": "eng",
         "operator": "or"
       }
     }

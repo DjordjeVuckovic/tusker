@@ -27,7 +27,7 @@ Every engine answers the same request in the same way, or says it cannot:
 | `fuzziness` | 400, or ignored when lenient | honoured |
 | Phrase `slop` | honoured | honoured |
 | Boosts (between 1.4e-45 and 3.4e38) | applied to title, description, content | applied |
-| `language` | `english` stems in English | `english` accepted; analysis is fixed by the index mapping |
+| `language` | `eng` stems in English | `eng` accepted; analysis is fixed by the index mapping |
 
 Any other field is a 400 on both engines, lenient or not. `GET /v1/capabilities` reports the running engine's row of this table.
 
@@ -52,11 +52,11 @@ Any other field is a 400 on both engines, lenient or not. `GET /v1/capabilities`
 | `q`       | string | Yes      | Search query text                             | `climate change`  |
 | `size`    | int    | No       | Results per page (default: 100, max: 10000)   | `10`              |
 | `cursor`  | string | No       | Pagination cursor from previous response      | `eyJzY29yZSI6...` |
-| `lang`    | string | No       | Language: english only (default); any other value returns 400 | `english` |
+| `lang`    | string | No       | ISO 639-3 code; only eng today (default: eng); any other value returns 400 | `eng` |
 
 **Example Request:**
 ```bash
-GET /v1/articles/search?q=climate%20change&size=10&lang=english
+GET /v1/articles/search?q=climate%20change&size=10&lang=eng
 ```
 
 **Example Response:**
@@ -87,7 +87,7 @@ GET /v1/articles/search?q=climate%20change&size=10&lang=english
   "max_score": 2.589,
   "page_max_score": 2.456,
   "total_matches": 1523,
-  "effective": {"operator": "OR", "fields": ["title", "description", "content"], "language": "english"},
+  "effective": {"operator": "OR", "fields": ["title", "description", "content"], "language": "eng"},
   "ignored": []
 }
 ```
@@ -145,7 +145,7 @@ GET /v1/articles/search?q=climate%20change&size=10&lang=english
 | `query` | string | Yes | Search text | `"climate change"` |
 | `operator` | string | No | "and" or "or" (default: the engine's) | `"and"` |
 | `fuzziness` | string | No | Typo tolerance: NONE, AUTO, 0, 1, 2. Elasticsearch only; Postgres returns 400 unless lenient | `"AUTO"` |
-| `language` | string | No | english only (default); any other value returns 400 | `"english"` |
+| `language` | string | No | ISO 639-3 code; only eng today (default: eng); any other value returns 400 | `"eng"` |
 
 **Example Request:**
 ```json
@@ -159,7 +159,7 @@ POST /v1/articles/_search
       "query": "climate change",
       "operator": "and",
       "fuzziness": "AUTO",
-      "language": "english"
+      "language": "eng"
     }
   }
 }
@@ -194,7 +194,7 @@ POST /v1/articles/_search
 | `query`         | string | Yes      | Search text                            | `"renewable energy"`   |
 | `fields`        | array  | Yes      | Fields to search, each optionally boosted as `field^boost` | `["title^3", "content"]` |
 | `operator`      | string | No       | "and" or "or" (default: the engine's)  | `"or"`                 |
-| `language`      | string | No       | english only (default); any other value returns 400 | `"english"` |
+| `language`      | string | No       | ISO 639-3 code; only eng today (default: eng); any other value returns 400 | `"eng"` |
 
 **Example Request:**
 ```json
@@ -207,7 +207,7 @@ POST /v1/articles/_search
       "query": "renewable energy",
       "fields": ["title^3", "description^2", "content"],
       "operator": "or",
-      "language": "english"
+      "language": "eng"
     }
   }
 }
@@ -249,7 +249,7 @@ All endpoints return the same structure:
   "max_score": float64,
   "page_max_score": float64,
   "total_matches": int64,
-  "effective": {"operator": "AND | OR", "fields": [string], "language": "english"},
+  "effective": {"operator": "AND | OR", "fields": [string], "language": "eng"},
   "ignored": [{"param": string, "engine": string, "reason": string}]
 }
 ```
@@ -351,7 +351,7 @@ A parameter the engine cannot honour names itself and the engine:
 - A parameter the engine cannot honour in a strict request (see [Search Contract](#search-contract))
 - A JSON key or query parameter the request type does not define
 - Invalid operator value
-- Unsupported language (anything but `english`)
+- Unsupported language (anything but `eng`)
 - Invalid size (exceeds max or negative)
 - Malformed cursor
 

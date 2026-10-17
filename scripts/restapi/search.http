@@ -15,7 +15,7 @@ Content-Type: application/json
       "field": "title",
       "query": "climate change",
       "operator": "or",
-      "language": "english"
+      "language": "eng"
     }
   }
 }
@@ -60,7 +60,7 @@ Content-Type: application/json
     "phrase": {
       "query": "climate change",
       "fields": ["title", "description"],
-      "language": "english"
+      "language": "eng"
     }
   }
 }
@@ -89,7 +89,7 @@ Content-Type: application/json
   "query": {
     "boolean": {
       "expression": "climate AND change",
-      "language": "english"
+      "language": "eng"
     }
   }
 }
