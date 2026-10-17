@@ -47,10 +47,10 @@ func (s VectorStrategy) Describe() meta.Judge {
 
 const vectorRubricVersion = "v1"
 
-// poolBatchSize fetches a typical query pool's vectors in one store round-trip.
-const poolBatchSize = 512
+// vectorFetchBatchSize fetches a typical query pool's vectors in one store round-trip.
+const vectorFetchBatchSize = 512
 
-func (VectorStrategy) PreferredBatchSize() int { return poolBatchSize }
+func (VectorStrategy) PreferredBatchSize() int { return vectorFetchBatchSize }
 
 func (s VectorStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
 	if len(docs) == 0 {
