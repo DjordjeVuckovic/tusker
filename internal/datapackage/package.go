@@ -34,6 +34,7 @@ type Package struct {
 	Report        *Report     `json:"report,omitempty"`
 	Embedding     *Embedding  `json:"embedding,omitempty"`
 	Canonical     *Ref        `json:"canonical,omitempty"`
+	Suite         *Suite      `json:"suite,omitempty"`
 	Sources       []Source    `json:"sources,omitempty"`
 	Resources     []Resource  `json:"resources"`
 }
@@ -100,4 +101,11 @@ type Ref struct {
 	Name         string `json:"name"`
 	Version      string `json:"version"`
 	ResourceHash string `json:"resourceHash"`
+}
+
+// Suite pins the bench suite a query-vectors package was embedded from. Hash
+// is the sha256 of suite.yaml as "sha256:<hex>".
+type Suite struct {
+	ID   string `json:"id"`
+	Hash string `json:"hash"`
 }

@@ -16,6 +16,9 @@ func (p Package) validate() error {
 			return fmt.Errorf("package %s: %w", p.Name, err)
 		}
 	}
+	if p.Suite != nil && !p.hasResource(QueryVectorsResource) {
+		return fmt.Errorf("package %s: suite is set but no %s resource is listed", p.Name, QueryVectorsResource)
+	}
 	if len(p.Resources) == 0 {
 		return fmt.Errorf("package %s has no resources", p.Name)
 	}
@@ -58,4 +61,13 @@ func validateResourcePath(p string) error {
 		}
 	}
 	return nil
+}
+
+func (p Package) hasResource(name string) bool {
+	for _, r := range p.Resources {
+		if r.Name == name {
+			return true
+		}
+	}
+	return false
 }
