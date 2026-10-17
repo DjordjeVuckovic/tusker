@@ -10,6 +10,7 @@ import (
 	neturl "net/url"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/google/uuid"
 )
 
@@ -18,6 +19,8 @@ type EsExecutor struct {
 	baseURL string
 	index   string
 	client  *http.Client
+	// defaultTimeout bounds a call whose caller set no deadline.
+	defaultTimeout time.Duration
 }
 
 func NewEsExecutor(name, baseURL, index string) *EsExecutor {
@@ -26,7 +29,18 @@ func NewEsExecutor(name, baseURL, index string) *EsExecutor {
 		baseURL: baseURL,
 		index:   index,
 		client:  &http.Client{},
+
+		defaultTimeout: spec.DefaultQueryTimeout,
 	}
+}
+
+// withDeadline keeps the caller's deadline, or sets the default one: the client
+// carries no timeout of its own.
+func (e *EsExecutor) withDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, e.defaultTimeout)
 }
 
 func (e *EsExecutor) Execute(ctx context.Context, search Request) (*Execution, error) {
@@ -95,6 +109,8 @@ func storedTemplateCall(search Request) ([]byte, error) {
 // RegisterSearchTemplate stores the template's Mustache source with
 // PUT _scripts/<id>, replacing any earlier version.
 func (e *EsExecutor) RegisterSearchTemplate(ctx context.Context, template SearchTemplate) error {
+	ctx, cancel := e.withDeadline(ctx)
+	defer cancel()
 	body, err := json.Marshal(map[string]any{
 		"script": map[string]string{"lang": "mustache", "source": template.Source},
 	})
@@ -150,6 +166,8 @@ func (e *EsExecutor) send(ctx context.Context, method, url string, body []byte) 
 }
 
 func (e *EsExecutor) CorpusCount(ctx context.Context) (int64, error) {
+	ctx, cancel := e.withDeadline(ctx)
+	defer cancel()
 	url := fmt.Sprintf("%s/%s/_count", e.baseURL, e.index)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -190,6 +208,8 @@ func (e *EsExecutor) Close() error { return nil }
 // `knn` outright ("request does not support [knn]"), so the knn clause is
 // checked structurally instead.
 func (e *EsExecutor) Validate(ctx context.Context, search Request) error {
+	ctx, cancel := e.withDeadline(ctx)
+	defer cancel()
 	rawQuery := search.Query
 	if search.SearchTemplateID != "" {
 		rendered, err := e.renderTemplate(ctx, search)

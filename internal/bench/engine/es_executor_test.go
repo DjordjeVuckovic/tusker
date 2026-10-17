@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -138,3 +139,63 @@ func TestEsExecutor_Execute_ReadsTheDocumentIDFromTheHitID(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// stallingServer answers only after the request is abandoned, or after a
+// fallback long past any test deadline so a missing deadline fails the test
+// instead of hanging it.
+func stallingServer(t *testing.T, answer string) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The server notices a dropped connection only once the body is read.
+		_, _ = io.Copy(io.Discard, r.Body)
+		select {
+		case <-r.Context().Done():
+		case <-time.After(5 * time.Second):
+			_, _ = w.Write([]byte(answer))
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestEsExecutor_CallsWithoutACallerDeadlineStopAtTheDefaultOne(t *testing.T) {
+	tests := []struct {
+		name   string
+		answer string
+		call   func(ctx context.Context, exec *EsExecutor) error
+	}{
+		{
+			name:   "validate",
+			answer: `{"valid": true}`,
+			call: func(ctx context.Context, exec *EsExecutor) error {
+				return exec.Validate(ctx, Request{Query: `{"query": {"match_all": {}}}`})
+			},
+		},
+		{
+			name:   "validate a stored template",
+			answer: `{"template_output": {"query": {"match_all": {}}}}`,
+			call: func(ctx context.Context, exec *EsExecutor) error {
+				return exec.Validate(ctx, Request{SearchTemplateID: "t-es_match", Params: map[string]any{"terms": "climate"}})
+			},
+		},
+		{
+			name:   "corpus count",
+			answer: `{"count": 1}`,
+			call: func(ctx context.Context, exec *EsExecutor) error {
+				_, err := exec.CorpusCount(ctx)
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exec := NewEsExecutor("es", stallingServer(t, tt.answer).URL, "articles")
+			exec.defaultTimeout = 50 * time.Millisecond
+
+			err := tt.call(context.Background(), exec)
+
+			assert.ErrorIs(t, err, context.DeadlineExceeded)
+		})
+	}
+}
