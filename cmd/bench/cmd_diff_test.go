@@ -156,12 +156,23 @@ func TestExecuteDiff_DefaultsToLatestAndThePreviousFullyScoredRun(t *testing.T) 
 func TestPrintDiff_PerQueryDeltasCountAFailedQueryAsZero(t *testing.T) {
 	before := diffReport(diffRun{runID: "a", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1})
 	after := diffReport(diffRun{runID: "b", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1})
-	after.Jobs[0].PerQuery[0] = report.Entry{QueryID: "q1", EngineName: "pg", Error: "timeout"}
+	after.Jobs[0].PerQuery[0] = report.Entry{QueryID: "q1", EngineName: "pg", Judged: true, Error: "timeout"}
 
 	var out bytes.Buffer
 	printDiff(&out, before, after)
 
 	assert.Regexp(t, `(?m)^q1\s+pg\s+0\.6000\s+0\.0000\s+\S*-0\.6000`, out.String())
+}
+
+func TestPrintDiff_PerQueryDeltasIgnoreAFailedQueryThatRunNeverGraded(t *testing.T) {
+	before := diffReport(diffRun{runID: "a", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1})
+	after := diffReport(diffRun{runID: "b", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1})
+	after.Jobs[0].PerQuery[0] = report.Entry{QueryID: "q1", EngineName: "pg", Error: "timeout"}
+
+	var out bytes.Buffer
+	printDiff(&out, before, after)
+
+	assert.NotContains(t, out.String(), "Per-Query NDCG")
 }
 
 func scaffoldDiffTrack(t *testing.T) string {

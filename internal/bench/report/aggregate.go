@@ -183,6 +183,7 @@ func generateJobReport(scope jobScope) JobReport {
 			}
 			if qr.Error != nil {
 				entry.Error = qr.Error.Error()
+				entry.Judged = scope.judged[qID]
 			}
 			report.PerQuery = append(report.PerQuery, entry)
 		}

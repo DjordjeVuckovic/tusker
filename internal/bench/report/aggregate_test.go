@@ -425,3 +425,18 @@ func TestGenerate_LatencyExcludesAQueryAnEngineHadNoBlockFor(t *testing.T) {
 	assert.Less(t, agg["pg"].Latency.Max, time.Second, "es had no block for q2, so pg's q2 latency stays out")
 	assert.Equal(t, 1, agg["pg"].LatencyExcludedQueries)
 }
+
+func TestGenerate_MarksAFailedCellJudgedOnlyWhenItsQueryIs(t *testing.T) {
+	br := unevenProbe()
+	delete(br.Config.Judgments, "q4")
+
+	judged := make(map[string]bool)
+	for _, e := range Generate(br, nil).Jobs[0].PerQuery {
+		if e.EngineName == "pg" {
+			judged[e.QueryID] = e.Judged
+		}
+	}
+
+	assert.True(t, judged["q3"], "pg failed a judged query, which scores 0 in its mean")
+	assert.False(t, judged["q4"], "pg failed an unjudged query, which no mean counts")
+}

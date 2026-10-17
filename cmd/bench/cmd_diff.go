@@ -351,10 +351,10 @@ func printQueryDiff(w io.Writer, jA, jB *report.JobReport, k int) {
 }
 
 // scoredNDCG is the NDCG@k a cell contributes to its engine's mean: a failed
-// cell scores 0, as in the aggregates. Unjudged cells are not scored.
+// judged cell scores 0, as in the aggregates. Unjudged cells are not scored.
 func scoredNDCG(e report.Entry, k int) (float64, bool) {
 	if e.Error != "" {
-		return 0, true
+		return 0, e.Judged
 	}
 	return e.NDCG[k], e.Judged
 }
