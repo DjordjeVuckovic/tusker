@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -30,9 +32,10 @@ func newDiffCmd() *cobra.Command {
 		Long: `Loads two report JSON files and shows per-engine metric deltas and the
 per-query NDCG regressions sorted by magnitude.
 
-Without --a/--b, picks the two most-recent reports in <track>/reports/.
-With --a and --b, accepts run IDs (e.g. 2026-05-26T23-39-05-run-7e0750) or
-direct paths to report.json files.`,
+Without --b, B is the report latest.json points at. Without --a, A is the
+newest earlier report that has judged metrics and no failed queries, so a
+latency-only or partial run is never the baseline. --a and --b accept run IDs
+(e.g. 2026-05-26T23-39-05-run-7e0750) or direct paths to report.json files.`,
 		Example: `  bench diff tracks/global-news-dataset/fts_quality                               # latest two runs
   bench diff tracks/global-news-dataset/fts_quality --b 2026-05-26T23-39-05-run-7e0750
   bench diff --a /tmp/before.json --b /tmp/after.json`,
@@ -58,68 +61,120 @@ func executeDiff(w io.Writer, f diffFlags, args []string) error {
 		}
 	}
 
-	pathA, err := resolveReportPath(tr, f.pathA, 1 /*second-latest*/)
-	if err != nil {
-		return fmt.Errorf("resolve before report: %w", err)
-	}
-	pathB, err := resolveReportPath(tr, f.pathB, 0 /*latest*/)
+	rptB, err := afterReport(tr, f.pathB)
 	if err != nil {
 		return fmt.Errorf("resolve after report: %w", err)
 	}
-	if pathA == pathB {
-		return fmt.Errorf("both runs resolve to the same file: %s", pathA)
-	}
-
-	rptA, err := report.ReadJSON(pathA)
+	rptA, err := beforeReport(tr, f.pathA, rptB)
 	if err != nil {
-		return fmt.Errorf("read before report: %w", err)
+		return fmt.Errorf("resolve before report: %w", err)
 	}
-	rptB, err := report.ReadJSON(pathB)
-	if err != nil {
-		return fmt.Errorf("read after report: %w", err)
+	if rptA.Provenance.RunID == rptB.Provenance.RunID {
+		return fmt.Errorf("both runs resolve to the same report: %s", rptA.Provenance.RunID)
 	}
 
 	printDiff(w, rptA, rptB)
 	return nil
 }
 
-// resolveReportPath turns a user flag (run ID or path) into an absolute path.
-// When empty, it picks the Nth most-recent report from the track's reports dir.
-func resolveReportPath(tr *trackctx.Track, flag string, nth int) (string, error) {
+// afterReport defaults to the report latest.json points at, or the newest
+// fully scored report when there is no pointer.
+func afterReport(tr *trackctx.Track, flag string) (*report.Report, error) {
 	if flag != "" {
-		if looksLikePath(flag) {
-			return flag, nil
-		}
-		// Treat as run ID → <reports>/<runID>.json
-		if tr == nil {
-			return "", fmt.Errorf("run ID %q given but no track resolved", flag)
-		}
-		return tr.ReportPath(flag), nil
+		return readExplicitReport(tr, flag)
 	}
 	if tr == nil {
-		return "", fmt.Errorf("no path or run ID given and no track available")
+		return nil, fmt.Errorf("no path or run ID given and no track available")
 	}
-	return nthLatestReport(filepath.Dir(tr.LatestReportPath()), nth)
+	rpt, err := report.ReadLatestReport(tr.LatestReportPath())
+	if errors.Is(err, fs.ErrNotExist) {
+		return previousScoredReport(reportsDir(tr), "")
+	}
+	return rpt, err
 }
 
-// nthLatestReport returns the nth most-recent report JSON in dir (0 = latest).
-func nthLatestReport(dir string, nth int) (string, error) {
+// beforeReport defaults to the newest fully scored report older than after.
+func beforeReport(tr *trackctx.Track, flag string, after *report.Report) (*report.Report, error) {
+	if flag != "" {
+		return readExplicitReport(tr, flag)
+	}
+	if tr == nil {
+		return nil, fmt.Errorf("no path or run ID given and no track available")
+	}
+	return previousScoredReport(reportsDir(tr), after.Provenance.RunID)
+}
+
+func reportsDir(tr *trackctx.Track) string {
+	return filepath.Dir(tr.LatestReportPath())
+}
+
+// readExplicitReport reads a report named by a run ID or a path.
+func readExplicitReport(tr *trackctx.Track, flag string) (*report.Report, error) {
+	path := flag
+	if !looksLikePath(flag) {
+		if tr == nil {
+			return nil, fmt.Errorf("run ID %q given but no track resolved", flag)
+		}
+		path = tr.ReportPath(flag)
+	}
+	return report.ReadJSON(path)
+}
+
+// previousScoredReport returns the newest report in dir whose run ID sorts
+// before beforeRunID (any, when empty) and that is fully scored.
+func previousScoredReport(dir, beforeRunID string) (*report.Report, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return "", fmt.Errorf("read reports dir %s: %w", dir, err)
+		return nil, fmt.Errorf("read reports dir %s: %w", dir, err)
 	}
-	var reports []string
+	var names []string
 	for _, e := range entries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") && e.Name() != "latest.json" {
-			reports = append(reports, filepath.Join(dir, e.Name()))
+			names = append(names, e.Name())
 		}
 	}
-	if len(reports) < nth+1 {
-		return "", fmt.Errorf("need at least %d report(s) in %s, found %d", nth+1, dir, len(reports))
+	// Run IDs are timestamped, so lexicographic order is chronological.
+	sort.Sort(sort.Reverse(sort.StringSlice(names)))
+	for _, name := range names {
+		if beforeRunID != "" && strings.TrimSuffix(name, ".json") >= beforeRunID {
+			continue
+		}
+		rpt, err := report.ReadJSON(filepath.Join(dir, name))
+		if err != nil {
+			return nil, err
+		}
+		if fullyScored(rpt) {
+			return rpt, nil
+		}
 	}
-	// Sort by name descending — names are timestamped so lexicographic = chronological.
-	sort.Slice(reports, func(i, j int) bool { return reports[i] > reports[j] })
-	return reports[nth], nil
+	return nil, fmt.Errorf("no earlier report in %s has judged metrics and no failed queries", dir)
+}
+
+// fullyScored reports whether every job carries quality metrics and no
+// (query, engine) cell failed. A latency-only or partial run is not a
+// baseline: its deltas would measure the failures, not the engines.
+func fullyScored(r *report.Report) bool {
+	if len(r.Jobs) == 0 {
+		return false
+	}
+	for _, job := range r.Jobs {
+		judged := false
+		for _, agg := range job.Aggregated {
+			if agg.ErrorCount > 0 {
+				return false
+			}
+			judged = judged || agg.JudgedCount > 0
+		}
+		for _, e := range job.PerQuery {
+			if e.Error != "" {
+				return false
+			}
+		}
+		if !judged {
+			return false
+		}
+	}
+	return true
 }
 
 // ─── diff rendering ───────────────────────────────────────────────────────────

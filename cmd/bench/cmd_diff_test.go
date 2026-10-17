@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -103,4 +104,45 @@ func TestPrintDiff_NoScoringWarningForIdenticallyScoredRuns(t *testing.T) {
 	printDiff(&out, diffReport(run), diffReport(after))
 
 	assert.NotContains(t, out.String(), "WARNING")
+}
+
+func writeTrackReport(t *testing.T, dir, runID string, mutate func(*report.Report)) {
+	t.Helper()
+	r := diffReport(diffRun{runID: runID, kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1})
+	if mutate != nil {
+		mutate(r)
+	}
+	require.NoError(t, report.WriteJSON(r, filepath.Join(dir, runID+".json")))
+}
+
+func TestExecuteDiff_DefaultsToLatestAndThePreviousFullyScoredRun(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	initCmd := newInitCmd()
+	initCmd.SetOut(&bytes.Buffer{})
+	initCmd.SetArgs([]string{"demo"})
+	require.NoError(t, initCmd.Execute())
+	reports := filepath.Join(cwd, "demo", "reports")
+
+	latencyOnly := func(r *report.Report) {
+		r.Jobs[0].Aggregated[0].JudgedCount = 0
+		r.Jobs[0].PerQuery[0].Judged = false
+	}
+	errored := func(r *report.Report) {
+		r.Jobs[0].Aggregated[0].ErrorCount = 1
+		r.Jobs[0].PerQuery[0].Error = "timeout"
+	}
+	writeTrackReport(t, reports, "2026-01-01T00-00-01-run-aaaaaa", nil)
+	writeTrackReport(t, reports, "2026-01-01T00-00-02-run-bbbbbb", latencyOnly)
+	writeTrackReport(t, reports, "2026-01-01T00-00-03-run-cccccc", errored)
+	writeTrackReport(t, reports, "2026-01-01T00-00-04-run-dddddd", nil)
+	writeTrackReport(t, reports, "2026-01-01T00-00-05-run-eeeeee", errored)
+	require.NoError(t, updateLatestPointer(filepath.Join(reports, "latest.json"),
+		filepath.Join(reports, "2026-01-01T00-00-04-run-dddddd.json")))
+
+	var out bytes.Buffer
+	require.NoError(t, executeDiff(&out, diffFlags{}, []string{"demo"}))
+
+	assert.Regexp(t, `A \(before\):\s+2026-01-01T00-00-01-run-aaaaaa`, out.String())
+	assert.Regexp(t, `B \(after\):\s+\S*2026-01-01T00-00-04-run-dddddd`, out.String())
 }
