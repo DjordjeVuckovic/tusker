@@ -31,7 +31,7 @@ var databases atomic.Int64
 
 var fixtureNamespace = uuid.MustParse("3b1f6f0e-2a4c-4d3e-9b1a-7c2d5e8f9a10")
 
-// declaredIndexes is every index contract §4 declares per engine.
+// declaredIndexes lists every index each engine must have after a full load.
 var declaredIndexes = map[storage.Engine][]string{
 	storage.PostgresNative: {
 		"idx_articles_search_vector", "idx_articles_title_trgm", "idx_articles_title_desc_trgm",

@@ -69,6 +69,23 @@ func TestLoad(t *testing.T) {
 				assert.Equal(t, int64(2_000), written[0].Vectors)
 			})
 
+			t.Run("loads a JSONL canonical package", func(t *testing.T) {
+				db := newLoadDatabase(t, server.ConnString)
+				root := t.TempDir()
+				articles := loadFixtureArticles(20)
+				articles[4].Metadata.Extra = map[string]any{"wordCount": float64(412), "paywalled": true}
+				canonical := writeCanonicalPackageAs(t, root, articles, "jsonl")
+				embeddings := writeEmbeddingsPackage(t, root, canonical, articles, nil)
+
+				err := execDatapipe(t, db, "load", "--engine", string(engine),
+					"--canonical", canonical.location, "--embeddings", embeddings.location)
+				require.NoError(t, err)
+
+				stored := readLoadedArticles(t, db, articles[4].ID, articles[19].ID)
+				assert.Equal(t, articles[4], stored[articles[4].ID])
+				assert.Equal(t, articles[19], stored[articles[19].ID])
+			})
+
 			t.Run("refuses embeddings built from another canonical package before touching the database", func(t *testing.T) {
 				db := newLoadDatabase(t, server.ConnString)
 				root := t.TempDir()
@@ -177,12 +194,20 @@ type fixturePackage struct {
 
 func writeCanonicalPackage(t *testing.T, root string, articles []document.Article) fixturePackage {
 	t.Helper()
+	return writeCanonicalPackageAs(t, root, articles, "parquet")
+}
+
+func writeCanonicalPackageAs(t *testing.T, root string, articles []document.Article, format string) fixturePackage {
+	t.Helper()
 	dir := filepath.Join(root, "datasets", "fixture", "canonical", "article-v2-test")
 	require.NoError(t, os.MkdirAll(dir, 0o755))
-	path := filepath.Join(dir, "articles.parquet")
+	path := filepath.Join(dir, "articles."+format)
 	f, err := os.Create(path)
 	require.NoError(t, err)
-	w := ingest.NewParquetCanonicalWriter(f)
+	var w ingest.CanonicalWriter = ingest.NewParquetCanonicalWriter(f)
+	if format == "jsonl" {
+		w = ingest.NewJsonlCanonicalWriter(f)
+	}
 	require.NoError(t, w.Write(articles))
 	require.NoError(t, w.Close())
 	require.NoError(t, f.Close())
@@ -192,7 +217,7 @@ func writeCanonicalPackage(t *testing.T, root string, articles []document.Articl
 		Version:       "article-v2-test",
 		ArticleSchema: datapackage.ArticleSchema,
 		Language:      language.English,
-		Resources:     []datapackage.Resource{{Name: datapackage.ArticlesResource, Path: "articles.parquet", Format: "parquet"}},
+		Resources:     []datapackage.Resource{{Name: datapackage.ArticlesResource, Path: "articles." + format, Format: format}},
 	})
 	require.NoError(t, err)
 	return fixturePackage{location: filepath.Join(dir, datapackage.DescriptorName), resourcePath: path, resourceHash: pkg.Resources[0].Hash}
