@@ -29,6 +29,10 @@ fieldMappings:
     sourceType: "url"
     target: "URL"
     required: true
+  - source: "url"
+    sourceType: "string"
+    target: "Metadata.ExternalID"
+    required: false
   - source: "date"
     sourceType: "datetime"
     target: "PublishedAt"

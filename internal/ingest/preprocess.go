@@ -180,15 +180,10 @@ func canonicalName(rawName string) string {
 	return strings.TrimSuffix(rawName, "-raw") + "-canonical"
 }
 
-// idStrategyOf records how ids were derived. A mapping that targets ID carries
-// its own ids, which no strategy describes.
 func idStrategyOf(mapping *datamapping.DataMapper) *datapackage.IDStrategy {
 	var urlSource string
 	for _, fm := range mapping.FieldMappings {
-		switch fm.Target {
-		case datamapping.TargetID:
-			return nil
-		case datamapping.TargetURL:
+		if fm.Target == datamapping.TargetURL {
 			urlSource = fm.Source
 		}
 	}

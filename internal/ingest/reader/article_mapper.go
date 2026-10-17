@@ -73,18 +73,9 @@ func (m *ArticleMapper) Map(record map[string]string) (document.Article, error) 
 		}
 	}
 
-	article.ID = idFor(article)
+	article.ID = document.DeriveArticleID(article.URL)
 	article.PublisherDomain = PublisherDomain(article.URL)
 	return article, nil
-}
-
-// idFor keeps an id the mapping read from the record, and otherwise derives
-// it from the normalised url, so raw spelling variants of a url share an id.
-func idFor(article document.Article) uuid.UUID {
-	if article.ID != uuid.Nil {
-		return article.ID
-	}
-	return document.DeriveArticleID(article.URL)
 }
 
 var errInvalidURL = errors.New("not an absolute http(s) url")

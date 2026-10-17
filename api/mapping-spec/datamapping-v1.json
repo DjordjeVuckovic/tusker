@@ -76,15 +76,14 @@
               "bool",
               "date",
               "datetime",
-              "url",
-              "uuid"
+              "url"
             ],
             "default": "string"
           },
           "target": {
             "description": "Article field, or Metadata.Extra.\u003ckey\u003e for a dataset-specific value",
             "type": "string",
-            "pattern": "^(ID|URL|Title|Description|Content|PublishedAt|Metadata\\.(PublisherName|Authors|Section|Keywords|Image|DateModified)|Metadata\\.Extra\\.[A-Za-z][A-Za-z0-9_]*)$"
+            "pattern": "^(URL|Title|Description|Content|PublishedAt|Metadata\\.(ExternalID|PublisherName|Authors|Section|Keywords|Image|DateModified)|Metadata\\.Extra\\.[A-Za-z][A-Za-z0-9_]*)$"
           }
         }
       },

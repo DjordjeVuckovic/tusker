@@ -73,8 +73,6 @@ func (s IdStrategy) ResolvedKind() (IdStrategyKind, error) {
 	return ParseIdStrategyKind(s.Kind)
 }
 
-func (s IdStrategy) isSet() bool { return s != IdStrategy{} }
-
 func (s IdStrategy) validate(urlSource string) error {
 	kind, err := s.ResolvedKind()
 	if err != nil {
@@ -157,12 +155,11 @@ const (
 	SourceDate     SourceType = "date"
 	SourceDatetime SourceType = "datetime"
 	SourceURL      SourceType = "url"
-	SourceUUID     SourceType = "uuid"
 )
 
 func ParseSourceType(v string) (SourceType, error) {
 	switch t := SourceType(v); t {
-	case SourceString, SourceInt, SourceFloat, SourceBool, SourceDate, SourceDatetime, SourceURL, SourceUUID:
+	case SourceString, SourceInt, SourceFloat, SourceBool, SourceDate, SourceDatetime, SourceURL:
 		return t, nil
 	default:
 		return "", fmt.Errorf("unknown source type %q", v)
@@ -174,10 +171,10 @@ type FieldMapping struct {
 	Source string `json:"source" yaml:"source" schema:"required,minLength=1,maxLength=100" description:"Source field name in the dataset"`
 
 	// SourceType is the data type of the source field
-	SourceType string `json:"sourceType,omitempty" yaml:"sourceType,omitempty" schema:"enum=string|int|float|bool|date|datetime|url|uuid,default=string" description:"Source field data type; url normalises the value, and an invalid url counts as missing"`
+	SourceType string `json:"sourceType,omitempty" yaml:"sourceType,omitempty" schema:"enum=string|int|float|bool|date|datetime|url,default=string" description:"Source field data type; url normalises the value, and an invalid url counts as missing"`
 
 	// Target is the article field the value lands in
-	Target string `json:"target" yaml:"target" schema:"required,pattern=^(ID|URL|Title|Description|Content|PublishedAt|Metadata\\.(PublisherName|Authors|Section|Keywords|Image|DateModified)|Metadata\\.Extra\\.[A-Za-z][A-Za-z0-9_]*)$" description:"Article field, or Metadata.Extra.<key> for a dataset-specific value"`
+	Target string `json:"target" yaml:"target" schema:"required,pattern=^(URL|Title|Description|Content|PublishedAt|Metadata\\.(ExternalID|PublisherName|Authors|Section|Keywords|Image|DateModified)|Metadata\\.Extra\\.[A-Za-z][A-Za-z0-9_]*)$" description:"Article field, or Metadata.Extra.<key> for a dataset-specific value"`
 
 	// Separator splits the source value of a list target
 	Separator string `json:"separator,omitempty" yaml:"separator,omitempty" description:"Splits the value of a list target (Metadata.Authors, Metadata.Keywords)"`
@@ -243,14 +240,6 @@ func (dm *DataMapper) Validate() error {
 			return fmt.Errorf("target %q must set required: true, since a record without it is dropped", target)
 		}
 	}
-	if id, mapped := byTarget[TargetID]; mapped {
-		if dm.IdStrategy.isSet() {
-			return fmt.Errorf("target %q overrides the id strategy, so idStrategy must be left out", TargetID)
-		}
-		if !id.Required {
-			return fmt.Errorf("target %q must set required: true, or records without one would mix in url-derived ids", TargetID)
-		}
-	}
 	if err := dm.IdStrategy.validate(byTarget[TargetURL].Source); err != nil {
 		return fmt.Errorf("idStrategy: %w", err)
 	}
@@ -279,7 +268,6 @@ func (fm FieldMapping) validate() error {
 }
 
 const (
-	TargetID  = "ID"
 	TargetURL = "URL"
 	// TargetTitle is required so every article yields a non-empty lead-v1
 	// embedding text.
@@ -309,12 +297,12 @@ var (
 )
 
 var targets = map[string]targetSpec{
-	TargetID:                 {sourceTypes: []SourceType{SourceUUID}},
 	TargetURL:                {sourceTypes: []SourceType{SourceURL}},
 	TargetTitle:              {sourceTypes: textSource},
 	"Description":            {sourceTypes: textSource},
 	"Content":                {sourceTypes: textSource},
 	"PublishedAt":            {sourceTypes: timeSource},
+	"Metadata.ExternalID":    {sourceTypes: textSource},
 	"Metadata.PublisherName": {sourceTypes: textSource},
 	"Metadata.Authors":       {sourceTypes: textSource, list: true},
 	"Metadata.Section":       {sourceTypes: textSource},

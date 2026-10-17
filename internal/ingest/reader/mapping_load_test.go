@@ -155,8 +155,8 @@ var rejectedMappings = []struct {
 	{name: "a date read into a text target", doc: withMappings(validMapping, "  - {source: body, sourceType: datetime, target: Content}\n"), wantInErr: "datetime", crossField: true},
 	{name: "a separator on a single-valued target", doc: withMappings(validMapping, "  - {source: body, target: Content, separator: ';'}\n"), wantInErr: "separator", crossField: true},
 	{name: "a uuidv5 id over a column other than the url", doc: validMapping + "idStrategy:\n  kind: uuidv5\n  source: title\n", wantInErr: `"title"`, crossField: true},
-	{name: "a mapped id alongside an id strategy", doc: withMappings(validMapping, "  - {source: uid, sourceType: uuid, target: ID}\n") + "idStrategy:\n  kind: uuidv5\n  source: link\n", wantInErr: "ID", crossField: true},
-	{name: "an optional mapped id", doc: withMappings(validMapping, "  - {source: uid, sourceType: uuid, target: ID}\n"), wantInErr: "ID", crossField: true},
+	{name: "a mapped article id", doc: withMappings(validMapping, "  - {source: uid, target: ID}\n"), wantInErr: `"ID"`},
+	{name: "an external id read as a number", doc: withMappings(validMapping, "  - {source: uid, sourceType: int, target: Metadata.ExternalID}\n"), wantInErr: "int", crossField: true},
 	{name: "the retired targetType", doc: replaced(validMapping, "    target: Title\n", "    target: Title\n    targetType: string\n"), wantInErr: "targetType", crossField: true},
 }
 
