@@ -2,57 +2,47 @@ kind: DataMapper
 version: v1
 metadata:
   name: "Kaggle Global News Dataset"
-  description: "Mapping for Kaggle Global News Dataset fields"
+  description: "Mapping for Kaggle Global News Dataset fields. The source column content is the truncated NewsAPI excerpt of full_content and has no Article target."
 dataset: kaggle
 dateFormat: "2006-01-02 15:04:05.000000"
+constants:
+  Language: eng
+output:
+  format: jsonl
 fieldMappings:
  - source: "title"
    sourceType: "string"
    target: "Title"
-   targetType: "string"
    required: true
  - source: "author"
    sourceType: "string"
-   target: "Author"
-   targetType: "string"
+   target: "Metadata.Authors"
    required: false
  - source: "description"
    sourceType: "string"
    target: "Description"
-   targetType: "string"
    required: true
  - source: "full_content"
    sourceType: "string"
    target: "Content"
-   targetType: "string"
    required: false
- - source: "content"
-   sourceType: "string"
-   target: "Content"
-   targetType: "string"
-   required: true
  - source: "url"
    sourceType: "url"
    target: "URL"
-   targetType: "url"
-   required: false
+   required: true
  - source: "published_at"
    sourceType: "datetime"
    target: "PublishedAt"
-   targetType: "datetime"
    required: false
  - source: "source_id"
    sourceType: "string"
-   target: "Metadata.SourceId"
-   targetType: "string"
+   target: "Metadata.Extra.sourceId"
    required: false
  - source: "source_name"
    sourceType: "string"
-   target: "Metadata.SourceName"
-   targetType: "string"
+   target: "Metadata.PublisherName"
    required: false
  - source: "category"
    sourceType: "string"
-   target: "Metadata.Category"
-   targetType: "string"
+   target: "Metadata.Section"
    required: false

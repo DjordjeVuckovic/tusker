@@ -94,41 +94,46 @@ func main() {
 }
 
 func generateYAMLExample() string {
-	return `# DataMapping Example Configuration
-# This file demonstrates the structure for defining field mappings
+	return `# DataMapping example: maps the columns of a raw news dataset onto articles.
 
 kind: DataMapper
 version: v1
 metadata:
-  name: "Kaggle News Dataset"
-  description: "Field mapping configuration for Kaggle news dataset import"
-dataset: "kaggle"
+  name: "Example News Dataset"
+  description: "Field mapping for a raw news dataset"
+dataset: "example"
 dateFormat: "2006-01-02T15:04:05Z"
+idStrategy:
+  kind: uuidv5
+  source: "url"
+constants:
+  Language: eng
+output:
+  format: parquet
 fieldMappings:
+  - source: "url"
+    sourceType: "url"
+    target: "URL"
+    required: true
   - source: "title"
-    sourceType: "string"
     target: "Title"
-    targetType: "string"
     required: true
-  - source: "content" 
-    sourceType: "string"
+  - source: "summary"
+    target: "Description"
+  - source: "content"
     target: "Content"
-    targetType: "string"
-    required: true
-  - source: "author"
-    sourceType: "string" 
-    target: "Author"
-    targetType: "string"
-    required: false
   - source: "published_date"
     sourceType: "datetime"
-    target: "CreatedAt"
-    targetType: "datetime"
-    required: false
-  - source: "language"
-    sourceType: "string"
-    target: "Language" 
-    targetType: "string"
-    required: false
+    target: "PublishedAt"
+  - source: "publication"
+    target: "Metadata.PublisherName"
+  - source: "authors"
+    target: "Metadata.Authors"
+    separator: ";"
+  - source: "section"
+    target: "Metadata.Section"
+  - source: "word_count"
+    sourceType: "int"
+    target: "Metadata.Extra.wordCount"
 `
 }

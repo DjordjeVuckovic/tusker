@@ -1,8 +1,13 @@
 package datamapping
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
+	"slices"
 	"strings"
+
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 )
 
 // DataMapper defines field mapping configuration for data imports
@@ -28,6 +33,12 @@ type DataMapper struct {
 	// IdStrategy decides how article ids are produced
 	IdStrategy IdStrategy `json:"idStrategy,omitempty" yaml:"idStrategy,omitempty" description:"How article ids are produced"`
 
+	// Constants holds values written on every article instead of read from a column
+	Constants Constants `json:"constants" yaml:"constants" schema:"required" description:"Values written on every article"`
+
+	// Output decides the format of the canonical package
+	Output Output `json:"output" yaml:"output" schema:"required" description:"Canonical package output"`
+
 	// FieldMappings defines the field mapping rules
 	FieldMappings []FieldMapping `json:"fieldMappings" yaml:"fieldMappings" schema:"required,minItems=1" description:"Array of field mapping definitions"`
 }
@@ -40,8 +51,8 @@ const (
 	// the canonical file it was written to and re-running preprocess renumbers it.
 	IdStrategyRandom IdStrategyKind = "random"
 
-	// IdStrategyUuidV5 derives the id from a source field, so the same input
-	// always yields the same ids.
+	// IdStrategyUuidV5 derives the id from the normalised url, so the same
+	// input always yields the same ids.
 	IdStrategyUuidV5 IdStrategyKind = "uuidv5"
 )
 
@@ -60,8 +71,8 @@ type IdStrategy struct {
 	// Kind is the id generation strategy
 	Kind string `json:"kind,omitempty" yaml:"kind,omitempty" schema:"enum=random|uuidv5,default=random" description:"Id generation strategy"`
 
-	// Source is the source field hashed by a derived strategy
-	Source string `json:"source,omitempty" yaml:"source,omitempty" description:"Source field hashed by a derived strategy"`
+	// Source is the column mapped to URL, whose normalised value uuidv5 hashes
+	Source string `json:"source,omitempty" yaml:"source,omitempty" description:"Source column mapped to URL, hashed by a derived strategy"`
 }
 
 // ResolvedKind reports the strategy to apply, defaulting to random.
@@ -72,18 +83,74 @@ func (s IdStrategy) ResolvedKind() (IdStrategyKind, error) {
 	return ParseIdStrategyKind(s.Kind)
 }
 
-func (s IdStrategy) validate() error {
+func (s IdStrategy) isSet() bool { return s != IdStrategy{} }
+
+func (s IdStrategy) validate(urlSource string) error {
 	kind, err := s.ResolvedKind()
 	if err != nil {
 		return err
 	}
-	if kind == IdStrategyUuidV5 && s.Source == "" {
-		return fmt.Errorf("id strategy %q needs a source field", kind)
-	}
-	if kind == IdStrategyRandom && s.Source != "" {
+	switch {
+	case kind == IdStrategyUuidV5 && s.Source == "":
+		return fmt.Errorf("id strategy %q needs a source column", kind)
+	case kind == IdStrategyUuidV5 && s.Source != urlSource:
+		return fmt.Errorf("id strategy %q hashes the url, so its source must be %q, the column mapped to URL, not %q", kind, urlSource, s.Source)
+	case kind == IdStrategyRandom && s.Source != "":
 		return fmt.Errorf("id strategy %q ignores source %q", kind, s.Source)
 	}
 	return nil
+}
+
+// Constants are written on every article of the corpus.
+type Constants struct {
+	// Language is the corpus language every article is analysed in
+	Language string `json:"Language" yaml:"Language" schema:"required,enum=eng" description:"ISO 639-3 corpus language written on every article"`
+}
+
+func (c Constants) ResolvedLanguage() (language.Code, error) {
+	if c.Language == "" {
+		return "", errors.New("constants.Language is required")
+	}
+	lang, err := language.Parse(c.Language)
+	if err != nil {
+		return "", fmt.Errorf("constants.Language: %w", err)
+	}
+	return lang, nil
+}
+
+// OutputFormat names the file format of a canonical package's articles.
+type OutputFormat string
+
+const (
+	OutputParquet OutputFormat = "parquet"
+	OutputJSONL   OutputFormat = "jsonl"
+)
+
+func ParseOutputFormat(v string) (OutputFormat, error) {
+	switch OutputFormat(v) {
+	case OutputParquet:
+		return OutputParquet, nil
+	case OutputJSONL:
+		return OutputJSONL, nil
+	default:
+		return "", fmt.Errorf("unknown output format %q, want %q or %q", v, OutputParquet, OutputJSONL)
+	}
+}
+
+type Output struct {
+	// Format is the file format of the canonical articles resource
+	Format string `json:"format" yaml:"format" schema:"required,enum=parquet|jsonl" description:"Canonical articles file format"`
+}
+
+func (o Output) ResolvedFormat() (OutputFormat, error) {
+	if o.Format == "" {
+		return "", errors.New("output.format is required")
+	}
+	format, err := ParseOutputFormat(o.Format)
+	if err != nil {
+		return "", fmt.Errorf("output.format: %w", err)
+	}
+	return format, nil
 }
 
 type Metadata struct {
@@ -94,92 +161,190 @@ type Metadata struct {
 	Description string `json:"description,omitempty" yaml:"description,omitempty" schema:"maxLength=500" description:"Description of the mapping configuration"`
 }
 
+// SourceType names how a raw value is parsed before it reaches its target.
+type SourceType string
+
+const (
+	SourceString   SourceType = "string"
+	SourceInt      SourceType = "int"
+	SourceFloat    SourceType = "float"
+	SourceBool     SourceType = "bool"
+	SourceDate     SourceType = "date"
+	SourceDatetime SourceType = "datetime"
+	SourceURL      SourceType = "url"
+	SourceUUID     SourceType = "uuid"
+)
+
+func ParseSourceType(v string) (SourceType, error) {
+	switch t := SourceType(v); t {
+	case SourceString, SourceInt, SourceFloat, SourceBool, SourceDate, SourceDatetime, SourceURL, SourceUUID:
+		return t, nil
+	default:
+		return "", fmt.Errorf("unknown source type %q", v)
+	}
+}
+
 type FieldMapping struct {
 	// Source is the field name in the source dataset
 	Source string `json:"source" yaml:"source" schema:"required,minLength=1,maxLength=100" description:"Source field name in the dataset"`
 
 	// SourceType is the data type of the source field
-	SourceType string `json:"sourceType,omitempty" yaml:"sourceType,omitempty" schema:"enum=string|int|float|bool|date|datetime,default=string" description:"Source field data type"`
+	SourceType string `json:"sourceType,omitempty" yaml:"sourceType,omitempty" schema:"enum=string|int|float|bool|date|datetime|url|uuid,default=string" description:"Source field data type; url normalises the value, and an invalid url counts as missing"`
 
-	// Target is the field name in the target struct
-	Target string `json:"target" yaml:"target" schema:"required,enum=ID|URL|Title|Description|Content|PublishedAt|Language|Metadata.PublisherName|Metadata.Section|Metadata.Image|Metadata.DateModified" description:"Target field in the Article struct, or Metadata.Extra.<key> for a dataset-specific field"`
+	// Target is the article field the value lands in
+	Target string `json:"target" yaml:"target" schema:"required,pattern=^(ID|URL|Title|Description|Content|PublishedAt|Metadata\\.(PublisherName|Authors|Section|Keywords|Image|DateModified)|Metadata\\.Extra\\.[A-Za-z][A-Za-z0-9_]*)$" description:"Article field, or Metadata.Extra.<key> for a dataset-specific value"`
 
-	// TargetType is the data type of the target field
-	TargetType string `json:"targetType,omitempty" yaml:"targetType,omitempty" schema:"enum=string|int|float|bool|date|datetime|uuid|url|json,default=string" description:"Target field data type"`
+	// Separator splits the source value of a list target
+	Separator string `json:"separator,omitempty" yaml:"separator,omitempty" description:"Splits the value of a list target (Metadata.Authors, Metadata.Keywords)"`
 
 	// Required indicates if this field mapping is mandatory
-	Required bool `json:"required,omitempty" yaml:"required,omitempty" schema:"default=false" description:"Whether this field mapping is required"`
+	Required bool `json:"required,omitempty" yaml:"required,omitempty" schema:"default=false" description:"Whether a record missing this value is dropped; Title and URL must set it"`
+}
+
+// ResolvedSourceType reports the source type, defaulting to string.
+func (fm FieldMapping) ResolvedSourceType() (SourceType, error) {
+	if fm.SourceType == "" {
+		return SourceString, nil
+	}
+	return ParseSourceType(fm.SourceType)
+}
+
+// IsListTarget reports whether target holds many values split by a separator.
+func IsListTarget(target string) bool {
+	return targets[target].list
 }
 
 func (dm *DataMapper) Validate() error {
-	if dm.Kind == "" {
-		return fmt.Errorf("kind is required")
+	if dm.Kind != "DataMapper" {
+		return fmt.Errorf("kind %q, want %q", dm.Kind, "DataMapper")
 	}
-	if dm.Version == "" {
-		return fmt.Errorf("version is required")
+	if dm.Version != "v1" {
+		return fmt.Errorf("version %q, want %q", dm.Version, "v1")
 	}
-	if dm.Metadata.Name == "" {
-		return fmt.Errorf("metadata.name is required")
+	if n := len(dm.Metadata.Name); n == 0 || n > 100 {
+		return fmt.Errorf("metadata.name must be 1 to 100 characters, got %d", n)
 	}
-	if dm.Dataset == "" {
-		return fmt.Errorf("dataset is required")
+	if n := len(dm.Metadata.Description); n > 500 {
+		return fmt.Errorf("metadata.description must be at most 500 characters, got %d", n)
+	}
+	if len(dm.Dataset) > 50 || !datasetPattern.MatchString(dm.Dataset) {
+		return fmt.Errorf("dataset %q must match %s and be at most 50 characters", dm.Dataset, datasetPattern)
+	}
+	if _, err := dm.Constants.ResolvedLanguage(); err != nil {
+		return err
+	}
+	if _, err := dm.Output.ResolvedFormat(); err != nil {
+		return err
 	}
 	if len(dm.FieldMappings) == 0 {
-		return fmt.Errorf("at least one field mapping is required")
+		return errors.New("at least one field mapping is required")
 	}
-	if err := dm.IdStrategy.validate(); err != nil {
-		return fmt.Errorf("idStrategy: %w", err)
-	}
+	byTarget := make(map[string]FieldMapping, len(dm.FieldMappings))
 	for i, fm := range dm.FieldMappings {
-		if fm.Source == "" {
-			return fmt.Errorf("fieldMappings[%d] must have source defined", i)
-		}
-		if err := validateTarget(fm.Target); err != nil {
+		if err := fm.validate(); err != nil {
 			return fmt.Errorf("fieldMappings[%d]: %w", i, err)
 		}
+		if previous, mapped := byTarget[fm.Target]; mapped {
+			return fmt.Errorf("fieldMappings[%d]: target %q is already mapped from source %q, and two sources cannot share a target", i, fm.Target, previous.Source)
+		}
+		byTarget[fm.Target] = fm
+	}
+	for _, target := range requiredTargets {
+		fm, mapped := byTarget[target]
+		if !mapped {
+			return fmt.Errorf("target %q must be mapped, since a record without it is dropped", target)
+		}
+		if !fm.Required {
+			return fmt.Errorf("target %q must set required: true, since a record without it is dropped", target)
+		}
+	}
+	if _, mapped := byTarget[TargetID]; mapped && dm.IdStrategy.isSet() {
+		return fmt.Errorf("target %q overrides the id strategy, so idStrategy must be left out", TargetID)
+	}
+	if err := dm.IdStrategy.validate(byTarget[TargetURL].Source); err != nil {
+		return fmt.Errorf("idStrategy: %w", err)
 	}
 	return nil
 }
+
+func (fm FieldMapping) validate() error {
+	if n := len(fm.Source); n == 0 || n > 100 {
+		return fmt.Errorf("source must be 1 to 100 characters, got %d", n)
+	}
+	sourceType, err := fm.ResolvedSourceType()
+	if err != nil {
+		return err
+	}
+	spec, err := lookupTarget(fm.Target)
+	if err != nil {
+		return err
+	}
+	if spec.sourceTypes != nil && !slices.Contains(spec.sourceTypes, sourceType) {
+		return fmt.Errorf("target %q cannot hold a %q source, want one of %q", fm.Target, sourceType, spec.sourceTypes)
+	}
+	if fm.Separator != "" && !spec.list {
+		return fmt.Errorf("target %q holds one value, so it takes no separator", fm.Target)
+	}
+	return nil
+}
+
+const (
+	TargetID  = "ID"
+	TargetURL = "URL"
+	// TargetTitle is required so every article yields a non-empty lead-v1
+	// embedding text.
+	TargetTitle = "Title"
+)
 
 // ExtraTargetPrefix marks a target that lands in Metadata.Extra rather than a
 // schema field. Anything after the prefix is the key.
 const ExtraTargetPrefix = "Metadata.Extra."
 
-var articleTargets = map[string]struct{}{
-	"ID": {}, "URL": {}, "Title": {}, "Description": {}, "Content": {},
-	"PublishedAt": {}, "Language": {}, "Metadata.PublisherName": {},
-	"Metadata.Section": {}, "Metadata.Image": {}, "Metadata.DateModified": {},
+var requiredTargets = []string{TargetURL, TargetTitle}
+
+var (
+	datasetPattern  = regexp.MustCompile(`^[a-z0-9-_]+$`)
+	extraKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)
+)
+
+// targetSpec lists the source types a target accepts; nil accepts any.
+type targetSpec struct {
+	sourceTypes []SourceType
+	list        bool
 }
 
-// renamedTargets maps retired target names to their replacement, so a stale
-// mapping fails at load instead of silently diverting into Metadata.Extra.
-var renamedTargets = map[string]string{
-	"Metadata.PublishedAt": "PublishedAt",
+var (
+	textSource = []SourceType{SourceString}
+	timeSource = []SourceType{SourceDate, SourceDatetime}
+)
+
+var targets = map[string]targetSpec{
+	TargetID:                 {sourceTypes: []SourceType{SourceUUID}},
+	TargetURL:                {sourceTypes: []SourceType{SourceURL}},
+	TargetTitle:              {sourceTypes: textSource},
+	"Description":            {sourceTypes: textSource},
+	"Content":                {sourceTypes: textSource},
+	"PublishedAt":            {sourceTypes: timeSource},
+	"Metadata.PublisherName": {sourceTypes: textSource},
+	"Metadata.Authors":       {sourceTypes: textSource, list: true},
+	"Metadata.Section":       {sourceTypes: textSource},
+	"Metadata.Keywords":      {sourceTypes: textSource, list: true},
+	"Metadata.Image":         {sourceTypes: []SourceType{SourceString, SourceURL}},
+	"Metadata.DateModified":  {sourceTypes: timeSource},
 }
 
-func validateTarget(target string) error {
+func lookupTarget(target string) (targetSpec, error) {
 	if target == "" {
-		return fmt.Errorf("must have target defined")
+		return targetSpec{}, errors.New("must have target defined")
 	}
-	if renamed, ok := renamedTargets[target]; ok {
-		return fmt.Errorf("target %q moved, use %q", target, renamed)
-	}
-	if _, ok := articleTargets[target]; ok {
-		return nil
+	if spec, ok := targets[target]; ok {
+		return spec, nil
 	}
 	if key, ok := strings.CutPrefix(target, ExtraTargetPrefix); ok {
-		if key == "" {
-			return fmt.Errorf("target %q needs a key after %q", target, ExtraTargetPrefix)
+		if !extraKeyPattern.MatchString(key) {
+			return targetSpec{}, fmt.Errorf("target %q needs a key matching %s after %q", target, extraKeyPattern, ExtraTargetPrefix)
 		}
-		return nil
+		return targetSpec{}, nil
 	}
-	return fmt.Errorf("unknown target %q", target)
-}
-
-type MappingError struct {
-	Message string `json:"message" example:"missing source field: id"`
-}
-
-func (e *MappingError) Error() string {
-	return fmt.Sprintf("datamapping error: %s", e.Message)
+	return targetSpec{}, fmt.Errorf("unknown target %q", target)
 }

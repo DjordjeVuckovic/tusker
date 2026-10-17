@@ -21,7 +21,15 @@ metadata:
   name: "Test"
 dataset: test_corpus
 dateFormat: "2006-01-02T15:04:05Z"
+constants:
+  Language: eng
+output:
+  format: jsonl
 fieldMappings:
+  - source: "link"
+    sourceType: "url"
+    target: "URL"
+    required: true
   - source: "title"
     sourceType: "string"
     target: "Title"
@@ -69,8 +77,8 @@ func fixtureConfig(t *testing.T, rows string) preprocessConfig {
 }
 
 func TestPreprocessReportChecksumMatchesOutput(t *testing.T) {
-	cfg := fixtureConfig(t, `{"title":"one","body":"a"}
-{"title":"two","body":"b"}
+	cfg := fixtureConfig(t, `{"title":"one","body":"a","link":"https://example.com/1"}
+{"title":"two","body":"b","link":"https://example.com/2"}
 `)
 
 	report := runFixturePreprocess(t, cfg)
@@ -94,7 +102,7 @@ func TestPreprocessCorpusId(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := fixtureConfig(t, `{"title":"one","body":"a"}
+			cfg := fixtureConfig(t, `{"title":"one","body":"a","link":"https://example.com/1"}
 `)
 			cfg.CorpusId = tt.override
 

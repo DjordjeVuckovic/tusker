@@ -101,3 +101,32 @@ func TestCSVReader_ReadParallel_CancelEarly(t *testing.T) {
 
 	assert.Len(t, results, 1)
 }
+
+func TestCSVReader_ReadParallel_MalformedRow(t *testing.T) {
+	csvData := `id,title,author
+1,Go Concurrency,John Doe
+2,OnlyTitle
+3,Interfaces in Go,Alice`
+
+	ctx := t.Context()
+	reader := NewCSVReader(strings.NewReader(csvData))
+
+	resultsChan, err := reader.ReadParallel(ctx, 2)
+	require.NoError(t, err)
+
+	var validResults []map[string]string
+	var errorCount int
+
+	for res := range resultsChan {
+		if res.Err != nil {
+			errorCount++
+			continue
+		}
+		validResults = append(validResults, res.Record)
+	}
+
+	// We expect one malformed line ("2,OnlyTitle") with missing columns
+	assert.Equal(t, 2, len(validResults))     // 2 valid rows
+	assert.Equal(t, 1, errorCount)            // 1 row caused an error
+	assert.Contains(t, validResults[0], "id") // sanity check
+}

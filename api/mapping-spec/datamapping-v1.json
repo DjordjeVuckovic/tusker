@@ -8,9 +8,27 @@
     "version",
     "metadata",
     "dataset",
+    "constants",
+    "output",
     "fieldMappings"
   ],
   "properties": {
+    "constants": {
+      "description": "Values written on every article",
+      "type": "object",
+      "required": [
+        "Language"
+      ],
+      "properties": {
+        "Language": {
+          "description": "ISO 639-3 corpus language written on every article",
+          "type": "string",
+          "enum": [
+            "eng"
+          ]
+        }
+      }
+    },
     "dataset": {
       "description": "Dataset source identifier",
       "type": "string",
@@ -34,9 +52,13 @@
         ],
         "properties": {
           "required": {
-            "description": "Whether this field mapping is required",
+            "description": "Whether a record missing this value is dropped; Title and URL must set it",
             "type": "boolean",
             "default": false
+          },
+          "separator": {
+            "description": "Splits the value of a list target (Metadata.Authors, Metadata.Keywords)",
+            "type": "string"
           },
           "source": {
             "description": "Source field name in the dataset",
@@ -45,40 +67,7 @@
             "maxLength": 100
           },
           "sourceType": {
-            "description": "Source field data type",
-            "type": "string",
-            "enum": [
-              "string",
-              "int",
-              "float",
-              "bool",
-              "date",
-              "datetime"
-            ],
-            "default": "string"
-          },
-          "target": {
-            "description": "Target field in the Article struct, or Metadata.Extra.\u003ckey\u003e for a dataset-specific field",
-            "type": "string",
-            "enum": [
-              "ID",
-              "Title",
-              "Subtitle",
-              "Content",
-              "Author",
-              "Description",
-              "Language",
-              "URL",
-              "PublishedAt",
-              "CreatedAt",
-              "Metadata.SourceId",
-              "Metadata.SourceName",
-              "Metadata.Category",
-              "Metadata.ImportedAt"
-            ]
-          },
-          "targetType": {
-            "description": "Target field data type",
+            "description": "Source field data type; url normalises the value, and an invalid url counts as missing",
             "type": "string",
             "enum": [
               "string",
@@ -87,11 +76,15 @@
               "bool",
               "date",
               "datetime",
-              "uuid",
               "url",
-              "json"
+              "uuid"
             ],
             "default": "string"
+          },
+          "target": {
+            "description": "Article field, or Metadata.Extra.\u003ckey\u003e for a dataset-specific value",
+            "type": "string",
+            "pattern": "^(ID|URL|Title|Description|Content|PublishedAt|Metadata\\.(PublisherName|Authors|Section|Keywords|Image|DateModified)|Metadata\\.Extra\\.[A-Za-z][A-Za-z0-9_]*)$"
           }
         }
       },
@@ -111,7 +104,7 @@
           "default": "random"
         },
         "source": {
-          "description": "Source field hashed by a derived strategy",
+          "description": "Source column mapped to URL, hashed by a derived strategy",
           "type": "string"
         }
       }
@@ -140,6 +133,23 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 100
+        }
+      }
+    },
+    "output": {
+      "description": "Canonical package output",
+      "type": "object",
+      "required": [
+        "format"
+      ],
+      "properties": {
+        "format": {
+          "description": "Canonical articles file format",
+          "type": "string",
+          "enum": [
+            "parquet",
+            "jsonl"
+          ]
         }
       }
     },
