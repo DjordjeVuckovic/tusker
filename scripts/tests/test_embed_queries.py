@@ -62,10 +62,10 @@ def test_descriptor_records_the_tag_query_recipe_and_suite_hash(
 
     descriptor = json.loads(query_vectors(tmp_path / "track").read_text())
     assert descriptor["embedding"] == {
-        "model": "tiny-qwen3",
+        "model": "qwen3-embedding:tiny",
         "hfModel": str(tiny_model),
         "revision": "test-rev",
-        "tag": "tiny-qwen3@64",
+        "tag": "qwen3-embedding:tiny@64",
         "dim": 64,
         "recipe": "query-instruct-v1",
         "pooling": "last_token",

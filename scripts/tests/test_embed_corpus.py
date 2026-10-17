@@ -131,10 +131,10 @@ def test_descriptor_records_the_model_recipe_and_canonical_source(
     descriptor_path = only_package(tmp_path / "out")
     descriptor = json.loads(descriptor_path.read_text())
     assert descriptor["embedding"] == {
-        "model": "tiny-qwen3",
+        "model": "qwen3-embedding:tiny",
         "hfModel": str(tiny_model),
         "revision": "test-rev",
-        "tag": "tiny-qwen3@1024",
+        "tag": "qwen3-embedding:tiny@1024",
         "dim": 1024,
         "recipe": "lead-v1",
         "pooling": "last_token",
@@ -146,7 +146,7 @@ def test_descriptor_records_the_model_recipe_and_canonical_source(
         "version": "article-v2-0badcafe",
         "resourceHash": sha256_of(canonical.resource),
     }
-    assert descriptor_path.parent.parent.name == "tiny-qwen3@1024"
+    assert descriptor_path.parent.parent.name == "qwen3-embedding-tiny@1024"
     assert descriptor_path.parent.name == descriptor["version"]
 
 
@@ -255,9 +255,9 @@ def test_tag_version_and_location_carry_the_chosen_dim(tmp_path, tiny_model_args
     descriptor_path = only_package(tmp_path / "out")
     descriptor = json.loads(descriptor_path.read_text())
     assert descriptor["embedding"]["dim"] == 64
-    assert descriptor["embedding"]["tag"] == "tiny-qwen3@64"
+    assert descriptor["embedding"]["tag"] == "qwen3-embedding:tiny@64"
     assert descriptor["version"].startswith("lead-v1-64-")
-    assert descriptor_path.parent.parent.name == "tiny-qwen3@64"
+    assert descriptor_path.parent.parent.name == "qwen3-embedding-tiny@64"
 
 
 def test_refuses_a_dim_wider_than_the_model(tmp_path, tiny_model_args):

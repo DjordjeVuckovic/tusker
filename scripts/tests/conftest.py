@@ -13,7 +13,7 @@ import pytest
 
 SCRIPTS = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPTS))
-TINY_MODEL_NAME = "tiny-qwen3"
+TINY_MODEL_NAME = "qwen3-embedding:tiny"
 TINY_REVISION = "test-rev"
 EOS = "<|endoftext|>"
 
