@@ -8,17 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 )
 
 // Write hashes every resource under dir and writes the descriptor to
-// dir/datapackage.json atomically, returning the descriptor as written. When
-// dir already holds a descriptor with the same version and the same resource
-// names, hashes and bytes, Write changes nothing and returns that descriptor,
-// whatever its producedBy. Any other existing descriptor is never replaced and
-// yields a *DescriptorConflictError.
+// dir/datapackage.json atomically, replacing any descriptor already there, and
+// returns the descriptor as written.
 func Write(ctx context.Context, dir string, pkg Package) (Package, error) {
 	if pkg.Name == "" {
 		return Package{}, errors.New("package has no name")
@@ -50,20 +46,6 @@ func Write(ctx context.Context, dir string, pkg Package) (Package, error) {
 		return Package{}, fmt.Errorf("decode written descriptor: %w", err)
 	}
 	path := filepath.Join(dir, DescriptorName)
-	existingBytes, err := os.ReadFile(path)
-	switch {
-	case err == nil:
-		var existing Package
-		if err := json.Unmarshal(existingBytes, &existing); err != nil {
-			return Package{}, fmt.Errorf("decode existing descriptor %s: %w", path, err)
-		}
-		if differences := contentDifferences(existing, written); len(differences) > 0 {
-			return Package{}, &DescriptorConflictError{Path: path, Differences: differences}
-		}
-		return existing, nil
-	case !errors.Is(err, fs.ErrNotExist):
-		return Package{}, fmt.Errorf("read existing descriptor: %w", err)
-	}
 	if err := writeAtomic(path, descriptor); err != nil {
 		return Package{}, err
 	}
@@ -117,37 +99,6 @@ func writeAtomic(path string, content []byte) error {
 		return fmt.Errorf("rename descriptor into place: %w", err)
 	}
 	return nil
-}
-
-// contentDifferences lists what makes two descriptors describe different
-// content: the version, or a resource's presence, hash or bytes. Everything
-// else, producedBy included, may differ between reruns.
-func contentDifferences(existing, written Package) []string {
-	var differences []string
-	if existing.Version != written.Version {
-		differences = append(differences, fmt.Sprintf("version %q, not %q", existing.Version, written.Version))
-	}
-	byName := make(map[string]Resource, len(written.Resources))
-	for _, r := range written.Resources {
-		byName[r.Name] = r
-	}
-	for _, old := range existing.Resources {
-		r, ok := byName[old.Name]
-		switch {
-		case !ok:
-			differences = append(differences, fmt.Sprintf("resource %s is no longer written", old.Name))
-		case r.Hash != old.Hash || r.Bytes != old.Bytes:
-			differences = append(differences, fmt.Sprintf("resource %s is %s (%d bytes), not %s (%d bytes)",
-				old.Name, old.Hash, old.Bytes, r.Hash, r.Bytes))
-		}
-		delete(byName, old.Name)
-	}
-	for _, r := range written.Resources {
-		if _, added := byName[r.Name]; added {
-			differences = append(differences, fmt.Sprintf("resource %s is new", r.Name))
-		}
-	}
-	return differences
 }
 
 // contextReader lets a long copy stop between reads once ctx is done.

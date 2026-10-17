@@ -3,7 +3,6 @@ package datapackage
 import (
 	"fmt"
 	"io/fs"
-	"strings"
 )
 
 // HashMismatchError reports a resource whose content no longer hashes to the
@@ -54,15 +53,3 @@ type NotFoundError struct {
 func (e *NotFoundError) Error() string { return e.Location + " does not exist" }
 
 func (e *NotFoundError) Unwrap() error { return fs.ErrNotExist }
-
-// DescriptorConflictError reports a Write into a folder whose descriptor
-// already records another version or other resource content, which at one
-// version means the producer is not deterministic.
-type DescriptorConflictError struct {
-	Path        string
-	Differences []string
-}
-
-func (e *DescriptorConflictError) Error() string {
-	return fmt.Sprintf("%s describes different content: %s", e.Path, strings.Join(e.Differences, "; "))
-}
