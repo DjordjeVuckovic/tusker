@@ -187,7 +187,7 @@ def hub_request(url: str) -> urllib.request.Request:
     request = urllib.request.Request(url)
     token = os.environ.get("HF_TOKEN")
     if token:
-        request.add_header("Authorization", f"Bearer {token}")
+        request.add_unredirected_header("Authorization", f"Bearer {token}")
     return request
 
 

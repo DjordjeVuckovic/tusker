@@ -12,7 +12,7 @@ import os
 import subprocess
 import sys
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -43,6 +43,7 @@ class FakeHub:
     )
     served: dict[str, bytes] = field(default_factory=dict)
     endpoint: str = ""
+    cdn: str = ""
 
     def tree(self) -> list[dict[str, object]]:
         hashes = {
@@ -71,19 +72,35 @@ class FakeHub:
         prefix = f"/datasets/{REPO}/resolve/{COMMIT}/"
         if path.startswith(prefix):
             name = path.removeprefix(prefix)
-            content = self.served.get(name, self.files.get(name))
-            if content is not None:
-                return 200, content, {}
+            if self.cdn:
+                return 302, b"", {"Location": f"{self.cdn}/{name}"}
+            return self.content(name)
         return 404, b"not found", {}
 
+    def content(self, name: str) -> tuple[int, bytes, dict[str, str]]:
+        content = self.served.get(name, self.files.get(name))
+        if content is None:
+            return 404, b"not found", {}
+        return 200, content, {}
 
-@pytest.fixture
-def hub() -> Iterator[tuple[FakeHub, str]]:
-    fake = FakeHub()
+
+Responder = Callable[[str], tuple[int, bytes, dict[str, str]]]
+
+
+@dataclass
+class Server:
+    endpoint: str
+    authorizations: list[str | None]
+
+
+def serve(respond: Responder) -> Iterator[Server]:
+    """Run respond behind a local HTTP server, recording each Authorization header."""
+    authorizations: list[str | None] = []
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
-            status, body, headers = fake.respond(self.path)
+            authorizations.append(self.headers.get("Authorization"))
+            status, body, headers = respond(self.path)
             self.send_response(status)
             for name, value in headers.items():
                 self.send_header(name, value)
@@ -97,13 +114,22 @@ def hub() -> Iterator[tuple[FakeHub, str]]:
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    fake.endpoint = f"http://127.0.0.1:{server.server_port}"
-    yield fake, fake.endpoint
+    yield Server(f"http://127.0.0.1:{server.server_port}", authorizations)
     server.shutdown()
     server.server_close()
 
 
-def fetch(endpoint: str, root: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+@pytest.fixture
+def hub() -> Iterator[tuple[FakeHub, str]]:
+    fake = FakeHub()
+    for server in serve(fake.respond):
+        fake.endpoint = server.endpoint
+        yield fake, fake.endpoint
+
+
+def fetch(
+    endpoint: str, root: Path, *extra: str, token: str | None = None
+) -> subprocess.CompletedProcess[str]:
     env = {
         **os.environ,
         "HF_ENDPOINT": endpoint,
@@ -112,6 +138,8 @@ def fetch(endpoint: str, root: Path, *extra: str) -> subprocess.CompletedProcess
         "NO_PROXY": "127.0.0.1",
     }
     env.pop("HF_TOKEN", None)
+    if token:
+        env["HF_TOKEN"] = token
     return subprocess.run(
         [sys.executable, str(SCRIPT), "cc_news", "--mirror", "--datasets-root", str(root), *extra],
         env=env,
@@ -236,3 +264,20 @@ def test_a_raw_folder_from_another_commit_is_refused_before_any_download(
     assert result.returncode != 0
     assert (raw / "datapackage.json").read_text() == older
     assert not (raw / "train-00000-of-00002.parquet").exists()
+
+
+def test_the_token_reaches_the_hub_but_never_the_host_a_download_redirects_to(
+    tmp_path: Path,
+) -> None:
+    fake = FakeHub()
+    for cdn in serve(lambda path: fake.content(path.removeprefix("/"))):
+        fake.cdn = cdn.endpoint
+        for hub_server in serve(fake.respond):
+            fake.endpoint = hub_server.endpoint
+
+            result = fetch(hub_server.endpoint, tmp_path, token="hf_fixture")
+
+            assert result.returncode == 0, result.stderr
+            assert "Bearer hf_fixture" in hub_server.authorizations
+            assert cdn.authorizations, "no download was redirected"
+            assert all(authorization is None for authorization in cdn.authorizations)
