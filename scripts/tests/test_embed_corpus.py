@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pyarrow.parquet as pq
 import pytest
+import torch
 from conftest import (
     article,
     model_args,
@@ -468,3 +469,51 @@ def test_each_vector_belongs_to_its_row_when_a_batch_pads_mixed_lengths(
     batched = vectors_by_id(only_package(tmp_path / "batched"))
     for row in rows:
         np.testing.assert_allclose(batched[row["id"]], singles[row["id"]], atol=1e-5)
+
+
+def model_card_last_token_pool(last_hidden_states, attention_mask):
+    """The pooling function from the Qwen3-Embedding model card, verbatim."""
+    left_padding = attention_mask[:, -1].sum() == attention_mask.shape[0]
+    if left_padding:
+        return last_hidden_states[:, -1]
+    sequence_lengths = attention_mask.sum(dim=1) - 1
+    batch_size = last_hidden_states.shape[0]
+    return last_hidden_states[
+        torch.arange(batch_size, device=last_hidden_states.device), sequence_lengths
+    ]
+
+
+def test_a_vector_is_the_model_card_last_token_pool_sliced_then_normalised(
+    tmp_path, tiny_model, tiny_model_args
+):
+    from transformers.models.auto.modeling_auto import AutoModel
+    from transformers.models.auto.tokenization_auto import AutoTokenizer
+
+    canonical = write_canonical_package(
+        tmp_path / "canonical",
+        [
+            article(
+                "11111111-1111-4111-8111-111111111111",
+                "Markets rally",
+                "Stocks rose on Monday.",
+            )
+        ],
+    )
+
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, "--dim", "64")
+
+    tokenizer = AutoTokenizer.from_pretrained(tiny_model)
+    model = AutoModel.from_pretrained(tiny_model).eval()
+    encoded = tokenizer(
+        ["Markets rally Stocks rose on Monday."],
+        padding=True,
+        truncation=True,
+        max_length=512,
+        return_tensors="pt",
+    )
+    with torch.no_grad():
+        hidden = model(**encoded).last_hidden_state
+    pooled = model_card_last_token_pool(hidden, encoded["attention_mask"])[:, :64]
+    expected = torch.nn.functional.normalize(pooled, p=2, dim=1).numpy()
+    _, vectors = read_embeddings(only_package(tmp_path / "out"))
+    np.testing.assert_allclose(vectors, expected, atol=1e-5)
