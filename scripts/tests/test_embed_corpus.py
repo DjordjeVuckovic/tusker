@@ -140,6 +140,8 @@ def test_descriptor_records_the_model_recipe_and_canonical_source(
         "pooling": "last_token",
         "normalized": True,
         "maxTokens": 512,
+        "batchSize": 64,
+        "dtype": "float32",
     }
     assert descriptor["canonical"] == {
         "name": "cc-news",
@@ -556,3 +558,36 @@ def test_refuses_an_id_that_is_not_canonical_uuid_text(tmp_path, tiny_model_args
     assert result.returncode != 0
     assert "6F1C2B8E-0D5A-4A57-9A0E-1B2C3D4E5F61" in result.stderr
     assert package_dirs(tmp_path / "out") == []
+
+
+def test_a_limit_trial_records_its_limit_in_the_embedding_block(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, "--limit", "2")
+
+    assert (
+        json.loads(only_package(tmp_path / "out").read_text())["embedding"]["limit"]
+        == 2
+    )
+
+
+def test_records_the_batch_size_the_sweep_picked_rather_than_the_flag(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    embed(
+        canonical.descriptor,
+        tmp_path / "out",
+        *tiny_model_args,
+        "--batch-size",
+        "7",
+        "--auto-batch-size",
+    )
+
+    recorded = json.loads(only_package(tmp_path / "out").read_text())["embedding"][
+        "batchSize"
+    ]
+    assert recorded in {64, 256, 512}

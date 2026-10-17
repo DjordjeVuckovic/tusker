@@ -144,6 +144,26 @@ class EmbeddingSpec:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class Inference:
+    """How a run embedded: these change output bytes slightly but are not version inputs."""
+
+    batch_size: int
+    dtype: str
+    limit: int | None = None
+
+
+def embedding_descriptor(spec: EmbeddingSpec, inference: Inference) -> dict[str, Any]:
+    block = {
+        **spec.to_descriptor(),
+        "batchSize": inference.batch_size,
+        "dtype": inference.dtype,
+    }
+    if inference.limit is not None:
+        block["limit"] = inference.limit
+    return block
+
+
 def version(prefix: str, *inputs: str) -> str:
     """Derive a package version from its inputs, as `<prefix>-<8 hex of sha256>`.
 
@@ -372,6 +392,10 @@ def pick_device(requested: str) -> torch.device:
 
 def inference_dtype(device: torch.device) -> torch.dtype:
     return torch.float32 if device.type == "cpu" else torch.float16
+
+
+def dtype_name(device: torch.device) -> str:
+    return str(inference_dtype(device)).removeprefix("torch.")
 
 
 def load_encoder(*, hf_model: str, revision: str, device: torch.device) -> Encoder:
@@ -771,16 +795,17 @@ def run(args: argparse.Namespace) -> Path:
             dim=spec.dim,
         )
         print(f"using --batch-size {batch_size}\n")
+    inference = Inference(
+        batch_size=batch_size, dtype=dtype_name(device), limit=args.limit
+    )
     claim_checkpoints(
         checkpoint_dir,
         {
             "resourceHash": source.resource_hash,
             "canonicalResourceHash": source.canonical.resource_hash,
-            "limit": args.limit,
             "shardSize": args.shard_size,
-            "batchSize": batch_size,
-            "dtype": str(inference_dtype(device)),
-            **spec.to_descriptor(),
+            "limit": args.limit,
+            **embedding_descriptor(spec, inference),
         },
     )
 
@@ -808,7 +833,7 @@ def run(args: argparse.Namespace) -> Path:
         }
         if source.language:
             descriptor["language"] = source.language
-        descriptor["embedding"] = spec.to_descriptor()
+        descriptor["embedding"] = embedding_descriptor(spec, inference)
         descriptor["canonical"] = source.canonical.to_descriptor()
         descriptor["resources"] = [
             describe_parquet_resource(resource_path, name="embeddings")

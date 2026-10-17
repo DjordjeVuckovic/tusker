@@ -50,6 +50,9 @@ except ModuleNotFoundError:
 
 
 QUERY_RECIPE = "query-instruct-v1"
+# One query per forward pass: no padding, so a query's vector never depends on
+# which other queries share the suite.
+QUERY_BATCH_SIZE = 1
 QUERY_TASK = "Given a web search, retrieve all relevant news documents"
 
 # unicode.IsSpace, which Go's strings.TrimSpace strips. Python's str.strip also
@@ -256,12 +259,10 @@ def run(args: argparse.Namespace) -> Path:
         print(f"{out} is already complete")
         return out
 
-    # One query per forward pass: no padding, so a query's vector never depends on
-    # which other queries share the suite.
     vectors = embed_corpus.encode(
         encoder,
         [instruct_input(query.text) for query in suite.queries],
-        batch_size=1,
+        batch_size=QUERY_BATCH_SIZE,
         max_tokens=spec.max_tokens,
         dim=spec.dim,
     )
@@ -282,7 +283,12 @@ def run(args: argparse.Namespace) -> Path:
         "$schema": embed_corpus.DATAPACKAGE_PROFILE,
         "name": f"{suite.id}-query-vectors",
         "version": package_version,
-        "embedding": spec.to_descriptor(),
+        "embedding": embed_corpus.embedding_descriptor(
+            spec,
+            embed_corpus.Inference(
+                batch_size=QUERY_BATCH_SIZE, dtype=embed_corpus.dtype_name(device)
+            ),
+        ),
         "suite": {"id": suite.id, "hash": suite.hash},
     }
     out.parent.mkdir(parents=True, exist_ok=True)

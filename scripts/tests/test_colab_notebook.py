@@ -30,7 +30,7 @@ def settings() -> dict[str, object]:
     """Run the notebook's settings cell, which holds plain assignments and nothing else."""
     (cell,) = [source for source in code_cells() if source.startswith(SETTINGS_HEADER)]
     namespace: dict[str, object] = {}
-    exec(cell, {}, namespace)
+    exec(cell, {}, namespace)  # noqa: S102  # the notebook's own settings cell, plain assignments
     return namespace
 
 

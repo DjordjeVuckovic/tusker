@@ -89,7 +89,9 @@ The descriptor is a Frictionless Data Package v2:
     "recipe": "lead-v1",
     "pooling": "last_token",
     "normalized": true,
-    "maxTokens": 512
+    "maxTokens": 512,
+    "batchSize": 64,
+    "dtype": "float16"
   },
   "canonical": {"name": "cc-news", "version": "article-v2-<8 hex>", "resourceHash": "sha256:<hex>"},
   "resources": [
@@ -98,6 +100,11 @@ The descriptor is a Frictionless Data Package v2:
   ]
 }
 ```
+
+`batchSize` is the batch size the run used, including one `--auto-batch-size`
+picked, and `dtype` the inference dtype (`float16` on a GPU, `float32` on CPU).
+Both move the last bits of a float, so they are recorded, but they are not version
+inputs. A `--limit N` trial also records `limit`.
 
 The version is `<recipe>-<dim>-` plus the first 8 hex of a sha256 over the
 canonical resource hash, model revision, recipe, dim and maxTokens, each input

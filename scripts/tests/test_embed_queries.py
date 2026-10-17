@@ -71,6 +71,8 @@ def test_descriptor_records_the_tag_query_recipe_and_suite_hash(
         "pooling": "last_token",
         "normalized": True,
         "maxTokens": 512,
+        "batchSize": 1,
+        "dtype": "float32",
     }
     assert descriptor["suite"] == {"id": "cc-news-semantic", "hash": sha256_of(suite)}
 
