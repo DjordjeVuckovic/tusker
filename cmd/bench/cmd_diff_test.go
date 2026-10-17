@@ -146,3 +146,14 @@ func TestExecuteDiff_DefaultsToLatestAndThePreviousFullyScoredRun(t *testing.T) 
 	assert.Regexp(t, `A \(before\):\s+2026-01-01T00-00-01-run-aaaaaa`, out.String())
 	assert.Regexp(t, `B \(after\):\s+\S*2026-01-01T00-00-04-run-dddddd`, out.String())
 }
+
+func TestPrintDiff_PerQueryDeltasCountAFailedQueryAsZero(t *testing.T) {
+	before := diffReport(diffRun{runID: "a", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1})
+	after := diffReport(diffRun{runID: "b", kValues: []int{10}, ndcg: map[int]float64{10: 0.6}, threshold: 1})
+	after.Jobs[0].PerQuery[0] = report.Entry{QueryID: "q1", EngineName: "pg", Error: "timeout"}
+
+	var out bytes.Buffer
+	printDiff(&out, before, after)
+
+	assert.Regexp(t, `(?m)^q1\s+pg\s+0\.6000\s+0\.0000\s+\S*-0\.6000`, out.String())
+}

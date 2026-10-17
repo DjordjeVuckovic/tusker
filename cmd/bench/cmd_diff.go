@@ -299,15 +299,20 @@ func printQueryDiff(w io.Writer, jA, jB *report.JobReport, k int) {
 	var deltas []delta
 	for key, eA := range perA {
 		eB, ok := perB[key]
-		if !ok || !eA.Judged || !eB.Judged {
+		if !ok {
 			continue
 		}
-		d := eB.NDCG[k] - eA.NDCG[k]
+		ndcgA, scoredA := scoredNDCG(eA, k)
+		ndcgB, scoredB := scoredNDCG(eB, k)
+		if !scoredA || !scoredB {
+			continue
+		}
+		d := ndcgB - ndcgA
 		if d == 0 {
 			continue
 		}
 		parts := strings.SplitN(key, "\x00", 2)
-		deltas = append(deltas, delta{parts[0], parts[1], eA.NDCG[k], eB.NDCG[k], d})
+		deltas = append(deltas, delta{parts[0], parts[1], ndcgA, ndcgB, d})
 	}
 	if len(deltas) == 0 {
 		return
@@ -331,6 +336,15 @@ func printQueryDiff(w io.Writer, jA, jB *report.JobReport, k int) {
 			d.query, d.engine, d.a, d.b, delta)
 	}
 	tw.Flush()
+}
+
+// scoredNDCG is the NDCG@k a cell contributes to its engine's mean: a failed
+// cell scores 0, as in the aggregates. Unjudged cells are not scored.
+func scoredNDCG(e report.Entry, k int) (float64, bool) {
+	if e.Error != "" {
+		return 0, true
+	}
+	return e.NDCG[k], e.Judged
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
