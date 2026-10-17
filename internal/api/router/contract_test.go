@@ -11,30 +11,19 @@ import (
 
 	apiserver "github.com/DjordjeVuckovic/tusker/internal/api/server"
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/pg/native"
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
 
-// Postgres has no typo tolerance and shares one weight band between author and
-// subtitle; Elasticsearch honours every parameter.
+// The capabilities the real searchers declare, so a change to either shows up
+// in these tests. Capabilities reads no connection.
 var (
-	postgresCaps = dquery.Capabilities{
-		Engine:          "postgres",
-		DefaultOperator: operator.And,
-		PhraseSlop:      true,
-		Boosts:          true,
-		Fields:          []dquery.Field{dquery.FieldTitle, dquery.FieldDescription, dquery.FieldContent},
-	}
-	elasticsearchCaps = dquery.Capabilities{
-		Engine:          "elasticsearch",
-		DefaultOperator: operator.Or,
-		Fuzziness:       true,
-		PhraseSlop:      true,
-		Boosts:          true,
-		Fields:          dquery.SearchableFields(),
-	}
+	postgresCaps      = new(native.Searcher).Capabilities()
+	elasticsearchCaps = new(es.Searcher).Capabilities()
 )
 
 type contractResponse struct {
