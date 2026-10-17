@@ -13,6 +13,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -26,6 +27,7 @@ type judgeFlags struct {
 	batchSize      int
 	resume         bool
 	allowUnjudged  bool
+	force          bool
 	apiKey         string
 	provider       string
 	model          string
@@ -48,7 +50,9 @@ func newJudgeCmd() *cobra.Command {
                 Ollama (needs --pg + EMBEDDING_BASE_URL)
   hybrid      — BM25 + vector fusion (needs --pg + EMBEDDING_BASE_URL)
   llm         — LLM-as-judge, batched; pick the endpoint with --provider
-  manual      — writes grade:-1 placeholders for hand grading
+  manual      — writes grade:-1 placeholders for hand grading; re-running keeps
+                existing hand grades and adds placeholders for new pool docs
+                (--force starts over)
 
 The llm strategy is vendor-neutral: --provider names the endpoint
 (` + strings.Join(judgment.KnownProviders(), ", ") + `), and registering a new
@@ -84,6 +88,7 @@ graded. Atomic writes mean Ctrl-C is safe.`,
 	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "Override LLM batch size (0 = strategy default)")
 	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output")
 	cmd.Flags().BoolVar(&f.allowUnjudged, "allow-unjudged", false, "Exit 0 even when some pooled docs end unjudged")
+	cmd.Flags().BoolVar(&f.force, "force", false, "Manual only: discard existing hand grades and rewrite the placeholders")
 	cmd.Flags().StringVar(&f.apiKey, "api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY)")
 	cmd.Flags().StringVar(&f.provider, "provider", string(judgment.DefaultProvider),
 		"LLM endpoint for --strategy llm: "+strings.Join(judgment.KnownProviders(), " | "))
@@ -129,7 +134,13 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 	// Stub-equivalent shortcut: manual strategy doesn't need PG or any
 	// network. Just emit grade:-1 placeholders so a human can edit.
 	if kind == judgment.StrategyManual {
-		jf := buildManualJudgments(pf)
+		var existing *judgment.File
+		if !f.force {
+			if existing, err = judgment.ReadFileIfExists(outPath); err != nil {
+				return fmt.Errorf("read existing manual judgments: %w", err)
+			}
+		}
+		jf := buildManualJudgments(pf, existing)
 		judge := judgment.NewManualStrategy().Describe()
 		jf.Meta = meta.New("judge")
 		jf.Meta.Judge = &judge
@@ -336,16 +347,34 @@ func openArticleReader(cmd *cobra.Command, pgConn string) (storage.Reader, error
 	return reader, nil
 }
 
-func buildManualJudgments(pf *pool.PoolFile) *judgment.File {
-	jf := &judgment.File{
-		Queries: make([]judgment.Entry, 0, len(pf.Queries)),
+// buildManualJudgments writes a -1 placeholder for every pooled doc that has no
+// hand grade yet. Everything in existing survives, including docs that have
+// since left the pool, so re-running never erases a grade.
+func buildManualJudgments(pf *pool.PoolFile, existing *judgment.File) *judgment.File {
+	jf := &judgment.File{}
+	if existing != nil {
+		jf.Queries = existing.Queries
+	}
+	entryIndex := make(map[string]int, len(jf.Queries))
+	for i, qe := range jf.Queries {
+		entryIndex[qe.QueryID] = i
 	}
 	for _, entry := range pf.Queries {
-		docs := make([]judgment.GradedDoc, 0, len(entry.Docs))
-		for _, d := range entry.Docs {
-			docs = append(docs, judgment.GradedDoc{DocID: d.DocID, Grade: judgment.GradeUnjudged})
+		i, ok := entryIndex[entry.QueryID]
+		if !ok {
+			i = len(jf.Queries)
+			entryIndex[entry.QueryID] = i
+			jf.Queries = append(jf.Queries, judgment.Entry{QueryID: entry.QueryID})
 		}
-		jf.Queries = append(jf.Queries, judgment.Entry{QueryID: entry.QueryID, Docs: docs})
+		known := make(map[uuid.UUID]bool, len(jf.Queries[i].Docs))
+		for _, d := range jf.Queries[i].Docs {
+			known[d.DocID] = true
+		}
+		for _, d := range entry.Docs {
+			if !known[d.DocID] {
+				jf.Queries[i].Docs = append(jf.Queries[i].Docs, judgment.GradedDoc{DocID: d.DocID, Grade: judgment.GradeUnjudged})
+			}
+		}
 	}
 	return jf
 }

@@ -323,6 +323,7 @@ Key flags:
 - `--batch N` — override LLM batch size (`bm25` and `hybrid` grade each query's whole pool at once and refuse it)
 - `--concurrency N` — parallel Grade calls (per-doc mode)
 - `--allow-unjudged` — exit 0 even when some pooled docs are left unjudged
+- `--force` — `manual` only: rewrite the placeholders from scratch. Without it, `manual` keeps every existing hand grade and adds `-1` placeholders for new pool docs
 
 ### `bench run [<name>] [--judgments <S|path>] [--jobs <name,...>]`
 
