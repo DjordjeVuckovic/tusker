@@ -497,3 +497,41 @@ func TestNormalizedScore(t *testing.T) {
 		})
 	}
 }
+
+func TestBooleanMatchWithNegationCanUseTheSearchVectorIndex(t *testing.T) {
+	newSearcher(t)
+	tsquery, err := NewBooleanParser().Parse("trump AND NOT biden")
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	match := buildBooleanMatch(tsquery, dquery.LanguageEnglish)
+
+	// With sequential scans priced out, the planner still picks one when the
+	// predicate cannot be answered from the GIN index.
+	tx, err := testPool.GetConn().Begin(testCtx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(testCtx) }()
+	if _, err := tx.Exec(testCtx, "SET LOCAL enable_seqscan = off"); err != nil {
+		t.Fatalf("disable seqscan: %v", err)
+	}
+	rows, err := tx.Query(testCtx, "EXPLAIN SELECT id FROM articles WHERE "+match.where, match.arg)
+	if err != nil {
+		t.Fatalf("explain: %v", err)
+	}
+	var plan []string
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			t.Fatalf("scan plan: %v", err)
+		}
+		plan = append(plan, line)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("read plan: %v", err)
+	}
+	if !strings.Contains(strings.Join(plan, "\n"), "idx_articles_search_vector") {
+		t.Errorf("plan does not use idx_articles_search_vector:\n%s", strings.Join(plan, "\n"))
+	}
+}

@@ -139,34 +139,66 @@ func buildRankExpression(fieldBoosts []query.FieldWeight, lang query.Language, o
 // plainto_tsquery requires every term.
 const DefaultOperator = operator.And
 
-// buildTsWhereClause matches free text against the requested fields only.
+// buildTsWhereClause matches free text against the requested fields only. No
+// fields, or fields covering all four bands, match the whole vector. Otherwise
+// the query also runs on the fields' weight bands; the whole-vector match goes
+// first so the GIN index narrows the rows.
 func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
-	return buildFieldMatch(fieldBoosts, buildTsQuery(op, lang, paramNum), true)
-}
-
-// buildFieldMatch matches queryExpr on the fields' weight bands. No fields, or
-// fields covering all four bands, match the whole vector. With prefilter the
-// whole-vector match goes first so the GIN index narrows the rows; that is only
-// sound when a band match implies a whole-vector match, which a negated term
-// breaks.
-func buildFieldMatch(fieldBoosts []query.FieldWeight, queryExpr string, prefilter bool) string {
+	queryExpr := buildTsQuery(op, lang, paramNum)
 	match := fmt.Sprintf("search_vector @@ %s", queryExpr)
 
-	fields := make([]query.Field, 0, len(fieldBoosts))
-	for _, fb := range fieldBoosts {
-		fields = append(fields, fb.Field)
-	}
-	labels := buildWeightLabels(fields)
+	labels := buildWeightLabels(fieldsOf(fieldBoosts))
 	if labels == "" || labels == "ABCD" {
 		return match
 	}
 
 	bands := strings.Split(strings.ToLower(labels), "")
-	bandMatch := fmt.Sprintf("ts_filter(search_vector, '{%s}') @@ %s", strings.Join(bands, ","), queryExpr)
-	if !prefilter {
-		return bandMatch
+	return fmt.Sprintf("%s AND ts_filter(search_vector, '{%s}') @@ %s", match, strings.Join(bands, ","), queryExpr)
+}
+
+func fieldsOf(fieldBoosts []query.FieldWeight) []query.Field {
+	fields := make([]query.Field, 0, len(fieldBoosts))
+	for _, fb := range fieldBoosts {
+		fields = append(fields, fb.Field)
 	}
-	return fmt.Sprintf("%s AND %s", match, bandMatch)
+	return fields
+}
+
+// booleanMatch is the WHERE clause and rank of a boolean search, both reading
+// the tsquery text bound as $1.
+type booleanMatch struct {
+	where string
+	rank  string
+	arg   string
+}
+
+// buildBooleanMatch matches a parsed boolean expression against the contract
+// fields, as Elasticsearch does. Every term carries the fields' weight labels,
+// so a negated term excludes only a match in those fields and the whole
+// predicate can still use the search_vector index.
+func buildBooleanMatch(tsquery string, lang query.Language) booleanMatch {
+	queryExpr := fmt.Sprintf("to_tsquery('%s'::regconfig, $1)", lang)
+	labels := buildWeightLabels(fieldsOf(query.DefaultSearchContract().Fields))
+	return booleanMatch{
+		where: fmt.Sprintf("search_vector @@ %s", queryExpr),
+		rank:  fmt.Sprintf("ts_rank(search_vector, %s)", queryExpr),
+		arg:   labelTerms(tsquery, labels),
+	}
+}
+
+// labelTerms restricts every term of a BooleanParser tsquery, whose tokens are
+// space separated, to the given weight labels: "trump & ! biden" with "ABC"
+// becomes "trump:ABC & ! biden:ABC".
+func labelTerms(tsquery, labels string) string {
+	tokens := strings.Fields(tsquery)
+	for i, token := range tokens {
+		switch token {
+		case "&", "|", "!", "(", ")", "<->":
+		default:
+			tokens[i] = token + ":" + labels
+		}
+	}
+	return strings.Join(tokens, " ")
 }
 
 // buildPhraseFieldMatch matches a phrase within one weight band at a time. The

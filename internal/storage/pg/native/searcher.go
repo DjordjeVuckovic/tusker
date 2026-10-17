@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
@@ -377,11 +376,8 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 
 	slog.Debug("Parsed boolean expression", "input", query.Expression, "tsquery", tsqueryStr)
 
-	// The expression matches the contract fields, as it does on Elasticsearch.
-	queryExpr := fmt.Sprintf("to_tsquery('%s'::regconfig, $1)", lang)
-	negated := strings.Contains(tsqueryStr, "!")
-	whereClause := buildFieldMatch(dquery.DefaultSearchContract().Fields, queryExpr, !negated)
-	rankExpr := fmt.Sprintf("ts_rank(search_vector, %s)", queryExpr)
+	match := buildBooleanMatch(tsqueryStr, lang)
+	whereClause, rankExpr := match.where, match.rank
 
 	var globalMaxScore float64
 	var count int64
@@ -391,7 +387,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 		WHERE %s
 	`, rankExpr, whereClause)
 
-	if err := r.db.QueryRow(ctx, maxSQL, tsqueryStr).Scan(&globalMaxScore, &count); err != nil {
+	if err := r.db.QueryRow(ctx, maxSQL, match.arg).Scan(&globalMaxScore, &count); err != nil {
 		slog.Error("Failed to fetch global max score", "error", err)
 		return nil, fmt.Errorf("cannot fetch global max score: %w", err)
 	}
@@ -413,7 +409,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
 		`, rankExpr, whereClause)
-		args = []any{tsqueryStr, size + 1}
+		args = []any{match.arg, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
@@ -425,7 +421,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
 		`, rankExpr, whereClause, rankExpr)
-		args = []any{tsqueryStr, cursor.Score, cursor.ID, size + 1}
+		args = []any{match.arg, cursor.Score, cursor.ID, size + 1}
 	}
 
 	return r.fetchPage(ctx, pageQuery{
