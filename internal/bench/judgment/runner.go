@@ -91,8 +91,14 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 		return nil, fmt.Errorf("runner: strategy is nil")
 	}
 
-	if _, ok := r.cfg.Strategy.(PoolStrategy); ok && r.cfg.BatchSize > 0 {
-		return nil, fmt.Errorf("%s grades each query's whole pool at once and takes no batch size", r.cfg.Strategy.Name())
+	switch r.cfg.Strategy.(type) {
+	case PoolStrategy:
+		if r.cfg.BatchSize > 0 {
+			return nil, fmt.Errorf("%s grades each query's whole pool at once and takes no batch size", r.cfg.Strategy.Name())
+		}
+	case DocStrategy:
+	default:
+		return nil, fmt.Errorf("runner: strategy %q implements no grading interface", r.cfg.Strategy.Name())
 	}
 
 	prior := indexExisting(r.cfg.Existing)
@@ -243,7 +249,7 @@ func (r *Runner) dispatch(ctx context.Context, q GradingQuery, todo []pool.Poole
 		if err := r.runBatched(ctx, bs, q, gradables, gradedByID); err != nil {
 			return nil, err
 		}
-	} else if err := r.runPerDoc(ctx, r.cfg.Strategy, q, gradables, gradedByID); err != nil {
+	} else if err := r.runPerDoc(ctx, r.cfg.Strategy.(DocStrategy), q, gradables, gradedByID); err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -324,7 +330,7 @@ func (r *Runner) runBatched(ctx context.Context, bs BatchStrategy, q GradingQuer
 
 // runPerDoc leaves a doc unjudged when its grade fails, except for a
 // NoQueryTermsError, which fails every doc of the query and is returned.
-func (r *Runner) runPerDoc(ctx context.Context, s Strategy, q GradingQuery, docs []GradingDoc, into map[uuid.UUID]int) error {
+func (r *Runner) runPerDoc(ctx context.Context, s DocStrategy, q GradingQuery, docs []GradingDoc, into map[uuid.UUID]int) error {
 	sem := make(chan struct{}, r.cfg.Concurrency)
 	var wg sync.WaitGroup
 	var mu sync.Mutex

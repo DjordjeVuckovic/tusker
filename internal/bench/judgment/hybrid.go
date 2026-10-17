@@ -81,7 +81,3 @@ func (s HybridStrategy) GradePool(ctx context.Context, q GradingQuery, docs []Gr
 	}
 	return out, nil
 }
-
-func (HybridStrategy) Grade(context.Context, GradingQuery, GradingDoc) (int, error) {
-	return GradeUnjudged, fmt.Errorf("hybrid strategy: %w", errNeedsWholePool)
-}

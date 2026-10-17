@@ -2,8 +2,6 @@ package judgment
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -16,8 +14,6 @@ const (
 	bm25B             = 0.75
 	bm25RubricVersion = "v1"
 )
-
-var errNeedsWholePool = errors.New("grades are relative to the whole pool, so a single doc cannot be graded alone")
 
 // BM25Strategy grades candidates with Okapi BM25 computed over the per-query
 // candidate pool as a local corpus: idf from pool document frequencies, avgdl
@@ -45,10 +41,6 @@ func (s BM25Strategy) GradePool(_ context.Context, q GradingQuery, docs []Gradin
 		out[i] = GradedDoc{DocID: d.ID, Grade: gradeFromNorm(norms[i])}
 	}
 	return out, nil
-}
-
-func (BM25Strategy) Grade(context.Context, GradingQuery, GradingDoc) (int, error) {
-	return GradeUnjudged, fmt.Errorf("bm25 strategy: %w", errNeedsWholePool)
 }
 
 // normScores returns each doc's BM25 score normalised to [0,1] against the
