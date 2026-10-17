@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 )
@@ -24,6 +25,9 @@ type IndexDescription struct {
 	// Fields holds the text and dense_vector fields, multi-fields included,
 	// keyed by dotted path.
 	Fields map[string]FieldMapping `json:"fields,omitempty"`
+	// Load is the record the corpus load left under the mapping's _meta.load;
+	// nil when the index was not loaded that way.
+	Load *storage.LoadRecord `json:"load,omitempty"`
 }
 
 type FieldMapping struct {
@@ -44,8 +48,8 @@ type VectorIndexOptions struct {
 	EfConstruction int    `json:"ef_construction,omitempty"`
 }
 
-// DescribeIndex reads the cluster version and the analysis settings and text
-// and vector field mappings of cfg.IndexName.
+// DescribeIndex reads the cluster version, and the analysis settings, text and
+// vector field mappings and load record of cfg.IndexName.
 func DescribeIndex(ctx context.Context, cfg ClientConfig) (*IndexDescription, error) {
 	client, err := newTypedClient(cfg)
 	if err != nil {
@@ -71,12 +75,30 @@ func DescribeIndex(ctx context.Context, cfg ClientConfig) (*IndexDescription, er
 		return nil, fmt.Errorf("read mapping of %s: no mapping for index %s", cfg.IndexName, index)
 	}
 
+	load, err := decodeLoadRecord(record.Mappings.Meta_)
+	if err != nil {
+		return nil, fmt.Errorf("read load record of %s: %w", index, err)
+	}
+
 	return &IndexDescription{
 		Version:  info.Version.Int,
 		Index:    index,
 		Analysis: analysis,
 		Fields:   searchFieldMappings(record.Mappings.Properties),
+		Load:     load,
 	}, nil
+}
+
+func decodeLoadRecord(meta types.Metadata) (*storage.LoadRecord, error) {
+	raw, ok := meta["load"]
+	if !ok {
+		return nil, nil
+	}
+	var record storage.LoadRecord
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return nil, err
+	}
+	return &record, nil
 }
 
 // readAnalysis reads the raw settings rather than the typed ones, so analysis
