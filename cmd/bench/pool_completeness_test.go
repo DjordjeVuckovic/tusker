@@ -97,3 +97,31 @@ func TestDroppedExecutions_OneJobsSuccessCoversAnother(t *testing.T) {
 		assert.Equal(t, doc, pf.Queries[0].Docs[0].DocID)
 	}
 }
+
+// Twelve failed cells come out of map iteration scrambled; only a sort by
+// query then engine lists them in this order.
+func TestDroppedExecutions_SortedByQueryThenEngine(t *testing.T) {
+	queries := []string{"q3", "q1", "q2"}
+	engines := []string{"delta", "alpha", "charlie", "bravo"}
+	job := &runner.JobResult{JobName: "all", EngineNames: engines, QueryOrder: queries, Results: map[string]map[string]runner.QueryResult{}}
+	for _, q := range queries {
+		job.Results[q] = map[string]runner.QueryResult{}
+		for _, e := range engines {
+			job.Results[q][e] = runner.QueryResult{Error: errors.New("timeout")}
+		}
+	}
+	var want []string
+	for _, q := range []string{"q1", "q2", "q3"} {
+		for _, e := range []string{"alpha", "bravo", "charlie", "delta"} {
+			want = append(want, q+"/"+e)
+		}
+	}
+
+	for range 5 {
+		var got []string
+		for _, d := range droppedExecutions(&runner.BenchmarkResult{Jobs: []*runner.JobResult{job}}) {
+			got = append(got, d.QueryID+"/"+d.Engine)
+		}
+		require.Equal(t, want, got)
+	}
+}
