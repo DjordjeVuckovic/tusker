@@ -14,6 +14,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/storagetest"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
@@ -162,6 +163,40 @@ func TestSearcher_SmallRelativeBoostStillRanks(t *testing.T) {
 	}
 	if !slices.Equal(got, []uuid.UUID{moreOften, once}) {
 		t.Errorf("hits = %v, want %s ranked above %s: content keeps a weight of 1/100000", got, moreOften, once)
+	}
+}
+
+func TestSearcher_OrMatchKeepsAnAmpersandInsideALexeme(t *testing.T) {
+	s := newSearcher(t)
+	indexer, err := pg.NewIndexer(testPool)
+	if err != nil {
+		t.Fatalf("NewIndexer: %v", err)
+	}
+	// Postgres parses a URL into the whole URL, its host and its path; the
+	// path lexeme here, /path?a=1&b=2, is the only one the two URLs share.
+	samePath := uuid.New()
+	articles := []document.Article{
+		{ID: samePath, Title: "harbor", Content: "see other.org/path?a=1&b=2", URL: "https://example.com/1"},
+		{ID: uuid.New(), Title: "harbor", Content: "budget", URL: "https://example.com/2"},
+	}
+	if err := indexer.SaveBulk(testCtx, articles); err != nil {
+		t.Fatalf("SaveBulk: %v", err)
+	}
+
+	match, err := dquery.NewMatch(dquery.FieldContent, "example.com/path?a=1&b=2", dquery.WithMatchOperator(operator.Or))
+	if err != nil {
+		t.Fatalf("NewMatch: %v", err)
+	}
+	res, err := s.SearchField(testCtx, match, &dquery.BaseOptions{Size: 10})
+	if err != nil {
+		t.Fatalf("SearchField: %v", err)
+	}
+	var got []uuid.UUID
+	for _, hit := range res.Hits {
+		got = append(got, hit.Article.ID)
+	}
+	if !slices.Equal(got, []uuid.UUID{samePath}) {
+		t.Errorf("hits = %v, want only %s, which shares the path lexeme", got, samePath)
 	}
 }
 

@@ -105,12 +105,13 @@ func buildWeightsArray(fieldBoosts []query.FieldWeight) string {
 }
 
 // buildTsQuery turns free text into a tsquery: every term under AND, any term
-// under OR. plainto_tsquery joins terms with &, so OR swaps each & for |; the
-// lexemes are already normalised and the cast does not stem them again.
+// under OR. plainto_tsquery joins terms with " & ", so OR swaps each for " | ",
+// leaving a lexeme that holds & itself (a URL) intact; the lexemes are already
+// normalised and the cast does not stem them again.
 func buildTsQuery(op operator.Operator, lang query.Language, paramNum int) string {
 	plain := fmt.Sprintf("plainto_tsquery('%s'::regconfig, $%d)", lang, paramNum)
 	if op.IsOr() {
-		return fmt.Sprintf("replace(%s::text, '&', '|')::tsquery", plain)
+		return fmt.Sprintf("replace(%s::text, ' & ', ' | ')::tsquery", plain)
 	}
 	return plain
 }
