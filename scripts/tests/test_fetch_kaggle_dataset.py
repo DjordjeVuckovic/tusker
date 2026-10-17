@@ -196,3 +196,34 @@ def test_without_credentials_the_fetch_stops_with_setup_help(cache: Path, tmp_pa
     assert result.returncode != 0
     assert "credentials.json" in result.stderr
     assert not (datasets_root / "news").exists()
+
+
+def snapshot(folder: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(folder).as_posix(): path.read_bytes()
+        for path in folder.rglob("*")
+        if path.is_file()
+    }
+
+
+@pytest.mark.parametrize(
+    "refused_file",
+    [".DS_Store", "datapackage.json", "docs/datapackage.json"],
+)
+def test_a_refused_upload_leaves_a_good_raw_folder_untouched_even_with_force(
+    cache: Path, tmp_path: Path, refused_file: str
+) -> None:
+    datasets_root = tmp_path / "datasets"
+    raw = datasets_root / "news" / "raw"
+    first = fetch(cache, datasets_root)
+    assert first.returncode == 0, first.stderr
+    mirrored = snapshot(raw)
+    version = cache / "datasets" / "acme" / "news" / "versions" / "3"
+    (version / refused_file).write_bytes(b'{"resources": []}')
+
+    for extra in ([], ["--force"]):
+        result = fetch(cache, datasets_root, *extra)
+
+        assert result.returncode != 0
+        assert refused_file in result.stderr
+        assert snapshot(raw) == mirrored

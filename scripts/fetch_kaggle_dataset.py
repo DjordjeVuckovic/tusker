@@ -162,11 +162,20 @@ def recorded_version(raw: Path) -> str | None:
 
 
 def check_resource_path(relative: str) -> None:
-    """Refuse a path internal/datapackage would reject when it opens the descriptor."""
+    """Refuse a path internal/datapackage would reject, or a descriptor of its own.
+
+    An uploaded datapackage.json, at any depth, would read as this fetch's
+    provenance and be committed by the datasets/ ignore rules.
+    """
     if relative[0] in "./~" or ":" in relative or "\\" in relative:
         raise SystemExit(
             f"{relative}: a data package path cannot start with '.', '/' or '~' or hold ':' or"
             " '\\'; remove the file from the upload or fetch it by hand"
+        )
+    if Path(relative).name == DESCRIPTOR:
+        raise SystemExit(
+            f"{relative}: the upload ships its own {DESCRIPTOR}, which raw/ reserves for this"
+            " fetch's descriptor; fetch it by hand"
         )
 
 
@@ -210,6 +219,10 @@ def fetch(ds: Dataset, *, version: int | None, raw: Path, force: bool) -> None:
     if not sources:
         raise SystemExit(f"{handle} downloaded no files into {landed}")
 
+    for source in sources:
+        check_resource_path(source.relative_to(landed).as_posix())
+    hashes = {source: sha256_of(source) for source in sources}
+
     raw.mkdir(parents=True, exist_ok=True)
     if force:
         clear(raw)
@@ -217,9 +230,6 @@ def fetch(ds: Dataset, *, version: int | None, raw: Path, force: bool) -> None:
         raise refuse(
             raw / DESCRIPTOR, f"records version {recorded_version(raw)}, not {fetched_version}"
         )
-    for source in sources:
-        check_resource_path(source.relative_to(landed).as_posix())
-    hashes = {source: sha256_of(source) for source in sources}
     for source, digest in hashes.items():
         target = raw / source.relative_to(landed)
         if target.exists() and sha256_of(target) != digest:
