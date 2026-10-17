@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/fatih/color"
@@ -242,11 +243,11 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 	for _, k := range kValues {
 		hdr = append(hdr, fmt.Sprintf("P@%d", k))
 	}
-	hdr = append(hdr, "MAP", "MRR", "Bpref", "Judged", "Errors")
+	hdr = append(hdr, "MAP", "MRR", "Bpref", fmt.Sprintf("Coverage@%d", largestK(kValues)), "Judged", "Errors")
 	t.AppendHeader(hdr)
 
 	// Right-align all metric columns (2 … N-2); keep Judged/Errors default.
-	numMetricCols := len(kValues)*2 + 3
+	numMetricCols := len(kValues)*2 + 4
 	var rcols []int
 	for i := 2; i <= 1+numMetricCols; i++ {
 		rcols = append(rcols, i)
@@ -297,6 +298,7 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 				fmtBest(agg.MAP, bestMAP),
 				fmtBest(agg.MRR, bestMRR),
 				fmtBest(agg.MBpref, bestBpref),
+				fmt.Sprintf("%.4f", agg.JudgedCoverage),
 			)
 		} else {
 			for i := 0; i < numMetricCols; i++ {
@@ -450,6 +452,13 @@ func fmtCorpusMatches(v *int64) string {
 		return tDim.Sprint("—")
 	}
 	return fmt.Sprintf("%d", *v)
+}
+
+func largestK(kValues []int) int {
+	if len(kValues) == 0 {
+		return 0
+	}
+	return slices.Max(kValues)
 }
 
 func primaryK(kValues []int) int {

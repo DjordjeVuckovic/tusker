@@ -82,6 +82,9 @@ type jobScope struct {
 	job     *runner.JobResult
 	kValues []int
 	judged  map[string]bool
+	// grades[queryID][docID] is empty for suite-embedded judgments, which
+	// never reach the runner config.
+	grades map[string]map[string]int
 }
 
 func newJobScope(jr *runner.JobResult, cfg runner.Config) jobScope {
@@ -99,7 +102,7 @@ func newJobScope(jr *runner.JobResult, cfg runner.Config) jobScope {
 			}
 		}
 	}
-	return jobScope{job: jr, kValues: cfg.KValues, judged: judged}
+	return jobScope{job: jr, kValues: cfg.KValues, judged: judged, grades: cfg.Judgments}
 }
 
 // hasUsableGrade mirrors the runner, which drops grades whose doc id is not a
@@ -130,6 +133,22 @@ func (s jobScope) answeredByEveryEngine(qID string) bool {
 		}
 	}
 	return true
+}
+
+// gradedInTopK counts the cell's retrieved docs within the largest K, and how
+// many of them carry a grade.
+func (s jobScope) gradedInTopK(qID, engName string) (graded, retrieved int) {
+	qr, ok := s.job.Results[qID][engName]
+	if !ok || qr.Error != nil {
+		return 0, 0
+	}
+	top := qr.RankedDocIDs[:min(largestK(s.kValues), len(qr.RankedDocIDs))]
+	for _, docID := range top {
+		if _, ok := s.grades[qID][docID.String()]; ok {
+			graded++
+		}
+	}
+	return graded, len(top)
 }
 
 func generateJobReport(scope jobScope) JobReport {
@@ -230,6 +249,7 @@ func aggregate(scope jobScope, queryIDs []string) []AggregatedEntry {
 
 		ndcgSamples := make(map[int][]float64, len(kValues))
 		var allStats []runner.LatencyStats
+		var gradedTopK, retrievedTopK int
 
 		for _, qID := range queryIDs {
 			qr, ok := scope.job.Results[qID][engName]
@@ -247,6 +267,10 @@ func aggregate(scope jobScope, queryIDs []string) []AggregatedEntry {
 				continue
 			}
 
+			graded, retrieved := scope.gradedInTopK(qID, engName)
+			gradedTopK += graded
+			retrievedTopK += retrieved
+
 			scores := scope.scoresOf(qID, engName)
 			agg.JudgedCount++
 			agg.MAP += scores.AP
@@ -261,6 +285,10 @@ func aggregate(scope jobScope, queryIDs []string) []AggregatedEntry {
 				agg.Recall[k] += scores.Recall[k]
 				agg.F1[k] += scores.F1[k]
 			}
+		}
+
+		if retrievedTopK > 0 {
+			agg.JudgedCoverage = float64(gradedTopK) / float64(retrievedTopK)
 		}
 
 		if len(allStats) > 0 {

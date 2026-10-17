@@ -138,6 +138,10 @@ type AggregatedEntry struct {
 	JudgedCount int
 	// ErrorCount includes queries this engine had no block for.
 	ErrorCount int
+	// JudgedCoverage is the share of retrieved docs within the largest K, over
+	// the judged queries, that carry a grade. Ungraded docs score as
+	// non-relevant, so a low value means the metrics above undercount.
+	JudgedCoverage float64
 }
 
 type LatencyStats struct {

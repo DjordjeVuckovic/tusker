@@ -1,12 +1,15 @@
 package report
 
 import (
+	"bytes"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -129,4 +132,61 @@ func TestGenerate_SignificancePairsFailedQueriesAsZero(t *testing.T) {
 	// Six differences of |0.5|, one of them negative: each ranks 3.5, so W- = 3.5.
 	require.NotNil(t, mapTest)
 	assert.InDelta(t, 3.5, mapTest.W, 1e-9)
+}
+
+func TestGenerate_JudgedCoverageIsTheGradedShareOfRetrievedTopK(t *testing.T) {
+	graded := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
+	ungraded := []uuid.UUID{uuid.New(), uuid.New()}
+	grades := map[string]int{graded[0].String(): 2, graded[1].String(): 0, graded[2].String(): 1}
+
+	retrieved := func(qid, engine string, ranked ...uuid.UUID) runner.QueryResult {
+		qr := answered(qid, engine, 0.5, time.Millisecond)
+		qr.RankedDocIDs = ranked
+		return qr
+	}
+	br := &runner.BenchmarkResult{
+		Config: runner.Config{
+			KValues:            []int{2, 3},
+			RelevanceThreshold: 1,
+			Judgments:          map[string]map[string]int{"q1": grades, "q2": grades},
+		},
+		Jobs: []*runner.JobResult{{
+			JobName:     "coverage",
+			EngineNames: []string{"pg", "es"},
+			QueryOrder:  []string{"q1", "q2"},
+			Results: map[string]map[string]runner.QueryResult{
+				"q1": {
+					"pg": retrieved("q1", "pg", graded[0], ungraded[0], graded[1], graded[2]),
+					"es": retrieved("q1", "es", graded[0]),
+				},
+				"q2": {
+					"pg": retrieved("q2", "pg", ungraded[1]),
+					"es": failed("q2", "es"),
+				},
+			},
+		}},
+	}
+
+	agg := aggregatedByEngine(Generate(br, nil).Jobs[0].Aggregated)
+
+	// Top 3: pg retrieves g0 u0 g1 and u1, so 2 of 4 carry a grade; es
+	// retrieves g0 and nothing for its failed query.
+	assert.InDelta(t, 0.5, agg["pg"].JudgedCoverage, 1e-9)
+	assert.InDelta(t, 1.0, agg["es"].JudgedCoverage, 1e-9)
+}
+
+func TestWriteTable_ShowsJudgedCoverage(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:    "coverage",
+			PerQuery:   []Entry{{QueryID: "q1", EngineName: "pg", Judged: true}},
+			Aggregated: []AggregatedEntry{{EngineName: "pg", JudgedCount: 1, QueryCount: 1, JudgedCoverage: 0.625}},
+		}},
+	}
+	var out bytes.Buffer
+	WriteTable(r, &out)
+
+	assert.Contains(t, strings.ToLower(out.String()), "coverage@10")
+	assert.Contains(t, out.String(), "0.6250")
 }
