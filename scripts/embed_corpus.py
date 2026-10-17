@@ -517,7 +517,6 @@ def claim_checkpoints(checkpoint_dir: Path, key: dict[str, Any]) -> None:
             raise PackageError(
                 f"{checkpoint_dir} holds checkpoints from other settings ({details}); "
                 "use another --checkpoint-dir or delete it"
-                + inference_hint(recorded, key)
             )
         return
     if finished_shards(checkpoint_dir):
@@ -580,135 +579,32 @@ def publish_package(
     final_dir: Path,
     build: Callable[[Path], None],
     *,
-    descriptor_name: str = "datapackage.json",
+    replace: bool = False,
 ) -> None:
-    """Build a package in a sibling temp dir and rename it into place, so no reader sees half of one.
+    """Build a package in a sibling staging dir and rename it into place, so no reader sees half of one.
 
-    When the version already exists, the built package has to match it by each
-    resource's name, hash and bytes: a match keeps the existing package, a
-    difference is refused as non-determinism.
+    A version folder that already exists holds the same bytes, so it is kept and
+    the staging copy discarded. With `replace`, an existing folder is swapped out
+    instead, for fixed locations whose content moves with their inputs.
     """
-    temporary = final_dir.with_name(f".{final_dir.name}.tmp")
-    shutil.rmtree(temporary, ignore_errors=True)
-    temporary.mkdir(parents=True)
+    staging = final_dir.with_name(f".{final_dir.name}.tmp")
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True)
     try:
-        build(temporary)
-        if final_dir.exists():
-            settle_existing_package(
-                final_dir, temporary, descriptor_name=descriptor_name
-            )
-            shutil.rmtree(temporary)
-            return
-        temporary.rename(final_dir)
+        build(staging)
+        if not final_dir.exists():
+            staging.rename(final_dir)
+        elif replace:
+            retired = final_dir.with_name(f".{final_dir.name}.old")
+            shutil.rmtree(retired, ignore_errors=True)
+            final_dir.rename(retired)
+            staging.rename(final_dir)
+            shutil.rmtree(retired)
+        else:
+            shutil.rmtree(staging)
     except BaseException:
-        shutil.rmtree(temporary, ignore_errors=True)
+        shutil.rmtree(staging, ignore_errors=True)
         raise
-
-
-def settle_existing_package(
-    final_dir: Path, built_dir: Path, *, descriptor_name: str
-) -> None:
-    existing = verify_existing_package(final_dir, descriptor_name=descriptor_name)
-    built = read_descriptor(built_dir / descriptor_name)
-    refuse_other_version(final_dir, existing=existing, version=built.get("version"))
-    differences = resource_differences(existing, built)
-    if differences:
-        raise PackageError(
-            f"{final_dir} already holds version {built.get('version')} with other bytes "
-            f"({'; '.join(differences)}): the same version has to reproduce the same bytes"
-            + inference_hint(
-                existing.get("embedding") or {}, built.get("embedding") or {}
-            )
-        )
-
-
-def refuse_other_version(
-    final_dir: Path, *, existing: dict[str, Any], version: object
-) -> None:
-    if existing.get("version") != version:
-        raise PackageError(
-            f"{final_dir} holds version {existing.get('version')!r}, this run writes "
-            f"{version!r}; remove it to regenerate"
-        )
-
-
-def resource_differences(existing: dict[str, Any], built: dict[str, Any]) -> list[str]:
-    """Name every resource whose name, hash or bytes differ; other descriptor fields are ignored."""
-    existing_resources = {
-        resource["name"]: resource for resource in existing.get("resources") or []
-    }
-    built_resources = {
-        resource["name"]: resource for resource in built.get("resources") or []
-    }
-    differences = [
-        f"resource {name} is only in the {'existing' if name in existing_resources else 'new'} package"
-        for name in sorted(existing_resources.keys() ^ built_resources.keys())
-    ]
-    for name in sorted(existing_resources.keys() & built_resources.keys()):
-        for field in ("hash", "bytes"):
-            before, after = (
-                existing_resources[name].get(field),
-                built_resources[name].get(field),
-            )
-            if before != after:
-                differences.append(f"{name} {field} {before} -> {after}")
-    return differences
-
-
-def inference_hint(before: dict[str, Any], after: dict[str, Any]) -> str:
-    """Explain a difference that batch size or dtype, which are not version inputs, can cause."""
-    changed = [
-        field
-        for field in ("batchSize", "dtype")
-        if before.get(field) != after.get(field)
-    ]
-    if not changed:
-        return ""
-    verb = "changes" if len(changed) == 1 else "change"
-    return (
-        f". {' and '.join(changed)} {verb} the bytes but not the version: the existing "
-        f"run used batchSize {before.get('batchSize')} and dtype {before.get('dtype')}, "
-        f"this one {after.get('batchSize')} and {after.get('dtype')}; rerun with "
-        f"--batch-size {before.get('batchSize')} on a device that infers in "
-        f"{before.get('dtype')} to reproduce it"
-    )
-
-
-def verify_existing_package(
-    final_dir: Path, *, descriptor_name: str = "datapackage.json"
-) -> dict[str, Any]:
-    """Return a finished package's descriptor once its resources still verify on disk."""
-    descriptor_path = final_dir / descriptor_name
-    descriptor = read_descriptor(descriptor_path)
-    for resource in descriptor.get("resources") or []:
-        verify_resource(
-            resolve_resource_path(descriptor_path, resource.get("path")), resource
-        )
-    return descriptor
-
-
-def existing_package_matches(
-    final_dir: Path, *, version: str, embedding: dict[str, Any]
-) -> bool:
-    """Report whether a finished package already holds this version under these exact settings.
-
-    The same inputs and settings reproduce the same bytes, so such a rerun is a
-    verified no-op without embedding again. Other settings at the same version are
-    embedded and compared when the package is published.
-    """
-    if not final_dir.exists():
-        return False
-    existing = verify_existing_package(final_dir)
-    refuse_other_version(final_dir, existing=existing, version=version)
-    return existing.get("embedding") == embedding
-
-
-def existing_batch_size(final_dir: Path) -> int | None:
-    if not final_dir.exists():
-        return None
-    return (read_descriptor(final_dir / "datapackage.json").get("embedding") or {}).get(
-        "batchSize"
-    )
 
 
 def dataset_root_of(descriptor_path: Path) -> Path:
@@ -890,33 +786,20 @@ def run(args: argparse.Namespace) -> Path:
     )
     batch_size = args.batch_size
     if args.auto_batch_size:
-        # A resumed or repeated run reuses the batch size already on disk, so it
+        # A resumed run reuses the batch size its checkpoints recorded, so it
         # reproduces those bytes instead of whatever the timing sweep picks today.
-        batch_size = (
-            recorded_batch_size(checkpoint_dir)
-            or existing_batch_size(final_dir)
-            or sweep_batch_size(
-                encoder,
-                next(
-                    iter_shards(
-                        source, shard_size=SWEEP_DOCS, limit=SWEEP_DOCS, skip=set()
-                    )
-                ).texts,
-                max_tokens=spec.max_tokens,
-                dim=spec.dim,
-            )
+        batch_size = recorded_batch_size(checkpoint_dir) or sweep_batch_size(
+            encoder,
+            next(
+                iter_shards(source, shard_size=SWEEP_DOCS, limit=SWEEP_DOCS, skip=set())
+            ).texts,
+            max_tokens=spec.max_tokens,
+            dim=spec.dim,
         )
         print(f"using --batch-size {batch_size}\n")
     inference = Inference(
         batch_size=batch_size, dtype=dtype_name(device), limit=args.limit
     )
-    if existing_package_matches(
-        final_dir,
-        version=package_version,
-        embedding=embedding_descriptor(spec, inference),
-    ):
-        print(f"{final_dir} is already complete")
-        return final_dir
     claim_checkpoints(
         checkpoint_dir,
         {

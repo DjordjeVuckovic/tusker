@@ -112,7 +112,6 @@ def run(args: argparse.Namespace) -> None:
     publish_package(
         args.out,
         lambda directory: write_slim_package(source, carried, directory),
-        descriptor_name=SLIM_DESCRIPTOR,
     )
 
     before = source.resource.stat().st_size

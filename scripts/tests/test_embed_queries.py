@@ -125,24 +125,18 @@ def test_refuses_a_query_whose_edges_go_and_python_trim_differently(
     assert not query_vectors(tmp_path / "track").exists()
 
 
-def test_refuses_to_replace_vectors_embedded_from_another_suite(
+def test_re_embedding_an_edited_suite_replaces_its_query_vectors(
     tmp_path, tiny_model_args
 ):
     suite = write_suite(tmp_path / "track")
     run_script("embed_queries.py", suite, *tiny_model_args)
-    before = sha256_of(
-        query_vectors(tmp_path / "track").parent / "query-vectors.parquet"
-    )
     write_suite(tmp_path / "track", SUITE.replace("interest rates", "rate decision"))
 
     result = run_script("embed_queries.py", suite, *tiny_model_args)
 
-    assert result.returncode != 0
-    assert "version" in result.stderr
-    assert (
-        sha256_of(query_vectors(tmp_path / "track").parent / "query-vectors.parquet")
-        == before
-    )
+    assert result.returncode == 0, result.stderr
+    rows = read_query_vectors(query_vectors(tmp_path / "track"))
+    assert rows["text"] == ["  climate change ", "central bank rate decision"]
 
 
 def test_a_description_yaml_could_read_as_a_number_keeps_its_literal_text(

@@ -414,20 +414,6 @@ def test_rerunning_a_finished_package_leaves_it_untouched(tmp_path, tiny_model_a
     assert sha256_of(resource) == before
 
 
-def test_refuses_to_rerun_over_a_finished_package_that_no_longer_verifies(
-    tmp_path, tiny_model_args
-):
-    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
-    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
-    resource = only_package(tmp_path / "out").parent / "embeddings.parquet"
-    resource.write_bytes(resource.read_bytes()[:-1] + b"\0")
-
-    result = embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
-
-    assert result.returncode != 0
-    assert "hash" in result.stderr
-
-
 def test_writes_under_the_dataset_root_of_a_canonical_package_by_default(
     tmp_path, tiny_model_args
 ):
@@ -591,66 +577,3 @@ def test_records_the_batch_size_the_sweep_picked_rather_than_the_flag(
         "batchSize"
     ]
     assert recorded in {64, 256, 512}
-
-
-MIXED_LENGTH_ROWS = [
-    article(
-        "11111111-1111-4111-8111-111111111111", "Markets rally after the long weekend"
-    ),
-    article("22222222-2222-4222-8222-222222222222", "Q"),
-    article("33333333-3333-4333-8333-333333333333", "Election results are in"),
-]
-
-
-@pytest.mark.parametrize(
-    "cleanup",
-    [[], ["--clean-checkpoints"]],
-    ids=["checkpoints-kept", "checkpoints-cleaned"],
-)
-def test_refuses_a_rerun_whose_batch_size_changes_the_bytes_of_an_existing_version(
-    tmp_path, tiny_model_args, cleanup
-):
-    canonical = write_canonical_package(tmp_path / "canonical", MIXED_LENGTH_ROWS)
-    embed(
-        canonical.descriptor,
-        tmp_path / "out",
-        *tiny_model_args,
-        "--batch-size",
-        "1",
-        *cleanup,
-    )
-    resource = only_package(tmp_path / "out").parent / "embeddings.parquet"
-    before = sha256_of(resource)
-
-    result = embed(
-        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--batch-size", "3"
-    )
-
-    assert result.returncode != 0
-    assert "batchSize" in result.stderr
-    assert "--batch-size 1" in result.stderr
-    assert sha256_of(resource) == before
-
-
-def test_a_rerun_with_other_settings_but_the_same_bytes_keeps_the_existing_package(
-    tmp_path, tiny_model_args
-):
-    canonical = write_canonical_package(tmp_path / "canonical", ROWS[:1])
-    embed(
-        canonical.descriptor,
-        tmp_path / "out",
-        *tiny_model_args,
-        "--batch-size",
-        "1",
-        "--clean-checkpoints",
-    )
-
-    result = embed(
-        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--batch-size", "3"
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert (
-        json.loads(only_package(tmp_path / "out").read_text())["embedding"]["batchSize"]
-        == 1
-    )

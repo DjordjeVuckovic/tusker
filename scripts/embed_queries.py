@@ -260,12 +260,6 @@ def run(args: argparse.Namespace) -> Path:
             batch_size=QUERY_BATCH_SIZE, dtype=embed_corpus.dtype_name(device)
         ),
     )
-    if embed_corpus.existing_package_matches(
-        out, version=package_version, embedding=embedding
-    ):
-        print(f"{out} is already complete")
-        return out
-
     vectors = embed_corpus.encode(
         encoder,
         [instruct_input(query.text) for query in suite.queries],
@@ -294,8 +288,11 @@ def run(args: argparse.Namespace) -> Path:
         "suite": {"id": suite.id, "hash": suite.hash},
     }
     out.parent.mkdir(parents=True, exist_ok=True)
+    # The folder is fixed per track, so a new embedding of the suite replaces it.
     embed_corpus.publish_package(
-        out, lambda directory: write_query_vectors(directory, rows, descriptor)
+        out,
+        lambda directory: write_query_vectors(directory, rows, descriptor),
+        replace=True,
     )
     print(f"wrote {len(suite.queries)} query vectors to {out}")
     return out
