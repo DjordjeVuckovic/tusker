@@ -3,12 +3,7 @@ package router
 import (
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
-
-	apiserver "github.com/DjordjeVuckovic/tusker/internal/api/server"
-	"github.com/DjordjeVuckovic/tusker/internal/apperr"
-	"github.com/labstack/echo/v4"
 )
 
 func TestSearchHandlers_TakeTheLanguageAsAnISO6393Code(t *testing.T) {
@@ -30,22 +25,16 @@ func TestSearchHandlers_TakeTheLanguageAsAnISO6393Code(t *testing.T) {
 	}
 
 	for _, lang := range languages {
-		requests := map[string]*http.Request{
-			"query string": httptest.NewRequest(http.MethodGet, "/v1/articles/search?q=climate&lang="+lang.value, nil),
+		calls := map[string]searchCall{
+			"query string": {method: http.MethodGet, target: "/v1/articles/search?q=climate&lang=" + lang.value},
 		}
 		for queryType, body := range structured {
-			requests[queryType] = jsonRequest(http.MethodPost, "/v1/articles/_search", fmt.Sprintf(body, lang.value))
+			calls[queryType] = searchCall{body: fmt.Sprintf(body, lang.value)}
 		}
-		for name, req := range requests {
+		for name, call := range calls {
 			t.Run(name+" "+lang.value, func(t *testing.T) {
-				e := echo.New()
-				(&apiserver.Server{Echo: e}).SetupValidator()
-				e.HTTPErrorHandler = apperr.GlobalErrorHandler()
-				NewSearchRouter(e, stubFtsSearcher{caps: elasticsearchCaps}, WithHybridSearcher(stubHybridSearcher{})).Bind()
-
-				rec := httptest.NewRecorder()
-				e.ServeHTTP(rec, req)
-
+				call.caps = elasticsearchCaps
+				rec := serveSearch(t, call)
 				if rec.Code != lang.wantCode {
 					t.Errorf("status = %d, want %d (body: %s)", rec.Code, lang.wantCode, rec.Body.String())
 				}

@@ -733,7 +733,7 @@ ORDER BY ts_rank('{0.0, 1.0, 1.5, 3.0}', search_vector, plainto_tsquery('english
   "query": "climate change",
   "field": "title",
   "operator": "and",
-  "language": "english"
+  "language": "eng"
 }
 ```
 
@@ -762,7 +762,7 @@ ORDER BY ts_rank('{0.0, 0.0, 0.0, 1.0}', search_vector, plainto_tsquery('english
   "query": "climate change",
   "fields": ["title^3.0", "description^1.5", "content"],
   "operator": "or",
-  "language": "english"
+  "language": "eng"
 }
 ```
 

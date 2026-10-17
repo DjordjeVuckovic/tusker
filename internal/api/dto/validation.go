@@ -1,6 +1,8 @@
 package dto
 
 import (
+	"fmt"
+
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
 	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
@@ -16,7 +18,7 @@ func parseLanguage(raw string) (language.Code, error) {
 	}
 	lang, err := language.Parse(raw)
 	if err != nil {
-		return "", apperr.NewValidationWrap("invalid language", err)
+		return "", apperr.NewValidationWrap(fmt.Sprintf("invalid language %q: want an ISO 639-3 code such as %q", raw, language.English), err)
 	}
 	return lang, nil
 }
