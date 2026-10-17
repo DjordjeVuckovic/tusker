@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -187,6 +188,36 @@ func TestLoadSuites_EngineWithoutABlockForAQuery(t *testing.T) {
 			for _, want := range tt.wantErr {
 				assert.ErrorContains(t, err, want)
 			}
+		})
+	}
+}
+
+func TestLoadSuites_EmptyBlockCountsAsMissing(t *testing.T) {
+	tests := []struct {
+		name  string
+		block string
+		empty string
+	}{
+		{name: "postgres null", block: `es: { query: '{"query": {"match_all": {}}}' }`, empty: "pg: ~"},
+		{name: "postgres empty map", block: `es: { query: '{"query": {"match_all": {}}}' }`, empty: "pg: {}"},
+		{name: "elasticsearch null", block: `pg: { query: "SELECT id FROM articles" }`, empty: "es: ~"},
+		{name: "elasticsearch empty map", block: `pg: { query: "SELECT id FROM articles" }`, empty: "es: {}"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bs := oneJobTrack(t, `queries:
+  - id: q-empty
+    engines:
+      `+tt.block+`
+      `+tt.empty+`
+`, map[string]spec.Engine{"pg": postgres, "es": elasticsearch}, nil)
+
+			_, err := LoadSuites(bs)
+
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "q-empty")
+			assert.ErrorContains(t, err, `"`+strings.SplitN(tt.empty, ":", 2)[0]+`"`)
 		})
 	}
 }

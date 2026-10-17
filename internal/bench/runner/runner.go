@@ -171,7 +171,7 @@ func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
 // suite's queries, which would otherwise leave that cell of the report empty.
 func checkEveryQueryHasABlock(ls *suite.LoadedSuite, engName, source string) error {
 	for _, q := range ls.Suite.Queries {
-		if _, ok := q.Engines[source]; ok {
+		if block, ok := q.Engines[source]; ok && hasStatement(block) {
 			continue
 		}
 		if source != engName {
@@ -180,6 +180,10 @@ func checkEveryQueryHasABlock(ls *suite.LoadedSuite, engName, source string) err
 		return fmt.Errorf("query %q has no block for engine %q", q.ID, engName)
 	}
 	return nil
+}
+
+func hasStatement(block suite.EngineQuery) bool {
+	return block.Query != "" || block.File != "" || block.Template != ""
 }
 
 type templateInSuite struct {
