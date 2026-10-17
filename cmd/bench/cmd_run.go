@@ -211,6 +211,9 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		LatencyOnly:  f.latencyOnly,
 		EngineParams: declaredEngineParams(bs),
 	}
+	failures := runFailures(result, judgments.coverage)
+	rpt.Settings.Incomplete = append(slices.Clone(failures),
+		specDeviations(f, len(bs.Jobs) == specJobCount, measuredAsSpecified(runCfg, bs, defaultKValues(cmd)))...)
 
 	report.WriteTable(rpt, os.Stdout)
 	fmt.Fprintf(os.Stdout, "%s %s\n", cDim.Sprint("Elapsed:"), elapsed.Round(time.Millisecond))
@@ -224,22 +227,34 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	}
 	printDone(cmd.OutOrStdout(), "Report written: "+outPath)
 
-	failures := runFailures(result, judgments.coverage)
 	if len(failures) > 0 {
 		return fmt.Errorf("%s\n  • report written to %s; latest.json was not moved", strings.Join(failures, "\n"), outPath)
 	}
 	switch {
+	case len(rpt.Settings.Incomplete) > 0:
+		printWarn(cmd.OutOrStdout(), "latest.json not moved: "+strings.Join(rpt.Settings.Incomplete, "; "))
 	case f.output != "":
-	case f.latencyOnly:
-		printWarn(cmd.OutOrStdout(), "latest.json not moved: a latency-only run is not the track's result")
-	case len(bs.Jobs) != specJobCount || !measuredAsSpecified(runCfg, bs, defaultKValues(cmd)):
-		printWarn(cmd.OutOrStdout(), "latest.json not moved: --jobs, --warmup, --iterations or --k made this run differ from spec.yaml")
 	default:
 		if err := updateLatestPointer(tr.LatestReportPath(), outPath); err != nil {
 			printWarn(cmd.OutOrStdout(), fmt.Sprintf("could not update latest.json pointer: %v", err))
 		}
 	}
 	return nil
+}
+
+// specDeviations lists how a run departs from the one its spec defines.
+func specDeviations(f runFlags, ranEveryJob, asSpecified bool) []string {
+	var deviations []string
+	if f.latencyOnly {
+		deviations = append(deviations, "latency-only run, scored against no judgments")
+	}
+	if !ranEveryJob {
+		deviations = append(deviations, "--jobs left out some of the spec's jobs")
+	}
+	if !asSpecified {
+		deviations = append(deviations, "--warmup, --iterations or --k differ from spec.yaml")
+	}
+	return deviations
 }
 
 // measuredAsSpecified reports whether cfg measures with the spec's own warmup,

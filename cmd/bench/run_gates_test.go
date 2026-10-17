@@ -68,6 +68,7 @@ func TestRun_LatencyOnlyWritesAMarkedReportAndLeavesLatest(t *testing.T) {
 	reports := tr.reports(t)
 	require.Len(t, reports, 1)
 	assert.True(t, reports[0].Settings.LatencyOnly)
+	assert.NotEmpty(t, reports[0].Settings.Incomplete)
 	assert.NoFileExists(t, tr.latestPath(), "latest.json must not move")
 }
 
@@ -115,7 +116,9 @@ func TestRun_FailedRunWritesTheReportButLeavesLatest(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErr)
 			assert.Contains(t, err.Error(), "latest.json")
-			assert.Len(t, tr.reports(t), 1, "the report is kept for inspection")
+			reports := tr.reports(t)
+			require.Len(t, reports, 1, "the report is kept for inspection")
+			assert.NotEmpty(t, reports[0].Settings.Incomplete)
 			assert.NoFileExists(t, tr.latestPath(), "latest.json must not move")
 		})
 	}
@@ -142,11 +145,14 @@ func TestRun_LatestMovesOnlyForTheSpecsOwnRun(t *testing.T) {
 			_, err := execute(t, newRunCmd(), append([]string{tr.dir}, tt.args...)...)
 
 			require.NoError(t, err)
-			require.Len(t, tr.reports(t), 1)
+			reports := tr.reports(t)
+			require.Len(t, reports, 1)
 			if tt.wantMoved {
 				assert.NotNil(t, tr.latestReport(t))
+				assert.Empty(t, reports[0].Settings.Incomplete)
 			} else {
 				assert.NoFileExists(t, tr.latestPath(), "latest.json must not move")
+				assert.NotEmpty(t, reports[0].Settings.Incomplete)
 			}
 		})
 	}

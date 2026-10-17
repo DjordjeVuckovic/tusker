@@ -173,4 +173,7 @@ type RunSettings struct {
 	LatencyOnly bool `json:"latency_only"`
 	// EngineParams are the template defaults each engine declares in the spec.
 	EngineParams map[string]map[string]any `json:"engine_params,omitempty"`
+	// Incomplete lists why the run cannot stand as the track's result. bench
+	// run never points latest.json at a report that has any.
+	Incomplete []string `json:"incomplete,omitempty"`
 }
