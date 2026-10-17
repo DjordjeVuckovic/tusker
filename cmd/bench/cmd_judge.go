@@ -132,6 +132,7 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 		jf.Meta = meta.New("judge")
 		jf.Meta.Judge = &judge
 		jf.Meta.PoolRef = poolPath
+		jf.Meta.PoolRunID = pf.Meta.RunID
 		if err := judgment.WriteFile(jf, outPath); err != nil {
 			return fmt.Errorf("write judgments: %w", err)
 		}
@@ -181,6 +182,9 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 			printWarn(cmd.OutOrStdout(), fmt.Sprintf("Resume: loaded %d prior queries from %s", len(prior.Queries), outPath))
 		}
 	}
+	if err := bindToPool(writer, prior, pf); err != nil {
+		return err
+	}
 
 	jrunner := judgment.NewRunner(judgment.RunnerConfig{
 		Strategy:    strat,
@@ -226,6 +230,7 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 	final.Meta = meta.New("judge")
 	final.Meta.Judge = &judge
 	final.Meta.PoolRef = poolPath
+	final.Meta.PoolRunID = pf.Meta.RunID
 	final.Meta.RelevanceScale = []int{0, 1, 2, 3}
 	final.Meta.GradedCount = countGraded(final)
 	if err := judgment.WriteFile(final, outPath); err != nil {
@@ -274,6 +279,19 @@ func checkResumeCompat(prior *judgment.File, strat judgment.Strategy) error {
 		"--resume judge mismatch: existing file was graded by %q, this run uses %q\n"+
 			"  • re-run without --resume to re-grade cleanly under the new judge",
 		was, now)
+}
+
+// bindToPool refuses to resume grades made against another pool, then stamps
+// the pool's run id on the writer so every intermediate flush carries it: an
+// interrupted run leaves only those flushes behind for --resume to read.
+func bindToPool(writer *judgment.IncrementalWriter, prior *judgment.File, pf *pool.PoolFile) error {
+	if prior != nil {
+		if err := checkPoolBinding(prior.Meta.PoolRunID, pf); err != nil {
+			return fmt.Errorf("--resume: %w\n  • re-run without --resume to grade the current pool from scratch", err)
+		}
+	}
+	writer.Snapshot().Meta.PoolRunID = pf.Meta.RunID
+	return nil
 }
 
 // buildVectorStore constructs the engine-agnostic vector store for the

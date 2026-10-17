@@ -31,6 +31,7 @@ type Meta struct {
 	// Judgment-only fields.
 	Judge          *Judge `yaml:"judge,omitempty" json:"judge,omitempty"`
 	PoolRef        string `yaml:"pool_ref,omitempty" json:"pool_ref,omitempty"`
+	PoolRunID      string `yaml:"pool_run_id,omitempty" json:"pool_run_id,omitempty"`
 	GradedCount    int    `yaml:"graded_count,omitempty" json:"graded_count,omitempty"`
 	RelevanceScale []int  `yaml:"relevance_scale,omitempty" json:"relevance_scale,omitempty"`
 

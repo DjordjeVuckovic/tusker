@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/report"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
@@ -118,6 +120,15 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	judgmentsMap, judgmentsMeta, err := loadJudgmentsMap(jPath, explicit)
 	if err != nil {
 		return err
+	}
+	if judgmentsMeta != nil {
+		currentPool, err := pool.ReadPoolFile(tr.Pool)
+		if err != nil {
+			return fmt.Errorf("read the track's pool to check what %s was graded against: %w", jPath, err)
+		}
+		if err := checkPoolBinding(judgmentsMeta.PoolRunID, currentPool); err != nil {
+			return fmt.Errorf("%s: %w", jPath, err)
+		}
 	}
 
 	runCfg := newRunConfig(f, bs, ks, cmd.Flags().Changed("k"))
@@ -250,6 +261,20 @@ func loadJudgmentsMap(path string, explicit bool) (map[string]map[string]int, *m
 		out[qe.QueryID] = inner
 	}
 	return out, &jf.Meta, nil
+}
+
+// checkPoolBinding fails unless judgments graded against judgedPoolRunID
+// belong to the current pool. A regenerated pool holds docs the judgments never
+// saw, which would score as non-relevant.
+func checkPoolBinding(judgedPoolRunID string, current *pool.PoolFile) error {
+	if judgedPoolRunID == "" {
+		return errors.New("judgments carry no pool_run_id, so the pool they were graded against is unknown; re-judge the track (bench judge)")
+	}
+	if judgedPoolRunID != current.Meta.RunID {
+		return fmt.Errorf("judgments were graded against pool %s, but the current pool is %s; re-judge the track (bench judge)",
+			judgedPoolRunID, current.Meta.RunID)
+	}
+	return nil
 }
 
 func collectCorpusInfo(ctx context.Context, w io.Writer, executors map[string]engine.Executor) report.CorpusInfo {
