@@ -214,6 +214,8 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	failures := runFailures(result, judgments)
 	rpt.Settings.Incomplete = append(slices.Clone(failures),
 		specConformance{
+			specOverridden:      f.specPath != "",
+			judgmentsOverridden: f.judgments != "" && !samePath(judgments.path, tr.DefaultJudgmentsPath(bs.Defaults.Judgments)),
 			latencyOnly:         f.latencyOnly,
 			ranEveryJob:         len(bs.Jobs) == specJobCount,
 			measuredAsSpecified: measuredAsSpecified(runCfg, bs, defaultKValues(cmd)),
@@ -248,6 +250,8 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 
 // specConformance is how closely a run followed the one its spec defines.
 type specConformance struct {
+	specOverridden      bool
+	judgmentsOverridden bool
 	latencyOnly         bool
 	ranEveryJob         bool
 	measuredAsSpecified bool
@@ -256,6 +260,12 @@ type specConformance struct {
 // deviations lists how the run departs from the one its spec defines.
 func (c specConformance) deviations() []string {
 	var deviations []string
+	if c.specOverridden {
+		deviations = append(deviations, "--spec replaced the track's spec.yaml")
+	}
+	if c.judgmentsOverridden {
+		deviations = append(deviations, "--judgments named other judgments than spec.defaults.judgments")
+	}
 	if c.latencyOnly {
 		deviations = append(deviations, "latency-only run, scored against no judgments")
 	}

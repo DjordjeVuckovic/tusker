@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
@@ -299,4 +300,59 @@ func TestRun_EngineMissingFromThePoolFailsTheRun(t *testing.T) {
 	assert.Contains(t, err.Error(), "never pooled")
 	assert.Contains(t, err.Error(), "b")
 	assertLatestUnchanged(t, tr, before)
+}
+
+func TestRun_InputsOtherThanTheSpecsOwnLeaveLatest(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      func(tr lineageTrack) []string
+		wantMoved bool
+		wantWhy   string
+	}{
+		{
+			name:      "the spec's default judgments named explicitly",
+			args:      func(tr lineageTrack) []string { return []string{"--judgments", tr.judgments} },
+			wantMoved: true,
+		},
+		{
+			name: "another spec file",
+			args: func(tr lineageTrack) []string {
+				return []string{"--spec", copyFile(t, filepath.Join(tr.dir, "spec.yaml"), filepath.Join(tr.dir, "other.yaml"))}
+			},
+			wantWhy: "--spec",
+		},
+		{
+			name: "another judgments file",
+			args: func(tr lineageTrack) []string {
+				return []string{"--judgments", copyFile(t, tr.judgments, filepath.Join(tr.dir, "trec", "annotations.other.yaml"))}
+			},
+			wantWhy: "--judgments",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := judgedTrack(t, nil)
+			before := seedLatest(t, tr)
+
+			_, err := execute(t, newRunCmd(), append([]string{tr.dir}, tt.args(tr)...)...)
+
+			require.NoError(t, err)
+			reports := tr.reports(t)
+			require.Len(t, reports, 1)
+			if tt.wantMoved {
+				assert.Equal(t, reports[0].Provenance.RunID, tr.latestReport(t).Provenance.RunID)
+				return
+			}
+			assertLatestUnchanged(t, tr, before)
+			assert.Contains(t, strings.Join(reports[0].Settings.Incomplete, "; "), tt.wantWhy)
+		})
+	}
+}
+
+func copyFile(t *testing.T, from, to string) string {
+	t.Helper()
+	data, err := os.ReadFile(from)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(to, data, 0o644))
+	return to
 }
