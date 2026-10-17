@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 )
@@ -101,5 +104,19 @@ func TestDataPackageSchemaDescribesDroppedAsCountsByReason(t *testing.T) {
 	values, ok := dropped["additionalProperties"].(map[string]any)
 	if dropped["type"] != "object" || !ok || values["type"] != "integer" {
 		t.Errorf("report.dropped = %v, want an object of integers", dropped)
+	}
+}
+
+func TestCommittedDataPackageSchemaMatchesTheGenerator(t *testing.T) {
+	committed, err := os.ReadFile(filepath.Join("..", "..", "api", "datapackage-spec", dataPackageSchemaFile))
+	if err != nil {
+		t.Fatalf("read committed schema: %v", err)
+	}
+	generated, err := dataPackageSchema()
+	if err != nil {
+		t.Fatalf("dataPackageSchema: %v", err)
+	}
+	if !bytes.Equal(committed, generated) {
+		t.Errorf("api/datapackage-spec/%s is stale; regenerate it with `make schema-gen` and commit the result", dataPackageSchemaFile)
 	}
 }
