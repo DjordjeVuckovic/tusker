@@ -48,13 +48,13 @@ GET /v1/articles/search?q=renewable energy&cursor=eyJzY29yZSI6...
         "title": "Climate Change Impact",
         "description": "Article about climate change...",
         "content": "Full article content...",
-        "url": "https://example.com/article",
-        "language": "english",
-        "created_at": "2024-01-15T10:30:00Z",
+        "url": "https://www.bbc.co.uk/news/article",
+        "publishedAt": "2024-01-15T09:00:00Z",
+        "language": "eng",
+        "publisherDomain": "bbc.co.uk",
         "metadata": {
-          "source_name": "BBC News",
-          "published_at": "2024-01-15T09:00:00Z",
-          "category": "Environment"
+          "publisherName": "BBC News",
+          "section": "Environment"
         }
       },
       "score": 0.95,

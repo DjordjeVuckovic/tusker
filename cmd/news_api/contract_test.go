@@ -146,22 +146,28 @@ func TestLenientSearchRunsWithoutWhatItIgnored(t *testing.T) {
 	}
 }
 
-func TestSearchRejectsARetiredField(t *testing.T) {
+func TestSearchRejectsAFieldOutsideTheSearchableSet(t *testing.T) {
 	s := newPostgresSearchServer(t)
 
-	for _, body := range []string{
-		`{"query":{"match":{"field":"author","query":"budget"}}}`,
-		`{"query":{"phrase":{"fields":["title","subtitle"],"query":"budget tariff"}}}`,
-	} {
-		req := httptest.NewRequest(http.MethodPost, "/v1/articles/_search", strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Prefer", "handling=lenient")
-		rec := httptest.NewRecorder()
-		s.ServeHTTP(rec, req)
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "match on author", body: `{"query":{"match":{"field":"author","query":"budget"}}}`},
+		{name: "phrase on subtitle", body: `{"query":{"phrase":{"fields":["title","subtitle"],"query":"budget tariff"}}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/v1/articles/_search", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Prefer", "handling=lenient")
+			rec := httptest.NewRecorder()
+			s.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("%s: status = %d, want 400 even under lenient handling (body: %s)", body, rec.Code, rec.Body.String())
-		}
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400 even under lenient handling (body: %s)", rec.Code, rec.Body.String())
+			}
+		})
 	}
 }
 

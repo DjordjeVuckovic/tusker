@@ -12,10 +12,6 @@ func TestConstructorsAcceptOnlySearchableFields(t *testing.T) {
 			_, err := NewMatch(FieldDescription, "smith")
 			return err
 		}},
-		{name: "match on a retired field", wantErr: true, build: func() error {
-			_, err := NewMatch("author", "smith")
-			return err
-		}},
 		{name: "match on an unknown field", wantErr: true, build: func() error {
 			_, err := NewMatch("body", "climate")
 			return err

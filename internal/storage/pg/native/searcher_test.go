@@ -125,10 +125,15 @@ func TestSearcher_StringQueryRanksWithPostgresDefaultWeights(t *testing.T) {
 	for _, hit := range res.Hits {
 		scores[hit.Article.ID] = hit.Score
 	}
+	for _, id := range []uuid.UUID{titleOnly, descriptionOnly} {
+		if _, ok := scores[id]; !ok {
+			t.Fatalf("hits = %v, want both articles", scores)
+		}
+	}
 
 	// PostgreSQL's default weights put A at 2.5 times B; the contract's 3:2
 	// title and description boosts would put it at 1.5.
-	if ratio := scores[titleOnly] / scores[descriptionOnly]; ratio < 2 {
+	if ratio := scores[titleOnly] / scores[descriptionOnly]; ratio < 2 || ratio > 3 {
 		t.Errorf("title-only score / description-only score = %v, want the default weights' 2.5", ratio)
 	}
 }

@@ -8,11 +8,11 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 )
 
-// postgresLike cannot match content apart from the other fields and has no
+// partialFields cannot match content apart from the other fields and has no
 // typo tolerance; Elasticsearch honours every parameter.
 var (
-	postgresLike = Capabilities{
-		Engine:          "postgres",
+	partialFields = Capabilities{
+		Engine:          "partial",
 		DefaultOperator: operator.And,
 		PhraseSlop:      true,
 		Boosts:          true,
@@ -48,14 +48,14 @@ func TestCheckCapabilities(t *testing.T) {
 		},
 		{
 			name:       "strict rejects fuzziness the engine lacks",
-			caps:       postgresLike,
+			caps:       partialFields,
 			params:     Params{Fields: []FieldWeight{title}, Fuzziness: FuzzinessAuto},
 			handling:   HandlingStrict,
 			wantErrFor: "fuzziness",
 		},
 		{
 			name:         "lenient drops fuzziness the engine lacks",
-			caps:         postgresLike,
+			caps:         partialFields,
 			params:       Params{Fields: []FieldWeight{title}, Fuzziness: Fuzziness1},
 			handling:     HandlingLenient,
 			wantIgnored:  []string{"fuzziness"},
@@ -63,28 +63,28 @@ func TestCheckCapabilities(t *testing.T) {
 		},
 		{
 			name:         "no fuzziness is not a fuzziness request",
-			caps:         postgresLike,
+			caps:         partialFields,
 			params:       Params{Fields: []FieldWeight{title}, Fuzziness: NoFuzziness},
 			handling:     HandlingStrict,
 			wantHonoured: Params{Fields: []FieldWeight{title}, Fuzziness: NoFuzziness},
 		},
 		{
 			name:         "an edit distance of zero is exact matching",
-			caps:         postgresLike,
+			caps:         partialFields,
 			params:       Params{Fields: []FieldWeight{title}, Fuzziness: Fuzziness0},
 			handling:     HandlingStrict,
 			wantHonoured: Params{Fields: []FieldWeight{title}, Fuzziness: Fuzziness0},
 		},
 		{
 			name:       "strict rejects a field the engine cannot isolate",
-			caps:       postgresLike,
+			caps:       partialFields,
 			params:     Params{Fields: []FieldWeight{title, {Field: FieldContent, Weight: 1}}},
 			handling:   HandlingStrict,
 			wantErrFor: "fields",
 		},
 		{
 			name:         "lenient drops a field the engine cannot isolate, boost and all",
-			caps:         postgresLike,
+			caps:         partialFields,
 			params:       Params{Fields: []FieldWeight{title, {Field: FieldContent, Weight: 2}}},
 			handling:     HandlingLenient,
 			wantIgnored:  []string{"fields"},
@@ -92,14 +92,14 @@ func TestCheckCapabilities(t *testing.T) {
 		},
 		{
 			name:       "lenient rejects dropping every field",
-			caps:       postgresLike,
+			caps:       partialFields,
 			params:     Params{Fields: []FieldWeight{{Field: FieldContent, Weight: 1}}},
 			handling:   HandlingLenient,
 			wantErrFor: "fields",
 		},
 		{
 			name:         "a boost on a field the engine isolates is honoured",
-			caps:         postgresLike,
+			caps:         partialFields,
 			params:       Params{Fields: []FieldWeight{{Field: FieldTitle, Weight: 3}, {Field: FieldDescription, Weight: 1}}},
 			handling:     HandlingStrict,
 			wantHonoured: Params{Fields: []FieldWeight{{Field: FieldTitle, Weight: 3}, {Field: FieldDescription, Weight: 1}}},
