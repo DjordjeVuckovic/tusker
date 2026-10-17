@@ -599,8 +599,11 @@ def positive_int(text: str) -> int:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    # No abbreviations: a stale flag such as --out must not quietly become --output-root.
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
     )
     parser.add_argument(
         "package",

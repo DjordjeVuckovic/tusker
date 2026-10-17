@@ -86,8 +86,11 @@ def write_slim_package(
 
 
 def parse_args() -> argparse.Namespace:
+    # No abbreviations: a stale flag such as --out must not quietly become --output-root.
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
     )
     parser.add_argument("package", type=Path, help="canonical datapackage.json")
     parser.add_argument(

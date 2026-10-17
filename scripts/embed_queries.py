@@ -164,9 +164,12 @@ def write_query_vectors(
     embed_corpus.write_descriptor(directory, descriptor)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    # No abbreviations: a stale flag such as --out must not quietly become --output-root.
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
     )
     parser.add_argument("suite", nargs="?", type=Path, help="the track's suite.yaml")
     parser.add_argument(
@@ -202,7 +205,7 @@ def parse_args() -> argparse.Namespace:
         choices=["auto", "cuda", "cpu", "mps"],
         help="auto never picks mps",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def kaggle_suite() -> Path:

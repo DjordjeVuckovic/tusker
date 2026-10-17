@@ -15,8 +15,8 @@ The `file` path exists because embedding generation is a one-time, GPU-bound job
 
 ```
 datasets/<ds>/canonical/<version>/      canonical package (preprocess)
-  → slim_corpus.py                      id, title, description only; the Kaggle upload
-  → embed_corpus.py on a Kaggle GPU     Qwen3-Embedding-0.6B, lead-v1
+  → slim_corpus.py                      id, title, description only; the cloud upload
+  → embed_corpus.py on a cloud GPU      Kaggle or Colab; Qwen3-Embedding-0.6B, lead-v1
   → datasets/<ds>/embeddings/<tag-dir>/<version>/
   → datapipe load embeddings            → article_embeddings
 ```
@@ -31,7 +31,7 @@ is in before spending GPU time on it:
 docker compose exec -T pg-news-native psql -U news_user -d news_db -c "select count(*) from articles;"
 ```
 
-GPU work runs on Kaggle, never on the laptop. `--device auto` resolves to CUDA
+GPU work runs on Kaggle or Colab, never on the laptop. `--device auto` resolves to CUDA
 or CPU and never to Apple's MPS.
 
 ### Recipes
@@ -188,6 +188,27 @@ mv /tmp/tusker-out/embeddings/qwen3-embedding-0.6b@1024/lead-v1-1024-<8 hex> \
 The kernel relies on the Kaggle image's preinstalled transformers, which has to
 be at least 4.51 for Qwen3, since a script kernel has no `pip install` step. The
 scripts stay on Python 3.11 syntax for the same image.
+
+### Colab notebook
+
+`scripts/embed_colab.ipynb` is the other GPU path. It drives the same scripts from
+Drive, for when Kaggle's GPU quota is spent:
+
+1. Copy `scripts/embed_corpus.py` and `scripts/embed_queries.py` to
+   `MyDrive/tusker/`, and the slim package (`slim.datapackage.json` plus
+   `articles.parquet`) to `MyDrive/tusker/<corpus>/payload/`. The full canonical
+   package works too.
+2. Open the notebook in Colab with a GPU runtime, set `DATASET` in its settings
+   cell, and run the cells in order.
+3. The run cell calls `embed_corpus.py` with `--device cuda`, `--dim`,
+   `--max-tokens` and checkpoints in `MyDrive/tusker/<corpus>/checkpoints`. After
+   a disconnect, re-running the cell resumes from the finished shards.
+4. The package lands at `MyDrive/tusker/<corpus>/embeddings/<tag-dir>/<version>/`.
+   Copy that version directory into `datasets/<corpus>/embeddings/<tag-dir>/`.
+
+The notebook can't run locally. `scripts/tests/test_colab_notebook.py` checks that
+every script call in it parses against the scripts' CLIs, which have abbreviations
+turned off so a stale flag fails instead of matching a longer one.
 
 ### Query vectors
 
