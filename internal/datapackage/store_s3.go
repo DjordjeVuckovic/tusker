@@ -12,7 +12,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
@@ -24,11 +23,11 @@ type s3Store struct {
 	prefix string
 }
 
-func newS3Store(ctx context.Context, u *url.URL, cfg S3Config) (s3Store, string, error) {
+func newS3Store(u *url.URL, cfg S3Config) (s3Store, string, error) {
 	if u.Host == "" {
 		return s3Store{}, "", fmt.Errorf("descriptor location %s names no bucket", u)
 	}
-	client, err := newS3Client(ctx, cfg)
+	client, err := newS3Client(cfg)
 	if err != nil {
 		return s3Store{}, "", err
 	}
@@ -36,29 +35,38 @@ func newS3Store(ctx context.Context, u *url.URL, cfg S3Config) (s3Store, string,
 	return s3Store{client: client, bucket: u.Host, prefix: prefix}, name, nil
 }
 
-func newS3Client(ctx context.Context, cfg S3Config) (*s3.Client, error) {
-	var loadOpts []func(*awsconfig.LoadOptions) error
-	if cfg.Region != "" {
-		loadOpts = append(loadOpts, awsconfig.WithRegion(cfg.Region))
+// newS3Client builds the client from cfg alone. Ambient AWS config is never
+// read, so a profile or AWS_* variable cannot sign a request meant for the
+// dataset store. Without keys, requests go unsigned, which serves public
+// buckets only.
+func newS3Client(cfg S3Config) (*s3.Client, error) {
+	var provider aws.CredentialsProvider = aws.AnonymousCredentials{}
+	switch {
+	case cfg.AccessKey != "" && cfg.SecretKey != "":
+		provider = credentials.NewStaticCredentialsProvider(cfg.AccessKey, cfg.SecretKey, "")
+	case cfg.AccessKey != "":
+		return nil, errors.New("DATASET_S3_SECRET_KEY is empty while DATASET_S3_ACCESS_KEY is set")
+	case cfg.SecretKey != "":
+		return nil, errors.New("DATASET_S3_ACCESS_KEY is empty while DATASET_S3_SECRET_KEY is set")
 	}
-	if cfg.AccessKey != "" && cfg.SecretKey != "" {
-		loadOpts = append(loadOpts, awsconfig.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(cfg.AccessKey, cfg.SecretKey, ""),
-		))
+	opts := s3.Options{Region: cfg.Region, Credentials: provider}
+	if cfg.Endpoint != "" {
+		opts.BaseEndpoint = aws.String(cfg.Endpoint)
+		opts.UsePathStyle = true
 	}
-	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, loadOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("load s3 config: %w", err)
+	if opts.Region == "" {
+		opts.Region = defaultRegion(cfg.Endpoint)
 	}
-	return s3.NewFromConfig(awsCfg, func(o *s3.Options) {
-		if cfg.Endpoint != "" {
-			o.BaseEndpoint = aws.String(cfg.Endpoint)
-			o.UsePathStyle = true
-		}
-		if o.Region == "" {
-			o.Region = "auto"
-		}
-	}), nil
+	return s3.New(opts), nil
+}
+
+// defaultRegion is "auto" for a custom endpoint, as R2 expects, and AWS's
+// us-east-1 otherwise.
+func defaultRegion(endpoint string) string {
+	if endpoint != "" {
+		return "auto"
+	}
+	return "us-east-1"
 }
 
 func (s s3Store) key(rel string) string { return path.Join(s.prefix, rel) }

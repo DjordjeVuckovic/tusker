@@ -20,7 +20,7 @@ Descriptors and load records are committed. Everything else is gitignored and ha
 
 Each resource is one file, with a `path` relative to the descriptor, its `format`, its size in `bytes` and a `hash` of the form `sha256:<hex>`. Readers check `bytes` and `hash` on every read, so a truncated or altered file is an error and never a short read. `internal/datapackage` is the Go reader and writer.
 
-A descriptor can be opened from a local path, an `https://` URL, or `s3://bucket/key`. For S3-compatible stores such as R2, set `DATASET_S3_ENDPOINT`, `DATASET_S3_REGION`, `DATASET_S3_ACCESS_KEY` and `DATASET_S3_SECRET_KEY`. Article text and vectors stay in a private bucket because of publisher copyright; only descriptors are public.
+A descriptor can be opened from a local path, an `https://` URL, or `s3://bucket/key`; a remote location that doesn't end in `.json` is a folder holding `datapackage.json`. For S3-compatible stores such as R2, set `DATASET_S3_ENDPOINT`, `DATASET_S3_REGION` (default `auto` with an endpoint), `DATASET_S3_ACCESS_KEY` and `DATASET_S3_SECRET_KEY`. Set both keys or neither: without them, requests go unsigned. `AWS_*` variables and `~/.aws` are never read. Article text and vectors stay in a private bucket because of publisher copyright; only descriptors are public.
 
 Versions are derived from their inputs, so the same inputs always land in the same folder:
 

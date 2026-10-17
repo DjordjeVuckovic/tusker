@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -260,5 +261,106 @@ func TestOpenOverHTTPSServesANestedResource(t *testing.T) {
 	}
 	if got, err := readResource(ctx, opened, "docs/notes.txt"); err != nil || string(got) != "notes\n" {
 		t.Errorf("docs/notes.txt = %q, %v", got, err)
+	}
+}
+
+// recordingS3 serves root over path-style S3 URLs and records each request's
+// Authorization header.
+func recordingS3(t *testing.T, root string) (endpoint string, authorizations func() []string) {
+	t.Helper()
+	var (
+		mu   sync.Mutex
+		seen []string
+	)
+	files := http.FileServer(http.Dir(root))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen = append(seen, r.Header.Get("Authorization"))
+		mu.Unlock()
+		files.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), seen...)
+	}
+}
+
+// ambientAWS sets credentials and a profile that must never reach a request:
+// the profile does not exist, so loading shared config would fail.
+func ambientAWS(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "AWSENVKEY")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "AWSENVSECRET")
+	t.Setenv("AWS_PROFILE", "profile-that-does-not-exist")
+	t.Setenv("AWS_CONFIG_FILE", filepath.Join(t.TempDir(), "config"))
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", filepath.Join(t.TempDir(), "credentials"))
+}
+
+func TestOpenFromS3SignsWithTheDatasetKeysAlone(t *testing.T) {
+	root := t.TempDir()
+	writeFullPackage(t, filepath.Join(root, "datasets", "pkg"))
+	endpoint, authorizations := recordingS3(t, root)
+	ambientAWS(t)
+	t.Setenv("DATASET_S3_ENDPOINT", endpoint)
+	t.Setenv("DATASET_S3_REGION", "auto")
+	t.Setenv("DATASET_S3_ACCESS_KEY", "DATASETKEY")
+	t.Setenv("DATASET_S3_SECRET_KEY", "DATASETSECRET")
+
+	if _, err := datapackage.Open(context.Background(), "s3://datasets/pkg"); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if len(authorizations()) == 0 {
+		t.Fatal("no request reached the endpoint")
+	}
+	for _, authorization := range authorizations() {
+		if !strings.Contains(authorization, "Credential=DATASETKEY/") {
+			t.Errorf("Authorization = %q, want it signed with DATASETKEY", authorization)
+		}
+	}
+}
+
+func TestOpenFromS3WithoutDatasetKeysSendsNoAmbientCredentials(t *testing.T) {
+	root := t.TempDir()
+	writeFullPackage(t, filepath.Join(root, "datasets", "pkg"))
+	endpoint, authorizations := recordingS3(t, root)
+	ambientAWS(t)
+	t.Setenv("DATASET_S3_ENDPOINT", endpoint)
+	t.Setenv("DATASET_S3_ACCESS_KEY", "")
+	t.Setenv("DATASET_S3_SECRET_KEY", "")
+
+	if _, err := datapackage.Open(context.Background(), "s3://datasets/pkg"); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	for _, authorization := range authorizations() {
+		if authorization != "" {
+			t.Errorf("Authorization = %q, want an unsigned request", authorization)
+		}
+	}
+}
+
+func TestOpenFromS3RefusesAHalfConfiguredKeyPair(t *testing.T) {
+	tests := []struct {
+		name, accessKey, secretKey, missing string
+	}{
+		{"secret missing", "DATASETKEY", "", "DATASET_S3_SECRET_KEY"},
+		{"access key missing", "", "DATASETSECRET", "DATASET_S3_ACCESS_KEY"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			endpoint, authorizations := recordingS3(t, t.TempDir())
+			ambientAWS(t)
+			t.Setenv("DATASET_S3_ENDPOINT", endpoint)
+			t.Setenv("DATASET_S3_ACCESS_KEY", tt.accessKey)
+			t.Setenv("DATASET_S3_SECRET_KEY", tt.secretKey)
+
+			_, err := datapackage.Open(context.Background(), "s3://datasets/pkg")
+			if err == nil || !strings.Contains(err.Error(), tt.missing) {
+				t.Errorf("err = %v, want one naming %s", err, tt.missing)
+			}
+			if len(authorizations()) != 0 {
+				t.Errorf("%d requests were sent before the error", len(authorizations()))
+			}
+		})
 	}
 }

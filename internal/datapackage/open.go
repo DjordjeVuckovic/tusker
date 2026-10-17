@@ -16,8 +16,8 @@ import (
 // data file cannot be pulled into memory whole.
 const maxDescriptorBytes = 16 << 20
 
-// Options configures OpenWith. The zero value uses http.DefaultClient and the
-// default AWS credential chain.
+// Options configures OpenWith. The zero value uses http.DefaultClient and
+// sends unsigned S3 requests.
 type Options struct {
 	HTTPClient *http.Client
 	S3         S3Config
@@ -49,7 +49,7 @@ func Open(ctx context.Context, location string) (*Opened, error) {
 
 // OpenWith is Open with explicit options; it reads no environment.
 func OpenWith(ctx context.Context, location string, opts Options) (*Opened, error) {
-	st, descriptorName, err := opts.storeFor(ctx, location)
+	st, descriptorName, err := opts.storeFor(location)
 	if err != nil {
 		return nil, err
 	}

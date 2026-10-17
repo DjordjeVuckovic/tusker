@@ -12,7 +12,8 @@ import (
 
 // S3Config reaches an S3-compatible store such as R2. With an Endpoint set,
 // requests use path-style addressing, which local S3 emulators need and R2
-// accepts.
+// accepts. AccessKey and SecretKey are both set or both empty; empty means
+// unsigned requests.
 type S3Config struct {
 	Endpoint  string
 	Region    string
@@ -29,7 +30,7 @@ func S3ConfigFromEnv() S3Config {
 	}
 }
 
-func (opts Options) storeFor(ctx context.Context, location string) (store, string, error) {
+func (opts Options) storeFor(location string) (store, string, error) {
 	scheme, _, remote := strings.Cut(location, "://")
 	if !remote {
 		return newLocalStore(location)
@@ -42,7 +43,7 @@ func (opts Options) storeFor(ctx context.Context, location string) (store, strin
 	case "https":
 		return newHTTPSStore(u, opts.HTTPClient)
 	case "s3":
-		return newS3Store(ctx, u, opts.S3)
+		return newS3Store(u, opts.S3)
 	case "file":
 		return newLocalStore(u.Path)
 	default:
