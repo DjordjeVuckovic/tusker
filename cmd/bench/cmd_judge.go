@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -227,8 +228,10 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 		},
 	})
 
-	if _, err := jrunner.Run(cmd.Context(), pf); err != nil {
-		return fmt.Errorf("judge run: %w", err)
+	_, runErr := jrunner.Run(cmd.Context(), pf)
+	var noTerms *judgment.NoQueryTermsError
+	if runErr != nil && !errors.As(runErr, &noTerms) {
+		return fmt.Errorf("judge run: %w", runErr)
 	}
 
 	// Final write with completed meta block. The judge descriptor captures what
@@ -246,6 +249,9 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 
 	printDone(cmd.OutOrStdout(), fmt.Sprintf("Judgments written: %s  (judge=%s  queries=%d  run_id=%s)",
 		outPath, judge, len(final.Queries), final.Meta.RunID))
+	if runErr != nil {
+		return fmt.Errorf("judge run: %w", runErr)
+	}
 	return requireJudged(final, f.allowUnjudged)
 }
 

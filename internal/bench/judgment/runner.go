@@ -85,7 +85,10 @@ func NewRunner(cfg RunnerConfig) *Runner {
 	return &Runner{cfg: cfg}
 }
 
-// Run grades every pool entry and returns a complete JudgmentFile.
+// Run grades every pool entry and returns a complete JudgmentFile. A query with
+// no usable terms leaves its docs unjudged without stopping the others: Run
+// then returns the file together with an error that joins a NoQueryTermsError
+// per such query.
 func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 	if r.cfg.Strategy == nil {
 		return nil, fmt.Errorf("runner: strategy is nil")
@@ -109,9 +112,13 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 		Queries: make([]Entry, 0, len(pf.Queries)),
 	}
 
+	var unusable []error
 	for _, entry := range pf.Queries {
 		ge, prog, err := r.gradeQuery(ctx, entry, prior[entry.QueryID])
-		if err != nil {
+		var noTerms *NoQueryTermsError
+		if errors.As(err, &noTerms) {
+			unusable = append(unusable, err)
+		} else if err != nil {
 			return nil, fmt.Errorf("grade query %q: %w", entry.QueryID, err)
 		}
 		jf.Queries = append(jf.Queries, ge)
@@ -125,7 +132,7 @@ func (r *Runner) Run(ctx context.Context, pf *pool.PoolFile) (*File, error) {
 			r.cfg.OnQueryDone(prog)
 		}
 	}
-	return jf, nil
+	return jf, errors.Join(unusable...)
 }
 
 func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map[uuid.UUID]int) (Entry, QueryProgress, error) {
@@ -162,7 +169,8 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 	} else {
 		gradedByID, err = r.gradeTodo(ctx, q, todo)
 	}
-	if err != nil {
+	var noTerms *NoQueryTermsError
+	if err != nil && !errors.As(err, &noTerms) {
 		return ge, prog, err
 	}
 
@@ -178,7 +186,7 @@ func (r *Runner) gradeQuery(ctx context.Context, entry pool.PoolEntry, prior map
 		}
 		ge.Docs = append(ge.Docs, GradedDoc{DocID: pd.DocID, Grade: grade})
 	}
-	return ge, prog, nil
+	return ge, prog, err
 }
 
 func (r *Runner) gradeTodo(ctx context.Context, q GradingQuery, todo []pool.PooledDoc) (map[uuid.UUID]int, error) {
