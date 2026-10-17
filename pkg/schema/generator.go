@@ -224,7 +224,7 @@ func (g *Generator) generateStructSchema(t reflect.Type, isRoot bool) (*JSONSche
 
 		fieldSchema, err := g.generateFieldSchema(field)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate schema for field %schemaRef: %w", field.Name, err)
+			return nil, fmt.Errorf("failed to generate schema for field %s: %w", field.Name, err)
 		}
 
 		schema.Properties[fieldName] = fieldSchema

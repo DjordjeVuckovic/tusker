@@ -3,6 +3,7 @@ package schema_test
 import (
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -169,4 +170,12 @@ func keys(m map[string]*schema.JSONSchema) []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+func TestAFieldErrorNamesTheField(t *testing.T) {
+	_, err := strictGenerator().GenerateSchema(reflect.TypeFor[intKeyProbe]())
+
+	if err == nil || !strings.Contains(err.Error(), "field ByYear:") {
+		t.Errorf("err = %v, want it to name field ByYear", err)
+	}
 }
