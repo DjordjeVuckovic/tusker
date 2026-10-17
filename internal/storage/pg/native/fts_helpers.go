@@ -3,7 +3,6 @@ package native
 import (
 	"fmt"
 	"log/slog"
-	"math"
 	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
@@ -16,17 +15,15 @@ var fieldToLabel = map[string]string{
 	"title":       "A",
 	"description": "B",
 	"content":     "C",
-	"subtitle":    "D",
-	"author":      "D",
 }
 
 // Label to ts_rank weight array position mapping
-// PostgreSQL weights array format: {D, C, B, A} (reverse order!)
+// PostgreSQL weights array format: {D, C, B, A} (reverse order!). No field
+// fills band D, so its weight stays 0.
 var labelToPosition = map[string]int{
 	"A": 3, // Title - position 3 in {D, C, B, A}
 	"B": 2, // Description - position 2
 	"C": 1, // Content - position 1
-	"D": 0, // Subtitle/Author - position 0
 }
 
 // FieldWeight represents a field with its boost value for ES-style notation
@@ -54,9 +51,9 @@ func buildWeightLabels(fields []string) string {
 		}
 	}
 
-	// Build sorted string (ABCD order for consistency)
+	// Build sorted string (ABC order for consistency)
 	result := ""
-	for _, label := range []string{"A", "B", "C", "D"} {
+	for _, label := range []string{"A", "B", "C"} {
 		if labels[label] {
 			result += label
 		}
@@ -77,14 +74,7 @@ func buildWeightsArray(fieldBoosts []FieldWeight) string {
 
 	for _, fb := range fieldBoosts {
 		if label, ok := fieldToLabel[fb.Field]; ok {
-			position := labelToPosition[label]
-
-			// For D (subtitle/author), take max boost if multiple fields map to D
-			if position == 0 {
-				weights[position] = math.Max(weights[position], fb.Weight)
-			} else {
-				weights[position] = fb.Weight
-			}
+			weights[labelToPosition[label]] = fb.Weight
 		}
 	}
 
@@ -119,7 +109,7 @@ func buildTsQuery(op operator.Operator, lang query.Language, paramNum int) strin
 }
 
 // buildRankExpression constructs a ts_rank expression with custom field weights
-// The pre-computed search_vector has weights: title=A, description=B, content=C, subtitle/author=D
+// The generated search_vector has weights: title=A, description=B, content=C
 // PostgreSQL's default weight values are: {0.1, 0.2, 0.4, 1.0} for {D, C, B, A}
 // Weight array format: {D-weight, C-weight, B-weight, A-weight} (REVERSE ORDER!)
 // Returns: "ts_rank('{0.0, 1.0, 1.5, 3.0}', search_vector, query)" or "ts_rank(search_vector, query)"
@@ -138,7 +128,7 @@ func buildRankExpression(fieldBoosts []FieldWeight, lang query.Language, op oper
 }
 
 // buildTsWhereClause constructs the WHERE clause for full-text search with weight label filtering
-// Weight labels filter which fields are searched: A=title, B=description, C=content, D=subtitle/author
+// Weight labels filter which fields are searched: A=title, B=description, C=content
 // Examples:
 //
 //	fieldBoosts=[{title,3.0}]                       → search_vector @@ (query::text || ':A')::tsquery
