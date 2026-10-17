@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
@@ -51,14 +52,14 @@ var labelToPosition = map[string]int{
 //	["title", "content"]     → "AC"
 //	["title"]                → "A"
 //	[]                       → "" (empty means search all fields)
-func buildWeightLabels(fields []string) string {
+func buildWeightLabels(fields []query.Field) string {
 	if len(fields) == 0 {
 		return "" // Empty = search all fields
 	}
 
 	labels := make(map[string]bool)
 	for _, field := range fields {
-		if label, ok := fieldToLabel[query.Field(field)]; ok {
+		if label, ok := fieldToLabel[field]; ok {
 			labels[label] = true
 		}
 	}
@@ -76,8 +77,9 @@ func buildWeightLabels(fields []string) string {
 
 // buildWeightsArray creates the ts_rank weights array from field boosts, in
 // PostgreSQL's {D, C, B, A} order. ts_rank rejects weights above 1, so boosts
-// are scaled by the largest one when it exceeds 1.
-// Example: [{title 3.0} {description 1.5}] → "{0.0000, 0.0000, 0.5000, 1.0000}"
+// are scaled by the largest one when it exceeds 1. Weights are float4, written
+// at that precision so a small ratio is not rounded to 0.
+// Example: [{title 3.0} {description 1.5}] → "{0, 0, 0.5, 1}"
 func buildWeightsArray(fieldBoosts []query.FieldWeight) string {
 	weights := [4]float64{0.0, 0.0, 0.0, 0.0}
 
@@ -95,7 +97,11 @@ func buildWeightsArray(fieldBoosts []query.FieldWeight) string {
 		}
 	}
 
-	return fmt.Sprintf("{%.4f, %.4f, %.4f, %.4f}", weights[0], weights[1], weights[2], weights[3])
+	formatted := make([]string, 0, len(weights))
+	for _, w := range weights {
+		formatted = append(formatted, strconv.FormatFloat(w, 'g', -1, 32))
+	}
+	return "{" + strings.Join(formatted, ", ") + "}"
 }
 
 // buildTsQuery turns free text into a tsquery: every term under AND, any term
@@ -145,9 +151,9 @@ func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op
 func buildFieldMatch(fieldBoosts []query.FieldWeight, queryExpr string, prefilter bool) string {
 	match := fmt.Sprintf("search_vector @@ %s", queryExpr)
 
-	fields := make([]string, 0, len(fieldBoosts))
+	fields := make([]query.Field, 0, len(fieldBoosts))
 	for _, fb := range fieldBoosts {
-		fields = append(fields, string(fb.Field))
+		fields = append(fields, fb.Field)
 	}
 	labels := buildWeightLabels(fields)
 	if labels == "" || labels == "ABCD" {
@@ -162,75 +168,48 @@ func buildFieldMatch(fieldBoosts []query.FieldWeight, queryExpr string, prefilte
 	return fmt.Sprintf("%s AND %s", match, bandMatch)
 }
 
-// buildPhraseSlopQuery constructs a phrase query with slop support
-// This generates an OR query with multiple distance operators
-//
-// Example for "climate change" with slop=2:
-//
-//	Input: ["climat", "chang"], slop=2
-//	Output: "climat <-> chang | climat <2> chang | climat <3> chang"
-//
-// PostgreSQL distance operator <N> means exactly N-1 lexemes apart:
-//   - <-> means adjacent (0 words between)
-//   - <2> means 1 word between
-//   - <3> means 2 words between
-func buildPhraseSlopQuery(tokens []string, slop int) string {
-	if len(tokens) < 2 {
-		// Single token - just return it
-		if len(tokens) == 1 {
-			return tokens[0]
-		}
-		return ""
-	}
-
-	var orParts []string
-
-	// Generate OR expressions for each distance from 0 to slop
-	// distance 0: term1 <-> term2 (adjacent)
-	// distance 1: term1 <2> term2 (one word apart)
-	// distance 2: term1 <3> term2 (two words apart)
+// buildPhraseSlopQuery joins tsquery lexemes, already quoted, into the phrase
+// with every gap of up to slop words between neighbours. <N> means N-1 words
+// apart, so slop 2 for ['climat' 'chang'] gives
+// 'climat' <-> 'chang' | 'climat' <2> 'chang' | 'climat' <3> 'chang'.
+func buildPhraseSlopQuery(lexemes []string, slop int) string {
+	alternatives := make([]string, 0, slop+1)
 	for distance := 0; distance <= slop; distance++ {
-		var parts []string
-		for i := 0; i < len(tokens)-1; i++ {
-			if distance == 0 {
-				parts = append(parts, fmt.Sprintf("%s <-> %s", tokens[i], tokens[i+1]))
-			} else {
-				// distance+1 because <2> means 1 word between, <3> means 2 words between
-				parts = append(parts, fmt.Sprintf("%s <%d> %s", tokens[i], distance+1, tokens[i+1]))
-			}
+		link := "<->"
+		if distance > 0 {
+			link = fmt.Sprintf("<%d>", distance+1)
 		}
-
-		// Join consecutive token pairs with &
-		if len(parts) > 0 {
-			orParts = append(orParts, strings.Join(parts, " & "))
+		pairs := make([]string, 0, len(lexemes)-1)
+		for i := 0; i+1 < len(lexemes); i++ {
+			pairs = append(pairs, fmt.Sprintf("%s %s %s", lexemes[i], link, lexemes[i+1]))
 		}
+		alternatives = append(alternatives, strings.Join(pairs, " & "))
 	}
-
-	// Join all distance variants with OR
-	return strings.Join(orParts, " | ")
+	return strings.Join(alternatives, " | ")
 }
 
-// extractLexemesFromTsquery extracts lexemes from a tsquery string
-// Example: "'climat' & 'chang'" -> ["climat", "chang"]
-// Example: "'renew' & 'energi'" -> ["renew", "energi"]
-func extractLexemesFromTsquery(tsqueryStr string) []string {
+// quotedLexemes returns the lexemes of a tsquery's text form in order, each
+// still in its quotes, so they can be put back into a tsquery unchanged. A
+// quote inside a lexeme is doubled.
+func quotedLexemes(tsquery string) []string {
 	var lexemes []string
-
-	// Replace operators with spaces to make splitting easier
-	cleaned := strings.ReplaceAll(tsqueryStr, "&", " ")
-	cleaned = strings.ReplaceAll(cleaned, "|", " ")
-	cleaned = strings.ReplaceAll(cleaned, "!", " ")
-
-	// Split by whitespace
-	parts := strings.Fields(cleaned)
-
-	for _, part := range parts {
-		// Remove single quotes around lexemes
-		trimmed := strings.Trim(part, "'")
-		if trimmed != "" && trimmed != "(" && trimmed != ")" {
-			lexemes = append(lexemes, trimmed)
+	for i := 0; i < len(tsquery); i++ {
+		if tsquery[i] != '\'' {
+			continue
 		}
+		end := i + 1
+		for end < len(tsquery) {
+			if tsquery[end] == '\'' {
+				if end+1 < len(tsquery) && tsquery[end+1] == '\'' {
+					end += 2
+					continue
+				}
+				break
+			}
+			end++
+		}
+		lexemes = append(lexemes, tsquery[i:end+1])
+		i = end
 	}
-
 	return lexemes
 }

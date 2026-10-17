@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -130,6 +131,40 @@ func TestSearcher_StringQueryRanksWithPostgresDefaultWeights(t *testing.T) {
 	}
 }
 
+func TestSearcher_SmallRelativeBoostStillRanks(t *testing.T) {
+	s := newSearcher(t)
+	indexer, err := pg.NewIndexer(testPool)
+	if err != nil {
+		t.Fatalf("NewIndexer: %v", err)
+	}
+	// The ids order the two the wrong way round, so a tie on score shows.
+	moreOften := uuid.MustParse("00000000-0000-0000-0000-0000000000a0")
+	once := uuid.MustParse("00000000-0000-0000-0000-0000000000a1")
+	articles := []document.Article{
+		{ID: moreOften, Title: "harbor", Content: "budget budget budget", URL: "https://example.com/1"},
+		{ID: once, Title: "harbor", Content: "budget", URL: "https://example.com/2"},
+	}
+	if err := indexer.SaveBulk(testCtx, articles); err != nil {
+		t.Fatalf("SaveBulk: %v", err)
+	}
+
+	q, err := dquery.NewMultiMatchQuery("budget", []string{"title^100000", "content"})
+	if err != nil {
+		t.Fatalf("NewMultiMatchQuery: %v", err)
+	}
+	res, err := s.SearchFields(testCtx, q, &dquery.BaseOptions{Size: 10})
+	if err != nil {
+		t.Fatalf("SearchFields: %v", err)
+	}
+	var got []uuid.UUID
+	for _, hit := range res.Hits {
+		got = append(got, hit.Article.ID)
+	}
+	if !slices.Equal(got, []uuid.UUID{moreOften, once}) {
+		t.Errorf("hits = %v, want %s ranked above %s: content keeps a weight of 1/100000", got, moreOften, once)
+	}
+}
+
 func TestSearcher_StringQueryOfOnlyStopwordsReturnsNoHits(t *testing.T) {
 	s := newSearcher(t)
 	articles := storagetest.ParityCorpus()
@@ -146,26 +181,36 @@ func TestSearcher_StringQueryOfOnlyStopwordsReturnsNoHits(t *testing.T) {
 	}
 }
 
-func TestSearcher_ScoreNormalizedStaysInUnitRangeWhenEveryRankIsZero(t *testing.T) {
+func TestSearcher_ScoreNormalizedIsAShareOfTheBestMatch(t *testing.T) {
 	s := newSearcher(t)
-	articles := storagetest.ParityCorpus()
 	indexer, err := pg.NewIndexer(testPool)
 	if err != nil {
 		t.Fatalf("NewIndexer: %v", err)
 	}
-	if err := indexer.SaveBulk(testCtx, articles); err != nil {
+	if err := indexer.SaveBulk(testCtx, storagetest.ParityCorpus()); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
 	}
 
-	// A field no weight band covers ranks every match at zero.
-	res, err := s.SearchField(testCtx, dquery.NewMatch("no_such_field", "budget"), &dquery.BaseOptions{Size: 10})
+	match, err := dquery.NewMatch(dquery.FieldTitle, "budget")
+	if err != nil {
+		t.Fatalf("NewMatch: %v", err)
+	}
+	res, err := s.SearchField(testCtx, match, &dquery.BaseOptions{Size: 10})
 	if err != nil {
 		t.Fatalf("SearchField: %v", err)
 	}
+	if len(res.Hits) == 0 {
+		t.Fatal("no hits for a term several titles hold")
+	}
+	best := 0.0
 	for _, hit := range res.Hits {
-		if math.IsNaN(hit.ScoreNormalized) || hit.ScoreNormalized < 0 || hit.ScoreNormalized > 1 {
-			t.Errorf("article %s: ScoreNormalized = %v, want it in [0, 1]", hit.Article.ID, hit.ScoreNormalized)
+		if math.IsNaN(hit.ScoreNormalized) || hit.ScoreNormalized <= 0 || hit.ScoreNormalized > 1 {
+			t.Errorf("article %s: ScoreNormalized = %v, want it in (0, 1]", hit.Article.ID, hit.ScoreNormalized)
 		}
+		best = max(best, hit.ScoreNormalized)
+	}
+	if best != 1 {
+		t.Errorf("best ScoreNormalized = %v, want 1", best)
 	}
 }
 
@@ -196,7 +241,11 @@ func TestSearcher_CursorPastEveryMatchReturnsEmptyPage(t *testing.T) {
 			return s.SearchStringQuery(testCtx, dquery.NewQueryString("climate change"), opts)
 		}},
 		{"SearchField", func() (*storage.SearchResult, error) {
-			return s.SearchField(testCtx, dquery.NewMatch("title", "climate change"), opts)
+			match, err := dquery.NewMatch(dquery.FieldTitle, "climate change")
+			if err != nil {
+				return nil, err
+			}
+			return s.SearchField(testCtx, match, opts)
 		}},
 		{"SearchFields", func() (*storage.SearchResult, error) {
 			q, err := dquery.NewMultiMatchQuery("climate change", []string{"title", "content"})
@@ -206,14 +255,14 @@ func TestSearcher_CursorPastEveryMatchReturnsEmptyPage(t *testing.T) {
 			return s.SearchFields(testCtx, q, opts)
 		}},
 		{"SearchPhrase exact", func() (*storage.SearchResult, error) {
-			q, err := dquery.NewPhrase("climate change", []string{"title"})
+			q, err := dquery.NewPhrase("climate change", []dquery.Field{dquery.FieldTitle})
 			if err != nil {
 				return nil, err
 			}
 			return s.SearchPhrase(testCtx, q, opts)
 		}},
 		{"SearchPhrase with slop", func() (*storage.SearchResult, error) {
-			q, err := dquery.NewPhrase("climate policy", []string{"title"}, dquery.WithPhraseSlop(2))
+			q, err := dquery.NewPhrase("climate policy", []dquery.Field{dquery.FieldTitle}, dquery.WithPhraseSlop(2))
 			if err != nil {
 				return nil, err
 			}
@@ -260,7 +309,11 @@ func TestSearcher_PageQueryErrorNamesTheMethod(t *testing.T) {
 			return s.SearchStringQuery(testCtx, dquery.NewQueryString("climate"), opts)
 		}},
 		{"SearchField", func() (*storage.SearchResult, error) {
-			return s.SearchField(testCtx, dquery.NewMatch("title", "climate"), opts)
+			match, err := dquery.NewMatch(dquery.FieldTitle, "climate")
+			if err != nil {
+				return nil, err
+			}
+			return s.SearchField(testCtx, match, opts)
 		}},
 		{"SearchFields", func() (*storage.SearchResult, error) {
 			q, err := dquery.NewMultiMatchQuery("climate", []string{"title", "content"})
@@ -270,7 +323,7 @@ func TestSearcher_PageQueryErrorNamesTheMethod(t *testing.T) {
 			return s.SearchFields(testCtx, q, opts)
 		}},
 		{"SearchPhrase", func() (*storage.SearchResult, error) {
-			q, err := dquery.NewPhrase("climate change", []string{"title"})
+			q, err := dquery.NewPhrase("climate change", []dquery.Field{dquery.FieldTitle})
 			if err != nil {
 				return nil, err
 			}
@@ -319,7 +372,11 @@ func TestSearcher_PagesThroughEveryHit(t *testing.T) {
 			return s.SearchStringQuery(testCtx, dquery.NewQueryString("climate"), opts)
 		}},
 		{"SearchField", func(opts *dquery.BaseOptions) (*storage.SearchResult, error) {
-			return s.SearchField(testCtx, dquery.NewMatch("title", "climate"), opts)
+			match, err := dquery.NewMatch(dquery.FieldTitle, "climate")
+			if err != nil {
+				return nil, err
+			}
+			return s.SearchField(testCtx, match, opts)
 		}},
 		{"SearchFields", func(opts *dquery.BaseOptions) (*storage.SearchResult, error) {
 			q, err := dquery.NewMultiMatchQuery("climate", []string{"title", "content"})
@@ -329,7 +386,7 @@ func TestSearcher_PagesThroughEveryHit(t *testing.T) {
 			return s.SearchFields(testCtx, q, opts)
 		}},
 		{"SearchPhrase", func(opts *dquery.BaseOptions) (*storage.SearchResult, error) {
-			q, err := dquery.NewPhrase("climate", []string{"title"})
+			q, err := dquery.NewPhrase("climate", []dquery.Field{dquery.FieldTitle})
 			if err != nil {
 				return nil, err
 			}

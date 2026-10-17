@@ -30,22 +30,26 @@ func parseOperator(raw string) (*operator.Operator, error) {
 	return &op, nil
 }
 
-// validateField rejects a field outside query.SearchableFields. Postgres would
+// parseField rejects a field outside query.SearchableFields. Postgres would
 // otherwise search every field and Elasticsearch none.
-func validateField(raw string) error {
-	if _, err := query.ParseField(raw); err != nil {
-		return apperr.NewValidationWrap("invalid field", err)
+func parseField(raw string) (query.Field, error) {
+	field, err := query.ParseField(raw)
+	if err != nil {
+		return "", apperr.NewValidationWrap("invalid field", err)
 	}
-	return nil
+	return field, nil
 }
 
-func validateFields(raw []string) error {
-	for _, field := range raw {
-		if err := validateField(field); err != nil {
-			return err
+func parseFields(raw []string) ([]query.Field, error) {
+	fields := make([]query.Field, 0, len(raw))
+	for _, name := range raw {
+		field, err := parseField(name)
+		if err != nil {
+			return nil, err
 		}
+		fields = append(fields, field)
 	}
-	return nil
+	return fields, nil
 }
 
 func parseFuzziness(raw string) (query.Fuzziness, error) {

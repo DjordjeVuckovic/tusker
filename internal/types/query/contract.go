@@ -102,10 +102,10 @@ func DefaultSearchContract() SearchContract {
 
 type fieldWeights []FieldWeight
 
-func unboostedFields(names []string) fieldWeights {
-	weights := make(fieldWeights, 0, len(names))
-	for _, name := range names {
-		weights = append(weights, FieldWeight{Field: Field(name), Weight: 1})
+func unboostedFields(fields []Field) fieldWeights {
+	weights := make(fieldWeights, 0, len(fields))
+	for _, field := range fields {
+		weights = append(weights, FieldWeight{Field: field, Weight: 1})
 	}
 	return weights
 }

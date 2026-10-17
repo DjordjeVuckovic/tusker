@@ -29,7 +29,11 @@ var searchMethods = []searchMethod{
 	{
 		name: "SearchField",
 		search: func(ctx context.Context, s *Searcher, term string, opts *dquery.BaseOptions) (*storage.SearchResult, error) {
-			return s.SearchField(ctx, dquery.NewMatch("title", term), opts)
+			match, err := dquery.NewMatch(dquery.FieldTitle, term)
+			if err != nil {
+				return nil, err
+			}
+			return s.SearchField(ctx, match, opts)
 		},
 	},
 	{
@@ -45,7 +49,7 @@ var searchMethods = []searchMethod{
 	{
 		name: "SearchPhrase",
 		search: func(ctx context.Context, s *Searcher, term string, opts *dquery.BaseOptions) (*storage.SearchResult, error) {
-			q, err := dquery.NewPhrase(term, []string{"title"})
+			q, err := dquery.NewPhrase(term, []dquery.Field{dquery.FieldTitle})
 			if err != nil {
 				return nil, err
 			}

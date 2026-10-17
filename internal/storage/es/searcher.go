@@ -262,7 +262,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 		Index(r.indexName).
 		Query(&types.Query{
 			Match: map[string]types.MatchQuery{
-				query.Field: *matchQuery,
+				string(query.Field): *matchQuery,
 			},
 		}).
 		Size(size + 1).
@@ -410,7 +410,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 
 		shouldClauses = append(shouldClauses, types.Query{
 			MatchPhrase: map[string]types.MatchPhraseQuery{
-				field: matchPhraseQuery,
+				string(field): matchPhraseQuery,
 			},
 		})
 	}

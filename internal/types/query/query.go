@@ -117,7 +117,7 @@ type Phrase struct {
 	Query string `json:"query" validate:"required,min=1"`
 
 	// Fields: Fields to search in (supports multiple like multi_match)
-	Fields []string `json:"fields" validate:"required,min=1"`
+	Fields []Field `json:"fields" validate:"required,min=1"`
 
 	// Slop: Maximum positions allowed between matching tokens
 	// 0 = exact phrase, 1 = one word between, etc.
@@ -133,13 +133,19 @@ const MaxPhraseSlop = 3
 
 type PhraseOption func(q *Phrase)
 
-// NewPhrase creates a new Phrase query with sensible defaults
-func NewPhrase(query string, fields []string, opts ...PhraseOption) (*Phrase, error) {
+// NewPhrase rejects empty text, no fields, a field outside SearchableFields and
+// a slop above MaxPhraseSlop.
+func NewPhrase(query string, fields []Field, opts ...PhraseOption) (*Phrase, error) {
 	if query == "" {
 		return nil, fmt.Errorf("query is required")
 	}
 	if len(fields) == 0 {
 		return nil, fmt.Errorf("fields are required")
+	}
+	for _, field := range fields {
+		if _, err := ParseField(string(field)); err != nil {
+			return nil, err
+		}
 	}
 
 	q := &Phrase{
@@ -242,7 +248,7 @@ type Match struct {
 	Query string `json:"query" validate:"required,min=1"`
 
 	// Field: The single field to search in
-	Field string `json:"field" validate:"required"`
+	Field Field `json:"field" validate:"required"`
 
 	// Language: Prompt search language configuration
 	Language Language `json:"language,omitempty"`
@@ -265,13 +271,13 @@ func (q *Match) GetLanguage() Language {
 }
 
 func (q *Match) Params() Params {
-	return Params{Fields: unboostedFields([]string{q.Field}), Fuzziness: q.GetFuzziness()}
+	return Params{Fields: unboostedFields([]Field{q.Field}), Fuzziness: q.GetFuzziness()}
 }
 
 func (q *Match) Effective(engineDefault operator.Operator) Effective {
 	return Effective{
 		Operator: operator.Resolve(q.Operator, engineDefault),
-		Fields:   []Field{Field(q.Field)},
+		Fields:   []Field{q.Field},
 		Language: q.GetLanguage(),
 	}
 }
@@ -285,7 +291,14 @@ func (q *Match) GetFuzziness() Fuzziness {
 
 type MatchQueryOption func(q *Match)
 
-func NewMatch(field, query string, opts ...MatchQueryOption) *Match {
+// NewMatch rejects empty text and a field outside SearchableFields.
+func NewMatch(field Field, query string, opts ...MatchQueryOption) (*Match, error) {
+	if query == "" {
+		return nil, fmt.Errorf("query is required")
+	}
+	if _, err := ParseField(string(field)); err != nil {
+		return nil, err
+	}
 	q := &Match{
 		Field:     field,
 		Query:     query,
@@ -297,7 +310,7 @@ func NewMatch(field, query string, opts ...MatchQueryOption) *Match {
 		opt(q)
 	}
 
-	return q
+	return q, nil
 }
 
 // WithMatchLanguage sets the language for Match query
@@ -322,18 +335,18 @@ func WithMatchFuzziness(fuzziness Fuzziness) MatchQueryOption {
 }
 
 type MultiMatchField struct {
-	Name   string
+	Name   Field
 	Weight float64
 }
 
-func NewMultiMatchField(name string) MultiMatchField {
+func NewMultiMatchField(name Field) MultiMatchField {
 	return MultiMatchField{
 		Name:   name,
 		Weight: 1.0,
 	}
 }
 
-func NewMultiMatchBoostedField(name string, weight float64) MultiMatchField {
+func NewMultiMatchBoostedField(name Field, weight float64) MultiMatchField {
 	return MultiMatchField{
 		Name:   name,
 		Weight: weight,
@@ -356,7 +369,7 @@ const (
 //
 // Example:
 //
-//	{"query": "climate change", "fields": ["title", "content"], "field_weights": {"title": 3.0, "content": 1.0}}
+//	{"query": "climate change", "fields": ["title^3", "content"]}
 type MultiMatch struct {
 	// Query: The text to search for (analyzed and tokenized)
 	Query string `json:"query" validate:"required,min=1"`
@@ -419,7 +432,7 @@ func newMultiMatchFields(specs []string) ([]MultiMatchField, error) {
 		if err != nil {
 			return nil, err
 		}
-		fields = append(fields, NewMultiMatchBoostedField(string(fieldBoost.Field), fieldBoost.Weight))
+		fields = append(fields, NewMultiMatchBoostedField(fieldBoost.Field, fieldBoost.Weight))
 	}
 	return fields, nil
 }
@@ -446,7 +459,7 @@ func (q *MultiMatch) Effective(engineDefault operator.Operator) Effective {
 func (q *MultiMatch) fieldWeights() fieldWeights {
 	weights := make(fieldWeights, 0, len(q.Fields))
 	for _, f := range q.Fields {
-		weights = append(weights, FieldWeight{Field: Field(f.Name), Weight: f.Weight})
+		weights = append(weights, FieldWeight{Field: f.Name, Weight: f.Weight})
 	}
 	return weights
 }

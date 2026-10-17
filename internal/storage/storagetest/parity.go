@@ -25,6 +25,8 @@ const (
 
 // The corpus terms are budget, tariff and harbor: none is a stopword and each
 // stems to itself, so recall does not depend on how an engine analyses text.
+// The one exception, agreed, stems to agre, which a second stemming pass turns
+// into agr: a phrase that stems its terms twice misses it.
 var (
 	bothInTitle            = uuid.MustParse("00000000-0000-0000-0000-00000000c001")
 	titleAndContent        = uuid.MustParse("00000000-0000-0000-0000-00000000c002")
@@ -37,6 +39,7 @@ var (
 	descriptionThenContent = uuid.MustParse("00000000-0000-0000-0000-00000000c009")
 	termsApartInTitle      = uuid.MustParse("00000000-0000-0000-0000-00000000c010")
 	tariffDescriptionOnly  = uuid.MustParse("00000000-0000-0000-0000-00000000c011")
+	agreedOneWordApart     = uuid.MustParse("00000000-0000-0000-0000-00000000c012")
 )
 
 // ParityCorpus returns the articles every ParityCase searches.
@@ -53,6 +56,7 @@ func ParityCorpus() []document.Article {
 		{ID: descriptionThenContent, Title: "harbor", Description: "budget", Content: "tariff"},
 		{ID: termsApartInTitle, Title: "budget harbor tariff"},
 		{ID: tariffDescriptionOnly, Title: "harbor", Description: "tariff"},
+		{ID: agreedOneWordApart, Title: "harbor deal agreed"},
 	}
 	for i := range articles {
 		articles[i].URL = "https://example.com/" + articles[i].ID.String()
@@ -100,35 +104,35 @@ func ParityCases() []ParityCase {
 		{
 			Name: "match with AND",
 			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
-				return s.SearchField(ctx, query.NewMatch("title", "budget tariff", query.WithMatchOperator(operator.And)), page())
+				return searchField(ctx, s, query.FieldTitle, "budget tariff", query.WithMatchOperator(operator.And))
 			},
 			Want: titleEveryTerm,
 		},
 		{
 			Name: "match with OR",
 			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
-				return s.SearchField(ctx, query.NewMatch("title", "budget tariff", query.WithMatchOperator(operator.Or)), page())
+				return searchField(ctx, s, query.FieldTitle, "budget tariff", query.WithMatchOperator(operator.Or))
 			},
 			Want: titleAnyTerm,
 		},
 		{
 			Name: "match with OR reads a leading minus as text",
 			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
-				return s.SearchField(ctx, query.NewMatch("title", "budget -tariff", query.WithMatchOperator(operator.Or)), page())
+				return searchField(ctx, s, query.FieldTitle, "budget -tariff", query.WithMatchOperator(operator.Or))
 			},
 			Want: titleAnyTerm,
 		},
 		{
 			Name: "match with OR of words no article holds",
 			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
-				return s.SearchField(ctx, query.NewMatch("title", "the of", query.WithMatchOperator(operator.Or)), page())
+				return searchField(ctx, s, query.FieldTitle, "the of", query.WithMatchOperator(operator.Or))
 			},
 			Want: nil,
 		},
 		{
 			Name: "match under the engine default operator",
 			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
-				return s.SearchField(ctx, query.NewMatch("title", "budget tariff"), page())
+				return searchField(ctx, s, query.FieldTitle, "budget tariff")
 			},
 			WantByEngine: map[Engine][]uuid.UUID{Postgres: titleEveryTerm, Elasticsearch: titleAnyTerm},
 		},
@@ -159,6 +163,43 @@ func ParityCases() []ParityCase {
 				return searchFields(ctx, s, []string{"title", "content"})
 			},
 			WantByEngine: map[Engine][]uuid.UUID{Postgres: titleOrContentEveryTerm, Elasticsearch: titleOrContentAnyTerm},
+		},
+		{
+			Name: "phrase in one field",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return searchPhrase(ctx, s, "budget tariff", []query.Field{query.FieldTitle}, 0)
+			},
+			Want: []uuid.UUID{bothInTitle},
+		},
+		{
+			// descriptionThenContent ends its description with budget and opens
+			// its content with tariff.
+			Name: "phrase restricts every term to the field",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return searchPhrase(ctx, s, "budget tariff", []query.Field{query.FieldContent}, 0)
+			},
+			Want: nil,
+		},
+		{
+			Name: "phrase with slop restricts every term to the field",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return searchPhrase(ctx, s, "budget tariff", []query.Field{query.FieldContent}, 1)
+			},
+			Want: nil,
+		},
+		{
+			Name: "phrase with slop allows a word between the terms",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return searchPhrase(ctx, s, "budget tariff", []query.Field{query.FieldTitle}, 1)
+			},
+			Want: []uuid.UUID{bothInTitle, termsApartInTitle},
+		},
+		{
+			Name: "phrase with slop stems each term once",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return searchPhrase(ctx, s, "harbor agreed", []query.Field{query.FieldTitle}, 1)
+			},
+			Want: []uuid.UUID{agreedOneWordApart},
 		},
 		{
 			Name: "boolean AND across the contract fields",
@@ -204,6 +245,22 @@ func searchFields(ctx context.Context, s storage.FtsSearcher, fields []string, o
 	return s.SearchFields(ctx, q, page())
 }
 
+func searchField(ctx context.Context, s storage.FtsSearcher, field query.Field, text string, opts ...query.MatchQueryOption) (*storage.SearchResult, error) {
+	q, err := query.NewMatch(field, text, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return s.SearchField(ctx, q, page())
+}
+
+func searchPhrase(ctx context.Context, s storage.FtsSearcher, text string, fields []query.Field, slop int) (*storage.SearchResult, error) {
+	q, err := query.NewPhrase(text, fields, query.WithPhraseSlop(slop))
+	if err != nil {
+		return nil, err
+	}
+	return s.SearchPhrase(ctx, q, page())
+}
+
 // RunParity runs every ParityCase on a searcher whose engine holds exactly
 // ParityCorpus.
 func RunParity(t *testing.T, engine Engine, searcher storage.FtsSearcher) {
@@ -245,7 +302,7 @@ func RunFieldIsolation(t *testing.T, searcher storage.FtsSearcher) {
 					want = append(want, article.ID)
 				}
 			}
-			res, err := searcher.SearchField(t.Context(), query.NewMatch(string(field), term), page())
+			res, err := searchField(t.Context(), searcher, field, term)
 			if err != nil {
 				t.Fatalf("search: %v", err)
 			}

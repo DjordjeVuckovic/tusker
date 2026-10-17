@@ -219,12 +219,7 @@ func (r *SearchRouter) searchHandler(c echo.Context) error {
 //	  "query": {
 //	    "multi_match": {
 //	      "query": "renewable energy",
-//	      "fields": ["title", "description", "content"],
-//	      "field_weights": {
-//	        "title": 3.0,
-//	        "description": 2.0,
-//	        "content": 1.0
-//	      },
+//	      "fields": ["title^3", "description^2", "content"],
 //	      "operator": "or",
 //	      "language": "english"
 //	    }

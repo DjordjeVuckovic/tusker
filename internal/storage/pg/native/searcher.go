@@ -121,7 +121,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	fieldBoosts := []dquery.FieldWeight{{Field: dquery.Field(query.Field), Weight: 1.0}}
+	fieldBoosts := query.Params().Fields
 	whereClause := buildTsWhereClause(fieldBoosts, lang, op, 1)
 	rankExpr := buildRankExpression(fieldBoosts, lang, op, 1)
 
@@ -192,13 +192,7 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	lang := query.GetLanguage()
 	op := operator.Resolve(query.Operator, DefaultOperator)
 
-	fieldBoosts := make([]dquery.FieldWeight, 0, len(query.Fields))
-	for _, f := range query.Fields {
-		fieldBoosts = append(fieldBoosts, dquery.FieldWeight{
-			Field:  dquery.Field(f.Name),
-			Weight: f.Weight,
-		})
-	}
+	fieldBoosts := query.Params().Fields
 
 	slog.Info("Executing pool multi_match search",
 		"query", query.Query,
@@ -273,8 +267,9 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	})
 }
 
-// SearchPhrase implements storage.FtsSearcher interface
-// Performs phrase search with optional slop using PostgreSQL's phraseto_tsquery or to_tsquery
+// SearchPhrase matches the phrase within the requested fields. Slop 0 uses
+// phraseto_tsquery; a larger slop ORs every allowed distance between the
+// phrase's lexemes, bound as a ready tsquery so they are not stemmed again.
 func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	cursor, size := baseOpts.Cursor, baseOpts.Size
 	lang := query.GetLanguage()
@@ -288,81 +283,36 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	// Build the phrase tsquery based on slop
-	var phraseQueryExpr string
-	var whereClause string
-	var rankExpr string
-	labels := buildWeightLabels(query.Fields)
-
-	if slop == 0 {
-		// Exact phrase matching using phraseto_tsquery
-		phraseQueryExpr = fmt.Sprintf("phraseto_tsquery('%s'::regconfig, $1)", lang)
-
-		if labels != "" {
-			whereClause = fmt.Sprintf("search_vector @@ (%s::text || ':%s')::tsquery", phraseQueryExpr, labels)
-		} else {
-			whereClause = fmt.Sprintf("search_vector @@ %s", phraseQueryExpr)
-		}
-		rankExpr = fmt.Sprintf("ts_rank(search_vector, %s)", phraseQueryExpr)
-	} else {
-		// Slop > 0: Build OR query with distance operators
-		// First, get the lexemes from the phrase using plainto_tsquery
-		var lexemesStr string
+	phraseExpr := fmt.Sprintf("phraseto_tsquery('%s'::regconfig, $1)", lang)
+	phraseArg := query.Query
+	if slop > 0 {
+		var plainQuery string
 		lexemeSQL := fmt.Sprintf("SELECT plainto_tsquery('%s'::regconfig, $1)::text", lang)
-		if err := r.db.QueryRow(ctx, lexemeSQL, query.Query).Scan(&lexemesStr); err != nil {
-			slog.Error("Failed to tokenize phrase", "error", err)
-			return nil, fmt.Errorf("failed to tokenize phrase: %w", err)
+		if err := r.db.QueryRow(ctx, lexemeSQL, query.Query).Scan(&plainQuery); err != nil {
+			return nil, fmt.Errorf("SearchPhrase: failed to tokenize phrase: %w", err)
 		}
-
-		// Extract lexemes from the tsquery string (e.g., "'climat' & 'chang'" -> ["climat", "chang"])
-		lexemes := extractLexemesFromTsquery(lexemesStr)
-
-		if len(lexemes) < 2 {
-			// Single word or empty - fall back to simple phrase query
-			phraseQueryExpr = fmt.Sprintf("phraseto_tsquery('%s'::regconfig, $1)", lang)
-		} else {
-			// Build slop query: term1 <-> term2 | term1 <2> term2 | term1 <3> term2 ...
-			slopQueryStr := buildPhraseSlopQuery(lexemes, slop)
-			phraseQueryExpr = fmt.Sprintf("to_tsquery('%s'::regconfig, '%s')", lang, slopQueryStr)
+		if lexemes := quotedLexemes(plainQuery); len(lexemes) >= 2 {
+			phraseExpr = "$1::tsquery"
+			phraseArg = buildPhraseSlopQuery(lexemes, slop)
 		}
-
-		if labels != "" {
-			whereClause = fmt.Sprintf("search_vector @@ (%s::text || ':%s')::tsquery", phraseQueryExpr, labels)
-		} else {
-			whereClause = fmt.Sprintf("search_vector @@ %s", phraseQueryExpr)
-		}
-		rankExpr = fmt.Sprintf("ts_rank(search_vector, %s)", phraseQueryExpr)
 	}
+
+	whereClause := buildFieldMatch(query.Params().Fields, phraseExpr, true)
+	rankExpr := fmt.Sprintf("ts_rank(search_vector, %s)", phraseExpr)
 
 	slog.Debug("PostgreSQL phrase query components",
 		"where", whereClause,
 		"rank", rankExpr,
 		"slop", slop)
 
-	// Get global max score and total count
 	var globalMaxScore float64
 	var count int64
-	var maxSQL string
-	var maxArgs []interface{}
-
-	if slop == 0 {
-		maxSQL = fmt.Sprintf(`
-			SELECT COALESCE(MAX(%s), 0.0) as max_score, COUNT(*)
-			FROM articles
-			WHERE %s
-		`, rankExpr, whereClause)
-		maxArgs = []any{query.Query}
-	} else {
-		// For slop>0, query is already embedded in the expression
-		maxSQL = fmt.Sprintf(`
-			SELECT COALESCE(MAX(%s), 0.0) as max_score, COUNT(*)
-			FROM articles
-			WHERE %s
-		`, rankExpr, whereClause)
-		maxArgs = []any{}
-	}
-
-	if err := r.db.QueryRow(ctx, maxSQL, maxArgs...).Scan(&globalMaxScore, &count); err != nil {
+	maxSQL := fmt.Sprintf(`
+		SELECT COALESCE(MAX(%s), 0.0) as max_score, COUNT(*)
+		FROM articles
+		WHERE %s
+	`, rankExpr, whereClause)
+	if err := r.db.QueryRow(ctx, maxSQL, phraseArg).Scan(&globalMaxScore, &count); err != nil {
 		slog.Error("Failed to fetch global max score", "error", err)
 		return nil, fmt.Errorf("cannot fetch global max score: %w", err)
 	}
@@ -374,58 +324,29 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 	var searchSQL string
 	var args []any
 
-	if slop == 0 {
-		// Exact phrase - use parameterized query
-		if cursor == nil {
-			searchSQL = fmt.Sprintf(`
-				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
-					%s as rank
-				FROM articles
-				WHERE %s
-				ORDER BY rank DESC, id DESC
-				LIMIT $2
-			`, rankExpr, whereClause)
-			args = []any{query.Query, size + 1}
-		} else {
-			searchSQL = fmt.Sprintf(`
-				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
-					%s as rank
-				FROM articles
-				WHERE %s
-				  AND (%s, id) < ($2, $3)
-				ORDER BY rank DESC, id DESC
-				LIMIT $4
-			`, rankExpr, whereClause, rankExpr)
-			args = []any{query.Query, cursor.Score, cursor.ID, size + 1}
-		}
+	if cursor == nil {
+		searchSQL = fmt.Sprintf(`
+			SELECT
+				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s as rank
+			FROM articles
+			WHERE %s
+			ORDER BY rank DESC, id DESC
+			LIMIT $2
+		`, rankExpr, whereClause)
+		args = []any{phraseArg, size + 1}
 	} else {
-		// Slop > 0 - query is embedded in expression
-		if cursor == nil {
-			searchSQL = fmt.Sprintf(`
-				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
-					%s as rank
-				FROM articles
-				WHERE %s
-				ORDER BY rank DESC, id DESC
-				LIMIT $1
-			`, rankExpr, whereClause)
-			args = []any{size + 1}
-		} else {
-			searchSQL = fmt.Sprintf(`
-				SELECT
-					id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
-					%s as rank
-				FROM articles
-				WHERE %s
-				  AND (%s, id) < ($1, $2)
-				ORDER BY rank DESC, id DESC
-				LIMIT $3
-			`, rankExpr, whereClause, rankExpr)
-			args = []any{cursor.Score, cursor.ID, size + 1}
-		}
+		searchSQL = fmt.Sprintf(`
+			SELECT
+				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s as rank
+			FROM articles
+			WHERE %s
+			  AND (%s, id) < ($2, $3)
+			ORDER BY rank DESC, id DESC
+			LIMIT $4
+		`, rankExpr, whereClause, rankExpr)
+		args = []any{phraseArg, cursor.Score, cursor.ID, size + 1}
 	}
 
 	return r.fetchPage(ctx, pageQuery{

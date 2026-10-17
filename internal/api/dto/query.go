@@ -33,12 +33,7 @@ import (
 //	  "query": {
 //	    "multi_match": {
 //	      "query": "climate change",
-//	      "fields": ["title", "description", "content"],
-//	      "field_weights": {
-//	        "title": 3.0,
-//	        "description": 2.0,
-//	        "content": 1.0
-//	      },
+//	      "fields": ["title^3", "description^2", "content"],
 //	      "operator": "or",
 //	      "language": "english"
 //	    }
@@ -104,11 +99,11 @@ type MatchParams struct {
 
 // MultiMatchParams represents multi_match query parameters (maps directly to types)
 type MultiMatchParams struct {
-	Query        string             `json:"query" validate:"required,min=1"`
-	Fields       []string           `json:"fields" validate:"required,min=1"`
-	FieldWeights map[string]float64 `json:"field_weights,omitempty"`
-	Operator     string             `json:"operator,omitempty"`
-	Language     string             `json:"language,omitempty"`
+	Query string `json:"query" validate:"required,min=1"`
+	// Fields name the fields to match, each optionally boosted as "title^3".
+	Fields   []string `json:"fields" validate:"required,min=1"`
+	Operator string   `json:"operator,omitempty"`
+	Language string   `json:"language,omitempty"`
 }
 
 // PhraseParams represents phrase query parameters (maps directly to types)
@@ -187,7 +182,8 @@ func (p *MatchParams) ToDomain() (*query.Match, error) {
 	if p.Field == "" {
 		return nil, apperr.NewValidation("field is required")
 	}
-	if err := validateField(p.Field); err != nil {
+	field, err := parseField(p.Field)
+	if err != nil {
 		return nil, err
 	}
 
@@ -213,7 +209,11 @@ func (p *MatchParams) ToDomain() (*query.Match, error) {
 	}
 	opts = append(opts, query.WithMatchLanguage(lang))
 
-	return query.NewMatch(p.Field, p.Query, opts...), nil
+	match, err := query.NewMatch(field, p.Query, opts...)
+	if err != nil {
+		return nil, apperr.NewValidationWrap("invalid match query", err)
+	}
+	return match, nil
 }
 
 func (p *MultiMatchParams) ToDomain() (*query.MultiMatch, error) {
@@ -280,7 +280,8 @@ func (p *PhraseParams) ToDomain() (*query.Phrase, error) {
 	if len(p.Fields) == 0 {
 		return nil, apperr.NewValidation("fields are required (at least one field)")
 	}
-	if err := validateFields(p.Fields); err != nil {
+	fields, err := parseFields(p.Fields)
+	if err != nil {
 		return nil, err
 	}
 
@@ -296,7 +297,7 @@ func (p *PhraseParams) ToDomain() (*query.Phrase, error) {
 	}
 	opts = append(opts, query.WithPhraseLanguage(lang))
 
-	newQuery, err := query.NewPhrase(p.Query, p.Fields, opts...)
+	newQuery, err := query.NewPhrase(p.Query, fields, opts...)
 	if err != nil {
 		return nil, apperr.NewValidationWrap("invalid phrase query", err)
 	}
