@@ -22,6 +22,7 @@ func TestArticle_JSONRoundTripKeepsEveryField(t *testing.T) {
 		Language:        language.English,
 		PublisherDomain: "reuters.com",
 		Metadata: Metadata{
+			ExternalID:    "reuters-0412",
 			PublisherName: "Reuters",
 			Authors:       []string{"Jane Doe", "John Roe"},
 			Section:       "World",
@@ -41,6 +42,7 @@ func TestArticle_JSONRoundTripKeepsEveryField(t *testing.T) {
 		"language": "eng",
 		"publisherDomain": "reuters.com",
 		"metadata": {
+			"externalId": "reuters-0412",
 			"publisherName": "Reuters",
 			"authors": ["Jane Doe", "John Roe"],
 			"section": "World",

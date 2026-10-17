@@ -24,6 +24,8 @@ type Article struct {
 
 // Metadata is stored and returned, never searched.
 type Metadata struct {
+	// ExternalID is the source dataset's id for the row, kept to trace it back.
+	ExternalID    string         `json:"externalId,omitempty"`
 	PublisherName string         `json:"publisherName,omitempty"`
 	Authors       []string       `json:"authors,omitempty"`
 	Section       string         `json:"section,omitempty"`

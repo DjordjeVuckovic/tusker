@@ -49,6 +49,7 @@ func savedArticleRoundTrips(t *testing.T, cfg ClientConfig, indexer *Indexer) {
 		Language:        language.English,
 		PublisherDomain: "reuters.com",
 		Metadata: document.Metadata{
+			ExternalID:    "reuters-0412",
 			PublisherName: "Reuters",
 			Authors:       []string{"Jane Doe", "John Roe"},
 			Section:       "World",
@@ -76,6 +77,7 @@ func savedArticleRoundTrips(t *testing.T, cfg ClientConfig, indexer *Indexer) {
 		"language": "eng",
 		"publisher_domain": "reuters.com",
 		"metadata": {
+			"externalId": "reuters-0412",
 			"publisherName": "Reuters",
 			"authors": ["Jane Doe", "John Roe"],
 			"section": "World",
@@ -101,6 +103,7 @@ func savedArticleRoundTrips(t *testing.T, cfg ClientConfig, indexer *Indexer) {
 		Language:        "eng",
 		PublisherDomain: "reuters.com",
 		Metadata: dto.Metadata{
+			ExternalID:    "reuters-0412",
 			PublisherName: "Reuters",
 			Authors:       []string{"Jane Doe", "John Roe"},
 			Section:       "World",

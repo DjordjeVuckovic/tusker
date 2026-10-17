@@ -26,6 +26,7 @@ func TestArticleReader_GetByIDs_ReturnsEverySavedField(t *testing.T) {
 		Language:        language.English,
 		PublisherDomain: "reuters.com",
 		Metadata: document.Metadata{
+			ExternalID:    "reuters-0412",
 			PublisherName: "Reuters",
 			Authors:       []string{"Jane Doe", "John Roe"},
 			Section:       "World",

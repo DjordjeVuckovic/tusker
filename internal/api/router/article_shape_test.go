@@ -43,6 +43,7 @@ func TestSearchHandler_ReturnsTheArticleShape(t *testing.T) {
 		Language:        language.English,
 		PublisherDomain: "reuters.com",
 		Metadata: document.Metadata{
+			ExternalID:    "reuters-0412",
 			PublisherName: "Reuters",
 			Authors:       []string{"Jane Doe"},
 			Section:       "World",
@@ -78,6 +79,7 @@ func TestSearchHandler_ReturnsTheArticleShape(t *testing.T) {
 				"language": "eng",
 				"publisherDomain": "reuters.com",
 				"metadata": {
+					"externalId": "reuters-0412",
 					"publisherName": "Reuters",
 					"authors": ["Jane Doe"],
 					"section": "World",

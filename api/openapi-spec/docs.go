@@ -389,6 +389,9 @@ const docTemplate = `{
                 "dateModified": {
                     "type": "string"
                 },
+                "externalId": {
+                    "type": "string"
+                },
                 "extra": {
                     "description": "Extra carries dataset-specific fields that have no schema field.",
                     "type": "object",

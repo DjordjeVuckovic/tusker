@@ -20,6 +20,7 @@ type Article struct {
 }
 
 type Metadata struct {
+	ExternalID    string     `json:"externalId,omitempty"`
 	PublisherName string     `json:"publisherName,omitempty"`
 	Authors       []string   `json:"authors,omitempty"`
 	Section       string     `json:"section,omitempty"`
@@ -42,6 +43,7 @@ func NewArticle(a document.Article) Article {
 		Language:        string(a.Language),
 		PublisherDomain: a.PublisherDomain,
 		Metadata: Metadata{
+			ExternalID:    a.Metadata.ExternalID,
 			PublisherName: a.Metadata.PublisherName,
 			Authors:       a.Metadata.Authors,
 			Section:       a.Metadata.Section,
