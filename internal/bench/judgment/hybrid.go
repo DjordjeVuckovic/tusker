@@ -15,6 +15,8 @@ const (
 	hybridVectorWeight = 0.5
 )
 
+const hybridRubricVersion = "v1"
+
 // HybridStrategy fuses the BM25 lexical signal (pool-normalised) with vector
 // cosine similarity (semantic signal), mirroring hybrid retrieval. The combined
 // score is a weighted sum mapped to a grade 0-3. It judges the hybrid track on
@@ -49,7 +51,7 @@ func (s HybridStrategy) Describe() meta.Judge {
 	if s.vector != nil && s.vector.model != "" {
 		model = s.vector.model
 	}
-	return meta.Judge{Strategy: string(StrategyHybrid), Model: "bm25+" + model}
+	return meta.Judge{Strategy: string(StrategyHybrid), Model: "bm25+" + model, RubricVersion: hybridRubricVersion}
 }
 
 func (s HybridStrategy) GradePool(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {

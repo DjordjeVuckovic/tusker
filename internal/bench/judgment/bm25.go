@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	bm25K1 = 1.5
-	bm25B  = 0.75
+	bm25K1            = 1.5
+	bm25B             = 0.75
+	bm25RubricVersion = "v1"
 )
 
 var errNeedsWholePool = errors.New("grades are relative to the whole pool, so a single doc cannot be graded alone")
@@ -34,7 +35,7 @@ func NewBM25Strategy() *BM25Strategy { return &BM25Strategy{} }
 func (BM25Strategy) Name() string { return string(StrategyBM25) }
 
 func (BM25Strategy) Describe() meta.Judge {
-	return meta.Judge{Strategy: string(StrategyBM25)}
+	return meta.Judge{Strategy: string(StrategyBM25), RubricVersion: bm25RubricVersion}
 }
 
 func (s BM25Strategy) GradePool(_ context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {

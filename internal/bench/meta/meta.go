@@ -57,6 +57,8 @@ type Judge struct {
 	Provider      string `yaml:"provider,omitempty" json:"provider,omitempty"`
 	Model         string `yaml:"model,omitempty" json:"model,omitempty"`
 	PromptVersion string `yaml:"prompt_version,omitempty" json:"prompt_version,omitempty"`
+	// RubricVersion names the grading rules of a heuristic judge, which has no prompt.
+	RubricVersion string `yaml:"rubric_version,omitempty" json:"rubric_version,omitempty"`
 }
 
 // Equal reports whether two judges would produce comparable grades. Used by the

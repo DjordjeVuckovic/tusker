@@ -14,12 +14,14 @@ import (
 // document's title, description, and content.
 type LexicalStrategy struct{}
 
+const lexicalRubricVersion = "v1"
+
 func NewLexicalStrategy() *LexicalStrategy { return &LexicalStrategy{} }
 
 func (LexicalStrategy) Name() string { return string(StrategyLexical) }
 
 func (LexicalStrategy) Describe() meta.Judge {
-	return meta.Judge{Strategy: string(StrategyLexical)}
+	return meta.Judge{Strategy: string(StrategyLexical), RubricVersion: lexicalRubricVersion}
 }
 
 func (LexicalStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) (int, error) {

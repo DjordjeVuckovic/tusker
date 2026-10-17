@@ -319,7 +319,7 @@ Runs all queries in parallel, gathers the top-N results per engine, deduplicates
 Grades every `(query, doc)` pair in the pool using the chosen strategy. Output: `trec/annotations.<S>.yaml`, with `graded_count` and `unjudged_count` in its meta block. The command writes the file and then exits non-zero when any pooled doc is left unjudged (`manual` excepted).
 
 Key flags:
-- `--resume` — skip docs already graded (errors if model or prompt version changed)
+- `--resume` — skip docs already graded (errors if the strategy, provider, model, prompt version or rubric version changed)
 - `--batch N` — override LLM batch size (`bm25` and `hybrid` grade each query's whole pool at once and refuse it)
 - `--concurrency N` — parallel Grade calls (per-doc mode)
 - `--allow-unjudged` — exit 0 even when some pooled docs are left unjudged

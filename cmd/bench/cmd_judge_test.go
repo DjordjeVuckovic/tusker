@@ -161,3 +161,14 @@ func TestRequireJudged(t *testing.T) {
 		})
 	}
 }
+
+// A heuristic file written under another rubric must not be extended: its
+// grades and this run's would follow different rules under one judge block.
+func TestCheckResumeCompat_RubricVersionMismatch(t *testing.T) {
+	prior := fileWith(meta.Judge{Strategy: string(judgment.StrategyBM25)})
+
+	err := checkResumeCompat(prior, judgment.NewBM25Strategy())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "judge mismatch")
+}

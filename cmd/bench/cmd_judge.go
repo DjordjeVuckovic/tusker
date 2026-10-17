@@ -264,8 +264,8 @@ func resolveJudge(f judgeFlags) (judgment.StrategyKind, judgment.Provider, error
 
 // checkResumeCompat verifies that a prior judgments file is safe to resume with
 // the given strategy. Any difference in the judge block — strategy, provider,
-// model or prompt version — means the two runs disagree on who is grading, and
-// appending would corrupt the set.
+// model, prompt version or rubric version — means the two runs disagree on who
+// is grading, and appending would corrupt the set.
 func checkResumeCompat(prior *judgment.File, strat judgment.Strategy) error {
 	was, now := prior.Judge(), strat.Describe()
 	if (was == meta.Judge{}) || was.Equal(now) {
@@ -274,7 +274,18 @@ func checkResumeCompat(prior *judgment.File, strat judgment.Strategy) error {
 	return fmt.Errorf(
 		"--resume judge mismatch: existing file was graded by %q, this run uses %q\n"+
 			"  • re-run without --resume to re-grade cleanly under the new judge",
-		was, now)
+		judgeWithVersions(was), judgeWithVersions(now))
+}
+
+func judgeWithVersions(j meta.Judge) string {
+	s := j.String()
+	if j.PromptVersion != "" {
+		s += " prompt " + j.PromptVersion
+	}
+	if j.RubricVersion != "" {
+		s += " rubric " + j.RubricVersion
+	}
+	return s
 }
 
 // buildVectorStore constructs the engine-agnostic vector store for the
