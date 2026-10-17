@@ -365,6 +365,7 @@ def mirror(ds: Dataset, *, revision: str, raw: Path, force: bool) -> list[Path]:
         {
             "$schema": PROFILE,
             "name": f"{ds.out_dir}-raw",
+            "version": commit,
             "producedBy": {"tool": "scripts/fetch_hf_dataset.py"},
             "sources": [
                 {

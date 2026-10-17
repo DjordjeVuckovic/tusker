@@ -259,6 +259,7 @@ def fetch(ds: Dataset, *, version: int | None, raw: Path, force: bool) -> None:
         {
             "$schema": PROFILE,
             "name": f"{ds.out_dir}-raw",
+            "version": fetched_version,
             "producedBy": {"tool": "scripts/fetch_kaggle_dataset.py"},
             "sources": [
                 {

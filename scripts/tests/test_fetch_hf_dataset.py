@@ -169,6 +169,7 @@ def test_mirror_writes_the_pinned_shards_and_a_raw_descriptor(
 
     package = descriptor(tmp_path)
     assert package["$schema"] == "https://datapackage.org/profiles/2.0/datapackage.json"
+    assert package["version"] == COMMIT
     [source] = package["sources"]
     assert source["version"] == COMMIT
     assert REPO in source["path"]

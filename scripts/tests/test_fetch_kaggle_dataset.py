@@ -96,6 +96,7 @@ def test_fetch_copies_the_version_into_raw_with_a_descriptor(cache: Path, tmp_pa
 
     package = descriptor(raw)
     assert package["$schema"] == "https://datapackage.org/profiles/2.0/datapackage.json"
+    assert package["version"] == "3"
     [source] = package["sources"]
     assert source["version"] == "3"
     assert "acme/news" in source["path"]
