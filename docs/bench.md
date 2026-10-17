@@ -354,6 +354,8 @@ runs:
   query_timeout: 30s
 ```
 
+`bench pool` runs a job's queries all at once, at most as many executions at a time as the job has engines, and they may all land on one postgres engine. Waiting for a pool connection counts against the deadline, so a postgres engine queues there only when the job has more engines than its `pool_max_conns` (pgx default: 4 or the CPU count, whichever is larger); otherwise a pool timeout means the query itself ran past `query_timeout`.
+
 The clock covers sending the query and receiving the whole result. For postgres that means reading every row; for elasticsearch and the API it means reading the full response body. Decoding the result into document ids happens after the clock stops, on every engine.
 
 One failed measured iteration fails the query with that iteration's error, so a timeout can never vanish from p95, p99 and max behind the iterations that succeeded. A failed warmup does not fail the query; it is logged with the query and the engine.
