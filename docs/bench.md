@@ -345,7 +345,7 @@ Elapsed time is printed after the results table.
 
 Every engine is measured under the same rules, so a latency or a failure means the same thing whichever engine produced it.
 
-Each execution, warmup and measured alike, runs under one deadline: `runs.query_timeout` in the spec, 30 s when unset, for every engine type. The runner sets it and no engine client carries a timeout of its own, so a postgres query that runs past it fails the same way an elasticsearch one does. Storing the suite's search templates on an engine is bounded by the same deadline. Elasticsearch calls made with no deadline, such as `bench validate` and the corpus count, stop at the 30 s default.
+Each execution, warmup and measured alike, runs under one deadline: `runs.query_timeout` in the spec, 30 s when unset, for every engine type. The runner sets it and no engine client carries a timeout of its own, so a postgres query that runs past it fails the same way an elasticsearch one does. Storing the suite's search templates on an engine is bounded by the same deadline. `bench validate` checks each query under the same deadline. Elasticsearch calls made with no deadline, such as the corpus count, stop at the 30 s default.
 
 ```yaml
 runs:
