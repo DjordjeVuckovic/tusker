@@ -28,10 +28,12 @@ func newCleanCmd() *cobra.Command {
 		Long: `Deletes old JSON and HTML report files from <track>/reports/,
 keeping the --keep most-recent runs.  latest.json is never deleted.
 
-The report latest.json points at is always kept, whatever --keep says. The
-remaining slots go to the newest complete runs first; failed, partial and
-latency-only reports are removed before any complete one. Reports are dated
-by the run timestamp in their filename (lexicographic = chronological).`,
+For JSON reports, the one latest.json points at is always kept, whatever
+--keep says. The remaining slots go to the newest complete runs first; failed,
+partial and latency-only reports are removed before any complete one. HTML and
+Markdown exports keep only the --keep newest, even the latest run's export.
+Files are dated by the run timestamp in their name (lexicographic =
+chronological).`,
 		Example: `  bench clean tracks/global-news-dataset/fts_quality            # keep 5 most recent (default)
   bench clean tracks/global-news-dataset/fts_quality --keep 3
   bench clean tracks/global-news-dataset/fts_quality --dry-run  # show what would be deleted`,
