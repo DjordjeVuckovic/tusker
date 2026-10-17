@@ -144,7 +144,7 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 					return err
 				}
 				rows = append(rows, row)
-				if row.status != "OK" && row.status != "SKIP" {
+				if row.status != "OK" {
 					failures++
 					if f.failFast {
 						printValidateRows(cmd.OutOrStdout(), rows)
@@ -215,11 +215,6 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 	if err != nil {
 		row.status = "TEMPLATE_ERR"
 		row.detail = err.Error()
-		return row
-	}
-	if resolved == nil {
-		row.status = "SKIP"
-		row.detail = "no query for this engine"
 		return row
 	}
 	v, ok := exec.(engine.Validator)
