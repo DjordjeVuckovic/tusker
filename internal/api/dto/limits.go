@@ -6,7 +6,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
-	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/DjordjeVuckovic/tusker/pkg/pagination"
 )
 
@@ -19,14 +18,6 @@ func checkQueryLength(name, text string) error {
 		return apperr.NewValidation(fmt.Sprintf("%s exceeds the maximum of %d characters", name, MaxQueryLength))
 	}
 	return nil
-}
-
-// NewStringQuery converts the text of a simple query-string search.
-func NewStringQuery(text string) (*query.String, error) {
-	if err := checkQueryLength("q", text); err != nil {
-		return nil, err
-	}
-	return query.NewQueryString(text), nil
 }
 
 // PageSize returns the page size to search with: the default when requested

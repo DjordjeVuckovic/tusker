@@ -20,25 +20,26 @@ const (
 
 	// Or requires any search term to match (lower precision, higher recall)
 	Or Operator = "OR"
-
-	// Not excludes terms from matching (used for negation)
-	Not Operator = "NOT"
 )
 
-const Default = And
-
+// Parse is case-insensitive. There is no default: an engine that receives no
+// operator applies its own.
 func Parse(s string) (Operator, error) {
-	if s == "" {
-		return Default, nil
-	}
-
 	op := Operator(strings.ToUpper(s))
 	switch op {
-	case Or, And, Not:
+	case Or, And:
 		return op, nil
 	default:
 		return "", fmt.Errorf("invalid operator: %s (must be 'or' or 'and')", s)
 	}
+}
+
+// Resolve returns op, or engineDefault when op is nil.
+func Resolve(op *Operator, engineDefault Operator) Operator {
+	if op == nil {
+		return engineDefault
+	}
+	return *op
 }
 
 // String returns the string representation of the operator

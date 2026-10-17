@@ -2,9 +2,6 @@ package query
 
 import (
 	"fmt"
-	"log/slog"
-	"strconv"
-	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 )
@@ -50,31 +47,26 @@ type Base struct {
 	Hybrid      *Hybrid     `json:"hybrid,omitempty"`
 }
 
-// String represents a simple text-based search query
-// The application parses the query string and determines optimal search strategy
-// based on index configuration, content type, and query analysis.
-//
-// This is the primary search API for end-user queries (e.g., search box input).
-// The application handles field selection, weighting, and query optimization.
-//
-// Inspired by Elasticsearch's query_string query.
-//
-// Examples:
-//
-//	"climate change"           → Multi-field text search with default operator
-//	"renewable energy"         → Analyzed and tokenized across configured fields
+// String is a free-text query whose fields, weights and operator come from the
+// SearchContract rather than from the caller.
 type String struct {
-	// Query: The search text to query
 	Query string `json:"query" validate:"required,min=1"`
 
-	// Language: Prompt analysis language configuration
+	// Language overrides the contract's analysis language when set.
 	Language Language `json:"language,omitempty"`
+}
 
-	// DefaultOperator: How to combine terms when no explicit operator specified
-	// "climate change" with OR → "climate OR change"
-	// "climate change" with AND → "climate AND change"
-	// Default: operator.Or
-	DefaultOperator operator.Operator `json:"default_operator,omitempty"`
+// Contract returns the default search contract with the query's overrides applied.
+func (q *String) Contract() SearchContract {
+	contract := DefaultSearchContract()
+	if q.Language != "" {
+		contract.Language = q.Language
+	}
+	return contract
+}
+
+func (q *String) Effective(engineDefault operator.Operator) Effective {
+	return q.Contract().Effective(engineDefault)
 }
 
 // Boolean is a structured query using logical operators.
@@ -103,6 +95,14 @@ func (q *Boolean) GetLanguage() Language {
 	return q.Language
 }
 
+// Effective reports the contract fields, which an expression matches, and the
+// operator that joins adjacent words.
+func (q *Boolean) Effective(engineDefault operator.Operator) Effective {
+	contract := DefaultSearchContract()
+	contract.Language = q.GetLanguage()
+	return contract.Effective(engineDefault)
+}
+
 // Phrase is a phrase match query with optional slop.
 // Searches for an exact phrase with optional positional flexibility.
 //
@@ -117,7 +117,7 @@ type Phrase struct {
 	Query string `json:"query" validate:"required,min=1"`
 
 	// Fields: Fields to search in (supports multiple like multi_match)
-	Fields []string `json:"fields" validate:"required,min=1"`
+	Fields []Field `json:"fields" validate:"required,min=1"`
 
 	// Slop: Maximum positions allowed between matching tokens
 	// 0 = exact phrase, 1 = one word between, etc.
@@ -133,13 +133,19 @@ const MaxPhraseSlop = 3
 
 type PhraseOption func(q *Phrase)
 
-// NewPhrase creates a new Phrase query with sensible defaults
-func NewPhrase(query string, fields []string, opts ...PhraseOption) (*Phrase, error) {
+// NewPhrase rejects empty text, no fields, a field outside SearchableFields and
+// a slop above MaxPhraseSlop.
+func NewPhrase(query string, fields []Field, opts ...PhraseOption) (*Phrase, error) {
 	if query == "" {
 		return nil, fmt.Errorf("query is required")
 	}
 	if len(fields) == 0 {
 		return nil, fmt.Errorf("fields are required")
+	}
+	for _, field := range fields {
+		if _, err := ParseField(string(field)); err != nil {
+			return nil, err
+		}
 	}
 
 	q := &Phrase{
@@ -183,6 +189,20 @@ func (q *Phrase) GetLanguage() Language {
 	return q.Language
 }
 
+func (q *Phrase) Params() Params {
+	return Params{Fields: unboostedFields(q.Fields), Slop: q.GetSlop()}
+}
+
+// Apply narrows the query to params, a subset of its own Params.
+func (q *Phrase) Apply(params Params) {
+	q.Fields = fieldWeights(params.Fields).fields()
+	q.Slop = params.Slop
+}
+
+func (q *Phrase) Effective() Effective {
+	return Effective{Fields: unboostedFields(q.Fields).fields(), Language: q.GetLanguage()}
+}
+
 // GetSlop returns the slop value (default 0)
 func (q *Phrase) GetSlop() int {
 	if q.Slop < 0 {
@@ -204,59 +224,22 @@ var (
 		"description": 1.0,
 		"content":     1.0,
 	}
-
-	RecommendedFieldWeights = map[string]float64{
-		"title":       3.0,
-		"description": 2.0,
-		"content":     1.0,
-	}
 )
 
 type StringOption func(q *String)
 
-// NewQueryString creates a new QueryString query with sensible defaults
 func NewQueryString(query string, opts ...StringOption) *String {
-	q := &String{
-		Query:           query,
-		Language:        DefaultLanguage,
-		DefaultOperator: operator.Or,
-	}
-
+	q := &String{Query: query}
 	for _, opt := range opts {
 		opt(q)
 	}
-
 	return q
 }
 
-// WithQueryStringLanguage sets the language for QueryString
 func WithQueryStringLanguage(lang Language) StringOption {
 	return func(q *String) {
 		q.Language = lang
 	}
-}
-
-// WithQueryStringOperator sets the default operator for QueryString
-func WithQueryStringOperator(op operator.Operator) StringOption {
-	return func(q *String) {
-		q.DefaultOperator = op
-	}
-}
-
-// GetLanguage returns the language with default fallback
-func (q *String) GetLanguage() Language {
-	if q.Language == "" {
-		return DefaultLanguage
-	}
-	return q.Language
-}
-
-// GetDefaultOperator returns the default operator with fallback
-func (q *String) GetDefaultOperator() operator.Operator {
-	if q.DefaultOperator == "" {
-		return operator.Or
-	}
-	return q.DefaultOperator
 }
 
 // Match is a single-field match query.
@@ -271,20 +254,18 @@ type Match struct {
 	Query string `json:"query" validate:"required,min=1"`
 
 	// Field: The single field to search in
-	Field string `json:"field" validate:"required"`
+	Field Field `json:"field" validate:"required"`
 
 	// Language: Prompt search language configuration
 	Language Language `json:"language,omitempty"`
 
-	// Operator: How to combine multiple terms
-	// Default: operator.Or
-	Operator operator.Operator `json:"operator,omitempty"`
+	// Operator combines the terms; nil leaves the engine's default.
+	Operator *operator.Operator `json:"operator,omitempty"`
 
 	// Fuzziness: Typo tolerance (general search concept)
-	// "AUTO", "0", "1", "2" - Levenshtein edit distance
 	// Elasticsearch: Native support via fuzziness parameter
-	// PostgreSQL: Ignored (would require pg_trgm extension)
-	Fuzziness string `json:"fuzziness,omitempty"`
+	// PostgreSQL: Not supported; see Capabilities
+	Fuzziness Fuzziness `json:"fuzziness,omitempty"`
 }
 
 // GetLanguage returns the language with default fallback
@@ -295,29 +276,53 @@ func (q *Match) GetLanguage() Language {
 	return q.Language
 }
 
-// GetOperator returns the operator with default fallback
-func (q *Match) GetOperator() operator.Operator {
-	if q.Operator == "" {
-		return operator.Default
+func (q *Match) Params() Params {
+	return Params{Fields: unboostedFields([]Field{q.Field}), Fuzziness: q.GetFuzziness()}
+}
+
+// Apply narrows the query to params, a subset of its own Params. Its one field
+// always survives: a check that would drop it rejects the request instead.
+func (q *Match) Apply(params Params) {
+	q.Fuzziness = params.Fuzziness
+}
+
+func (q *Match) Effective(engineDefault operator.Operator) Effective {
+	return Effective{
+		Operator: operator.Resolve(q.Operator, engineDefault),
+		Fields:   []Field{q.Field},
+		Language: q.GetLanguage(),
 	}
-	return q.Operator
+}
+
+func (q *Match) GetFuzziness() Fuzziness {
+	if q.Fuzziness == "" {
+		return NoFuzziness
+	}
+	return q.Fuzziness
 }
 
 type MatchQueryOption func(q *Match)
 
-func NewMatch(field, query string, opts ...MatchQueryOption) *Match {
+// NewMatch rejects empty text and a field outside SearchableFields.
+func NewMatch(field Field, query string, opts ...MatchQueryOption) (*Match, error) {
+	if query == "" {
+		return nil, fmt.Errorf("query is required")
+	}
+	if _, err := ParseField(string(field)); err != nil {
+		return nil, err
+	}
 	q := &Match{
-		Field:    field,
-		Query:    query,
-		Language: DefaultLanguage,
-		Operator: operator.Default,
+		Field:     field,
+		Query:     query,
+		Language:  DefaultLanguage,
+		Fuzziness: NoFuzziness,
 	}
 
 	for _, opt := range opts {
 		opt(q)
 	}
 
-	return q
+	return q, nil
 }
 
 // WithMatchLanguage sets the language for Match query
@@ -330,30 +335,30 @@ func WithMatchLanguage(lang Language) MatchQueryOption {
 // WithMatchOperator sets the operator for Match query
 func WithMatchOperator(op operator.Operator) MatchQueryOption {
 	return func(q *Match) {
-		q.Operator = op
+		q.Operator = &op
 	}
 }
 
 // WithMatchFuzziness sets the fuzziness for Match query
-func WithMatchFuzziness(fuzziness string) MatchQueryOption {
+func WithMatchFuzziness(fuzziness Fuzziness) MatchQueryOption {
 	return func(q *Match) {
 		q.Fuzziness = fuzziness
 	}
 }
 
 type MultiMatchField struct {
-	Name   string
+	Name   Field
 	Weight float64
 }
 
-func NewMultiMatchField(name string) MultiMatchField {
+func NewMultiMatchField(name Field) MultiMatchField {
 	return MultiMatchField{
 		Name:   name,
 		Weight: 1.0,
 	}
 }
 
-func NewMultiMatchBoostedField(name string, weight float64) MultiMatchField {
+func NewMultiMatchBoostedField(name Field, weight float64) MultiMatchField {
 	return MultiMatchField{
 		Name:   name,
 		Weight: weight,
@@ -376,7 +381,7 @@ const (
 //
 // Example:
 //
-//	{"query": "climate change", "fields": ["title", "content"], "field_weights": {"title": 3.0, "content": 1.0}}
+//	{"query": "climate change", "fields": ["title^3", "content"]}
 type MultiMatch struct {
 	// Query: The text to search for (analyzed and tokenized)
 	Query string `json:"query" validate:"required,min=1"`
@@ -386,9 +391,8 @@ type MultiMatch struct {
 	// Language: Prompt search language configuration
 	Language Language `json:"language,omitempty"`
 
-	// Operator: How to combine multiple terms
-	// Default: operator.Or
-	Operator operator.Operator `json:"operator,omitempty"`
+	// Operator combines the terms; nil leaves the engine's default.
+	Operator *operator.Operator `json:"operator,omitempty"`
 
 	MatchStrategy MultiMatchStrategy `json:"match_strategy,omitempty"`
 }
@@ -402,12 +406,16 @@ func NewMultiMatchQuery(query string, fields []string, opts ...MultiMatchQueryOp
 		return nil, fmt.Errorf("fields are required")
 	}
 
+	parsedFields, err := newMultiMatchFields(fields)
+	if err != nil {
+		return nil, err
+	}
+
 	q := &MultiMatch{
 		Query:         query,
 		Language:      DefaultLanguage,
-		Operator:      operator.Default,
 		MatchStrategy: MultiMatchBestFields,
-		Fields:        newMultiMatchNewFields(fields),
+		Fields:        parsedFields,
 	}
 
 	for _, opt := range opts {
@@ -425,31 +433,20 @@ func WithMultiMatchLanguage(lang Language) MultiMatchQueryOption {
 
 func WithMultiMatchOperator(op operator.Operator) MultiMatchQueryOption {
 	return func(q *MultiMatch) {
-		q.Operator = op
+		q.Operator = &op
 	}
 }
 
-func newMultiMatchNewFields(fields []string) []MultiMatchField {
-	parsedFields := make([]MultiMatchField, 0, len(fields))
-
-	for _, field := range fields {
-		fieldParts := strings.Split(strings.TrimSpace(field), "^")
-		switch len(fieldParts) {
-		case 1:
-			parsedFields = append(parsedFields, NewMultiMatchField(fieldParts[0]))
-		case 2:
-			weight, err := strconv.ParseFloat(fieldParts[1], 64)
-			if err != nil {
-				slog.Info("Invalid weight value in MultiMatchNewFields, defaulting to 1.0", "field", field, "error", err)
-				weight = 1.0
-			}
-			parsedFields = append(parsedFields, NewMultiMatchBoostedField(fieldParts[0], weight))
-		default:
-			slog.Info("Invalid field format in MultiMatchNewFields", "field", field)
+func newMultiMatchFields(specs []string) ([]MultiMatchField, error) {
+	fields := make([]MultiMatchField, 0, len(specs))
+	for _, spec := range specs {
+		fieldBoost, err := ParseFieldBoost(spec)
+		if err != nil {
+			return nil, err
 		}
+		fields = append(fields, NewMultiMatchBoostedField(fieldBoost.Field, fieldBoost.Weight))
 	}
-
-	return parsedFields
+	return fields, nil
 }
 
 func (q *MultiMatch) GetLanguage() Language {
@@ -459,15 +456,37 @@ func (q *MultiMatch) GetLanguage() Language {
 	return q.Language
 }
 
-func (q *MultiMatch) GetFields() []MultiMatchField {
-	return q.Fields
+func (q *MultiMatch) Params() Params {
+	return Params{Fields: q.fieldWeights()}
 }
 
-func (q *MultiMatch) GetOperator() operator.Operator {
-	if q.Operator == "" {
-		return operator.Default
+// Apply narrows the query to params, a subset of its own Params.
+func (q *MultiMatch) Apply(params Params) {
+	fields := make([]MultiMatchField, 0, len(params.Fields))
+	for _, f := range params.Fields {
+		fields = append(fields, NewMultiMatchBoostedField(f.Field, f.Weight))
 	}
-	return q.Operator
+	q.Fields = fields
+}
+
+func (q *MultiMatch) Effective(engineDefault operator.Operator) Effective {
+	return Effective{
+		Operator: operator.Resolve(q.Operator, engineDefault),
+		Fields:   q.fieldWeights().fields(),
+		Language: q.GetLanguage(),
+	}
+}
+
+func (q *MultiMatch) fieldWeights() fieldWeights {
+	weights := make(fieldWeights, 0, len(q.Fields))
+	for _, f := range q.Fields {
+		weights = append(weights, FieldWeight{Field: f.Name, Weight: f.Weight})
+	}
+	return weights
+}
+
+func (q *MultiMatch) GetFields() []MultiMatchField {
+	return q.Fields
 }
 
 type Semantic struct {
@@ -529,6 +548,11 @@ func (q *Hybrid) GetLanguage() Language {
 		return DefaultLanguage
 	}
 	return q.Language
+}
+
+// Effective leaves Fields empty: each engine's lexical leg picks its own.
+func (q *Hybrid) Effective(engineDefault operator.Operator) Effective {
+	return Effective{Operator: engineDefault, Language: q.GetLanguage()}
 }
 
 func (q *Hybrid) GetK() int {

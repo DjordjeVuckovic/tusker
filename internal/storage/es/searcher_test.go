@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/storagetest"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
@@ -29,7 +30,11 @@ var searchMethods = []searchMethod{
 	{
 		name: "SearchField",
 		search: func(ctx context.Context, s *Searcher, term string, opts *dquery.BaseOptions) (*storage.SearchResult, error) {
-			return s.SearchField(ctx, dquery.NewMatch("title", term), opts)
+			match, err := dquery.NewMatch(dquery.FieldTitle, term)
+			if err != nil {
+				return nil, err
+			}
+			return s.SearchField(ctx, match, opts)
 		},
 	},
 	{
@@ -45,7 +50,7 @@ var searchMethods = []searchMethod{
 	{
 		name: "SearchPhrase",
 		search: func(ctx context.Context, s *Searcher, term string, opts *dquery.BaseOptions) (*storage.SearchResult, error) {
-			q, err := dquery.NewPhrase(term, []string{"title"})
+			q, err := dquery.NewPhrase(term, []dquery.Field{dquery.FieldTitle})
 			if err != nil {
 				return nil, err
 			}
@@ -205,7 +210,7 @@ func TestSearcher_NonUUIDDocumentIDReturnsError(t *testing.T) {
 	ctx := context.Background()
 	indexer, searcher := newSearcherTestEnv(t)
 
-	doc := map[string]any{"id": "not-a-uuid", "title": "climate change policy", "language": "english"}
+	doc := map[string]any{"id": "not-a-uuid", "title": "climate change policy", "language": "eng"}
 	if _, err := indexer.client.Index(indexer.indexName).Id("not-a-uuid").Document(doc).Do(ctx); err != nil {
 		t.Fatalf("index raw document: %v", err)
 	}
@@ -217,5 +222,50 @@ func TestSearcher_NonUUIDDocumentIDReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not-a-uuid") {
 		t.Errorf("error = %v, want it to name the non-UUID id", err)
+	}
+}
+
+func TestSearcher_Parity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Docker (testcontainers ES)")
+	}
+	indexer, searcher := newSearcherTestEnv(t)
+	if err := indexer.SaveBulk(context.Background(), storagetest.ParityCorpus()); err != nil {
+		t.Fatalf("SaveBulk: %v", err)
+	}
+	refreshIndex(t, indexer)
+
+	storagetest.RunParity(t, storagetest.Elasticsearch, searcher)
+	storagetest.RunFieldIsolation(t, searcher)
+}
+
+func TestSearcher_TotalMatchesIsExactPastTenThousand(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Docker (testcontainers ES)")
+	}
+	ctx := context.Background()
+	indexer, searcher := newSearcherTestEnv(t)
+
+	// Elasticsearch stops counting at 10,000 unless asked to track every hit.
+	const matching = 10_050
+	articles := make([]document.Article, matching)
+	for i := range articles {
+		articles[i] = document.Article{ID: uuid.New(), Title: "climate", Language: language.English}
+	}
+	if err := indexer.SaveBulk(ctx, articles); err != nil {
+		t.Fatalf("SaveBulk: %v", err)
+	}
+	refreshIndex(t, indexer)
+
+	for _, method := range searchMethods {
+		t.Run(method.name, func(t *testing.T) {
+			res, err := method.search(ctx, searcher, "climate", &dquery.BaseOptions{Size: 10})
+			if err != nil {
+				t.Fatalf("search: %v", err)
+			}
+			if res.TotalMatches != matching {
+				t.Errorf("TotalMatches = %d, want %d", res.TotalMatches, matching)
+			}
+		})
 	}
 }
