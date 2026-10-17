@@ -171,8 +171,8 @@ func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
 	return suites, nil
 }
 
-// checkEveryQueryHasABlock rejects an engine with no block for one of the
-// suite's queries, which would otherwise leave that cell of the report empty.
+// checkEveryQueryHasABlock rejects an engine whose block for one of the suite's
+// queries is absent or empty. RunJob resolves every block without checking.
 func checkEveryQueryHasABlock(ls *suite.LoadedSuite, eng boundEngine) error {
 	source := eng.binding.QuerySource
 	for _, q := range ls.Suite.Queries {
