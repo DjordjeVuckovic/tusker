@@ -16,9 +16,76 @@
     },
     "basePath": "/",
     "paths": {
+        "/v1/articles/_search": {
+            "post": {
+                "description": "Structured match, multi_match, phrase, boolean or hybrid search. A stated operator, field, fuzziness or language is honoured by the engine or the request is a 400 naming the parameter and the engine. An omitted operator takes the engine's default (PostgreSQL AND, Elasticsearch OR). Boosts are best effort. A key the query type does not define is a 400. With `Prefer: handling=lenient` an unsupported parameter is removed before the search runs and listed in `ignored`. Every response echoes `effective` and `ignored`.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Structured search API",
+                "parameters": [
+                    {
+                        "description": "Structured search request with query wrapper",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "handling=lenient drops a parameter the engine cannot honour and lists it in ignored, instead of a 400",
+                        "name": "Prefer",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SearchStringQuery results with pagination metadata",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid query structure or parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "501": {
+                        "description": "Query type not supported by searcher backend",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/articles/search": {
             "get": {
-                "description": "Simple text search with automatic field selection and weighting. Cacheable and bookmarkable. Application determines optimal search strategy based on index configuration.",
+                "description": "Free-text search over title, description and content: operators and quotes are read as words. Terms combine under the engine's default operator (PostgreSQL AND, Elasticsearch OR); the response echoes it in `effective`. Any query parameter not listed here is a 400. Cacheable and bookmarkable.",
                 "consumes": [
                     "application/json"
                 ],
@@ -54,9 +121,15 @@
                     {
                         "type": "string",
                         "example": "\"english\"",
-                        "description": "SearchStringQuery language: english, serbian (default: english)",
+                        "description": "SearchStringQuery language: english, the only one supported (default: english)",
                         "name": "lang",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "handling=lenient drops a parameter the engine cannot honour and lists it in ignored, instead of a 400",
+                        "name": "Prefer",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -151,82 +224,21 @@
                 }
             }
         },
-        "/v1/articles/structured": {
-            "post": {
-                "description": "Execute structured search queries with explicit control over fields, weights, and operators. Supports match and multi_match query types. Follows Elasticsearch query DSL pattern.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "search"
-                ],
-                "summary": "Structured search API",
-                "parameters": [
-                    {
-                        "description": "Structured search request with query wrapper",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "SearchStringQuery results with pagination metadata",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request - invalid query structure or parameters",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "501": {
-                        "description": "Query type not supported by searcher backend",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/v1/capabilities": {
             "get": {
-                "description": "Returns the search paradigms exposed by the running backend. Useful for clients to discover available capabilities (e.g. whether semantic search is enabled).",
+                "description": "Returns the query types the running backend serves and the full-text parameters its engine honours: the operator it applies when a request names none, whether it supports fuzziness, phrase slop and boosts, and the fields it can match apart from every other field. A stated parameter outside these is a 400 unless the request sends `Prefer: handling=lenient`.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "capabilities"
                 ],
-                "summary": "Report supported search paradigms",
+                "summary": "Report supported query types and parameters",
                 "responses": {
                     "200": {
-                        "description": "Supported search paradigms",
+                        "description": "Supported query types and parameters",
                         "schema": {
-                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities"
+                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.CapabilitiesResponse"
                         }
                     }
                 }
@@ -258,6 +270,9 @@
                 "metadata": {
                     "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleMetadata"
                 },
+                "publishedAt": {
+                    "type": "string"
+                },
                 "subtitle": {
                     "type": "string"
                 },
@@ -274,18 +289,17 @@
             "type": "object",
             "properties": {
                 "category": {
-                    "description": "Content metadata",
                     "type": "string"
+                },
+                "extra": {
+                    "description": "Extra carries dataset-specific fields that have no schema field.",
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "importedAt": {
-                    "description": "System metadata",
-                    "type": "string"
-                },
-                "publishedAt": {
                     "type": "string"
                 },
                 "sourceId": {
-                    "description": "Essential source tracking",
                     "type": "string"
                 },
                 "sourceName": {
@@ -326,6 +340,17 @@
                 },
                 "language": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_DjordjeVuckovic_tusker_internal_api_dto.CapabilitiesResponse": {
+            "type": "object",
+            "properties": {
+                "full_text": {
+                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities"
+                },
+                "query_types": {
+                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryTypes"
                 }
             }
         },
@@ -380,14 +405,8 @@
                 "query"
             ],
             "properties": {
-                "field_weights": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "number",
-                        "format": "float64"
-                    }
-                },
                 "fields": {
+                    "description": "Fields name the fields to match, each optionally boosted as \"title^3\".",
                     "type": "array",
                     "minItems": 1,
                     "items": {
@@ -434,6 +453,32 @@
                 }
             }
         },
+        "github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryTypes": {
+            "type": "object",
+            "properties": {
+                "boolean": {
+                    "type": "boolean"
+                },
+                "hybrid": {
+                    "type": "boolean"
+                },
+                "match": {
+                    "type": "boolean"
+                },
+                "multi_match": {
+                    "type": "boolean"
+                },
+                "phrase": {
+                    "type": "boolean"
+                },
+                "query_string": {
+                    "type": "boolean"
+                },
+                "semantic": {
+                    "type": "boolean"
+                }
+            }
+        },
         "github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryWrapper": {
             "type": "object",
             "properties": {
@@ -472,6 +517,14 @@
         "github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse": {
             "type": "object",
             "properties": {
+                "effective": {
+                    "description": "Effective is the contract the search ran under, with every omitted\nparameter filled by the engine.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Effective"
+                        }
+                    ]
+                },
                 "has_more": {
                     "type": "boolean"
                 },
@@ -479,6 +532,13 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleSearchResult"
+                    }
+                },
+                "ignored": {
+                    "description": "Ignored lists the stated parameters the engine did not honour.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Ignored"
                     }
                 },
                 "max_score": {
@@ -512,28 +572,105 @@
                 }
             }
         },
+        "github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator": {
+            "type": "string",
+            "enum": [
+                "AND",
+                "OR"
+            ],
+            "x-enum-varnames": [
+                "And",
+                "Or"
+            ]
+        },
         "github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities": {
             "type": "object",
             "properties": {
-                "boolean": {
+                "boosts": {
                     "type": "boolean"
                 },
-                "match": {
+                "default_operator": {
+                    "description": "DefaultOperator combines terms when a request names no operator.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator"
+                        }
+                    ]
+                },
+                "engine": {
+                    "type": "string"
+                },
+                "fields": {
+                    "description": "Fields are the fields the engine can match apart from every other field.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Field"
+                    }
+                },
+                "fuzziness": {
                     "type": "boolean"
                 },
-                "multi_match": {
-                    "type": "boolean"
-                },
-                "phrase": {
-                    "type": "boolean"
-                },
-                "semantic": {
-                    "type": "boolean"
-                },
-                "string_query": {
+                "phrase_slop": {
                     "type": "boolean"
                 }
             }
+        },
+        "github_com_DjordjeVuckovic_tusker_internal_types_query.Effective": {
+            "type": "object",
+            "properties": {
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Field"
+                    }
+                },
+                "language": {
+                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Language"
+                },
+                "operator": {
+                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator"
+                }
+            }
+        },
+        "github_com_DjordjeVuckovic_tusker_internal_types_query.Field": {
+            "type": "string",
+            "enum": [
+                "title",
+                "subtitle",
+                "description",
+                "content",
+                "author"
+            ],
+            "x-enum-varnames": [
+                "FieldTitle",
+                "FieldSubtitle",
+                "FieldDescription",
+                "FieldContent",
+                "FieldAuthor"
+            ]
+        },
+        "github_com_DjordjeVuckovic_tusker_internal_types_query.Ignored": {
+            "type": "object",
+            "properties": {
+                "engine": {
+                    "type": "string"
+                },
+                "param": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_DjordjeVuckovic_tusker_internal_types_query.Language": {
+            "type": "string",
+            "enum": [
+                "english"
+            ],
+            "x-enum-varnames": [
+                "LanguageEnglish"
+            ]
         }
     }
 }

@@ -30,6 +30,7 @@ func NewHybridSearcher(embedder *embedding.Embedder, pool *ConnectionPool) *Hybr
 }
 
 // SearchHybrid fuses a lexical FTS ranking with a vector ranking via RRF in SQL.
+// The lexical leg reads the query as free text under Postgres' default AND.
 // RRF fused scores are not a stable keyset, so hybrid returns a single page.
 func (s *HybridSearcher) SearchHybrid(ctx context.Context, query *dquery.Hybrid, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	size := baseOpts.Size
@@ -58,10 +59,11 @@ func (s *HybridSearcher) SearchHybrid(ctx context.Context, query *dquery.Hybrid,
 		WITH lexical AS (
 			SELECT a.id AS article_id,
 				   ROW_NUMBER() OVER (
-					   ORDER BY ts_rank(a.search_vector, websearch_to_tsquery('%[1]s'::regconfig, $1)) DESC, a.id DESC
+					   ORDER BY ts_rank(a.search_vector, plainto_tsquery('%[1]s'::regconfig, $1)) DESC, a.id DESC
 				   ) AS lex_rank
 			FROM articles a
-			WHERE a.search_vector @@ websearch_to_tsquery('%[1]s'::regconfig, $1)
+			WHERE a.search_vector @@ plainto_tsquery('%[1]s'::regconfig, $1)
+			ORDER BY lex_rank
 			LIMIT $5
 		),
 		vector AS (

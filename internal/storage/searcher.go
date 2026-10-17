@@ -40,6 +40,8 @@ type FtsSearcher interface {
 	SearchPhrase(ctx context.Context, query *query.Phrase, baseOpts *query.BaseOptions) (*SearchResult, error)
 	// SearchBoolean performs complex boolean queries combining multiple conditions
 	SearchBoolean(ctx context.Context, query *query.Boolean, baseOpts *query.BaseOptions) (*SearchResult, error)
+	// Capabilities reports which stated parameters the searcher honours.
+	Capabilities() query.Capabilities
 }
 
 type EmbedResult struct {

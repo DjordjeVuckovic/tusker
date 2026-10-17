@@ -46,7 +46,7 @@ func TestToDomain_BoundsQueryLength(t *testing.T) {
 			return err
 		},
 		"query_string": func(text string) error {
-			_, err := NewStringQuery(text)
+			_, err := (&StringQueryParams{Query: text}).ToDomain()
 			return err
 		},
 	}

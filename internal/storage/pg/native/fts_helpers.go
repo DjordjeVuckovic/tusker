@@ -2,8 +2,9 @@ package native
 
 import (
 	"fmt"
-	"log/slog"
 	"math"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
@@ -12,12 +13,27 @@ import (
 
 // Field to PostgreSQL weight label mapping
 // Weight labels determine which document sections are searched
-var fieldToLabel = map[string]string{
-	"title":       "A",
-	"description": "B",
-	"content":     "C",
-	"subtitle":    "D",
-	"author":      "D",
+var fieldToLabel = map[query.Field]string{
+	query.FieldTitle:       "A",
+	query.FieldDescription: "B",
+	query.FieldContent:     "C",
+	query.FieldSubtitle:    "D",
+	query.FieldAuthor:      "D",
+}
+
+// isolatedFields are the searchable fields that alone fill their weight band.
+func isolatedFields() []query.Field {
+	fieldsPerLabel := map[string]int{}
+	for _, label := range fieldToLabel {
+		fieldsPerLabel[label]++
+	}
+	var isolated []query.Field
+	for _, field := range query.SearchableFields() {
+		if fieldsPerLabel[fieldToLabel[field]] == 1 {
+			isolated = append(isolated, field)
+		}
+	}
+	return isolated
 }
 
 // Label to ts_rank weight array position mapping
@@ -29,12 +45,6 @@ var labelToPosition = map[string]int{
 	"D": 0, // Subtitle/Author - position 0
 }
 
-// FieldWeight represents a field with its boost value for ES-style notation
-type FieldWeight struct {
-	Field  string
-	Weight float64
-}
-
 // buildWeightLabels converts field names to PostgreSQL weight label string
 // Examples:
 //
@@ -42,7 +52,7 @@ type FieldWeight struct {
 //	["title", "content"]     → "AC"
 //	["title"]                → "A"
 //	[]                       → "" (empty means search all fields)
-func buildWeightLabels(fields []string) string {
+func buildWeightLabels(fields []query.Field) string {
 	if len(fields) == 0 {
 		return "" // Empty = search all fields
 	}
@@ -65,57 +75,45 @@ func buildWeightLabels(fields []string) string {
 	return result
 }
 
-// buildWeightsArray creates ts_rank weights array from field boosts
-// PostgreSQL array format: {D-weight, C-weight, B-weight, A-weight} (reverse order!)
-// Examples:
-//
-//	[]FieldWeight{{"title", 3.0}, {"description", 1.5}}
-//	→ "{0.00, 0.00, 1.50, 3.00}"  (D=0.0, C=0.0, B=1.5, A=3.0)
-func buildWeightsArray(fieldBoosts []FieldWeight) string {
-	// Initialize with zeros - only specified fields will have non-zero weights
-	weights := [4]float64{0.0, 0.0, 0.0, 0.0} // {D, C, B, A}
+// buildWeightsArray creates the ts_rank weights array from field boosts, in
+// PostgreSQL's {D, C, B, A} order. ts_rank rejects weights above 1, so boosts
+// are scaled by the largest one when it exceeds 1. Weights are float4, written
+// at that precision so a small ratio is not rounded to 0.
+// Example: [{title 3.0} {description 1.5}] → "{0, 0, 0.5, 1}"
+func buildWeightsArray(fieldBoosts []query.FieldWeight) string {
+	weights := [4]float64{0.0, 0.0, 0.0, 0.0}
 
 	for _, fb := range fieldBoosts {
 		if label, ok := fieldToLabel[fb.Field]; ok {
 			position := labelToPosition[label]
-
-			// For D (subtitle/author), take max boost if multiple fields map to D
-			if position == 0 {
-				weights[position] = math.Max(weights[position], fb.Weight)
-			} else {
-				weights[position] = fb.Weight
-			}
+			weights[position] = math.Max(weights[position], fb.Weight)
 		}
 	}
 
-	result := fmt.Sprintf("{%.2f, %.2f, %.2f, %.2f}",
-		weights[0], weights[1], weights[2], weights[3])
-
-	// Log for debugging
-	slog.Debug("Built weights array",
-		"weights_dcba", result,
-		"D", weights[0],
-		"C", weights[1],
-		"B", weights[2],
-		"A", weights[3],
-		"field_boosts", fieldBoosts)
-
-	return result
-}
-
-// buildTsQuery constructs a PostgreSQL tsquery expression based on operator
-// paramNum: The parameter number to use ($1, $2, etc.)
-// Returns: "plainto_tsquery('english'::regconfig, $1)" or "websearch_to_tsquery(...)"
-func buildTsQuery(op operator.Operator, lang query.Language, paramNum int) string {
-
-	if op.IsOr() {
-		// websearch_to_tsquery supports OR operator via "term1 OR term2" syntax
-		return fmt.Sprintf("websearch_to_tsquery('%s'::regconfig, $%d)", lang, paramNum)
+	largest := slices.Max(weights[:])
+	if largest > 1 {
+		for i := range weights {
+			weights[i] /= largest
+		}
 	}
 
-	// plainto_tsquery uses AND by default for simple searches
-	// "climate change" -> "climat & chang"
-	return fmt.Sprintf("plainto_tsquery('%s'::regconfig, $%d)", lang, paramNum)
+	formatted := make([]string, 0, len(weights))
+	for _, w := range weights {
+		formatted = append(formatted, strconv.FormatFloat(w, 'g', -1, 32))
+	}
+	return "{" + strings.Join(formatted, ", ") + "}"
+}
+
+// buildTsQuery turns free text into a tsquery: every term under AND, any term
+// under OR. plainto_tsquery joins terms with " & ", so OR swaps each for " | ",
+// leaving a lexeme that holds & itself (a URL) intact; the lexemes are already
+// normalised and the cast does not stem them again.
+func buildTsQuery(op operator.Operator, lang query.Language, paramNum int) string {
+	plain := fmt.Sprintf("plainto_tsquery('%s'::regconfig, $%d)", lang, paramNum)
+	if op.IsOr() {
+		return fmt.Sprintf("replace(%s::text, ' & ', ' | ')::tsquery", plain)
+	}
+	return plain
 }
 
 // buildRankExpression constructs a ts_rank expression with custom field weights
@@ -123,7 +121,7 @@ func buildTsQuery(op operator.Operator, lang query.Language, paramNum int) strin
 // PostgreSQL's default weight values are: {0.1, 0.2, 0.4, 1.0} for {D, C, B, A}
 // Weight array format: {D-weight, C-weight, B-weight, A-weight} (REVERSE ORDER!)
 // Returns: "ts_rank('{0.0, 1.0, 1.5, 3.0}', search_vector, query)" or "ts_rank(search_vector, query)"
-func buildRankExpression(fieldBoosts []FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
+func buildRankExpression(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
 	vectorExpr := "search_vector"
 	queryExpr := buildTsQuery(op, lang, paramNum)
 
@@ -137,113 +135,130 @@ func buildRankExpression(fieldBoosts []FieldWeight, lang query.Language, op oper
 	return fmt.Sprintf("ts_rank(%s, %s)", vectorExpr, queryExpr)
 }
 
-// buildTsWhereClause constructs the WHERE clause for full-text search with weight label filtering
-// Weight labels filter which fields are searched: A=title, B=description, C=content, D=subtitle/author
-// Examples:
-//
-//	fieldBoosts=[{title,3.0}]                       → search_vector @@ (query::text || ':A')::tsquery
-//	fieldBoosts=[{title,3.0},{description,1.5}]     → search_vector @@ (query::text || ':AB')::tsquery
-//	fieldBoosts=[]                                   → search_vector @@ query (all fields)
-func buildTsWhereClause(fieldBoosts []FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
-	vectorExpr := "search_vector"
-	queryExpr := buildTsQuery(op, lang, paramNum)
+// DefaultOperator is what Postgres applies when a request names no operator:
+// plainto_tsquery requires every term.
+const DefaultOperator = operator.And
 
-	// Extract field names from FieldWeight
-	fields := make([]string, 0, len(fieldBoosts))
+// buildTsWhereClause matches free text against the requested fields only. No
+// fields, or fields covering all four bands, match the whole vector. Otherwise
+// the query also runs on the fields' weight bands; the whole-vector match goes
+// first so the GIN index narrows the rows.
+func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
+	queryExpr := buildTsQuery(op, lang, paramNum)
+	match := fmt.Sprintf("search_vector @@ %s", queryExpr)
+
+	labels := buildWeightLabels(fieldsOf(fieldBoosts))
+	if labels == "" || labels == "ABCD" {
+		return match
+	}
+
+	bands := strings.Split(strings.ToLower(labels), "")
+	return fmt.Sprintf("%s AND ts_filter(search_vector, '{%s}') @@ %s", match, strings.Join(bands, ","), queryExpr)
+}
+
+func fieldsOf(fieldBoosts []query.FieldWeight) []query.Field {
+	fields := make([]query.Field, 0, len(fieldBoosts))
 	for _, fb := range fieldBoosts {
 		fields = append(fields, fb.Field)
 	}
+	return fields
+}
 
-	// Build weight labels from field names
+// booleanMatch is the WHERE clause and rank of a boolean search, both reading
+// the tsquery text bound as $1.
+type booleanMatch struct {
+	where string
+	rank  string
+	arg   string
+}
+
+// buildBooleanMatch matches a parsed boolean expression against the contract
+// fields, as Elasticsearch does. Every term carries the fields' weight labels,
+// so a negated term excludes only a match in those fields and the whole
+// predicate can still use the search_vector index.
+func buildBooleanMatch(tsquery string, lang query.Language) booleanMatch {
+	queryExpr := fmt.Sprintf("to_tsquery('%s'::regconfig, $1)", lang)
+	labels := buildWeightLabels(fieldsOf(query.DefaultSearchContract().Fields))
+	return booleanMatch{
+		where: fmt.Sprintf("search_vector @@ %s", queryExpr),
+		rank:  fmt.Sprintf("ts_rank(search_vector, %s)", queryExpr),
+		arg:   labelTerms(tsquery, labels),
+	}
+}
+
+// labelTerms restricts every term of a BooleanParser tsquery, whose tokens are
+// space separated, to the given weight labels: "trump & ! biden" with "ABC"
+// becomes "trump:ABC & ! biden:ABC".
+func labelTerms(tsquery, labels string) string {
+	tokens := strings.Fields(tsquery)
+	for i, token := range tokens {
+		switch token {
+		case "&", "|", "!", "(", ")", "<->":
+		default:
+			tokens[i] = token + ":" + labels
+		}
+	}
+	return strings.Join(tokens, " ")
+}
+
+// buildPhraseFieldMatch matches a phrase within one weight band at a time. The
+// search_vector concatenates the fields, so the last word of one sits next to
+// the first word of the next, and a phrase matched across bands could span
+// that boundary. No fields means every band.
+func buildPhraseFieldMatch(fields []query.Field, phraseExpr string) string {
 	labels := buildWeightLabels(fields)
-
-	var result string
-	// If specific fields requested, use weight label filtering
-	if labels != "" {
-		result = fmt.Sprintf("%s @@ (%s::text || ':%s')::tsquery", vectorExpr, queryExpr, labels)
-		slog.Debug("Built WHERE clause with label filtering",
-			"labels", labels,
-			"fields", fields,
-			"where_clause", result)
-	} else {
-		// No field filtering - search all fields
-		result = fmt.Sprintf("%s @@ %s", vectorExpr, queryExpr)
-		slog.Debug("Built WHERE clause without filtering",
-			"where_clause", result)
+	if labels == "" {
+		labels = "ABCD"
 	}
-
-	return result
+	perBand := make([]string, 0, len(labels))
+	for _, label := range strings.ToLower(labels) {
+		perBand = append(perBand, fmt.Sprintf("ts_filter(search_vector, '{%c}') @@ %s", label, phraseExpr))
+	}
+	return fmt.Sprintf("search_vector @@ %s AND (%s)", phraseExpr, strings.Join(perBand, " OR "))
 }
 
-// buildPhraseSlopQuery constructs a phrase query with slop support
-// This generates an OR query with multiple distance operators
-//
-// Example for "climate change" with slop=2:
-//
-//	Input: ["climat", "chang"], slop=2
-//	Output: "climat <-> chang | climat <2> chang | climat <3> chang"
-//
-// PostgreSQL distance operator <N> means exactly N-1 lexemes apart:
-//   - <-> means adjacent (0 words between)
-//   - <2> means 1 word between
-//   - <3> means 2 words between
-func buildPhraseSlopQuery(tokens []string, slop int) string {
-	if len(tokens) < 2 {
-		// Single token - just return it
-		if len(tokens) == 1 {
-			return tokens[0]
-		}
-		return ""
-	}
-
-	var orParts []string
-
-	// Generate OR expressions for each distance from 0 to slop
-	// distance 0: term1 <-> term2 (adjacent)
-	// distance 1: term1 <2> term2 (one word apart)
-	// distance 2: term1 <3> term2 (two words apart)
+// buildPhraseSlopQuery joins tsquery lexemes, already quoted, into the phrase
+// with every gap of up to slop words between neighbours. <N> means N-1 words
+// apart, so slop 2 for ['climat' 'chang'] gives
+// 'climat' <-> 'chang' | 'climat' <2> 'chang' | 'climat' <3> 'chang'.
+func buildPhraseSlopQuery(lexemes []string, slop int) string {
+	alternatives := make([]string, 0, slop+1)
 	for distance := 0; distance <= slop; distance++ {
-		var parts []string
-		for i := 0; i < len(tokens)-1; i++ {
-			if distance == 0 {
-				parts = append(parts, fmt.Sprintf("%s <-> %s", tokens[i], tokens[i+1]))
-			} else {
-				// distance+1 because <2> means 1 word between, <3> means 2 words between
-				parts = append(parts, fmt.Sprintf("%s <%d> %s", tokens[i], distance+1, tokens[i+1]))
-			}
+		link := "<->"
+		if distance > 0 {
+			link = fmt.Sprintf("<%d>", distance+1)
 		}
-
-		// Join consecutive token pairs with &
-		if len(parts) > 0 {
-			orParts = append(orParts, strings.Join(parts, " & "))
+		pairs := make([]string, 0, len(lexemes)-1)
+		for i := 0; i+1 < len(lexemes); i++ {
+			pairs = append(pairs, fmt.Sprintf("%s %s %s", lexemes[i], link, lexemes[i+1]))
 		}
+		alternatives = append(alternatives, strings.Join(pairs, " & "))
 	}
-
-	// Join all distance variants with OR
-	return strings.Join(orParts, " | ")
+	return strings.Join(alternatives, " | ")
 }
 
-// extractLexemesFromTsquery extracts lexemes from a tsquery string
-// Example: "'climat' & 'chang'" -> ["climat", "chang"]
-// Example: "'renew' & 'energi'" -> ["renew", "energi"]
-func extractLexemesFromTsquery(tsqueryStr string) []string {
+// quotedLexemes returns the lexemes of a tsquery's text form in order, each
+// still in its quotes, so they can be put back into a tsquery unchanged. A
+// quote inside a lexeme is doubled.
+func quotedLexemes(tsquery string) []string {
 	var lexemes []string
-
-	// Replace operators with spaces to make splitting easier
-	cleaned := strings.ReplaceAll(tsqueryStr, "&", " ")
-	cleaned = strings.ReplaceAll(cleaned, "|", " ")
-	cleaned = strings.ReplaceAll(cleaned, "!", " ")
-
-	// Split by whitespace
-	parts := strings.Fields(cleaned)
-
-	for _, part := range parts {
-		// Remove single quotes around lexemes
-		trimmed := strings.Trim(part, "'")
-		if trimmed != "" && trimmed != "(" && trimmed != ")" {
-			lexemes = append(lexemes, trimmed)
+	for i := 0; i < len(tsquery); i++ {
+		if tsquery[i] != '\'' {
+			continue
 		}
+		end := i + 1
+		for end < len(tsquery) {
+			if tsquery[end] == '\'' {
+				if end+1 < len(tsquery) && tsquery[end+1] == '\'' {
+					end += 2
+					continue
+				}
+				break
+			}
+			end++
+		}
+		lexemes = append(lexemes, tsquery[i:end+1])
+		i = end
 	}
-
 	return lexemes
 }

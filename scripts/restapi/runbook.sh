@@ -89,12 +89,7 @@ curl -X POST "${API_BASE}/v1/articles/_search" \
     "query": {
       "multi_match": {
         "query": "climate change policy",
-        "fields": ["title", "description", "content"],
-        "field_weights": {
-          "title": 3.0,
-          "description": 2.0,
-          "content": 1.0
-        },
+        "fields": ["title^3", "description^2", "content"],
         "operator": "and"
       }
     }
@@ -220,11 +215,7 @@ curl -s -X POST "${API_BASE}/v1/articles/_search" \
     "query": {
       "multi_match": {
         "query": "artificial intelligence",
-        "fields": ["title", "content"],
-        "field_weights": {
-          "title": 5.0,
-          "content": 1.0
-        }
+        "fields": ["title^5", "content"]
       }
     }
   }' | jq '[.hits[] | {title: .article.title, score: .score}]'

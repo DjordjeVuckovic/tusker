@@ -137,13 +137,17 @@ Swap `match` for `multi_match`, `phrase`, `boolean`, or `hybrid`. Hybrid returns
 
 ### Capability Discovery
 
-`GET /v1/capabilities` returns `query.Capabilities` — booleans for `string_query`, `match`,
-`multi_match`, `phrase`, `boolean`, `semantic`. The FTS searcher is always wired, so the first
-five are always `true`; `semantic` is `true` only when a semantic searcher is configured.
+`GET /v1/capabilities` returns `query_types`, booleans for `query_string`, `match`,
+`multi_match`, `phrase`, `boolean`, `semantic` and `hybrid`, and `full_text`, the
+`query.Capabilities` the running FTS searcher declares. The FTS searcher is always wired, so the
+first five query types are always `true`; `semantic` and `hybrid` only when configured.
 
 ```json
-{ "string_query": true, "match": true, "multi_match": true,
-  "phrase": true, "boolean": true, "semantic": true }
+{ "query_types": { "query_string": true, "match": true, "multi_match": true,
+                   "phrase": true, "boolean": true, "semantic": true, "hybrid": true },
+  "full_text": { "engine": "postgres", "default_operator": "AND", "fuzziness": false,
+                 "phrase_slop": true, "boosts": true,
+                 "fields": ["title", "description", "content"] } }
 ```
 
 ---

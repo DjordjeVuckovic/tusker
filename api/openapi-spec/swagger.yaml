@@ -16,6 +16,8 @@ definitions:
         type: string
       metadata:
         $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleMetadata'
+      publishedAt:
+        type: string
       subtitle:
         type: string
       title:
@@ -27,15 +29,14 @@ definitions:
   github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleMetadata:
     properties:
       category:
-        description: Content metadata
         type: string
+      extra:
+        additionalProperties: {}
+        description: Extra carries dataset-specific fields that have no schema field.
+        type: object
       importedAt:
-        description: System metadata
-        type: string
-      publishedAt:
         type: string
       sourceId:
-        description: Essential source tracking
         type: string
       sourceName:
         type: string
@@ -62,6 +63,13 @@ definitions:
         type: string
     required:
     - expression
+    type: object
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.CapabilitiesResponse:
+    properties:
+      full_text:
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities'
+      query_types:
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryTypes'
     type: object
   github_com_DjordjeVuckovic_tusker_internal_api_dto.HybridParams:
     properties:
@@ -95,12 +103,8 @@ definitions:
     type: object
   github_com_DjordjeVuckovic_tusker_internal_api_dto.MultiMatchParams:
     properties:
-      field_weights:
-        additionalProperties:
-          format: float64
-          type: number
-        type: object
       fields:
+        description: Fields name the fields to match, each optionally boosted as "title^3".
         items:
           type: string
         minItems: 1
@@ -136,6 +140,23 @@ definitions:
     - fields
     - query
     type: object
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryTypes:
+    properties:
+      boolean:
+        type: boolean
+      hybrid:
+        type: boolean
+      match:
+        type: boolean
+      multi_match:
+        type: boolean
+      phrase:
+        type: boolean
+      query_string:
+        type: boolean
+      semantic:
+        type: boolean
+    type: object
   github_com_DjordjeVuckovic_tusker_internal_api_dto.QueryWrapper:
     properties:
       boolean:
@@ -161,11 +182,22 @@ definitions:
     type: object
   github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse:
     properties:
+      effective:
+        allOf:
+        - $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Effective'
+        description: |-
+          Effective is the contract the search ran under, with every omitted
+          parameter filled by the engine.
       has_more:
         type: boolean
       hits:
         items:
           $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleSearchResult'
+        type: array
+      ignored:
+        description: Ignored lists the stated parameters the engine did not honour.
+        items:
+          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Ignored'
         type: array
       max_score:
         type: number
@@ -187,27 +219,81 @@ definitions:
       next_cursor:
         type: string
     type: object
+  github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator:
+    enum:
+    - AND
+    - OR
+    type: string
+    x-enum-varnames:
+    - And
+    - Or
   github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities:
     properties:
-      boolean:
+      boosts:
         type: boolean
-      match:
+      default_operator:
+        allOf:
+        - $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator'
+        description: DefaultOperator combines terms when a request names no operator.
+      engine:
+        type: string
+      fields:
+        description: Fields are the fields the engine can match apart from every other
+          field.
+        items:
+          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Field'
+        type: array
+      fuzziness:
         type: boolean
-      multi_match:
-        type: boolean
-      phrase:
-        type: boolean
-      semantic:
-        type: boolean
-      string_query:
+      phrase_slop:
         type: boolean
     type: object
+  github_com_DjordjeVuckovic_tusker_internal_types_query.Effective:
+    properties:
+      fields:
+        items:
+          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Field'
+        type: array
+      language:
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Language'
+      operator:
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator'
+    type: object
+  github_com_DjordjeVuckovic_tusker_internal_types_query.Field:
+    enum:
+    - title
+    - subtitle
+    - description
+    - content
+    - author
+    type: string
+    x-enum-varnames:
+    - FieldTitle
+    - FieldSubtitle
+    - FieldDescription
+    - FieldContent
+    - FieldAuthor
+  github_com_DjordjeVuckovic_tusker_internal_types_query.Ignored:
+    properties:
+      engine:
+        type: string
+      param:
+        type: string
+      reason:
+        type: string
+    type: object
+  github_com_DjordjeVuckovic_tusker_internal_types_query.Language:
+    enum:
+    - english
+    type: string
+    x-enum-varnames:
+    - LanguageEnglish
 info:
   contact:
     email: support@tusker.sh
     name: API Support
-  description: A full-text and semantic search engine for exploring multilingual news headlines
-    and articles
+  description: A full-text and semantic search engine for exploring multilingual news
+    headlines and articles
   license:
     name: Apache 2.0
     url: https://opensource.org/licenses/Apache-2.0
@@ -215,13 +301,65 @@ info:
   title: Tusker API
   version: "1.0"
 paths:
+  /v1/articles/_search:
+    post:
+      consumes:
+      - application/json
+      description: 'Structured match, multi_match, phrase, boolean or hybrid search.
+        A stated operator, field, fuzziness or language is honoured by the engine
+        or the request is a 400 naming the parameter and the engine. An omitted operator
+        takes the engine''s default (PostgreSQL AND, Elasticsearch OR). Boosts are
+        best effort. A key the query type does not define is a 400. With `Prefer:
+        handling=lenient` an unsupported parameter is removed before the search runs
+        and listed in `ignored`. Every response echoes `effective` and `ignored`.'
+      parameters:
+      - description: Structured search request with query wrapper
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchRequest'
+      - description: handling=lenient drops a parameter the engine cannot honour and
+          lists it in ignored, instead of a 400
+        in: header
+        name: Prefer
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: SearchStringQuery results with pagination metadata
+          schema:
+            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse'
+        "400":
+          description: Bad request - invalid query structure or parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "501":
+          description: Query type not supported by searcher backend
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Structured search API
+      tags:
+      - search
   /v1/articles/search:
     get:
       consumes:
       - application/json
-      description: Simple text search with automatic field selection and weighting.
-        Cacheable and bookmarkable. Application determines optimal search strategy
-        based on index configuration.
+      description: 'Free-text search over title, description and content: operators
+        and quotes are read as words. Terms combine under the engine''s default operator
+        (PostgreSQL AND, Elasticsearch OR); the response echoes it in `effective`.
+        Any query parameter not listed here is a 400. Cacheable and bookmarkable.'
       parameters:
       - description: SearchStringQuery query text
         example: '"climate change"'
@@ -238,10 +376,16 @@ paths:
         in: query
         name: cursor
         type: string
-      - description: 'SearchStringQuery language: english, serbian (default: english)'
+      - description: 'SearchStringQuery language: english, the only one supported
+          (default: english)'
         example: '"english"'
         in: query
         name: lang
+        type: string
+      - description: handling=lenient drops a parameter the engine cannot honour and
+          lists it in ignored, instead of a 400
+        in: header
+        name: Prefer
         type: string
       produces:
       - application/json
@@ -310,61 +454,21 @@ paths:
       summary: Vector-based semantic search
       tags:
       - search
-  /v1/articles/structured:
-    post:
-      consumes:
-      - application/json
-      description: Execute structured search queries with explicit control over fields,
-        weights, and operators. Supports match and multi_match query types. Follows
-        Elasticsearch query DSL pattern.
-      parameters:
-      - description: Structured search request with query wrapper
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: SearchStringQuery results with pagination metadata
-          schema:
-            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.SearchResponse'
-        "400":
-          description: Bad request - invalid query structure or parameters
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "501":
-          description: Query type not supported by searcher backend
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Structured search API
-      tags:
-      - search
   /v1/capabilities:
     get:
-      description: Returns the search paradigms exposed by the running backend. Useful
-        for clients to discover available capabilities (e.g. whether semantic search
-        is enabled).
+      description: 'Returns the query types the running backend serves and the full-text
+        parameters its engine honours: the operator it applies when a request names
+        none, whether it supports fuzziness, phrase slop and boosts, and the fields
+        it can match apart from every other field. A stated parameter outside these
+        is a 400 unless the request sends `Prefer: handling=lenient`.'
       produces:
       - application/json
       responses:
         "200":
-          description: Supported search paradigms
+          description: Supported query types and parameters
           schema:
-            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Capabilities'
-      summary: Report supported search paradigms
+            $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.CapabilitiesResponse'
+      summary: Report supported query types and parameters
       tags:
       - capabilities
 swagger: "2.0"
