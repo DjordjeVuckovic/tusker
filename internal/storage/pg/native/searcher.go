@@ -49,11 +49,10 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	regconfig := contract.Language.Analysis().PostgresConfig
-	whereClause := buildTsWhereClause(contract.Fields, regconfig, op, 1)
+	whereClause := buildTsWhereClause(contract.Fields, contract.Language, op, 1)
 	// The contract's boosts reach Elasticsearch only. Postgres ranks with its
 	// default weights, as the benchmark's Postgres arms do.
-	rankExpr := buildRankExpression(nil, regconfig, op, 1)
+	rankExpr := buildRankExpression(nil, contract.Language, op, 1)
 
 	var globalMaxScore float64
 	var count int64
@@ -113,7 +112,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 // Performs single-field match query using PostgreSQL's tsvector
 func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	cursor, size := baseOpts.Cursor, baseOpts.Size
-	lang := query.GetLanguage().Analysis().PostgresConfig
+	lang := query.GetLanguage()
 	op := operator.Resolve(query.Operator, DefaultOperator)
 	slog.Info("Executing pool match search",
 		"query", query.Query,
@@ -191,7 +190,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 // Performs multi-field match query using PostgreSQL's weighted tsvector
 func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	cursor, size := baseOpts.Cursor, baseOpts.Size
-	lang := query.GetLanguage().Analysis().PostgresConfig
+	lang := query.GetLanguage()
 	op := operator.Resolve(query.Operator, DefaultOperator)
 
 	fieldBoosts := query.Params().Fields
@@ -274,7 +273,7 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 // phrase's lexemes, bound as a ready tsquery so they are not stemmed again.
 func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	cursor, size := baseOpts.Cursor, baseOpts.Size
-	lang := query.GetLanguage().Analysis().PostgresConfig
+	lang := query.GetLanguage()
 	slop := query.GetSlop()
 
 	slog.Info("Executing pool phrase search",
@@ -285,11 +284,12 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	phraseExpr := fmt.Sprintf("phraseto_tsquery('%s'::regconfig, $1)", lang)
+	regconfig := lang.Analysis().PostgresConfig
+	phraseExpr := fmt.Sprintf("phraseto_tsquery('%s'::regconfig, $1)", regconfig)
 	phraseArg := query.Query
 	if slop > 0 {
 		var plainQuery string
-		lexemeSQL := fmt.Sprintf("SELECT plainto_tsquery('%s'::regconfig, $1)::text", lang)
+		lexemeSQL := fmt.Sprintf("SELECT plainto_tsquery('%s'::regconfig, $1)::text", regconfig)
 		if err := r.db.QueryRow(ctx, lexemeSQL, query.Query).Scan(&plainQuery); err != nil {
 			return nil, fmt.Errorf("SearchPhrase: failed to tokenize phrase: %w", err)
 		}
@@ -363,7 +363,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 
 func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	cursor, size := baseOpts.Cursor, baseOpts.Size
-	lang := query.GetLanguage().Analysis().PostgresConfig
+	lang := query.GetLanguage()
 
 	slog.Info("Executing pool boolean search",
 		"expression", query.Expression,

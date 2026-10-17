@@ -34,7 +34,7 @@ func NewHybridSearcher(embedder *embedding.Embedder, pool *ConnectionPool) *Hybr
 // RRF fused scores are not a stable keyset, so hybrid returns a single page.
 func (s *HybridSearcher) SearchHybrid(ctx context.Context, query *dquery.Hybrid, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	size := baseOpts.Size
-	lang := query.GetLanguage().Analysis().PostgresConfig
+	lang := query.GetLanguage()
 	k := query.GetK()
 
 	slog.Info("Executing PG hybrid RRF search",
@@ -87,7 +87,7 @@ func (s *HybridSearcher) SearchHybrid(ctx context.Context, query *dquery.Hybrid,
 		INNER JOIN articles a ON a.id = f.article_id
 		ORDER BY f.rrf_score DESC, a.id DESC
 		LIMIT $6
-	`, lang, ArticleColumnList("a"))
+	`, lang.Analysis().PostgresConfig, ArticleColumnList("a"))
 
 	rows, err := s.db.Query(
 		ctx,
