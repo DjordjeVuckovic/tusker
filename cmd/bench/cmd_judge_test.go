@@ -448,3 +448,12 @@ func TestJudge_InterruptedRunLeavesAnIdentifiedFile(t *testing.T) {
 	assert.NotNil(t, jf.Meta.UnjudgedCount)
 	assert.Contains(t, gradesByQuery(jf), "q1")
 }
+
+func TestJudge_ForceOutsideManualIsRejected(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+
+	err := fx.judge(t, "--strategy", "bm25", "--force")
+
+	require.Error(t, err)
+	assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations.bm25.yaml"))
+}

@@ -138,6 +138,9 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 	if err != nil {
 		return err
 	}
+	if f.force && kind != judgment.StrategyManual {
+		return fmt.Errorf("--force applies only to --strategy manual; %s rewrites its file on every run without --resume", kind)
+	}
 	// Heuristic judges file under their strategy; llm judges file under their
 	// provider, so two vendors can grade the same track side by side.
 	outPath := f.output
