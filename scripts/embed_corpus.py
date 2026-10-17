@@ -33,6 +33,7 @@ import sys
 import time
 import uuid
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
@@ -162,20 +163,6 @@ def embedding_descriptor(spec: EmbeddingSpec, inference: Inference) -> dict[str,
     if inference.limit is not None:
         block["limit"] = inference.limit
     return block
-
-
-def version(prefix: str, *inputs: str) -> str:
-    """Derive a package version from its inputs, as `<prefix>-<8 hex of sha256>`.
-
-    Each input is hashed as its 8-byte big-endian UTF-8 length followed by the bytes,
-    so ("ab", "c") and ("a", "bc") give different versions.
-    """
-    digest = hashlib.sha256()
-    for value in inputs:
-        encoded = value.encode("utf-8")
-        digest.update(len(encoded).to_bytes(8, "big"))
-        digest.update(encoded)
-    return f"{prefix}-{digest.hexdigest()[:8]}"
 
 
 def sha256_hash(path: Path) -> str:
@@ -585,36 +572,48 @@ def merge_shards(checkpoint_dir: Path, *, shard_count: int, out_path: Path) -> N
             writer.write_table(table)
 
 
-def publish_package(
-    final_dir: Path,
-    build: Callable[[Path], None],
-    *,
-    replace: bool = False,
-) -> None:
-    """Build a package in a sibling staging dir and rename it into place, so no reader sees half of one.
+def content_version(resource: dict[str, Any]) -> str:
+    """Version a package by its resource: the first 8 hex chars of the resource's sha256."""
+    return resource["hash"].removeprefix("sha256:")[:8]
 
-    A version folder that already exists holds the same bytes, so it is kept and
-    the staging copy discarded. With `replace`, an existing folder is swapped out
-    instead, for fixed locations whose content moves with their inputs.
+
+def publish_version(parent: Path, build: Callable[[Path], str]) -> Path:
+    """Build a package in a staging dir, then rename it to `<parent>/<version>/`.
+
+    `build` fills the staging dir and returns the version its bytes give. A version
+    folder that already exists holds the same bytes, so it is kept and the staging
+    copy discarded.
     """
-    staging = final_dir.with_name(f".{final_dir.name}.tmp")
+    parent.mkdir(parents=True, exist_ok=True)
+    with staged(parent / ".staging") as staging:
+        final_dir = parent / build(staging)
+        if not final_dir.exists():
+            staging.rename(final_dir)
+    return final_dir
+
+
+def publish_replacing(final_dir: Path, build: Callable[[Path], str]) -> None:
+    """Build a package in a staging dir and swap it in at a fixed location."""
+    final_dir.parent.mkdir(parents=True, exist_ok=True)
+    with staged(final_dir.with_name(f".{final_dir.name}.staging")) as staging:
+        build(staging)
+        retired = final_dir.with_name(f".{final_dir.name}.old")
+        shutil.rmtree(retired, ignore_errors=True)
+        if final_dir.exists():
+            final_dir.rename(retired)
+        staging.rename(final_dir)
+        shutil.rmtree(retired, ignore_errors=True)
+
+
+@contextmanager
+def staged(staging: Path) -> Iterator[Path]:
+    """Yield a fresh staging dir and remove whatever is left of it afterwards, on any exit."""
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True)
     try:
-        build(staging)
-        if not final_dir.exists():
-            staging.rename(final_dir)
-        elif replace:
-            retired = final_dir.with_name(f".{final_dir.name}.old")
-            shutil.rmtree(retired, ignore_errors=True)
-            final_dir.rename(retired)
-            staging.rename(final_dir)
-            shutil.rmtree(retired)
-        else:
-            shutil.rmtree(staging)
-    except BaseException:
+        yield staging
+    finally:
         shutil.rmtree(staging, ignore_errors=True)
-        raise
 
 
 def dataset_root_of(descriptor_path: Path) -> Path:
@@ -699,7 +698,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--limit",
         type=positive_int,
-        help="embed only the first N rows, as a trial package named <version>-limit-N",
+        help="embed only the first N rows, as a trial package marked by embedding.limit",
     )
     parser.add_argument(
         "--device",
@@ -776,21 +775,7 @@ def run(args: argparse.Namespace) -> Path:
         dim=resolve_dim(args.dim, encoder.native_dim),
         max_tokens=args.max_tokens,
     )
-    package_version = version(
-        f"{spec.recipe}-{spec.dim}",
-        source.canonical.resource_hash,
-        spec.revision,
-        spec.recipe,
-        str(spec.dim),
-        str(spec.max_tokens),
-    )
-    # A trial holds a prefix of the corpus, so it must never sit where the full
-    # package of the same inputs belongs.
-    if args.limit is not None:
-        package_version = f"{package_version}-limit-{args.limit}"
-    final_dir = (
-        output_root / "embeddings" / spec.tag.replace(":", "-") / package_version
-    )
+    tag_dir = output_root / "embeddings" / spec.tag.replace(":", "-")
     run_key = {
         "resourceHash": source.resource_hash,
         "canonicalResourceHash": source.canonical.resource_hash,
@@ -799,8 +784,7 @@ def run(args: argparse.Namespace) -> Path:
         **spec.to_descriptor(),
     }
     checkpoint_dir = (
-        args.checkpoint_dir
-        or final_dir.parent / f".checkpoints-{settings_digest(run_key)}"
+        args.checkpoint_dir or tag_dir / f".checkpoints-{settings_digest(run_key)}"
     )
     batch_size = args.batch_size
     if args.auto_batch_size:
@@ -836,25 +820,24 @@ def run(args: argparse.Namespace) -> Path:
         ),
     )
 
-    def build(directory: Path) -> None:
+    def build(directory: Path) -> str:
         resource_path = directory / "embeddings.parquet"
         merge_shards(checkpoint_dir, shard_count=shard_count, out_path=resource_path)
+        resource = describe_parquet_resource(resource_path, name="embeddings")
         descriptor: dict[str, Any] = {
             "$schema": DATAPACKAGE_PROFILE,
             "name": f"{source.canonical.name}-embeddings",
-            "version": package_version,
+            "version": content_version(resource),
         }
         if source.language:
             descriptor["language"] = source.language
         descriptor["embedding"] = embedding_descriptor(spec, inference)
         descriptor["canonical"] = source.canonical.to_descriptor()
-        descriptor["resources"] = [
-            describe_parquet_resource(resource_path, name="embeddings")
-        ]
+        descriptor["resources"] = [resource]
         write_descriptor(directory, descriptor)
+        return descriptor["version"]
 
-    final_dir.parent.mkdir(parents=True, exist_ok=True)
-    publish_package(final_dir, build)
+    final_dir = publish_version(tag_dir, build)
     print(f"wrote {final_dir}")
 
     if args.clean_checkpoints:

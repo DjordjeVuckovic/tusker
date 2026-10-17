@@ -170,3 +170,15 @@ def test_refuses_a_query_whose_description_is_yaml_null(tmp_path, tiny_model_arg
     assert result.returncode != 0
     assert "q-climate" in result.stderr
     assert not query_vectors(tmp_path / "track").exists()
+
+
+def test_query_vectors_are_versioned_by_their_own_bytes(tmp_path, tiny_model_args):
+    suite = write_suite(tmp_path / "track")
+
+    run_script("embed_queries.py", suite, *tiny_model_args)
+
+    descriptor = query_vectors(tmp_path / "track")
+    resource_digest = sha256_of(
+        descriptor.parent / "query-vectors.parquet"
+    ).removeprefix("sha256:")
+    assert json.loads(descriptor.read_text())["version"] == resource_digest[:8]

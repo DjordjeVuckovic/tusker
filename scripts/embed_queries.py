@@ -158,13 +158,17 @@ def check_query(query: SuiteQuery) -> None:
 
 def write_query_vectors(
     directory: Path, rows: pa.Table, descriptor: dict[str, Any]
-) -> None:
+) -> str:
     resource_path = directory / "query-vectors.parquet"
     pq.write_table(rows, resource_path, compression="zstd")
-    descriptor["resources"] = [
-        embed_corpus.describe_parquet_resource(resource_path, name="query-vectors")
-    ]
-    embed_corpus.write_descriptor(directory, descriptor)
+    resource = embed_corpus.describe_parquet_resource(
+        resource_path, name="query-vectors"
+    )
+    version = embed_corpus.content_version(resource)
+    embed_corpus.write_descriptor(
+        directory, {**descriptor, "version": version, "resources": [resource]}
+    )
+    return version
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -246,14 +250,6 @@ def run(args: argparse.Namespace) -> Path:
         dim=embed_corpus.resolve_dim(args.dim, encoder.native_dim),
         max_tokens=args.max_tokens,
     )
-    package_version = embed_corpus.version(
-        f"{spec.recipe}-{spec.dim}",
-        suite.hash,
-        spec.revision,
-        spec.recipe,
-        str(spec.dim),
-        str(spec.max_tokens),
-    )
     embedding = embed_corpus.embedding_descriptor(
         spec,
         embed_corpus.Inference(
@@ -283,16 +279,12 @@ def run(args: argparse.Namespace) -> Path:
     descriptor: dict[str, Any] = {
         "$schema": embed_corpus.DATAPACKAGE_PROFILE,
         "name": f"{suite.id}-query-vectors",
-        "version": package_version,
         "embedding": embedding,
         "suite": {"id": suite.id, "hash": suite.hash},
     }
-    out.parent.mkdir(parents=True, exist_ok=True)
     # The folder is fixed per track, so a new embedding of the suite replaces it.
-    embed_corpus.publish_package(
-        out,
-        lambda directory: write_query_vectors(directory, rows, descriptor),
-        replace=True,
+    embed_corpus.publish_replacing(
+        out, lambda directory: write_query_vectors(directory, rows, descriptor)
     )
     print(f"wrote {len(suite.queries)} query vectors to {out}")
     return out

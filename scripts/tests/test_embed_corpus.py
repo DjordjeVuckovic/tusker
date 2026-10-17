@@ -166,41 +166,19 @@ def test_resource_is_described_by_its_real_size_and_hash(tmp_path, tiny_model_ar
     assert resource["hash"] == sha256_of(written)
 
 
-def test_version_hashes_the_carried_canonical_resource_hash_revision_recipe_dim_and_max_tokens(
-    tmp_path, tiny_model
+def test_a_package_is_versioned_and_filed_by_the_first_8_hex_of_its_resource_sha256(
+    tmp_path, tiny_model_args
 ):
-    projection = write_canonical_package(tmp_path / "slim", ROWS)
-    descriptor = json.loads(projection.descriptor.read_text())
-    descriptor["canonical"] = {
-        "name": "cc-news",
-        "version": "article-v2-0badcafe",
-        "resourceHash": "sha256:" + "0" * 64,
-    }
-    projection.descriptor.write_text(json.dumps(descriptor))
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
 
-    result = embed(
-        projection.descriptor,
-        tmp_path / "out",
-        "--model",
-        tiny_model,
-        "--revision",
-        "abc123",
-        "--model-name",
-        "tiny-qwen3",
-        "--max-tokens",
-        "512",
-        "--device",
-        "cpu",
-    )
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
 
-    assert result.returncode == 0, result.stderr
-    written = json.loads(
-        (
-            tmp_path
-            / "out/embeddings/tiny-qwen3@1024/lead-v1-1024-938b2254/datapackage.json"
-        ).read_text()
-    )
-    assert written["version"] == "lead-v1-1024-938b2254"
+    descriptor_path = only_package(tmp_path / "out")
+    resource_digest = sha256_of(
+        descriptor_path.parent / "embeddings.parquet"
+    ).removeprefix("sha256:")
+    assert json.loads(descriptor_path.read_text())["version"] == resource_digest[:8]
+    assert descriptor_path.parent.name == resource_digest[:8]
 
 
 def test_the_same_inputs_produce_byte_identical_packages(tmp_path, tiny_model_args):
@@ -258,7 +236,6 @@ def test_tag_version_and_location_carry_the_chosen_dim(tmp_path, tiny_model_args
     descriptor = json.loads(descriptor_path.read_text())
     assert descriptor["embedding"]["dim"] == 64
     assert descriptor["embedding"]["tag"] == "qwen3-embedding:tiny@64"
-    assert descriptor["version"].startswith("lead-v1-64-")
     assert descriptor_path.parent.parent.name == "qwen3-embedding-tiny@64"
 
 
@@ -298,6 +275,14 @@ def package_dirs(output_root: Path) -> list[str]:
     )
 
 
+def trial_flags(output_root: Path) -> dict[Path, bool]:
+    """Map each written package to whether its descriptor marks it as a --limit trial."""
+    return {
+        path: "limit" in json.loads(path.read_text())["embedding"]
+        for path in output_root.glob("embeddings/*/*/datapackage.json")
+    }
+
+
 def test_a_limit_trial_embeds_the_first_rows_into_its_own_package(
     tmp_path, tiny_model_args
 ):
@@ -311,11 +296,11 @@ def test_a_limit_trial_embeds_the_first_rows_into_its_own_package(
     descriptor_path = only_package(tmp_path / "out")
     ids, _ = read_embeddings(descriptor_path)
     assert ids == [ROWS[0]["id"], ROWS[1]["id"]]
-    assert descriptor_path.parent.name.endswith("-limit-2")
-    assert (
-        json.loads(descriptor_path.read_text())["version"]
-        == descriptor_path.parent.name
-    )
+    resource_digest = sha256_of(
+        descriptor_path.parent / "embeddings.parquet"
+    ).removeprefix("sha256:")
+    assert descriptor_path.parent.name == resource_digest[:8]
+    assert json.loads(descriptor_path.read_text())["version"] == resource_digest[:8]
 
 
 def test_a_full_run_after_a_limit_trial_writes_the_full_corpus(
@@ -327,10 +312,10 @@ def test_a_full_run_after_a_limit_trial_writes_the_full_corpus(
     result = embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
 
     assert result.returncode == 0, result.stderr
-    (full,) = [name for name in package_dirs(tmp_path / "out") if "limit" not in name]
-    ids, _ = read_embeddings(
-        next((tmp_path / "out").glob(f"embeddings/*/{full}/datapackage.json"))
-    )
+    (full,) = [
+        path for path, is_trial in trial_flags(tmp_path / "out").items() if not is_trial
+    ]
+    ids, _ = read_embeddings(full)
     assert ids == [row["id"] for row in ROWS]
 
 
@@ -357,7 +342,7 @@ def test_refuses_to_resume_a_limit_trial_as_a_full_run(tmp_path, tiny_model_args
 
     assert result.returncode != 0
     assert "limit" in result.stderr
-    assert all("limit" in name for name in package_dirs(tmp_path / "out"))
+    assert all(trial_flags(tmp_path / "out").values())
 
 
 def test_refuses_checkpoints_written_with_different_settings(tmp_path, tiny_model_args):

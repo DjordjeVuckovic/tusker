@@ -37,11 +37,12 @@ from embed_corpus import (
     SLIM_DESCRIPTOR,
     PackageError,
     SourcePackage,
+    content_version,
     describe_parquet_resource,
     iter_jsonl_records,
     iter_parquet_records,
     open_package,
-    publish_package,
+    publish_version,
     read_descriptor,
     write_descriptor,
 )
@@ -68,21 +69,23 @@ def iter_slim_batches(source: SourcePackage) -> Iterator[pa.Table]:
 
 def write_slim_package(
     source: SourcePackage, carried: dict[str, Any], directory: Path
-) -> None:
+) -> str:
     resource_path = directory / "articles.parquet"
     with pq.ParquetWriter(resource_path, SLIM_SCHEMA, compression="zstd") as writer:
         for table in iter_slim_batches(source):
             writer.write_table(table)
 
+    resource = describe_parquet_resource(resource_path, name="articles")
     descriptor: dict[str, Any] = {
         "$schema": DATAPACKAGE_PROFILE,
         "name": f"{source.canonical.name}-slim",
-        "version": source.canonical.version,
+        "version": content_version(resource),
         **carried,
         "canonical": source.canonical.to_descriptor(),
-        "resources": [describe_parquet_resource(resource_path, name="articles")],
+        "resources": [resource],
     }
     write_descriptor(directory, descriptor, name=SLIM_DESCRIPTOR)
+    return descriptor["version"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -94,7 +97,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("package", type=Path, help="canonical datapackage.json")
     parser.add_argument(
-        "--out", type=Path, required=True, help="new directory for the slim package"
+        "--out",
+        type=Path,
+        required=True,
+        help="parent directory; the package lands in <out>/<version>/",
     )
     return parser.parse_args()
 
@@ -108,16 +114,14 @@ def run(args: argparse.Namespace) -> None:
         if key in descriptor
     }
 
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    publish_package(
-        args.out,
-        lambda directory: write_slim_package(source, carried, directory),
+    package_dir = publish_version(
+        args.out, lambda directory: write_slim_package(source, carried, directory)
     )
 
     before = source.resource.stat().st_size
-    after = (args.out / "articles.parquet").stat().st_size
+    after = (package_dir / "articles.parquet").stat().st_size
     print(
-        f"{args.out}: {before / 1e6:.1f} MB -> {after / 1e6:.1f} MB  ({before / after:.1f}x smaller)"
+        f"{package_dir}: {before / 1e6:.1f} MB -> {after / 1e6:.1f} MB  ({before / after:.1f}x smaller)"
     )
 
 
