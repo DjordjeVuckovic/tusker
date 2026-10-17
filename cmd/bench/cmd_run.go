@@ -334,18 +334,20 @@ func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJ
 }
 
 // judgmentCoverage counts the pool's (query, doc) pairs and how many of them
-// the judgments leave without a grade.
+// the judgments leave without a grade, and names the queries the pool holds.
 type judgmentCoverage struct {
-	pooled   int
-	unjudged int
+	pooled        int
+	unjudged      int
+	pooledQueries map[string]bool
 }
 
 // poolCoverage checks the judgments against the pool itself rather than the
 // judge's own count, which an interrupted run leaves stale and which cannot
 // see queries the judge never reached.
 func poolCoverage(pf *pool.PoolFile, grades map[string]map[string]int) judgmentCoverage {
-	var c judgmentCoverage
+	c := judgmentCoverage{pooledQueries: make(map[string]bool, len(pf.Queries))}
 	for _, entry := range pf.Queries {
+		c.pooledQueries[entry.QueryID] = true
 		for _, doc := range entry.Docs {
 			c.pooled++
 			if _, graded := grades[entry.QueryID][doc.DocID.String()]; !graded {
@@ -366,11 +368,34 @@ func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []stri
 	if cells := erroredCells(result); len(cells) > 0 {
 		failures = append(failures, fmt.Sprintf("%d (query, engine) executions errored: %s", len(cells), strings.Join(cells, ", ")))
 	}
+	if missing := unpooledQueries(result, judgments.coverage.pooledQueries); len(missing) > 0 {
+		failures = append(failures, fmt.Sprintf("%d suite queries were never pooled, so none of their results are judged: %s; re-pool and re-judge the track",
+			len(missing), strings.Join(missing, ", ")))
+	}
 	if judgments.coverage.unjudged > 0 {
 		failures = append(failures, fmt.Sprintf("the judgments leave %d of %d pooled docs unjudged; finish judging (bench judge --resume)",
 			judgments.coverage.unjudged, judgments.coverage.pooled))
 	}
 	return failures
+}
+
+// unpooledQueries lists the queries this run executed that have no pool entry.
+// A latency-only run has no pool to check against.
+func unpooledQueries(result *runner.BenchmarkResult, pooled map[string]bool) []string {
+	if pooled == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	var missing []string
+	for _, jr := range result.Jobs {
+		for _, queryID := range jr.QueryOrder {
+			if !pooled[queryID] && !seen[queryID] {
+				seen[queryID] = true
+				missing = append(missing, queryID)
+			}
+		}
+	}
+	return missing
 }
 
 // measuredDroppedCells lists the dropped pool cells this run executed.

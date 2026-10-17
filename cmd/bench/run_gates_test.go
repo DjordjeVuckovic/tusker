@@ -262,3 +262,23 @@ func TestRun_PartialPoolFailsTheCellsItDropped(t *testing.T) {
 		})
 	}
 }
+
+func TestRun_SuiteQueryMissingFromThePoolFailsTheRun(t *testing.T) {
+	tr := judgedTrack(t, nil)
+	suitePath := filepath.Join(tr.dir, "suite.yaml")
+	suiteYAML, err := os.ReadFile(suitePath)
+	require.NoError(t, err)
+	suiteYAML = append(suiteYAML, []byte(`  - id: q3
+    engines:
+      a: { query: '{"query": {"match": {"title": "q3"}}}' }
+      b: { query: '{"query": {"match": {"title": "q3"}}}' }
+`)...)
+	require.NoError(t, os.WriteFile(suitePath, suiteYAML, 0o644))
+	before := seedLatest(t, tr)
+
+	_, err = execute(t, newRunCmd(), tr.dir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "q3")
+	assertLatestUnchanged(t, tr, before)
+}
