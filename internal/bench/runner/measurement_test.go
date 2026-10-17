@@ -322,3 +322,58 @@ func TestRunAll_EveryExecutionGetsItsOwnDeadline(t *testing.T) {
 		}
 	}
 }
+
+const onePostgresQuery = `queries:
+  - id: q1
+    engines:
+      pg: { query: "SELECT id FROM articles" }
+`
+
+func TestRunAll_RejectsIterationCountsThatMeasureNothing(t *testing.T) {
+	tests := []struct {
+		name    string
+		warmup  int
+		runs    int
+		wantErr string
+	}{
+		{name: "negative iterations", warmup: 1, runs: -1, wantErr: "iterations"},
+		{name: "zero iterations", warmup: 1, runs: 0, wantErr: "iterations"},
+		{name: "negative warmup", warmup: -1, runs: 3, wantErr: "warmup"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.WarmupRuns = tt.warmup
+			cfg.Runs = tt.runs
+			pg := &recordingExecutor{name: "pg"}
+
+			_, err := New(cfg).RunAll(context.Background(), oneJobTrack(t, onePostgresQuery, map[string]spec.Engine{"pg": postgres}, nil),
+				map[string]engine.Executor{"pg": pg})
+
+			assert.ErrorContains(t, err, tt.wantErr)
+			assert.Empty(t, pg.seen)
+		})
+	}
+}
+
+func TestRunJob_AQueryWithNoMeasuredIterationFails(t *testing.T) {
+	bs := oneJobTrack(t, onePostgresQuery, map[string]spec.Engine{"pg": postgres}, nil)
+	suites, err := LoadSuites(bs)
+	require.NoError(t, err)
+	dialects, err := Dialects(bs)
+	require.NoError(t, err)
+	cfg := DefaultConfig()
+	cfg.Runs = 0
+
+	result, err := New(cfg).RunJob(context.Background(), JobRequest{
+		Track:     bs.ID,
+		Job:       bs.Jobs[0],
+		Suite:     suites[bs.Jobs[0].Suite],
+		Executors: map[string]engine.Executor{"pg": &recordingExecutor{name: "pg"}},
+		Dialects:  dialects,
+	})
+
+	require.NoError(t, err)
+	assert.Error(t, result.Results["q1"]["pg"].Error)
+}

@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -31,6 +32,9 @@ func (r *Runner) RunAll(
 	bs *spec.BenchSpec,
 	executors map[string]engine.Executor,
 ) (*BenchmarkResult, error) {
+	if err := r.config.validate(); err != nil {
+		return nil, err
+	}
 	if err := VerifyEmbeddingModel(bs.Engines, r.config.VectorStore); err != nil {
 		return nil, err
 	}
@@ -524,7 +528,7 @@ func (r *Runner) measure(ctx context.Context, m measurement) execResult {
 	}
 
 	if lastExec == nil {
-		return execResult{}
+		return execResult{err: errors.New("no measured iteration ran")}
 	}
 	return execResult{
 		rankedIDs:     lastExec.RankedDocIDs,
