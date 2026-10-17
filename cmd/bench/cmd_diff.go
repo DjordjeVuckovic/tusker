@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -129,6 +130,7 @@ func printDiff(w io.Writer, a, b *report.Report) {
 	fmt.Fprintf(w, "  %s %s\n\n", cDim.Sprint("B (after): "), cBold.Sprint(b.Provenance.RunID))
 
 	printProvenanceDiff(w, report.DiffProvenance(a, b))
+	printScoringWarnings(w, a, b)
 
 	// Find common jobs by name.
 	jobsA := indexJobs(a)
@@ -137,11 +139,10 @@ func printDiff(w io.Writer, a, b *report.Report) {
 	names := unionKeys(jobsA, jobsB)
 	sort.Strings(names)
 
-	kVals := a.Config.KValues
-	if len(kVals) == 0 {
-		kVals = b.Config.KValues
+	ndcgK, haveSharedK := largestSharedK(a.Config.KValues, b.Config.KValues)
+	if !haveSharedK {
+		fmt.Fprintf(w, "%s\n\n", cDim.Sprint("No K value in both runs: NDCG deltas skipped."))
 	}
-	primaryKVal := primaryKFromSlice(kVals)
 
 	for _, name := range names {
 		jA, okA := jobsA[name]
@@ -156,8 +157,10 @@ func printDiff(w io.Writer, a, b *report.Report) {
 		}
 
 		fmt.Fprintf(w, "%s\n\n", cBold.Sprintf("--- Job: %s ---", name))
-		printAggregateDiff(w, jA, jB, kVals)
-		printQueryDiff(w, jA, jB, primaryKVal)
+		printAggregateDiff(w, jA, jB, ndcgK)
+		if haveSharedK {
+			printQueryDiff(w, jA, jB, ndcgK)
+		}
 		fmt.Fprintln(w)
 	}
 }
@@ -185,16 +188,20 @@ func orAbsent(value string) string {
 	return value
 }
 
-func printAggregateDiff(w io.Writer, jA, jB *report.JobReport, kVals []int) {
+// printAggregateDiff shows NDCG at ndcgK, or not at all when ndcgK is 0.
+func printAggregateDiff(w io.Writer, jA, jB *report.JobReport, ndcgK int) {
 	aggA := indexAgg(jA)
 	aggB := indexAgg(jB)
 	engines := unionKeys(aggA, aggB)
 	sort.Strings(engines)
 
-	primaryKVal := primaryKFromSlice(kVals)
+	ndcgHeader := "NDCG  A→B"
+	if ndcgK > 0 {
+		ndcgHeader = fmt.Sprintf("NDCG@%d  A→B", ndcgK)
+	}
 
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "Engine\tNDCG@K  A→B\tMAP  A→B\tMRR  A→B\tp50  A→B")
+	fmt.Fprintf(tw, "Engine\t%s\tMAP  A→B\tMRR  A→B\tp50  A→B\n", ndcgHeader)
 	fmt.Fprintln(tw, "---\t---\t---\t---\t---")
 
 	for _, eng := range engines {
@@ -204,14 +211,17 @@ func printAggregateDiff(w io.Writer, jA, jB *report.JobReport, kVals []int) {
 			fmt.Fprintf(tw, "%s\t(only in one run)\n", eng)
 			continue
 		}
-		ndcgA, ndcgB := eA.NDCG[primaryKVal], eB.NDCG[primaryKVal]
+		ndcg := "—"
+		if ndcgK > 0 {
+			ndcg = fmtDelta("%.4f", eA.NDCG[ndcgK], eB.NDCG[ndcgK], true)
+		}
 		mapA, mapB := eA.MAP, eB.MAP
 		mrrA, mrrB := eA.MRR, eB.MRR
 		latA, latB := eA.Latency.P50(), eB.Latency.P50()
 
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 			eng,
-			fmtDelta("%.4f", ndcgA, ndcgB, true),
+			ndcg,
 			fmtDelta("%.4f", mapA, mapB, true),
 			fmtDelta("%.4f", mrrA, mrrB, true),
 			fmtDurationDelta(latA, latB), // last column — safe to color
@@ -352,11 +362,60 @@ func fmtDurationDelta(a, b time.Duration) string {
 	return cFail.Sprint(s)
 }
 
-func primaryKFromSlice(kVals []int) int {
-	if len(kVals) == 0 {
-		return 10
+// largestSharedK is the largest cutoff both runs computed. A K only one run
+// has would read as a score of 0 on the other side.
+func largestSharedK(a, b []int) (int, bool) {
+	shared := 0
+	for _, k := range a {
+		if slices.Contains(b, k) && k > shared {
+			shared = k
+		}
 	}
-	return kVals[len(kVals)-1]
+	return shared, shared > 0
+}
+
+// printScoringWarnings flags runs whose metrics were computed against different
+// grades, where a delta measures the judging as much as the engine.
+func printScoringWarnings(w io.Writer, a, b *report.Report) {
+	var differences []string
+	if judgeOf(a) != judgeOf(b) {
+		differences = append(differences, fmt.Sprintf("judge: %s → %s", judgeOf(a), judgeOf(b)))
+	}
+	if a.Config.RelevanceThreshold != b.Config.RelevanceThreshold {
+		differences = append(differences, fmt.Sprintf("relevance threshold: grade>=%d → grade>=%d",
+			a.Config.RelevanceThreshold, b.Config.RelevanceThreshold))
+	}
+	if judgmentsOf(a) != judgmentsOf(b) {
+		differences = append(differences, fmt.Sprintf("judgments: %s → %s", judgmentsOf(a), judgmentsOf(b)))
+	}
+	if len(differences) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "%s the runs were scored differently, so metric deltas are not engine changes alone:\n", cWarn.Sprint("WARNING:"))
+	for _, d := range differences {
+		fmt.Fprintf(w, "  %s\n", d)
+	}
+	fmt.Fprintln(w)
+}
+
+const scoringNotRecorded = "not recorded"
+
+func judgeOf(r *report.Report) string {
+	judge := r.Provenance.Judge
+	if judge == nil {
+		return scoringNotRecorded
+	}
+	if judge.PromptVersion == "" {
+		return judge.String()
+	}
+	return judge.String() + " prompt " + judge.PromptVersion
+}
+
+func judgmentsOf(r *report.Report) string {
+	if r.Provenance.Sources == nil || r.Provenance.Sources.Judgments == "" {
+		return scoringNotRecorded
+	}
+	return r.Provenance.Sources.Judgments
 }
 
 func durStr(d time.Duration) string {
