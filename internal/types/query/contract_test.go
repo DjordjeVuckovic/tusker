@@ -24,6 +24,8 @@ func TestParseFieldBoost(t *testing.T) {
 		{name: "two boosts", spec: "title^2^3", wantErr: true},
 		{name: "largest float32 boost", spec: "title^3.4e38", want: FieldWeight{Field: FieldTitle, Weight: 3.4e38}},
 		{name: "boost beyond float32", spec: "title^1e39", wantErr: true},
+		{name: "small float32 boost", spec: "title^1e-30", want: FieldWeight{Field: FieldTitle, Weight: 1e-30}},
+		{name: "boost below float32", spec: "title^1e-50", wantErr: true},
 	}
 
 	for _, tt := range tests {

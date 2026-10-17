@@ -40,7 +40,7 @@ type FieldWeight struct {
 }
 
 // ParseFieldBoost parses "field" or "field^boost". An unboosted field weighs 1;
-// a boost must be a positive number Elasticsearch can hold as a float.
+// a boost must be a positive number both engines can hold as a float32.
 func ParseFieldBoost(spec string) (FieldWeight, error) {
 	name, rawBoost, boosted := strings.Cut(strings.TrimSpace(spec), "^")
 	field, err := ParseField(name)
@@ -51,8 +51,8 @@ func ParseFieldBoost(spec string) (FieldWeight, error) {
 		return FieldWeight{Field: field, Weight: 1}, nil
 	}
 	boost, err := strconv.ParseFloat(rawBoost, 64)
-	if err != nil || math.IsNaN(boost) || boost <= 0 || boost > math.MaxFloat32 {
-		return FieldWeight{}, fmt.Errorf("invalid boost in %q: must be a positive number up to %g", spec, math.MaxFloat32)
+	if err != nil || math.IsNaN(boost) || boost < math.SmallestNonzeroFloat32 || boost > math.MaxFloat32 {
+		return FieldWeight{}, fmt.Errorf("invalid boost in %q: must be between %g and %g", spec, math.SmallestNonzeroFloat32, math.MaxFloat32)
 	}
 	return FieldWeight{Field: field, Weight: boost}, nil
 }

@@ -140,6 +140,11 @@ func TestStructuredSearchHandlerValidation(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
+			name:     "multi_match with a boost below float32",
+			body:     `{"query":{"multi_match":{"fields":["title^1e-50"],"query":"climate"}}}`,
+			wantCode: http.StatusBadRequest,
+		},
+		{
 			name:     "multi_match with two boosts",
 			body:     `{"query":{"multi_match":{"fields":["title^2^3"],"query":"climate"}}}`,
 			wantCode: http.StatusBadRequest,
