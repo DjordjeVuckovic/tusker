@@ -40,7 +40,7 @@ func TestEnsureIndex_MappingReportsHNSWBuildParams(t *testing.T) {
 
 	client, err := newTypedClient(cfg)
 	if err != nil {
-		t.Fatalf("newClient: %v", err)
+		t.Fatalf("newTypedClient: %v", err)
 	}
 	assertDeclaredBuildParams(t, client, cfg.IndexName)
 }
@@ -52,7 +52,7 @@ func TestEmbedder_RejectsAnIndexBuiltAtOtherBuildParams(t *testing.T) {
 
 	client, err := newTypedClient(cfg)
 	if err != nil {
-		t.Fatalf("newClient: %v", err)
+		t.Fatalf("newTypedClient: %v", err)
 	}
 	createIndexWithDefaultedVectorField(t, client, cfg.IndexName)
 
