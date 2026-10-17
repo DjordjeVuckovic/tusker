@@ -13,6 +13,7 @@ make migrate-schema-native     # or -paradedb, -tiger, -all
 make migrate-indexes-native
 make migrate-down-native       # drops the indexes, then the schema
 ```
+- A failed or cancelled migration leaves its version dirty, and both `datapipe load` and `migrate` refuse the database until `migrate -path db/migrations/<engine>/<set> -database "<db>" force <version>` records the version you repaired it to (`<set>` is `schema` or `indexes`, the latter with `&x-migrations-table=schema_migrations_indexes` on the URL).
 ### OpenAPI Schema gen
 - Install swag CLI
 ```bash
