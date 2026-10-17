@@ -71,6 +71,14 @@ func decodeArticle(source json.RawMessage) (dto.Article, error) {
 	return dto.NewArticle(article), nil
 }
 
+// The searched text fields rank with BM25 at the parameters tiger's bm25 index
+// declares, rather than at whatever defaults the Elasticsearch version ships.
+const (
+	textSimilarity = "article_bm25"
+	bm25K1         = 1.2
+	bm25B          = 0.75
+)
+
 type IndexBuilder struct{}
 
 func NewIndexBuilder() *IndexBuilder {
@@ -112,11 +120,15 @@ func newArticleDocument(article document.Article) ArticleDocument {
 // apostrophe, so apostrophes become spaces before tokenizing.
 func (b *IndexBuilder) buildSettings() types.IndexSettings {
 	shards, replicas, maxResultWindow := "1", "0", 10001
+	k1, lengthNormalization := types.Float64(bm25K1), types.Float64(bm25B)
 	english := snowballlanguage.English
 	return types.IndexSettings{
 		NumberOfShards:   &shards,
 		NumberOfReplicas: &replicas,
 		MaxResultWindow:  &maxResultWindow,
+		Similarity: map[string]types.SettingsSimilarity{
+			textSimilarity: types.SettingsSimilarityBm25{Type: "BM25", K1: &k1, B: &lengthNormalization},
+		},
 		Analysis: &types.IndexSettingsAnalysis{
 			Analyzer: map[string]types.Analyzer{
 				language.English.Analysis().ElasticsearchAnalyzer: types.CustomAnalyzer{
@@ -188,20 +200,23 @@ func (b *IndexBuilder) denseVectorProperty() *types.DenseVectorProperty {
 }
 
 func (b *IndexBuilder) createTextProperty(analyzer string) types.Property {
-	textProp := types.NewTextProperty()
-	if analyzer != "" {
-		textProp.Analyzer = &analyzer
+	return searchedTextProperty(analyzer)
+}
+
+func (b *IndexBuilder) createTextPropertyWithKeyword(analyzer string) types.Property {
+	textProp := searchedTextProperty(analyzer)
+	textProp.Fields = map[string]types.Property{
+		"keyword": types.NewKeywordProperty(),
 	}
 	return textProp
 }
 
-func (b *IndexBuilder) createTextPropertyWithKeyword(analyzer string) types.Property {
+func searchedTextProperty(analyzer string) *types.TextProperty {
 	textProp := types.NewTextProperty()
 	if analyzer != "" {
 		textProp.Analyzer = &analyzer
 	}
-	textProp.Fields = map[string]types.Property{
-		"keyword": types.NewKeywordProperty(),
-	}
+	similarity := textSimilarity
+	textProp.Similarity = &similarity
 	return textProp
 }

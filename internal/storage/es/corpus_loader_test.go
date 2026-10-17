@@ -46,10 +46,13 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 		getJSON(t, container.Address+"/"+index+"/_settings?flat_settings=true", &settings)
 		got := settings[index].Settings
 		for key, want := range map[string]string{
-			"index.number_of_shards":   "1",
-			"index.number_of_replicas": "0",
-			"index.max_result_window":  "10001",
-			"index.refresh_interval":   "1s",
+			"index.number_of_shards":             "1",
+			"index.number_of_replicas":           "0",
+			"index.max_result_window":            "10001",
+			"index.refresh_interval":             "1s",
+			"index.similarity.article_bm25.type": "BM25",
+			"index.similarity.article_bm25.k1":   "1.2",
+			"index.similarity.article_bm25.b":    "0.75",
 		} {
 			if got[key] != any(want) {
 				t.Errorf("%s = %v, want %q", key, got[key], want)
@@ -64,9 +67,9 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 		getJSON(t, container.Address+"/"+index+"/_mapping", &mappings)
 		properties := mappings[index].Mappings.Properties
 		want := map[string]string{
-			"title":            `{"type":"text","analyzer":"english_analyzer","fields":{"keyword":{"type":"keyword"}}}`,
-			"description":      `{"type":"text","analyzer":"english_analyzer"}`,
-			"content":          `{"type":"text","analyzer":"english_analyzer"}`,
+			"title":            `{"type":"text","analyzer":"english_analyzer","similarity":"article_bm25","fields":{"keyword":{"type":"keyword"}}}`,
+			"description":      `{"type":"text","analyzer":"english_analyzer","similarity":"article_bm25"}`,
+			"content":          `{"type":"text","analyzer":"english_analyzer","similarity":"article_bm25"}`,
 			"id":               `{"type":"keyword"}`,
 			"url":              `{"type":"keyword"}`,
 			"language":         `{"type":"keyword"}`,
@@ -153,7 +156,12 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 				"embedding.index_options.type":            "hnsw",
 				"embedding.index_options.m":               "16",
 				"embedding.index_options.ef_construction": "64",
-				"segments": "1",
+				"segments":               "1",
+				"similarity.k1":          "1.2",
+				"similarity.b":           "0.75",
+				"title.similarity":       "article_bm25",
+				"description.similarity": "article_bm25",
+				"content.similarity":     "article_bm25",
 			} {
 				if got := record.Settings[key]; got != want {
 					t.Errorf("settings[%s] = %q, want %q", key, got, want)

@@ -318,12 +318,20 @@ func (l *CorpusLoader) declaredSettings(ctx context.Context) (map[string]string,
 	}
 
 	settings := make(map[string]string)
-	for _, key := range []string{"index.number_of_shards", "index.number_of_replicas", "index.max_result_window", "index.refresh_interval"} {
+	similarityPrefix := "index.similarity." + textSimilarity + "."
+	for key, recorded := range map[string]string{
+		"index.number_of_shards":   "index.number_of_shards",
+		"index.number_of_replicas": "index.number_of_replicas",
+		"index.max_result_window":  "index.max_result_window",
+		"index.refresh_interval":   "index.refresh_interval",
+		similarityPrefix + "k1":    "similarity.k1",
+		similarityPrefix + "b":     "similarity.b",
+	} {
 		value, ok := byIndex[index].Settings[key].(string)
 		if !ok {
 			return nil, fmt.Errorf("settings of %s do not declare %s", index, key)
 		}
-		settings[key] = value
+		settings[recorded] = value
 	}
 
 	mappings, err := l.client.typed.Indices.GetMapping().Index(index).Do(ctx)
@@ -333,6 +341,7 @@ func (l *CorpusLoader) declaredSettings(ctx context.Context) (map[string]string,
 	fields := searchFieldMappings(mappings[index].Mappings.Properties)
 	for _, name := range []string{"title", "description", "content"} {
 		settings[name+".analyzer"] = fields[name].Analyzer
+		settings[name+".similarity"] = fields[name].Similarity
 	}
 	vector := fields["embedding"]
 	if vector.VectorIndex == nil {
