@@ -16,12 +16,16 @@ import (
 //	query_id  0  doc_id  relevance_grade
 //
 // Unannotated entries (grade < 0) are skipped.
-func WriteQrels(jf *File, path string) error {
+func WriteQrels(jf *File, path string) (err error) {
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("create qrels file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close qrels file: %w", closeErr)
+		}
+	}()
 
 	w := bufio.NewWriter(f)
 	for _, entry := range jf.Queries {
@@ -29,10 +33,15 @@ func WriteQrels(jf *File, path string) error {
 			if doc.Grade < 0 {
 				continue
 			}
-			fmt.Fprintf(w, "%s\t0\t%s\t%d\n", entry.QueryID, doc.DocID, doc.Grade)
+			if _, err := fmt.Fprintf(w, "%s\t0\t%s\t%d\n", entry.QueryID, doc.DocID, doc.Grade); err != nil {
+				return fmt.Errorf("write qrels file: %w", err)
+			}
 		}
 	}
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return fmt.Errorf("write qrels file: %w", err)
+	}
+	return nil
 }
 
 // ReadQrels imports a TREC qrels file into a JudgmentFile.
