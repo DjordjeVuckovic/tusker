@@ -9,10 +9,6 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-import torch
-from tokenizers import Tokenizer, models, pre_tokenizers, processors
-from transformers.models.qwen3 import Qwen3Config, Qwen3Model
-from transformers.tokenization_utils_fast import PreTrainedTokenizerFast
 
 SCRIPTS = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPTS))
@@ -81,14 +77,18 @@ def write_canonical_package(
     return CanonicalPackage(descriptor=descriptor, resource=resource)
 
 
-@pytest.fixture(scope="session")
-def tiny_model(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """A random one-layer Qwen3 at the real model's 1024 width, with a per-character vocabulary.
+def build_tiny_model(directory: Path) -> Path:
+    """Save a random one-layer Qwen3 at the real model's 1024 width, with a per-character vocabulary.
 
     Every printable ASCII character and newline has its own id, so any byte that differs
     between two inputs reaches the model. Like the real tokenizer, it appends EOS.
     """
-    directory = tmp_path_factory.mktemp("tiny-qwen3")
+    # Imported here so the scripts/tests directory collects without the torch stack.
+    import torch
+    from tokenizers import Tokenizer, models, pre_tokenizers, processors
+    from transformers.models.qwen3 import Qwen3Config, Qwen3Model
+    from transformers.tokenization_utils_fast import PreTrainedTokenizerFast
+
     vocabulary = [EOS, "[UNK]", "\n", *(chr(code) for code in range(32, 127))]
     tokenizer = Tokenizer(
         models.WordLevel(
@@ -123,6 +123,11 @@ def tiny_model(tmp_path_factory: pytest.TempPathFactory) -> Path:
     )
     Qwen3Model(config).save_pretrained(directory)
     return directory
+
+
+@pytest.fixture(scope="session")
+def tiny_model(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return build_tiny_model(tmp_path_factory.mktemp("tiny-qwen3"))
 
 
 @pytest.fixture
