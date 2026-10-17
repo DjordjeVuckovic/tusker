@@ -65,7 +65,7 @@ The project follows a layered architecture pattern:
 
 - **tracks/**: Benchmark tracks — each a self-contained folder with `spec.yaml`, `suite.yaml`, `trec/` (pool + judgments), and `reports/`
 - **db/**: Database-related files
-    - `migrations/`: SQL migration files for database schema
+    - `migrations/`: SQL migrations per Postgres engine, `<engine>/schema/` and `<engine>/indexes/` (one file per index, own version table), embedded by the `migrations` Go package
     - `query/`: SQL query files for database operations
 - **dataset/**: Sample datasets and documentation
 - **scripts/**: Utility scripts for setup and maintenance

@@ -7,14 +7,11 @@
 ```bash
 go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 ```
-- Run migrations
-- - Example
+- Each Postgres engine (`native`, `paradedb`, `tiger`) has two migration sets under `db/migrations/<engine>/`: `schema/` (tables and generated columns) and `indexes/` (one file per index, tracked in `schema_migrations_indexes`). `datapipe load` applies both itself, building the indexes after the data is in. To run them by hand against the Docker engines:
 ```bash
-migrate -path db/migrations -database "postgres://username:password@localhost:5432/news_db?sslmode=disable" up
-```
-- Local Postgres with Docker
-```bash
-migrate -path db/migrations -database "postgres://news_user:news_password@localhost:54320/news_db?sslmode=disable" up
+make migrate-schema-native     # or -paradedb, -tiger, -all
+make migrate-indexes-native
+make migrate-down-native       # drops the indexes, then the schema
 ```
 ### OpenAPI Schema gen
 - Install swag CLI

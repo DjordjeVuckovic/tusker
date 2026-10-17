@@ -3,14 +3,12 @@ package testing
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
-	"sort"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/db/migrations"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -21,10 +19,21 @@ type PGContainer struct {
 	ConnString string
 }
 
+// PGConfig selects the database a container starts. Engine defaults to
+// storage.PostgresNative. The engine's schema and index migrations are
+// applied unless Unmigrated is set.
 type PGConfig struct {
-	Database string
-	Username string
-	Password string
+	Database   string
+	Username   string
+	Password   string
+	Engine     storage.Engine
+	Unmigrated bool
+}
+
+var engineImages = map[storage.Engine]string{
+	storage.PostgresNative: "pgvector/pgvector:pg18",
+	storage.ParadeDB:       "paradedb/paradedb:0.21.5-pg18",
+	storage.Tiger:          "timescale/timescaledb-ha:pg18",
 }
 
 func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
@@ -33,15 +42,21 @@ func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
 
 func NewPGContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer {
 	tb.Helper()
+	return NewPGContainerWithConfig(ctx, tb, PGConfig{})
+}
+
+// NewPGContainerWithConfig starts the container cfg describes and terminates
+// it when the test ends. An empty Database means news_test_db as test/test.
+func NewPGContainerWithConfig(ctx context.Context, tb testing.TB, cfg PGConfig) *PGContainer {
+	tb.Helper()
 	if testing.Short() {
 		tb.Skip("skipping testcontainer-backed test in -short mode")
 	}
+	if cfg.Database == "" {
+		cfg.Database, cfg.Username, cfg.Password = "news_test_db", "test", "test"
+	}
 
-	container, err := createPGContainer(ctx, PGConfig{
-		Database: "news_test_db",
-		Username: "test",
-		Password: "test",
-	})
+	container, err := createPGContainer(ctx, cfg)
 	if err != nil {
 		tb.Fatalf("failed to create postgres container: %v", err)
 	}
@@ -56,64 +71,60 @@ func NewPGContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer 
 }
 
 func createPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
-	_, b, _, _ := runtime.Caller(0)
-	projectRoot := filepath.Join(filepath.Dir(b), "../..")
-	migrationsDir := filepath.Join(projectRoot, "db", "migrations")
-
-	migrationFiles, err := filepath.Glob(filepath.Join(migrationsDir, "*.up.sql"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to find migration files: %w", err)
+	if cfg.Engine == "" {
+		cfg.Engine = storage.PostgresNative
 	}
-	sort.Strings(migrationFiles)
-
-	var initScript strings.Builder
-	for i, f := range migrationFiles {
-		content, err := os.ReadFile(f)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read migration file %s: %w", f, err)
-		}
-		initScript.Write(content)
-		initScript.WriteString(";\n")
-		if i < len(migrationFiles)-1 {
-			initScript.WriteString("\n")
-		}
-	}
-
-	tmpFile, err := os.CreateTemp("", "migrations-*.sql")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
-	}
-
-	if _, err := tmpFile.WriteString(initScript.String()); err != nil {
-		return nil, fmt.Errorf("failed to write migrations: %w", err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close temp file: %w", err)
+	image, ok := engineImages[cfg.Engine]
+	if !ok {
+		return nil, fmt.Errorf("no postgres image for engine %q", cfg.Engine)
 	}
 
 	pgContainer, err := postgres.Run(ctx,
-		"pgvector/pgvector:pg18",
+		image,
 		postgres.WithDatabase(cfg.Database),
 		postgres.WithUsername(cfg.Username),
 		postgres.WithPassword(cfg.Password),
-		postgres.WithInitScripts(tmpFile.Name()),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
-				WithStartupTimeout(30*time.Second),
+				WithStartupTimeout(2*time.Minute),
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start postgres container: %w", err)
+		_ = testcontainers.TerminateContainer(pgContainer)
+		return nil, fmt.Errorf("failed to start %s container: %w", cfg.Engine, err)
 	}
 
 	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
+	if err == nil && !cfg.Unmigrated {
+		err = migrate(ctx, connStr, cfg.Engine)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to get connection string: %w", err)
+		_ = testcontainers.TerminateContainer(pgContainer)
+		return nil, err
 	}
 
 	return &PGContainer{
 		Container:  pgContainer,
 		ConnString: connStr,
 	}, nil
+}
+
+func migrate(ctx context.Context, connStr string, engine storage.Engine) error {
+	conn, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		return fmt.Errorf("connect to migrate %s: %w", engine, err)
+	}
+	defer conn.Close(context.WithoutCancel(ctx))
+
+	for _, open := range []func(storage.Engine) (migrations.Set, error){migrations.Schema, migrations.Indexes} {
+		set, err := open(engine)
+		if err != nil {
+			return err
+		}
+		if err := set.Up(ctx, conn); err != nil {
+			return fmt.Errorf("migrate %s: %w", engine, err)
+		}
+	}
+	return nil
 }

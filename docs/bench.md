@@ -76,8 +76,8 @@ baseline in `news_semantic`.
 
 `hnsw.ef_search` is only the query-time half of that knob. The build-time half, `m` and
 `ef_construction`, is fixed when the index is created and cannot be set per connection, so it
-is not a spec setting: Postgres declares it in the `CREATE INDEX` of `db/migrations`,
-`db/parade_migrations` and `db/tiger_migrations`, and Elasticsearch in the `index_options` of
+is not a spec setting: Postgres declares it in the `CREATE INDEX` of each engine's
+`db/migrations/<engine>/indexes/`, and Elasticsearch in the `index_options` of
 its `dense_vector` mapping, both at the values in `internal/storage/vector.go`. Left undeclared
 the products disagree (pgvector builds at `ef_construction = 64`, Elasticsearch at `100`),
 which puts part of any recall gap in the graph rather than the engine. Both are held to 64,
