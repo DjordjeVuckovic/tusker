@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -159,37 +160,39 @@ func stallingServer(t *testing.T, answer string) *httptest.Server {
 	return server
 }
 
-func TestEsExecutor_CallsWithoutACallerDeadlineStopAtTheDefaultOne(t *testing.T) {
-	tests := []struct {
-		name   string
-		answer string
-		call   func(ctx context.Context, exec *EsExecutor) error
-	}{
-		{
-			name:   "validate",
-			answer: `{"valid": true}`,
-			call: func(ctx context.Context, exec *EsExecutor) error {
-				return exec.Validate(ctx, Request{Query: `{"query": {"match_all": {}}}`})
-			},
+// esCallsWithoutADeadlineOfTheirOwn are the executor calls a caller may make
+// with a context that carries no deadline.
+var esCallsWithoutADeadlineOfTheirOwn = []struct {
+	name   string
+	answer string
+	call   func(ctx context.Context, exec *EsExecutor) error
+}{
+	{
+		name:   "validate",
+		answer: `{"valid": true}`,
+		call: func(ctx context.Context, exec *EsExecutor) error {
+			return exec.Validate(ctx, Request{Query: `{"query": {"match_all": {}}}`})
 		},
-		{
-			name:   "validate a stored template",
-			answer: `{"template_output": {"query": {"match_all": {}}}}`,
-			call: func(ctx context.Context, exec *EsExecutor) error {
-				return exec.Validate(ctx, Request{SearchTemplateID: "t-es_match", Params: map[string]any{"terms": "climate"}})
-			},
+	},
+	{
+		name:   "validate a stored template",
+		answer: `{"template_output": {"query": {"match_all": {}}}}`,
+		call: func(ctx context.Context, exec *EsExecutor) error {
+			return exec.Validate(ctx, Request{SearchTemplateID: "t-es_match", Params: map[string]any{"terms": "climate"}})
 		},
-		{
-			name:   "corpus count",
-			answer: `{"count": 1}`,
-			call: func(ctx context.Context, exec *EsExecutor) error {
-				_, err := exec.CorpusCount(ctx)
-				return err
-			},
+	},
+	{
+		name:   "corpus count",
+		answer: `{"count": 1}`,
+		call: func(ctx context.Context, exec *EsExecutor) error {
+			_, err := exec.CorpusCount(ctx)
+			return err
 		},
-	}
+	},
+}
 
-	for _, tt := range tests {
+func TestEsExecutor_CallsWithoutACallerDeadlineStopAtTheDefaultOne(t *testing.T) {
+	for _, tt := range esCallsWithoutADeadlineOfTheirOwn {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := NewEsExecutor("es", stallingServer(t, tt.answer).URL, "articles")
 			exec.defaultTimeout = 50 * time.Millisecond
@@ -197,6 +200,44 @@ func TestEsExecutor_CallsWithoutACallerDeadlineStopAtTheDefaultOne(t *testing.T)
 			err := tt.call(context.Background(), exec)
 
 			assert.ErrorIs(t, err, context.DeadlineExceeded)
+		})
+	}
+}
+
+// deadlineRecordingTransport answers every request with answer and records the
+// deadline each request's context carried.
+type deadlineRecordingTransport struct {
+	answer    string
+	deadlines []time.Time
+}
+
+func (rt *deadlineRecordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	deadline, _ := req.Context().Deadline()
+	rt.deadlines = append(rt.deadlines, deadline)
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(rt.answer)),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Request:    req,
+	}, nil
+}
+
+func TestEsExecutor_CallsKeepALongerCallerDeadline(t *testing.T) {
+	for _, tt := range esCallsWithoutADeadlineOfTheirOwn {
+		t.Run(tt.name, func(t *testing.T) {
+			transport := &deadlineRecordingTransport{answer: tt.answer}
+			exec := NewEsExecutor("es", "http://es.invalid", "articles")
+			exec.client = &http.Client{Transport: transport}
+			callerDeadline := time.Now().Add(spec.DefaultQueryTimeout + time.Hour)
+			ctx, cancel := context.WithDeadline(context.Background(), callerDeadline)
+			defer cancel()
+
+			_ = tt.call(ctx, exec)
+
+			require.NotEmpty(t, transport.deadlines)
+			for _, got := range transport.deadlines {
+				assert.True(t, got.Equal(callerDeadline), "request deadline %s, caller's %s", got, callerDeadline)
+			}
 		})
 	}
 }
