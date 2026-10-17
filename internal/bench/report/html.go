@@ -134,6 +134,7 @@ type htmlLatRow struct {
 	Engine                                          string
 	Min, P50, P75, P90, P95, P99, Max, Mean, Stddev string
 	Samples                                         int
+	ExcludedQueries                                 int
 }
 
 type htmlSigRow struct {
@@ -213,17 +214,18 @@ func buildViewModel(r *Report) htmlReport {
 		for _, agg := range jr.Aggregated {
 			s := agg.Latency
 			job.Latency = append(job.Latency, htmlLatRow{
-				Engine:  agg.EngineName,
-				Min:     fmtDuration(s.Min),
-				P50:     fmtDuration(s.P50()),
-				P75:     fmtDuration(s.P75()),
-				P90:     fmtDuration(s.P90()),
-				P95:     fmtDuration(s.P95()),
-				P99:     fmtDuration(s.P99()),
-				Max:     fmtDuration(s.Max),
-				Mean:    fmtDuration(s.Mean),
-				Stddev:  fmtDuration(s.Stddev),
-				Samples: s.SampleCount,
+				Engine:          agg.EngineName,
+				Min:             fmtDuration(s.Min),
+				P50:             fmtDuration(s.P50()),
+				P75:             fmtDuration(s.P75()),
+				P90:             fmtDuration(s.P90()),
+				P95:             fmtDuration(s.P95()),
+				P99:             fmtDuration(s.P99()),
+				Max:             fmtDuration(s.Max),
+				Mean:            fmtDuration(s.Mean),
+				Stddev:          fmtDuration(s.Stddev),
+				Samples:         s.SampleCount,
+				ExcludedQueries: agg.LatencyExcludedQueries,
 			})
 		}
 

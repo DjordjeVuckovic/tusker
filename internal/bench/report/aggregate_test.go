@@ -336,3 +336,28 @@ func TestWriteTable_JudgedJobWhereEveryCellFailedIsNotLatencyOnly(t *testing.T) 
 }
 
 func ptr(v float64) *float64 { return &v }
+
+func TestWriters_LatencyTablesShowExcludedQueries(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:    "excluded",
+			PerQuery:   []Entry{{QueryID: "q1", EngineName: "a", Judged: true}},
+			Aggregated: []AggregatedEntry{{EngineName: "a", JudgedCount: 7, QueryCount: 7, LatencyExcludedQueries: 7}},
+		}},
+	}
+	var terminal, markdown bytes.Buffer
+	WriteTable(r, &terminal)
+	WriteMarkdown(r, &markdown)
+	htmlPath := filepath.Join(t.TempDir(), "report.html")
+	require.NoError(t, WriteHTML(r, htmlPath))
+	html, err := os.ReadFile(htmlPath)
+	require.NoError(t, err)
+
+	assert.Regexp(t, `(?i)samples\s+│\s+excluded`, terminal.String())
+	assert.Regexp(t, `│\s+0\s+│\s+7\s+│`, terminal.String())
+	assert.Contains(t, markdown.String(), "| Samples | Excluded |")
+	assert.Contains(t, markdown.String(), "| 0 | 7 |")
+	assert.Contains(t, string(html), "<th>Excluded</th>")
+	assert.Contains(t, string(html), "<td>7</td>")
+}

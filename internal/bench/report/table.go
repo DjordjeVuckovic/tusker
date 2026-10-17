@@ -169,7 +169,7 @@ func writeMDLatencyTable(w io.Writer, jr *JobReport) {
 
 	t := newMDTable()
 	t.AppendHeader(table.Row{
-		"Engine", "Min", "p50", "p75", "p90", "p95", "p99", "Max", "Mean", "Stddev", "Samples",
+		"Engine", "Min", "p50", "p75", "p90", "p95", "p99", "Max", "Mean", "Stddev", "Samples", "Excluded",
 	})
 	for _, agg := range jr.Aggregated {
 		s := agg.Latency
@@ -185,6 +185,7 @@ func writeMDLatencyTable(w io.Writer, jr *JobReport) {
 			fmtDuration(s.Mean),
 			fmtDuration(s.Stddev),
 			s.SampleCount,
+			agg.LatencyExcludedQueries,
 		})
 	}
 	fmt.Fprintln(w, t.RenderMarkdown())
@@ -353,9 +354,9 @@ func writeLatencyTable(w io.Writer, jr *JobReport) {
 
 	t := newTable(w)
 	t.AppendHeader(table.Row{
-		"Engine", "Min", "p50", "p75", "p90", "p95", "p99", "Max", "Mean", "Stddev", "Samples",
+		"Engine", "Min", "p50", "p75", "p90", "p95", "p99", "Max", "Mean", "Stddev", "Samples", "Excluded",
 	})
-	t.SetColumnConfigs(rightCols(2, 3, 4, 5, 6, 7, 8, 9, 10, 11))
+	t.SetColumnConfigs(rightCols(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12))
 
 	for _, agg := range jr.Aggregated {
 		s := agg.Latency
@@ -376,6 +377,7 @@ func writeLatencyTable(w io.Writer, jr *JobReport) {
 			fmtDuration(s.Mean),
 			fmtDuration(s.Stddev),
 			s.SampleCount,
+			agg.LatencyExcludedQueries,
 		})
 	}
 
