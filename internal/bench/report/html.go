@@ -230,7 +230,7 @@ func buildViewModel(r *Report) htmlReport {
 		for _, sig := range jr.Significance {
 			job.Significance = append(job.Significance, htmlSigRow{
 				EngineA: sig.EngineA, EngineB: sig.EngineB, Metric: sig.Metric,
-				W: fmt.Sprintf("%.1f", sig.W), P: fmt.Sprintf("%.4f", sig.P), AdjustedP: fmt.Sprintf("%.4f", sig.AdjustedP),
+				W: fmt.Sprintf("%.1f", sig.W), P: fmt.Sprintf("%.4f", sig.P), AdjustedP: fmtRecorded(sig.AdjustedP),
 				Stars: sig.Stars, NS: sig.Stars == "",
 			})
 		}

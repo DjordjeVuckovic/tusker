@@ -56,12 +56,25 @@ func writeScoringHeader(w io.Writer, r *Report) {
 }
 
 func hasAnyJudgments(jr *JobReport) bool {
+	for _, agg := range jr.Aggregated {
+		if agg.JudgedCount > 0 {
+			return true
+		}
+	}
 	for _, e := range jr.PerQuery {
 		if e.Judged {
 			return true
 		}
 	}
 	return false
+}
+
+// fmtRecorded renders a metric older reports never recorded as "—", not 0.
+func fmtRecorded(v *float64) string {
+	if v == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%.4f", *v)
 }
 
 // WriteMarkdown renders the report as GitHub-Flavored Markdown suitable for
@@ -195,7 +208,7 @@ func writeMDSignificanceTable(w io.Writer, jr *JobReport) {
 			s.EngineA, s.EngineB, s.Metric,
 			fmt.Sprintf("%.1f", s.W),
 			fmt.Sprintf("%.4f", s.P),
-			fmt.Sprintf("%.4f", s.AdjustedP),
+			fmtRecorded(s.AdjustedP),
 			sig,
 		})
 	}
@@ -299,7 +312,7 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 				fmtBest(agg.MAP, bestMAP),
 				fmtBest(agg.MRR, bestMRR),
 				fmtBest(agg.MBpref, bestBpref),
-				fmt.Sprintf("%.4f", agg.JudgedCoverage),
+				fmtRecorded(agg.JudgedCoverage),
 			)
 		} else {
 			for i := 0; i < numMetricCols; i++ {
@@ -386,7 +399,7 @@ func writeSignificanceTable(w io.Writer, jr *JobReport) {
 			s.EngineA, s.EngineB, s.Metric,
 			fmt.Sprintf("%.1f", s.W),
 			fmt.Sprintf("%.4f", s.P),
-			fmt.Sprintf("%.4f", s.AdjustedP),
+			fmtRecorded(s.AdjustedP),
 			colorSig(s.Stars),
 		})
 	}

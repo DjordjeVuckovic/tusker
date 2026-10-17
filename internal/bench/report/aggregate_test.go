@@ -175,8 +175,10 @@ func TestGenerate_JudgedCoverageIsTheGradedShareOfRetrievedTopK(t *testing.T) {
 
 	// Top 3: pg retrieves g0 u0 g1 and u1, so 2 of 4 carry a grade; es
 	// retrieves g0 and nothing for its failed query.
-	assert.InDelta(t, 0.5, agg["pg"].JudgedCoverage, 1e-9)
-	assert.InDelta(t, 1.0, agg["es"].JudgedCoverage, 1e-9)
+	require.NotNil(t, agg["pg"].JudgedCoverage)
+	require.NotNil(t, agg["es"].JudgedCoverage)
+	assert.InDelta(t, 0.5, *agg["pg"].JudgedCoverage, 1e-9)
+	assert.InDelta(t, 1.0, *agg["es"].JudgedCoverage, 1e-9)
 }
 
 func TestWriteTable_ShowsJudgedCoverage(t *testing.T) {
@@ -185,7 +187,7 @@ func TestWriteTable_ShowsJudgedCoverage(t *testing.T) {
 		Jobs: []JobReport{{
 			JobName:    "coverage",
 			PerQuery:   []Entry{{QueryID: "q1", EngineName: "pg", Judged: true}},
-			Aggregated: []AggregatedEntry{{EngineName: "pg", JudgedCount: 1, QueryCount: 1, JudgedCoverage: 0.625}},
+			Aggregated: []AggregatedEntry{{EngineName: "pg", JudgedCount: 1, QueryCount: 1, JudgedCoverage: ptr(0.625)}},
 		}},
 	}
 	var out bytes.Buffer
@@ -244,7 +246,8 @@ func TestGenerate_SignificanceIsHolmAdjustedAcrossEnginePairs(t *testing.T) {
 			got, ok := byPair[tc.pair]
 			require.True(t, ok)
 			assert.InDelta(t, tc.raw, got.P, 1e-12)
-			assert.InDelta(t, tc.adjusted, got.AdjustedP, 1e-12)
+			require.NotNil(t, got.AdjustedP)
+			assert.InDelta(t, tc.adjusted, *got.AdjustedP, 1e-12)
 			assert.Equal(t, tc.stars, got.Stars)
 		})
 	}
@@ -257,7 +260,7 @@ func TestWriters_ShowRawAndHolmAdjustedP(t *testing.T) {
 			JobName:      "holm",
 			PerQuery:     []Entry{{QueryID: "q1", EngineName: "a", Judged: true}},
 			Aggregated:   []AggregatedEntry{{EngineName: "a", JudgedCount: 1, QueryCount: 1}},
-			Significance: []PairwiseSignificance{{EngineA: "a", EngineB: "b", Metric: "MAP", W: 2, P: 0.0123, AdjustedP: 0.0369, Stars: "*"}},
+			Significance: []PairwiseSignificance{{EngineA: "a", EngineB: "b", Metric: "MAP", W: 2, P: 0.0123, AdjustedP: ptr(0.0369), Stars: "*"}},
 		}},
 	}
 	var terminal, markdown bytes.Buffer
@@ -299,3 +302,37 @@ func TestWriters_NameTheNDCGGainInEveryNDCGHeader(t *testing.T) {
 		}
 	}
 }
+
+func TestWriters_ShowUnrecordedScoringFieldsAsAbsentNotZero(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:      "legacy",
+			PerQuery:     []Entry{{QueryID: "q1", EngineName: "a", Judged: true}},
+			Aggregated:   []AggregatedEntry{{EngineName: "a", JudgedCount: 1, QueryCount: 1, MAP: 0.5, MRR: 0.6, MBpref: 0.7}},
+			Significance: []PairwiseSignificance{{EngineA: "a", EngineB: "b", Metric: "MAP", W: 2, P: 0.0123, Stars: "*"}},
+		}},
+	}
+	var terminal, markdown bytes.Buffer
+	WriteTable(r, &terminal)
+	WriteMarkdown(r, &markdown)
+
+	assert.Regexp(t, `0\.7000\s+│\s+—\s+│`, terminal.String(), "coverage cell")
+	assert.Regexp(t, `0\.0123\s+│\s+—\s+│`, terminal.String(), "holm cell")
+	assert.Contains(t, markdown.String(), "| 0.0123 | — |", "holm cell")
+}
+
+func TestWriteTable_JudgedJobWhereEveryCellFailedIsNotLatencyOnly(t *testing.T) {
+	r := Generate(unevenProbe(), nil)
+	for i := range r.Jobs[0].PerQuery {
+		r.Jobs[0].PerQuery[i].Judged = false
+		r.Jobs[0].PerQuery[i].Error = "timeout"
+	}
+
+	var out bytes.Buffer
+	WriteTable(r, &out)
+
+	assert.NotContains(t, out.String(), "No relevance judgments found")
+}
+
+func ptr(v float64) *float64 { return &v }

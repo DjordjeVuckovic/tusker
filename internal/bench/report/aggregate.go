@@ -289,7 +289,8 @@ func aggregate(scope jobScope, queryIDs []string) []AggregatedEntry {
 		}
 
 		if retrievedTopK > 0 {
-			agg.JudgedCoverage = float64(gradedTopK) / float64(retrievedTopK)
+			coverage := float64(gradedTopK) / float64(retrievedTopK)
+			agg.JudgedCoverage = &coverage
 		}
 
 		if len(allStats) > 0 {
@@ -390,7 +391,7 @@ func adjustAcrossEnginePairs(results []PairwiseSignificance) {
 			raw[i] = results[idx].P
 		}
 		for i, adjusted := range metrics.Holm(raw) {
-			results[members[i]].AdjustedP = adjusted
+			results[members[i]].AdjustedP = &adjusted
 			results[members[i]].Stars = metrics.SignificanceStars(adjusted)
 		}
 	}

@@ -91,8 +91,9 @@ type PairwiseSignificance struct {
 	Metric  string  // e.g. "NDCG@10", "MAP", "MRR"
 	W       float64 // Wilcoxon W statistic
 	P       float64 // two-tailed p-value, unadjusted
-	// AdjustedP is Holm-corrected across the job's engine pairs on this metric.
-	AdjustedP float64
+	// AdjustedP is Holm-corrected across the job's engine pairs on this
+	// metric; nil in reports written before the correction.
+	AdjustedP *float64
 	Stars     string // from AdjustedP: "**" p<0.01 | "*" p<0.05 | "" not significant
 }
 
@@ -154,8 +155,9 @@ type AggregatedEntry struct {
 	ErrorCount int
 	// JudgedCoverage is the share of retrieved docs within the largest K, over
 	// the judged queries, that carry a grade. Ungraded docs score as
-	// non-relevant, so a low value means the metrics above undercount.
-	JudgedCoverage float64
+	// non-relevant, so a low value means the metrics above undercount. nil when
+	// nothing was retrieved or the report predates it.
+	JudgedCoverage *float64
 }
 
 type LatencyStats struct {
