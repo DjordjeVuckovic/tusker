@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -39,6 +40,30 @@ var declaredIndexes = map[storage.Engine][]string{
 	},
 	storage.ParadeDB: {"idx_articles_search", "idx_articles_published_at", "idx_article_embedding"},
 	storage.Tiger:    {"idx_articles_bm25", "idx_articles_published_at", "idx_articles_publisher_domain", "idx_article_embedding"},
+}
+
+// declaredSettings is what each engine's index migrations declare, as the
+// engine reports it back after a load of the fixture corpus.
+var declaredSettings = map[storage.Engine]map[string]string{
+	storage.PostgresNative: {
+		"maintenance_work_mem":             "1GB",
+		"max_parallel_maintenance_workers": "4",
+	},
+	storage.ParadeDB: {
+		"maintenance_work_mem":                     "1GB",
+		"max_parallel_maintenance_workers":         "4",
+		"idx_articles_search.target_segment_count": "1",
+		"idx_articles_search.mutable_segment_rows": "1000",
+		"idx_articles_search.segments":             "1",
+	},
+	storage.Tiger: {
+		"maintenance_work_mem":                   "1GB",
+		"max_parallel_maintenance_workers":       "4",
+		"pg_textsearch.memory_limit":             "2GB",
+		"pg_textsearch.segments_per_level":       "8",
+		"pg_textsearch.memtable_spill_threshold": "32000000",
+		"idx_articles_bm25.segments":             "1",
+	},
 }
 
 func TestCorpusLoader(t *testing.T) {
@@ -234,6 +259,30 @@ func TestCorpusLoader(t *testing.T) {
 				assert.Empty(t, readArticles(t, db, []uuid.UUID{articles[0].ID}))
 			})
 
+			if engine == storage.ParadeDB {
+				t.Run("builds the bm25 index as one segment", func(t *testing.T) {
+					db := newDatabase(t, server.ConnString)
+					// Big enough for Postgres to plan parallel build workers, each
+					// of which writes its own segment unless the index caps them.
+					const rows = 20_000
+					articles, _ := fixture(rows)
+					for i := range articles {
+						articles[i].Content = strings.Repeat(articles[i].Content+" ", 25)
+					}
+
+					_, err := load(t, db, engine, corpusOf(articles, nil), storage.LoadOptions{BatchSize: 5_000})
+					require.NoError(t, err)
+
+					var segments, documents int
+					query(t, db, func(conn *pgx.Conn) error {
+						return conn.QueryRow(context.Background(),
+							"SELECT count(*), sum(num_docs) FROM paradedb.index_info('idx_articles_search', false)").Scan(&segments, &documents)
+					})
+					assert.Equal(t, 1, segments)
+					assert.Equal(t, rows, documents)
+				})
+			}
+
 			t.Run("records the load in corpus_load", func(t *testing.T) {
 				db := newDatabase(t, server.ConnString)
 				articles, vectors := fixture(corpusSize)
@@ -313,10 +362,7 @@ func TestCorpusLoader(t *testing.T) {
 					assert.Equal(t, 1, stages[name], "stages timing index %s", name)
 				}
 				assert.Contains(t, present["idx_article_embedding"], "WITH (m='16', ef_construction='64')")
-				assert.Equal(t, map[string]string{
-					"maintenance_work_mem":             "1GB",
-					"max_parallel_maintenance_workers": "4",
-				}, record.Settings)
+				assert.Equal(t, declaredSettings[engine], record.Settings)
 			})
 		})
 	}

@@ -125,6 +125,11 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 	if err != nil {
 		return storage.LoadRecord{}, fmt.Errorf("vacuum analyze: %w", err)
 	}
+	if inspect := engineKnobs[l.engine].inspect; inspect != nil && !opts.SkipIndex {
+		if err := inspect(ctx, conn, record.Settings); err != nil {
+			return storage.LoadRecord{}, err
+		}
+	}
 	if record.EngineVersion, err = engineVersion(ctx, conn); err != nil {
 		return storage.LoadRecord{}, err
 	}
@@ -232,6 +237,13 @@ func (l *CorpusLoader) buildIndexes(ctx context.Context, conn *pgx.Conn, record 
 			}
 			record.Settings[name] = value
 		}
+	}
+	for _, name := range engineKnobs[l.engine].settings {
+		var value string
+		if err := conn.QueryRow(ctx, "SELECT current_setting($1)", name).Scan(&value); err != nil {
+			return fmt.Errorf("read setting %s: %w", name, err)
+		}
+		record.Settings[name] = value
 	}
 	return nil
 }

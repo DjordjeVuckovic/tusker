@@ -7,4 +7,4 @@ CREATE INDEX idx_articles_search ON articles USING bm25 (
     (content::pdb.simple('stemmer=english', 'stopwords_language=english')),
     published_at,
     (publisher_domain::pdb.literal)
-) WITH (key_field = 'id');
+) WITH (key_field = 'id', target_segment_count = 1, mutable_segment_rows = 1000);
