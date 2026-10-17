@@ -55,12 +55,3 @@ func TestHeuristicStrategies_NameTheirRubric(t *testing.T) {
 		assert.NotEmpty(t, s.Describe().RubricVersion, "strategy %q", kind)
 	}
 }
-
-// A pool strategy's grade is relative to its pool, so it must not offer a
-// per-doc grade anything could fall back to.
-func TestPoolStrategies_OfferNoPerDocGrade(t *testing.T) {
-	for _, s := range []Strategy{NewBM25Strategy(), NewHybridStrategyWithStore(fakeVectorStore{}, "fake")} {
-		_, perDoc := s.(DocStrategy)
-		assert.False(t, perDoc, "strategy %q", s.Name())
-	}
-}

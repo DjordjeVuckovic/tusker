@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
@@ -266,6 +267,15 @@ func (fx *judgeFixture) judge(t *testing.T, args ...string) error {
 	return cmd.ExecuteContext(context.Background())
 }
 
+func (fx *judgeFixture) writePriorBM25(t *testing.T, runID string, queries ...judgment.Entry) {
+	t.Helper()
+	judge := judgment.NewBM25Strategy().Describe()
+	require.NoError(t, judgment.WriteFile(&judgment.File{
+		Meta:    meta.Meta{RunID: runID, Judge: &judge},
+		Queries: queries,
+	}, filepath.Join(fx.track, "trec", "annotations.bm25.yaml")))
+}
+
 func (fx *judgeFixture) annotations(t *testing.T, set string) *judgment.File {
 	t.Helper()
 	jf, err := judgment.ReadFile(filepath.Join(fx.track, "trec", "annotations."+set+".yaml"))
@@ -310,13 +320,29 @@ func TestJudge_FullyGradedPoolExitsZero(t *testing.T) {
 
 func TestJudge_QueryWithoutTermsFailsAfterWritingTheFile(t *testing.T) {
 	fx := newJudgeFixture(t, "the news", "climate change summit")
+	fx.writePriorBM25(t, "prior-run", judgment.Entry{QueryID: "q-gone"})
 
-	err := fx.judge(t, "--strategy", "bm25", "--allow-unjudged")
+	err := fx.judge(t, "--strategy", "bm25", "--allow-unjudged", "--resume")
 
 	var noTerms *judgment.NoQueryTermsError
 	require.ErrorAs(t, err, &noTerms)
 	assert.Equal(t, "q1", noTerms.QueryID)
-	assert.Equal(t, judgment.GradeUnjudged, fx.annotations(t, "bm25").Queries[0].Docs[0].Grade)
+	got := gradesByQuery(fx.annotations(t, "bm25"))
+	assert.Equal(t, judgment.GradeUnjudged, got["q1"][fx.pool.Queries[0].Docs[0].DocID])
+	assert.NotContains(t, got, "q-gone")
+}
+
+// A resumed file is this run's artifact and must not keep the prior run's
+// provenance.
+func TestJudge_ResumedFileCarriesTheNewRunID(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	fx.writePriorBM25(t, "prior-run", judgment.Entry{QueryID: "q1"})
+
+	require.NoError(t, fx.judge(t, "--strategy", "bm25", "--resume"))
+
+	runID := fx.annotations(t, "bm25").Meta.RunID
+	assert.NotEmpty(t, runID)
+	assert.NotEqual(t, "prior-run", runID)
 }
 
 func TestJudge_ManualRerunKeepsHandGrades(t *testing.T) {
@@ -385,16 +411,15 @@ func TestJudge_ManualForceReplacesAnotherJudgesFile(t *testing.T) {
 	assert.Equal(t, string(judgment.StrategyManual), fx.annotations(t, "bm25").Judge().Strategy)
 }
 
-// interruptingStore cancels the run when the given query's articles are fetched.
+// interruptingStore cancels the run when the article interruptAt is fetched.
 type interruptingStore struct {
 	articleStore
-	calls     int
-	interrupt context.CancelFunc
+	interruptAt uuid.UUID
+	interrupt   context.CancelFunc
 }
 
 func (s *interruptingStore) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]document.Article, error) {
-	s.calls++
-	if s.calls == 2 {
+	if slices.Contains(ids, s.interruptAt) {
 		s.interrupt()
 	}
 	return s.articleStore.GetByIDs(ctx, ids)
@@ -404,13 +429,13 @@ func (s *interruptingStore) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]do
 // run's provenance and counts like a finished file.
 func TestJudge_InterruptedRunLeavesAnIdentifiedFile(t *testing.T) {
 	fx := newJudgeFixture(t, "climate change", "climate change summit")
-	second := fx.pool.Queries[0]
-	second.QueryID = "q2"
-	fx.pool.Queries = append(fx.pool.Queries, second)
+	q2Doc := uuid.New()
+	fx.articles[q2Doc] = document.Article{ID: q2Doc, Title: "climate report"}
+	fx.pool.Queries = append(fx.pool.Queries, pool.PoolEntry{QueryID: "q2", QueryDesc: "climate", Docs: []pool.PooledDoc{{DocID: q2Doc}}})
 	fx.writePool(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	store := &interruptingStore{articleStore: fx.articles, interrupt: cancel}
+	store := &interruptingStore{articleStore: fx.articles, interruptAt: q2Doc, interrupt: cancel}
 
 	cmd := newJudgeCmdWithReader(func(*cobra.Command, string) (storage.Reader, error) { return store, nil })
 	cmd.SetOut(io.Discard)
