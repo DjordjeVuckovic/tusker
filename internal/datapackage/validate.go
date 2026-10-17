@@ -4,11 +4,18 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
 )
 
 // validate checks what every package needs before its resources can be
 // trusted. Write also requires a name, which the v2 profile leaves optional.
 func (p Package) validate() error {
+	if p.IDStrategy != nil {
+		if _, err := datamapping.ParseIdStrategyKind(string(p.IDStrategy.Kind)); err != nil {
+			return fmt.Errorf("package %s: %w", p.Name, err)
+		}
+	}
 	if len(p.Resources) == 0 {
 		return fmt.Errorf("package %s has no resources", p.Name)
 	}

@@ -3,6 +3,8 @@
 // read.
 package datapackage
 
+import "github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
+
 const (
 	// Profile is the Data Package v2 profile every written descriptor declares.
 	Profile        = "https://datapackage.org/profiles/2.0/datapackage.json"
@@ -49,10 +51,12 @@ type FileRef struct {
 	Hash string `json:"hash"`
 }
 
+// IDStrategy records how article ids were minted. Kind is the mapping's
+// closed set, so an unknown kind fails Write and Open.
 type IDStrategy struct {
-	Kind      string `json:"kind"`
-	Source    string `json:"source,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
+	Kind      datamapping.IdStrategyKind `json:"kind"`
+	Source    string                     `json:"source,omitempty"`
+	Namespace string                     `json:"namespace,omitempty"`
 }
 
 type ProducedBy struct {

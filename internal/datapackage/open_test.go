@@ -165,14 +165,15 @@ func TestResourceReportsWhatIsMissing(t *testing.T) {
 func TestOpenRejectsADescriptorItCannotTrust(t *testing.T) {
 	const valid = `"name": "x", "path": "x.txt", "format": "txt", "bytes": 1, "hash": "sha256:` + zeros64 + `"`
 	tests := map[string]string{
-		"escaping path":  `{"name": "p", "resources": [{"name": "x", "path": "../secret.txt", "format": "txt", "bytes": 1, "hash": "sha256:` + zeros64 + `"}]}`,
-		"absolute path":  `{"name": "p", "resources": [{"name": "x", "path": "/etc/passwd", "format": "txt", "bytes": 1, "hash": "sha256:` + zeros64 + `"}]}`,
-		"md5 hash":       `{"name": "p", "resources": [{"name": "x", "path": "x.txt", "format": "txt", "bytes": 1, "hash": "md5:d41d8cd98f00b204e9800998ecf8427e"}]}`,
-		"short hash":     `{"name": "p", "resources": [{"name": "x", "path": "x.txt", "format": "txt", "bytes": 1, "hash": "sha256:abc"}]}`,
-		"missing bytes":  `{"name": "p", "resources": [{"name": "x", "path": "x.txt", "format": "txt", "hash": "sha256:` + zeros64 + `"}]}`,
-		"no resources":   `{"name": "p", "resources": []}`,
-		"not json":       `{"name": "p", "resources": [{` + valid + `}]`,
-		"duplicate name": `{"name": "p", "resources": [{` + valid + `}, {` + valid + `}]}`,
+		"escaping path":   `{"name": "p", "resources": [{"name": "x", "path": "../secret.txt", "format": "txt", "bytes": 1, "hash": "sha256:` + zeros64 + `"}]}`,
+		"absolute path":   `{"name": "p", "resources": [{"name": "x", "path": "/etc/passwd", "format": "txt", "bytes": 1, "hash": "sha256:` + zeros64 + `"}]}`,
+		"md5 hash":        `{"name": "p", "resources": [{"name": "x", "path": "x.txt", "format": "txt", "bytes": 1, "hash": "md5:d41d8cd98f00b204e9800998ecf8427e"}]}`,
+		"short hash":      `{"name": "p", "resources": [{"name": "x", "path": "x.txt", "format": "txt", "bytes": 1, "hash": "sha256:abc"}]}`,
+		"missing bytes":   `{"name": "p", "resources": [{"name": "x", "path": "x.txt", "format": "txt", "hash": "sha256:` + zeros64 + `"}]}`,
+		"no resources":    `{"name": "p", "resources": []}`,
+		"not json":        `{"name": "p", "resources": [{` + valid + `}]`,
+		"duplicate name":  `{"name": "p", "resources": [{` + valid + `}, {` + valid + `}]}`,
+		"unknown id kind": `{"name": "p", "idStrategy": {"kind": "uuidv7-typo"}, "resources": [{` + valid + `}]}`,
 	}
 	for name, descriptor := range tests {
 		t.Run(name, func(t *testing.T) {
