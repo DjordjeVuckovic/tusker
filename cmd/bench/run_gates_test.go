@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
@@ -172,4 +175,19 @@ func TestRun_ReportRecordsItsSettings(t *testing.T) {
 	assert.Equal(t, []string{"a-only"}, settings.JobFilter)
 	assert.Equal(t, map[string]any{"boost": float64(2)}, settings.EngineParams["a"], "a declares boost: 2 in the spec")
 	assert.Equal(t, []int{1, 2}, reports[0].Config.KValues)
+}
+
+func TestRun_SpecDefaultJudgmentsPathIsRelativeToTheTrack(t *testing.T) {
+	tr := judgedTrack(t, nil)
+	specPath := filepath.Join(tr.dir, "spec.yaml")
+	specYAML, err := os.ReadFile(specPath)
+	require.NoError(t, err)
+	relative := bytes.Replace(specYAML, []byte(strconv.Quote(tr.judgments)), []byte(`"trec/annotations.fixture.yaml"`), 1)
+	require.NotEqual(t, specYAML, relative)
+	require.NoError(t, os.WriteFile(specPath, relative, 0o644))
+
+	_, err = execute(t, newRunCmd(), tr.dir)
+
+	require.NoError(t, err, "the test runs from cmd/bench, so only the track folder holds trec/")
+	assert.NotNil(t, tr.latestReport(t))
 }

@@ -49,7 +49,7 @@ or a glob, which runs every matching track and writes one report per track.
 
 The judgments file used for scoring resolves in this order:
   1. --judgments <name|path>      (CLI override)
-  2. spec.defaults.judgments      (per-track default)
+  2. spec.defaults.judgments      (per-track default; a relative path starts at the track)
   3. none → the run fails before measuring anything
 
 A missing judgments file fails the run the same way. --latency-only measures
@@ -301,12 +301,11 @@ func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJ
 		return &runJudgments{}, nil
 	}
 
-	value := f.judgments
-	explicit := value != ""
+	explicit := f.judgments != ""
+	path := tr.JudgmentsPath(f.judgments)
 	if !explicit {
-		value = bs.Defaults.Judgments
+		path = tr.DefaultJudgmentsPath(bs.Defaults.Judgments)
 	}
-	path := tr.JudgmentsPath(value)
 	if path == "" {
 		return nil, errors.New("no judgments to score against: set spec.defaults.judgments or pass --judgments\n" +
 			"  • or pass --latency-only to measure latency without scoring")

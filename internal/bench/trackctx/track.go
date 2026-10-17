@@ -138,6 +138,17 @@ func (t *Track) JudgmentsPath(value string) string {
 	return filepath.Join(t.trecDir, "annotations."+value+".yaml")
 }
 
+// DefaultJudgmentsPath resolves spec.defaults.judgments like JudgmentsPath,
+// except a relative path starts at the track folder rather than the cwd, so
+// the spec means the same file wherever bench runs from.
+func (t *Track) DefaultJudgmentsPath(value string) string {
+	path := t.JudgmentsPath(value)
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(t.Root, path)
+}
+
 // QrelsPath mirrors JudgmentsPath for TREC qrels exports. An annotations YAML
 // path maps to the qrels.<name>.tsv beside it, so an export given the file it
 // reads never writes over it; any other path is used verbatim.

@@ -232,6 +232,31 @@ func TestJudgmentsPath_StrategyVsExplicitPath(t *testing.T) {
 	})
 }
 
+func TestDefaultJudgmentsPath_RelativePathIsFromTheTrack(t *testing.T) {
+	dir := t.TempDir()
+	track := filepath.Join(dir, "tracks", "demo")
+	makeTrack(t, track)
+	tr, err := Resolve(Inputs{TrackArg: track})
+	require.NoError(t, err)
+	canon := canonical(t, track)
+
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"relative path", "trec/annotations.hand.yaml", filepath.Join(canon, "trec", "annotations.hand.yaml")},
+		{"absolute path", "/srv/grades/a.yaml", "/srv/grades/a.yaml"},
+		{"bare name", "hand", filepath.Join(canon, "trec", "annotations.hand.yaml")},
+		{"empty", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tr.DefaultJudgmentsPath(tt.value))
+		})
+	}
+}
+
 func TestQrelsPath_StrategySuffix(t *testing.T) {
 	dir := t.TempDir()
 	track := filepath.Join(dir, "tracks", "demo")
