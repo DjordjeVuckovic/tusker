@@ -109,8 +109,10 @@ most of the bytes, so project it away before moving anything to a cloud box:
 uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
 ```
 
-The output is a package of its own: `articles.parquet` plus a `datapackage.json`
-whose `canonical` property names the package it came from. `embed_corpus.py`
+The output is a package of its own: `articles.parquet` plus a
+`slim.datapackage.json` whose `canonical` property names the package it came
+from. The descriptor isn't called `datapackage.json` because the kaggle CLI
+never uploads a file by that name. `embed_corpus.py`
 takes the canonical reference from there, so embedding the slim package gives
 the same version and the same bytes as embedding the canonical one. The output
 stays plain parquet, since Kaggle decompresses `.gz` uploads and that would break
@@ -124,7 +126,7 @@ kernel slug and its `dataset_sources` are per corpus, and `code_file` points bac
 at the shared script.
 
 Kernels run with no argv. Without a package argument the script reads the one
-`datapackage.json` under `/kaggle/input`, writes to `/kaggle/working`, removes
+`slim.datapackage.json` under `/kaggle/input`, writes to `/kaggle/working`, removes
 checkpoints after the package is written, and sweeps the batch size.
 
 **0. Verify your phone** at kaggle.com/settings. The CLI sends `enable_gpu` and

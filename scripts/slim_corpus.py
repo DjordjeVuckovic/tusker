@@ -13,7 +13,7 @@
   uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
 
 Writes a package of its own to --out: articles.parquet holding id, title and
-description in canonical row order, and a datapackage.json whose `canonical`
+description in canonical row order, and a slim.datapackage.json whose `canonical`
 property names the canonical package it came from. embed_corpus.py reads that
 property, so embedding the projection yields the same package version and bytes
 as embedding the canonical package. The article body is most of the bytes, so
@@ -34,6 +34,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from embed_corpus import (
     DATAPACKAGE_PROFILE,
+    SLIM_DESCRIPTOR,
     PackageError,
     SourcePackage,
     describe_parquet_resource,
@@ -81,7 +82,7 @@ def write_slim_package(
         "canonical": source.canonical.to_descriptor(),
         "resources": [describe_parquet_resource(resource_path, name="articles")],
     }
-    write_descriptor(directory, descriptor)
+    write_descriptor(directory, descriptor, name=SLIM_DESCRIPTOR)
 
 
 def parse_args() -> argparse.Namespace:

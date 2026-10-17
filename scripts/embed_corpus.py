@@ -20,8 +20,8 @@ datapackage.json that records the model, recipe and canonical resource it came
 from.
 
 Doubles as a Kaggle script kernel. Kernels run with no argv, so omitting the
-package argument reads the one datapackage.json under /kaggle/input and writes
-to /kaggle/working.
+package argument reads the one slim.datapackage.json under /kaggle/input and
+writes to /kaggle/working.
 """
 
 import argparse
@@ -55,6 +55,9 @@ DATAPACKAGE_PROFILE = "https://datapackage.org/profiles/2.0/datapackage.json"
 PARQUET_MEDIATYPE = "application/vnd.apache.parquet"
 
 KAGGLE_INPUT = Path("/kaggle/input")
+# The kaggle CLI never uploads a file named datapackage.json, so the slim
+# package that travels to Kaggle names its descriptor differently.
+SLIM_DESCRIPTOR = "slim.datapackage.json"
 KAGGLE_WORKING = Path("/kaggle/working")
 
 CHECKPOINT_MANIFEST = "manifest.json"
@@ -174,9 +177,11 @@ def describe_parquet_resource(path: Path, *, name: str) -> dict[str, Any]:
     }
 
 
-def write_descriptor(directory: Path, descriptor: dict[str, Any]) -> None:
+def write_descriptor(
+    directory: Path, descriptor: dict[str, Any], *, name: str = "datapackage.json"
+) -> None:
     text = json.dumps(descriptor, indent=2, ensure_ascii=False) + "\n"
-    (directory / "datapackage.json").write_text(text, encoding="utf-8")
+    (directory / name).write_text(text, encoding="utf-8")
 
 
 def read_descriptor(descriptor_path: Path) -> dict[str, Any]:
@@ -576,7 +581,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "package", nargs="?", type=Path, help="canonical or slim datapackage.json"
+        "package",
+        nargs="?",
+        type=Path,
+        help="canonical datapackage.json or slim.datapackage.json",
     )
     parser.add_argument(
         "--output-root", type=Path, help="dataset root to write embeddings/ under"
@@ -666,13 +674,13 @@ def resolve_dim(requested: int | None, native_dim: int) -> int:
 
 def kaggle_package() -> Path:
     matches = (
-        sorted(KAGGLE_INPUT.glob("**/datapackage.json"))
+        sorted(KAGGLE_INPUT.glob(f"**/{SLIM_DESCRIPTOR}"))
         if KAGGLE_INPUT.is_dir()
         else []
     )
     if len(matches) != 1:
         raise PackageError(
-            f"no package argument, and {len(matches)} datapackage.json files under {KAGGLE_INPUT}"
+            f"no package argument, and {len(matches)} {SLIM_DESCRIPTOR} files under {KAGGLE_INPUT}"
         )
     return matches[0]
 

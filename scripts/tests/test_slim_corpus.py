@@ -46,7 +46,7 @@ def test_embedding_the_slim_projection_reproduces_the_canonical_package(
     )
     run_script(
         "embed_corpus.py",
-        slim / "datapackage.json",
+        slim / "slim.datapackage.json",
         "--output-root",
         tmp_path / "slim",
         *tiny_model_args,
@@ -73,7 +73,7 @@ def test_the_slim_payload_carries_only_what_the_embedder_reads(tmp_path):
 
     run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
 
-    descriptor = json.loads((slim / "datapackage.json").read_text())
+    descriptor = json.loads((slim / "slim.datapackage.json").read_text())
     (resource,) = descriptor["resources"]
     table = pq.read_table(slim / resource["path"])
     assert table.column_names == ["id", "title", "description"]
@@ -98,3 +98,22 @@ def test_refuses_to_slim_a_canonical_resource_that_does_not_verify(tmp_path):
     assert result.returncode != 0
     assert "hash" in result.stderr
     assert not (tmp_path / "payload").exists()
+
+
+def test_the_slim_payload_uploads_whole_through_the_kaggle_cli(tmp_path):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    slim = tmp_path / "payload"
+
+    run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
+
+    # `kaggle datasets create` never uploads files with these names.
+    skipped_by_kaggle = {
+        "datapackage.json",
+        "dataset-metadata.json",
+        "kernel-metadata.json",
+    }
+    assert {path.name for path in slim.iterdir()} == {
+        "articles.parquet",
+        "slim.datapackage.json",
+    }
+    assert not skipped_by_kaggle & {path.name for path in slim.iterdir()}
