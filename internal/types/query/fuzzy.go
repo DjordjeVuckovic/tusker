@@ -28,3 +28,8 @@ func ParseFuzziness(raw string) (Fuzziness, error) {
 		return "", fmt.Errorf("unsupported fuzziness: %q (must be NONE, AUTO, 0, 1 or 2)", raw)
 	}
 }
+
+// IsFuzzy reports whether a term may match at a non-zero edit distance.
+func (f Fuzziness) IsFuzzy() bool {
+	return f != "" && f != NoFuzziness && f != Fuzziness0
+}

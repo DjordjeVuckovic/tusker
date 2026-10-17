@@ -38,6 +38,19 @@ func NewSearcher(client *Client) *Searcher {
 // request names no operator.
 const DefaultOperator = queryoperator.Or
 
+// Capabilities reports every searchable field as isolated: each is its own
+// field in the index mapping.
+func (r *Searcher) Capabilities() dquery.Capabilities {
+	return dquery.Capabilities{
+		Engine:          "elasticsearch",
+		DefaultOperator: DefaultOperator,
+		Fuzziness:       true,
+		PhraseSlop:      true,
+		Boosts:          true,
+		Fields:          dquery.SearchableFields(),
+	}
+}
+
 // SearchStringQuery matches the query's SearchContract with a cross_fields
 // multi_match, so each term may hit any contract field, as it does in the
 // Postgres search_vector. The contract language is not applied: analysis is

@@ -231,6 +231,7 @@ func TestSearcher_Parity(t *testing.T) {
 	refreshIndex(t, indexer)
 
 	storagetest.RunParity(t, storagetest.Elasticsearch, searcher)
+	storagetest.RunFieldIsolation(t, searcher)
 }
 
 func TestSearcher_TotalMatchesIsExactPastTenThousand(t *testing.T) {

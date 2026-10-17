@@ -5,6 +5,7 @@ package storagetest
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
@@ -214,6 +215,51 @@ func RunParity(t *testing.T, engine Engine, searcher storage.FtsSearcher) {
 				t.Errorf("TotalMatches = %d, want %d", res.TotalMatches, len(want))
 			}
 		})
+	}
+}
+
+// RunFieldIsolation checks every field the searcher claims to isolate: a match
+// on it returns exactly the articles whose own text in that field holds the term.
+func RunFieldIsolation(t *testing.T, searcher storage.FtsSearcher) {
+	t.Helper()
+	const term = "budget"
+	for _, field := range searcher.Capabilities().Fields {
+		t.Run("match isolates "+string(field), func(t *testing.T) {
+			var want []uuid.UUID
+			for _, article := range ParityCorpus() {
+				if strings.Contains(fieldText(article, field), term) {
+					want = append(want, article.ID)
+				}
+			}
+			res, err := searcher.SearchField(t.Context(), query.NewMatch(string(field), term), page())
+			if err != nil {
+				t.Fatalf("search: %v", err)
+			}
+			got := make([]uuid.UUID, 0, len(res.Hits))
+			for _, hit := range res.Hits {
+				got = append(got, hit.Article.ID)
+			}
+			if !slices.Equal(sortedIDs(got), sortedIDs(want)) {
+				t.Errorf("match on %s = %v, want %v", field, sortedIDs(got), sortedIDs(want))
+			}
+		})
+	}
+}
+
+func fieldText(article document.Article, field query.Field) string {
+	switch field {
+	case query.FieldTitle:
+		return article.Title
+	case query.FieldSubtitle:
+		return article.Subtitle
+	case query.FieldDescription:
+		return article.Description
+	case query.FieldContent:
+		return article.Content
+	case query.FieldAuthor:
+		return article.Author
+	default:
+		return ""
 	}
 }
 

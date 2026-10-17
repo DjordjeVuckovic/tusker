@@ -65,6 +65,10 @@ func (q *String) Contract() SearchContract {
 	return contract
 }
 
+func (q *String) Effective(engineDefault operator.Operator) Effective {
+	return q.Contract().Effective(engineDefault)
+}
+
 // Boolean is a structured query using logical operators.
 type Boolean struct {
 	// Expression: Boolean query string with operators
@@ -89,6 +93,14 @@ func (q *Boolean) GetLanguage() Language {
 		return DefaultLanguage
 	}
 	return q.Language
+}
+
+// Effective reports the contract fields, which an expression matches, and the
+// operator that joins adjacent words.
+func (q *Boolean) Effective(engineDefault operator.Operator) Effective {
+	contract := DefaultSearchContract()
+	contract.Language = q.GetLanguage()
+	return contract.Effective(engineDefault)
 }
 
 // Phrase is a phrase match query with optional slop.
@@ -171,6 +183,14 @@ func (q *Phrase) GetLanguage() Language {
 	return q.Language
 }
 
+func (q *Phrase) Params() Params {
+	return Params{Fields: unboostedFields(q.Fields), Slop: q.GetSlop()}
+}
+
+func (q *Phrase) Effective() Effective {
+	return Effective{Fields: unboostedFields(q.Fields).fields(), Language: q.GetLanguage()}
+}
+
 // GetSlop returns the slop value (default 0)
 func (q *Phrase) GetSlop() int {
 	if q.Slop < 0 {
@@ -242,6 +262,18 @@ func (q *Match) GetLanguage() Language {
 		return DefaultLanguage
 	}
 	return q.Language
+}
+
+func (q *Match) Params() Params {
+	return Params{Fields: unboostedFields([]string{q.Field}), Fuzziness: q.GetFuzziness()}
+}
+
+func (q *Match) Effective(engineDefault operator.Operator) Effective {
+	return Effective{
+		Operator: operator.Resolve(q.Operator, engineDefault),
+		Fields:   []Field{Field(q.Field)},
+		Language: q.GetLanguage(),
+	}
 }
 
 func (q *Match) GetFuzziness() Fuzziness {
@@ -399,6 +431,26 @@ func (q *MultiMatch) GetLanguage() Language {
 	return q.Language
 }
 
+func (q *MultiMatch) Params() Params {
+	return Params{Fields: q.fieldWeights()}
+}
+
+func (q *MultiMatch) Effective(engineDefault operator.Operator) Effective {
+	return Effective{
+		Operator: operator.Resolve(q.Operator, engineDefault),
+		Fields:   q.fieldWeights().fields(),
+		Language: q.GetLanguage(),
+	}
+}
+
+func (q *MultiMatch) fieldWeights() fieldWeights {
+	weights := make(fieldWeights, 0, len(q.Fields))
+	for _, f := range q.Fields {
+		weights = append(weights, FieldWeight{Field: Field(f.Name), Weight: f.Weight})
+	}
+	return weights
+}
+
 func (q *MultiMatch) GetFields() []MultiMatchField {
 	return q.Fields
 }
@@ -462,6 +514,11 @@ func (q *Hybrid) GetLanguage() Language {
 		return DefaultLanguage
 	}
 	return q.Language
+}
+
+// Effective leaves Fields empty: each engine's lexical leg picks its own.
+func (q *Hybrid) Effective(engineDefault operator.Operator) Effective {
+	return Effective{Operator: engineDefault, Language: q.GetLanguage()}
 }
 
 func (q *Hybrid) GetK() int {

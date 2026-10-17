@@ -23,6 +23,18 @@ func NewReader(pool *pg.ConnectionPool) (*Searcher, error) {
 	return &Searcher{db: pool.GetConn()}, nil
 }
 
+// Capabilities reports a field as isolated only when no other field shares its
+// weight band; Postgres full-text search has no typo tolerance.
+func (r *Searcher) Capabilities() dquery.Capabilities {
+	return dquery.Capabilities{
+		Engine:          "postgres",
+		DefaultOperator: DefaultOperator,
+		PhraseSlop:      true,
+		Boosts:          true,
+		Fields:          isolatedFields(),
+	}
+}
+
 // SearchStringQuery matches the query's SearchContract against the weighted search_vector.
 func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	cursor, size := baseOpts.Cursor, baseOpts.Size

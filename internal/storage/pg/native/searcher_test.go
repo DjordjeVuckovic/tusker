@@ -95,6 +95,7 @@ func TestSearcher_Parity(t *testing.T) {
 	}
 
 	storagetest.RunParity(t, storagetest.Postgres, s)
+	storagetest.RunFieldIsolation(t, s)
 }
 
 func TestSearcher_StringQueryRanksWithPostgresDefaultWeights(t *testing.T) {

@@ -59,6 +59,28 @@ type SearchResponse struct {
 	PageMaxScore float64               `json:"page_max_score,omitempty"`
 	TotalMatches int64                 `json:"total_matches,omitempty"`
 	Hits         []ArticleSearchResult `json:"hits"`
+	// Effective is the contract the search ran under, with every omitted
+	// parameter filled by the engine.
+	Effective query.Effective `json:"effective"`
+	// Ignored lists the stated parameters the engine did not honour.
+	Ignored []query.Ignored `json:"ignored"`
+}
+
+// CapabilitiesResponse is what the running backend serves and honours.
+type CapabilitiesResponse struct {
+	QueryTypes QueryTypes         `json:"query_types"`
+	FullText   query.Capabilities `json:"full_text"`
+}
+
+// QueryTypes reports which query types the running backend serves.
+type QueryTypes struct {
+	StringQuery bool `json:"query_string"`
+	Match       bool `json:"match"`
+	MultiMatch  bool `json:"multi_match"`
+	Phrase      bool `json:"phrase"`
+	Boolean     bool `json:"boolean"`
+	Semantic    bool `json:"semantic"`
+	Hybrid      bool `json:"hybrid"`
 }
 
 // QueryWrapper wraps the actual query type

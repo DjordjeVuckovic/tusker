@@ -8,6 +8,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/labstack/echo/v4"
 )
@@ -62,29 +63,46 @@ func (r *SearchRouter) Bind() {
 	r.e.GET("/v1/capabilities", r.capabilitiesHandler)
 }
 
-// capabilitiesHandler reports which search paradigms the running backend supports (GET)
+// capabilitiesHandler reports what the running backend supports (GET)
 //
-// The full-text searcher is always wired, so string_query, match, multi_match,
-// phrase and boolean are always available. Semantic search is reported as
-// available only when a semantic searcher has been wired into the router.
+// The full-text searcher is always wired, so query_string, match, multi_match,
+// phrase and boolean are always available; semantic and hybrid only when their
+// searchers are. full_text is what the engine itself declares it can honour.
 //
-// @Summary Report supported search paradigms
-// @Description Returns the search paradigms exposed by the running backend. Useful for clients to discover available capabilities (e.g. whether semantic search is enabled).
+// @Summary Report supported query types and parameters
+// @Description Returns the query types the running backend serves and the full-text parameters its engine honours: the operator it applies when a request names none, whether it supports fuzziness, phrase slop and boosts, and the fields it can match apart from every other field. A stated parameter outside these is a 400 unless the request sends `Prefer: handling=lenient`.
 // @Tags capabilities
 // @Produce json
-// @Success 200 {object} dquery.Capabilities "Supported search paradigms"
+// @Success 200 {object} dto.CapabilitiesResponse "Supported query types and parameters"
 // @Router /v1/capabilities [get]
 func (r *SearchRouter) capabilitiesHandler(c echo.Context) error {
-	caps := dquery.Capabilities{
-		StringQuery: true,
-		Match:       true,
-		MultiMatch:  true,
-		Phrase:      true,
-		Boolean:     true,
-		Semantic:    r.semanticSearcher != nil,
-	}
+	return c.JSON(http.StatusOK, dto.CapabilitiesResponse{
+		QueryTypes: dto.QueryTypes{
+			StringQuery: true,
+			Match:       true,
+			MultiMatch:  true,
+			Phrase:      true,
+			Boolean:     true,
+			Semantic:    r.semanticSearcher != nil,
+			Hybrid:      r.hybridSearcher != nil,
+		},
+		FullText: r.searcher.Capabilities(),
+	})
+}
 
-	return c.JSON(http.StatusOK, caps)
+// checkCapabilities applies the request's Prefer handling to the params the
+// engine cannot honour: an error for a strict request, the ignored list for a
+// lenient one.
+func (r *SearchRouter) checkCapabilities(c echo.Context, params dquery.Params) ([]dquery.Ignored, error) {
+	handling := dto.HandlingFromPrefer(c.Request().Header.Values("Prefer"))
+	if handling == dquery.HandlingLenient {
+		c.Response().Header().Set("Preference-Applied", "handling=lenient")
+	}
+	ignored, err := dquery.CheckCapabilities(r.searcher.Capabilities(), params, handling)
+	if err != nil {
+		return nil, apperr.NewValidationWrap(err.Error(), err)
+	}
+	return ignored, nil
 }
 
 // searchHandler handles simple query string search (GET)
@@ -136,6 +154,11 @@ func (r *SearchRouter) searchHandler(c echo.Context) error {
 		}
 	}
 
+	ignored, err := r.checkCapabilities(c, dquery.Params{})
+	if err != nil {
+		return err
+	}
+
 	searchResult, err := r.searcher.SearchStringQuery(c.Request().Context(), queryString, &dquery.BaseOptions{
 		Cursor: cursor,
 		Size:   sizeInt,
@@ -145,7 +168,10 @@ func (r *SearchRouter) searchHandler(c echo.Context) error {
 		return err
 	}
 
-	return r.buildResponse(c, searchResult)
+	return r.buildResponse(c, searchResult, contractReport{
+		effective: queryString.Effective(r.defaultOperator()),
+		ignored:   ignored,
+	})
 }
 
 // structuredSearchHandler handles structured search requests (POST)
@@ -260,17 +286,30 @@ func (r *SearchRouter) handleHybridQuery(c echo.Context, params *dto.HybridParam
 		return err
 	}
 
+	ignored, err := r.checkCapabilities(c, dquery.Params{})
+	if err != nil {
+		return err
+	}
+
 	searchResult, err := r.hybridSearcher.SearchHybrid(c.Request().Context(), domainQuery, options)
 	if err != nil {
 		slog.Error("Failed to execute hybrid search", "error", err, "query", params.Query)
 		return err
 	}
 
-	return r.buildResponse(c, searchResult)
+	return r.buildResponse(c, searchResult, contractReport{
+		effective: domainQuery.Effective(r.defaultOperator()),
+		ignored:   ignored,
+	})
 }
 
 func (r *SearchRouter) handleMatchQuery(c echo.Context, params *dto.MatchParams, options *dquery.BaseOptions) error {
 	domainQuery, err := params.ToDomain()
+	if err != nil {
+		return err
+	}
+
+	ignored, err := r.checkCapabilities(c, domainQuery.Params())
 	if err != nil {
 		return err
 	}
@@ -281,11 +320,19 @@ func (r *SearchRouter) handleMatchQuery(c echo.Context, params *dto.MatchParams,
 		return err
 	}
 
-	return r.buildResponse(c, searchResult)
+	return r.buildResponse(c, searchResult, contractReport{
+		effective: domainQuery.Effective(r.defaultOperator()),
+		ignored:   ignored,
+	})
 }
 
 func (r *SearchRouter) handleMultiMatchQuery(c echo.Context, params *dto.MultiMatchParams, options *dquery.BaseOptions) error {
 	domainQuery, err := params.ToDomain()
+	if err != nil {
+		return err
+	}
+
+	ignored, err := r.checkCapabilities(c, domainQuery.Params())
 	if err != nil {
 		return err
 	}
@@ -296,11 +343,19 @@ func (r *SearchRouter) handleMultiMatchQuery(c echo.Context, params *dto.MultiMa
 		return err
 	}
 
-	return r.buildResponse(c, searchResult)
+	return r.buildResponse(c, searchResult, contractReport{
+		effective: domainQuery.Effective(r.defaultOperator()),
+		ignored:   ignored,
+	})
 }
 
 func (r *SearchRouter) handlePhraseQuery(c echo.Context, params *dto.PhraseParams, options *dquery.BaseOptions) error {
 	domainQuery, err := params.ToDomain()
+	if err != nil {
+		return err
+	}
+
+	ignored, err := r.checkCapabilities(c, domainQuery.Params())
 	if err != nil {
 		return err
 	}
@@ -311,11 +366,19 @@ func (r *SearchRouter) handlePhraseQuery(c echo.Context, params *dto.PhraseParam
 		return err
 	}
 
-	return r.buildResponse(c, searchResult)
+	return r.buildResponse(c, searchResult, contractReport{
+		effective: domainQuery.Effective(),
+		ignored:   ignored,
+	})
 }
 
 func (r *SearchRouter) handleBooleanQuery(c echo.Context, params *dto.BooleanParams, options *dquery.BaseOptions) error {
 	domainQuery, err := params.ToDomain()
+	if err != nil {
+		return err
+	}
+
+	ignored, err := r.checkCapabilities(c, dquery.Params{})
 	if err != nil {
 		return err
 	}
@@ -326,7 +389,10 @@ func (r *SearchRouter) handleBooleanQuery(c echo.Context, params *dto.BooleanPar
 		return err
 	}
 
-	return r.buildResponse(c, searchResult)
+	return r.buildResponse(c, searchResult, contractReport{
+		effective: domainQuery.Effective(r.defaultOperator()),
+		ignored:   ignored,
+	})
 }
 
 // handleSematicQuery handles semantic query search (GET)
@@ -418,7 +484,17 @@ func (r *SearchRouter) handleSematicQuery(c echo.Context) error {
 	return c.JSON(http.StatusOK, apiResponse)
 }
 
-func (r *SearchRouter) buildResponse(c echo.Context, searchResult *storage.SearchResult) error {
+func (r *SearchRouter) defaultOperator() operator.Operator {
+	return r.searcher.Capabilities().DefaultOperator
+}
+
+// contractReport is what a search response says about the contract it ran under.
+type contractReport struct {
+	effective dquery.Effective
+	ignored   []dquery.Ignored
+}
+
+func (r *SearchRouter) buildResponse(c echo.Context, searchResult *storage.SearchResult, report contractReport) error {
 	var nextCursorStr *string
 	if searchResult.NextCursor != nil {
 		encoded, err := dquery.EncodeCursor(searchResult.NextCursor.Score, searchResult.NextCursor.ID)
@@ -434,6 +510,11 @@ func (r *SearchRouter) buildResponse(c echo.Context, searchResult *storage.Searc
 		hits = []dto.ArticleSearchResult{}
 	}
 
+	ignored := report.ignored
+	if ignored == nil {
+		ignored = []dquery.Ignored{}
+	}
+
 	apiResponse := dto.SearchResponse{
 		Hits:         hits,
 		NextCursor:   nextCursorStr,
@@ -441,6 +522,8 @@ func (r *SearchRouter) buildResponse(c echo.Context, searchResult *storage.Searc
 		MaxScore:     searchResult.MaxScore,
 		PageMaxScore: searchResult.PageMaxScore,
 		TotalMatches: searchResult.TotalMatches,
+		Effective:    report.effective,
+		Ignored:      ignored,
 	}
 
 	return c.JSON(http.StatusOK, apiResponse)

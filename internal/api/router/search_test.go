@@ -11,6 +11,7 @@ import (
 	apiserver "github.com/DjordjeVuckovic/tusker/internal/api/server"
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/labstack/echo/v4"
 )
@@ -21,7 +22,14 @@ func (stubSemanticSearcher) SearchSemantic(context.Context, *dquery.Semantic, *d
 	return &storage.VectorSearchResult{}, nil
 }
 
-type stubFtsSearcher struct{}
+// stubFtsSearcher declares caps and returns no hits.
+type stubFtsSearcher struct {
+	caps dquery.Capabilities
+}
+
+func (s stubFtsSearcher) Capabilities() dquery.Capabilities {
+	return s.caps
+}
 
 func (stubFtsSearcher) SearchStringQuery(context.Context, *dquery.String, *dquery.BaseOptions) (*storage.SearchResult, error) {
 	return &storage.SearchResult{}, nil
@@ -189,7 +197,7 @@ func TestStructuredSearchHandlerValidation(t *testing.T) {
 			(&apiserver.Server{Echo: e}).SetupValidator()
 			e.HTTPErrorHandler = apperr.GlobalErrorHandler()
 
-			r := &SearchRouter{e: e, searcher: stubFtsSearcher{}, hybridSearcher: stubHybridSearcher{}}
+			r := &SearchRouter{e: e, searcher: stubFtsSearcher{caps: elasticsearchCaps}, hybridSearcher: stubHybridSearcher{}}
 			r.Bind()
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/articles/_search", strings.NewReader(tt.body))
@@ -208,43 +216,47 @@ func TestCapabilitiesHandler(t *testing.T) {
 	tests := []struct {
 		name         string
 		withSemantic bool
-		wantSemantic bool
+		withHybrid   bool
 	}{
-		{name: "without semantic searcher", withSemantic: false, wantSemantic: false},
-		{name: "with semantic searcher", withSemantic: true, wantSemantic: true},
+		{name: "full-text only"},
+		{name: "with semantic and hybrid searchers", withSemantic: true, withHybrid: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &SearchRouter{e: echo.New()}
+			r := &SearchRouter{e: echo.New(), searcher: stubFtsSearcher{caps: postgresCaps}}
 			if tt.withSemantic {
 				r.semanticSearcher = stubSemanticSearcher{}
 			}
-
-			req := httptest.NewRequest(http.MethodGet, "/v1/capabilities", nil)
-			rec := httptest.NewRecorder()
-			c := r.e.NewContext(req, rec)
-
-			if err := r.capabilitiesHandler(c); err != nil {
-				t.Fatalf("capabilitiesHandler returned error: %v", err)
+			if tt.withHybrid {
+				r.hybridSearcher = stubHybridSearcher{}
 			}
+			r.Bind()
 
+			rec := httptest.NewRecorder()
+			r.e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/capabilities", nil))
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 			}
 
-			var got map[string]bool
+			var got struct {
+				QueryTypes map[string]bool     `json:"query_types"`
+				FullText   dquery.Capabilities `json:"full_text"`
+			}
 			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 				t.Fatalf("failed to decode body: %v", err)
 			}
-
-			for _, key := range []string{"string_query", "match", "multi_match", "phrase", "boolean"} {
-				if !got[key] {
-					t.Errorf("%q = false, want true", key)
+			for _, key := range []string{"query_string", "match", "multi_match", "phrase", "boolean"} {
+				if !got.QueryTypes[key] {
+					t.Errorf("query_types[%q] = false, want true", key)
 				}
 			}
-			if got["semantic"] != tt.wantSemantic {
-				t.Errorf("semantic = %v, want %v", got["semantic"], tt.wantSemantic)
+			if got.QueryTypes["semantic"] != tt.withSemantic || got.QueryTypes["hybrid"] != tt.withHybrid {
+				t.Errorf("semantic = %v, hybrid = %v, want %v and %v",
+					got.QueryTypes["semantic"], got.QueryTypes["hybrid"], tt.withSemantic, tt.withHybrid)
+			}
+			if got.FullText.Engine != "postgres" || got.FullText.DefaultOperator != operator.And || got.FullText.Fuzziness {
+				t.Errorf("full_text = %+v, want the searcher's declared capabilities", got.FullText)
 			}
 		})
 	}
@@ -268,7 +280,7 @@ func TestSearchHandlerValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			e := echo.New()
 			e.HTTPErrorHandler = apperr.GlobalErrorHandler()
-			r := &SearchRouter{e: e, searcher: stubFtsSearcher{}}
+			r := &SearchRouter{e: e, searcher: stubFtsSearcher{caps: elasticsearchCaps}}
 			r.Bind()
 
 			rec := httptest.NewRecorder()

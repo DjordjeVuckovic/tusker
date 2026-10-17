@@ -68,6 +68,24 @@ type SearchContract struct {
 	Language Language
 }
 
+// Effective is the contract a search ran under once the engine filled in what
+// the request left out. No Operator means the query type has none; no Fields
+// means the engine chose them.
+type Effective struct {
+	Operator operator.Operator `json:"operator,omitempty"`
+	Fields   []Field           `json:"fields,omitempty"`
+	Language Language          `json:"language"`
+}
+
+// Effective returns the contract with a nil Operator resolved to engineDefault.
+func (c SearchContract) Effective(engineDefault operator.Operator) Effective {
+	return Effective{
+		Operator: operator.Resolve(c.Operator, engineDefault),
+		Fields:   fieldWeights(c.Fields).fields(),
+		Language: c.Language,
+	}
+}
+
 // DefaultSearchContract is the query-string search of the API: the terms match
 // the title, description or content under the engine's default operator,
 // analysed in English, with title boosted 3 and description 2.
@@ -80,4 +98,22 @@ func DefaultSearchContract() SearchContract {
 		},
 		Language: DefaultLanguage,
 	}
+}
+
+type fieldWeights []FieldWeight
+
+func unboostedFields(names []string) fieldWeights {
+	weights := make(fieldWeights, 0, len(names))
+	for _, name := range names {
+		weights = append(weights, FieldWeight{Field: Field(name), Weight: 1})
+	}
+	return weights
+}
+
+func (w fieldWeights) fields() []Field {
+	fields := make([]Field, 0, len(w))
+	for _, fw := range w {
+		fields = append(fields, fw.Field)
+	}
+	return fields
 }

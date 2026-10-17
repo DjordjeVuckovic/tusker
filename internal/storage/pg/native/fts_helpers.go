@@ -20,6 +20,21 @@ var fieldToLabel = map[query.Field]string{
 	query.FieldAuthor:      "D",
 }
 
+// isolatedFields are the searchable fields that alone fill their weight band.
+func isolatedFields() []query.Field {
+	fieldsPerLabel := map[string]int{}
+	for _, label := range fieldToLabel {
+		fieldsPerLabel[label]++
+	}
+	var isolated []query.Field
+	for _, field := range query.SearchableFields() {
+		if fieldsPerLabel[fieldToLabel[field]] == 1 {
+			isolated = append(isolated, field)
+		}
+	}
+	return isolated
+}
+
 // Label to ts_rank weight array position mapping
 // PostgreSQL weights array format: {D, C, B, A} (reverse order!)
 var labelToPosition = map[string]int{
