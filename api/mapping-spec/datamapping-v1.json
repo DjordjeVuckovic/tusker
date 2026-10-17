@@ -98,13 +98,12 @@
           "description": "Id generation strategy",
           "type": "string",
           "enum": [
-            "random",
             "uuidv5"
           ],
-          "default": "random"
+          "default": "uuidv5"
         },
         "source": {
-          "description": "Source column mapped to URL, hashed by a derived strategy",
+          "description": "Source column mapped to URL, hashed by uuidv5; defaults to that column",
           "type": "string"
         }
       }

@@ -552,3 +552,19 @@ func TestPreprocess_KeepsTheIDsADatasetCarries(t *testing.T) {
 	assert.Equal(t, uuid.MustParse("3f2b8c1e-0d4a-4e7b-9c55-1a2b3c4d5e6f"), rows.byURL["https://example.com/1"].ID)
 	assert.Equal(t, uuid.MustParse("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"), rows.byURL["https://example.com/2"].ID)
 }
+
+func TestPreprocess_DerivesIDsFromTheURLWhenTheMappingNamesNoStrategy(t *testing.T) {
+	run := newPreprocessRun(t, mappingWith(t, "idStrategy:\n  kind: uuidv5\n  source: url\n", ""),
+		csvFile("part.csv", "title,text,url\nOne,Body,https://example.com/1\n"),
+	)
+
+	require.NoError(t, run.execute(t.Context()))
+
+	pkg, rows := readArticles(t, run.packageDir(t))
+	require.NotNil(t, pkg.IDStrategy)
+	assert.Equal(t, "uuidv5", string(pkg.IDStrategy.Kind))
+	assert.Equal(t, "url", pkg.IDStrategy.Source)
+	namespace, err := uuid.Parse(pkg.IDStrategy.Namespace)
+	require.NoError(t, err)
+	assert.Equal(t, uuid.NewSHA1(namespace, []byte("https://example.com/1")), rows.byURL["https://example.com/1"].ID)
+}

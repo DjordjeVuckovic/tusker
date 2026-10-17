@@ -180,20 +180,23 @@ func canonicalName(rawName string) string {
 	return strings.TrimSuffix(rawName, "-raw") + "-canonical"
 }
 
-// idStrategyOf records how ids were minted. A mapping that targets ID carries
+// idStrategyOf records how ids were derived. A mapping that targets ID carries
 // its own ids, which no strategy describes.
 func idStrategyOf(mapping *datamapping.DataMapper) *datapackage.IDStrategy {
+	var urlSource string
 	for _, fm := range mapping.FieldMappings {
-		if fm.Target == datamapping.TargetID {
+		switch fm.Target {
+		case datamapping.TargetID:
 			return nil
+		case datamapping.TargetURL:
+			urlSource = fm.Source
 		}
 	}
-	kind, _ := mapping.IdStrategy.ResolvedKind()
-	strategy := &datapackage.IDStrategy{Kind: kind, Source: mapping.IdStrategy.Source}
-	if kind == datamapping.IdStrategyUuidV5 {
-		strategy.Namespace = document.ArticleIDNamespace.String()
+	return &datapackage.IDStrategy{
+		Kind:      datamapping.IdStrategyUuidV5,
+		Source:    urlSource,
+		Namespace: document.ArticleIDNamespace.String(),
 	}
-	return strategy
 }
 
 func rawRefOf(raw datapackage.Package) *datapackage.RawRef {

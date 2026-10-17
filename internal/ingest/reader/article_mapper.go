@@ -18,7 +18,6 @@ import (
 
 type ArticleMapper struct {
 	cfg      *datamapping.DataMapper
-	idKind   datamapping.IdStrategyKind
 	language language.Code
 }
 
@@ -26,15 +25,11 @@ func NewArticleMapper(cfg *datamapping.DataMapper) (*ArticleMapper, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	idKind, err := cfg.IdStrategy.ResolvedKind()
-	if err != nil {
-		return nil, err
-	}
 	lang, err := cfg.Constants.ResolvedLanguage()
 	if err != nil {
 		return nil, err
 	}
-	return &ArticleMapper{cfg: cfg, idKind: idKind, language: lang}, nil
+	return &ArticleMapper{cfg: cfg, language: lang}, nil
 }
 
 // Map returns the article a record maps to, or a *MappingDropError when a
@@ -78,22 +73,18 @@ func (m *ArticleMapper) Map(record map[string]string) (document.Article, error) 
 		}
 	}
 
-	article.ID = m.idFor(article)
+	article.ID = idFor(article)
 	article.PublisherDomain = PublisherDomain(article.URL)
 	return article, nil
 }
 
-// idFor keeps an id the mapping read from the record, and otherwise mints one.
-// uuidv5 hashes the normalised url, so it never sees raw spelling variants.
-func (m *ArticleMapper) idFor(article document.Article) uuid.UUID {
-	switch {
-	case article.ID != uuid.Nil:
+// idFor keeps an id the mapping read from the record, and otherwise derives
+// it from the normalised url, so raw spelling variants of a url share an id.
+func idFor(article document.Article) uuid.UUID {
+	if article.ID != uuid.Nil {
 		return article.ID
-	case m.idKind == datamapping.IdStrategyUuidV5:
-		return document.DeriveArticleID(article.URL)
-	default:
-		return document.NewArticleID()
 	}
+	return document.DeriveArticleID(article.URL)
 }
 
 var errInvalidURL = errors.New("not an absolute http(s) url")

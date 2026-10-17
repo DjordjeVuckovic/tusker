@@ -46,39 +46,29 @@ type DataMapper struct {
 // IdStrategyKind names the ways an article id can be produced.
 type IdStrategyKind string
 
-const (
-	// IdStrategyRandom mints a UUIDv4 per record, so a corpus is identified by
-	// the canonical file it was written to and re-running preprocess renumbers it.
-	IdStrategyRandom IdStrategyKind = "random"
-
-	// IdStrategyUuidV5 derives the id from the normalised url, so the same
-	// input always yields the same ids.
-	IdStrategyUuidV5 IdStrategyKind = "uuidv5"
-)
+// IdStrategyUuidV5 derives the id from the normalised url, so the same input
+// always yields the same ids and every engine loads the same ones.
+const IdStrategyUuidV5 IdStrategyKind = "uuidv5"
 
 func ParseIdStrategyKind(v string) (IdStrategyKind, error) {
-	switch IdStrategyKind(v) {
-	case IdStrategyRandom:
-		return IdStrategyRandom, nil
-	case IdStrategyUuidV5:
+	if IdStrategyKind(v) == IdStrategyUuidV5 {
 		return IdStrategyUuidV5, nil
-	default:
-		return "", fmt.Errorf("unknown id strategy kind %q", v)
 	}
+	return "", fmt.Errorf("unknown id strategy kind %q, want %q: ids derive from the normalised url", v, IdStrategyUuidV5)
 }
 
 type IdStrategy struct {
 	// Kind is the id generation strategy
-	Kind string `json:"kind,omitempty" yaml:"kind,omitempty" schema:"enum=random|uuidv5,default=random" description:"Id generation strategy"`
+	Kind string `json:"kind,omitempty" yaml:"kind,omitempty" schema:"enum=uuidv5,default=uuidv5" description:"Id generation strategy"`
 
 	// Source is the column mapped to URL, whose normalised value uuidv5 hashes
-	Source string `json:"source,omitempty" yaml:"source,omitempty" description:"Source column mapped to URL, hashed by a derived strategy"`
+	Source string `json:"source,omitempty" yaml:"source,omitempty" description:"Source column mapped to URL, hashed by uuidv5; defaults to that column"`
 }
 
-// ResolvedKind reports the strategy to apply, defaulting to random.
+// ResolvedKind reports the strategy to apply, defaulting to uuidv5.
 func (s IdStrategy) ResolvedKind() (IdStrategyKind, error) {
 	if s.Kind == "" {
-		return IdStrategyRandom, nil
+		return IdStrategyUuidV5, nil
 	}
 	return ParseIdStrategyKind(s.Kind)
 }
@@ -90,13 +80,8 @@ func (s IdStrategy) validate(urlSource string) error {
 	if err != nil {
 		return err
 	}
-	switch {
-	case kind == IdStrategyUuidV5 && s.Source == "":
-		return fmt.Errorf("id strategy %q needs a source column", kind)
-	case kind == IdStrategyUuidV5 && s.Source != urlSource:
+	if s.Source != "" && s.Source != urlSource {
 		return fmt.Errorf("id strategy %q hashes the url, so its source must be %q, the column mapped to URL, not %q", kind, urlSource, s.Source)
-	case kind == IdStrategyRandom && s.Source != "":
-		return fmt.Errorf("id strategy %q ignores source %q", kind, s.Source)
 	}
 	return nil
 }
@@ -263,7 +248,7 @@ func (dm *DataMapper) Validate() error {
 			return fmt.Errorf("target %q overrides the id strategy, so idStrategy must be left out", TargetID)
 		}
 		if !id.Required {
-			return fmt.Errorf("target %q must set required: true, or a record without an id would get a random one", TargetID)
+			return fmt.Errorf("target %q must set required: true, or records without one would mix in url-derived ids", TargetID)
 		}
 	}
 	if err := dm.IdStrategy.validate(byTarget[TargetURL].Source); err != nil {

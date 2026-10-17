@@ -86,7 +86,7 @@ The type system is organized into bounded contexts, each with its own package:
 ### Data Mapping System
 The project uses YAML configuration files to map source data fields to internal Article structure. Configuration files follow the DataMapping schema (`api/mapping-spec/datamapping-v1.json`) with fieldMappings that specify source/target fields and their source types, a `constants:` block (`Language: eng`) and `output.format` (`parquet` or `jsonl`). An unknown key, two sources on one target, or a target outside the list fails the load. `Title` and `URL` are required on every mapping, and `PublisherDomain` is always derived from the url.
 
-`idStrategy` decides how article ids are produced. The default `random` mints a UUIDv4 per record, so the canonical package is what identifies a corpus and re-running preprocess renumbers it. `{ kind: uuidv5, source: <url column> }` derives the id from the normalised url instead, so the same input always yields the same ids and preprocess can be re-run without orphaning pools, qrels, or embeddings. A mapping that targets `ID` keeps the dataset's own ids and must leave `idStrategy` out.
+Article ids are `uuidv5` of the normalised url, the only `idStrategy` kind, and the default when `idStrategy` is left out; its `source`, if given, must be the column mapped to `URL`. The same input always yields the same ids, so preprocess can be re-run without orphaning pools, qrels, or embeddings. A mapping that targets `ID` keeps the dataset's own ids and must leave `idStrategy` out.
 
 ```yaml
 idStrategy:
