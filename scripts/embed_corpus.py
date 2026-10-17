@@ -279,21 +279,25 @@ def iter_lead_rows(source: SourcePackage, limit: int | None) -> Iterator[LeadRow
 
 
 def iter_parquet_records(path: Path) -> Iterator[dict[str, Any]]:
-    file = pq.ParquetFile(path)
-    columns = [
-        name
-        for name in ("id", "title", "description")
-        if name in file.schema_arrow.names
-    ]
-    for batch in file.iter_batches(columns=columns, batch_size=8192):
-        yield from batch.to_pylist()
+    with pq.ParquetFile(path) as file:
+        columns = [
+            name
+            for name in ("id", "title", "description")
+            if name in file.schema_arrow.names
+        ]
+        for batch in file.iter_batches(columns=columns, batch_size=8192):
+            yield from batch.to_pylist()
 
 
 def iter_jsonl_records(path: Path) -> Iterator[dict[str, Any]]:
     with open(path, encoding="utf-8") as file:
-        for line in file:
-            if line.strip():
+        for line_number, line in enumerate(file, 1):
+            if not line.strip():
+                continue
+            try:
                 yield json.loads(line)
+            except json.JSONDecodeError as error:
+                raise PackageError(f"{path}:{line_number}: {error}") from error
 
 
 def canonical_id(value: object, row_number: int) -> str:
@@ -458,7 +462,7 @@ def claim_checkpoints(checkpoint_dir: Path, key: dict[str, Any]) -> None:
     """
     manifest = checkpoint_dir / CHECKPOINT_MANIFEST
     if manifest.exists():
-        recorded = json.loads(manifest.read_text(encoding="utf-8"))
+        recorded = read_descriptor(manifest)
         differing = sorted(
             name
             for name in key.keys() | recorded.keys()
@@ -490,7 +494,7 @@ def recorded_batch_size(checkpoint_dir: Path) -> int | None:
     manifest = checkpoint_dir / CHECKPOINT_MANIFEST
     if not manifest.exists():
         return None
-    return json.loads(manifest.read_text(encoding="utf-8")).get("batchSize")
+    return read_descriptor(manifest).get("batchSize")
 
 
 def finished_shards(checkpoint_dir: Path) -> list[int]:

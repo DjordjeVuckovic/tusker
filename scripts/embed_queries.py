@@ -113,6 +113,8 @@ def load_suite(path: Path) -> Suite:
 
     queries: list[SuiteQuery] = []
     for entry in document.get("queries") or []:
+        if not isinstance(entry, dict):
+            raise embed_corpus.PackageError(f"{path}: every query must be a mapping")
         query = SuiteQuery(id=entry.get("id", ""), text=entry.get("description", ""))
         check_query(query)
         queries.append(query)
