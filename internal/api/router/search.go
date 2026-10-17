@@ -1,9 +1,11 @@
 package router
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
@@ -141,6 +143,10 @@ func (r *SearchRouter) honour(c echo.Context, q paramQuery) ([]dquery.Ignored, e
 // @Example Request:  GET /v1/articles/search?q=climate%20change&size=10&lang=english
 // @Example Response: {"hits": [...], "next_cursor": "eyJ...", "has_more": true, "total_matches": 1523}
 func (r *SearchRouter) searchHandler(c echo.Context) error {
+	if err := dto.CheckSearchBoxParams(c.QueryParams()); err != nil {
+		return err
+	}
+
 	// Support both 'q' (preferred) and 'query' (legacy) parameters
 	params := dto.StringQueryParams{
 		Query:    c.QueryParam("q"),
@@ -241,13 +247,20 @@ func (r *SearchRouter) searchHandler(c echo.Context) error {
 //	  }
 //	}
 func (r *SearchRouter) structuredSearchHandler(c echo.Context) error {
-	var req dto.SearchRequest
-	if err := c.Bind(&req); err != nil {
-		slog.Error("Failed to bind search request", "error", err)
-		return apperr.NewValidation("invalid request body")
+	if ctype := c.Request().Header.Get(echo.HeaderContentType); !strings.HasPrefix(ctype, echo.MIMEApplicationJSON) {
+		return echo.ErrUnsupportedMediaType
+	}
+	req, err := dto.DecodeSearchRequest(c.Request().Body)
+	if err != nil {
+		// The body limit surfaces as a read error and keeps its own status.
+		var httpErr *echo.HTTPError
+		if errors.As(err, &httpErr) {
+			return httpErr
+		}
+		return err
 	}
 
-	if err := c.Validate(&req); err != nil {
+	if err := c.Validate(req); err != nil {
 		return err
 	}
 

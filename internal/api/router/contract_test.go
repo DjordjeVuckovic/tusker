@@ -2,6 +2,7 @@ package router
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -13,6 +14,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 // Postgres has no typo tolerance and shares one weight band between author and
@@ -246,5 +248,127 @@ func TestSearchEchoesTheEffectiveContract(t *testing.T) {
 				t.Errorf("ignored = %+v, want none", got.Ignored)
 			}
 		})
+	}
+}
+
+func TestSearchRejectsAParamItDoesNotKnow(t *testing.T) {
+	tests := []struct {
+		name    string
+		call    searchCall
+		wantKey string
+	}{
+		{
+			name:    "fuzziness on multi_match",
+			call:    searchCall{body: `{"query":{"multi_match":{"fields":["title"],"query":"climate","fuzziness":"AUTO"}}}`},
+			wantKey: "fuzziness",
+		},
+		{
+			name:    "field_weights on multi_match",
+			call:    searchCall{body: `{"query":{"multi_match":{"fields":["title"],"query":"climate","field_weights":{"title":3}}}}`},
+			wantKey: "field_weights",
+		},
+		{
+			name:    "a misspelt operator on match",
+			call:    searchCall{body: `{"query":{"match":{"field":"title","query":"climate change","operater":"or"}}}`},
+			wantKey: "operater",
+		},
+		{
+			name:    "operator on phrase",
+			call:    searchCall{body: `{"query":{"phrase":{"fields":["title"],"query":"climate change","operator":"or"}}}`},
+			wantKey: "operator",
+		},
+		{
+			name:    "operator on boolean",
+			call:    searchCall{body: `{"query":{"boolean":{"expression":"climate change","operator":"and"}}}`},
+			wantKey: "operator",
+		},
+		{
+			name:    "fields on boolean",
+			call:    searchCall{body: `{"query":{"boolean":{"expression":"climate","fields":["title"]}}}`},
+			wantKey: "fields",
+		},
+		{
+			name:    "operator on hybrid",
+			call:    searchCall{body: `{"query":{"hybrid":{"query":"climate","operator":"or"}}}`},
+			wantKey: "operator",
+		},
+		{
+			name:    "an unknown top-level key",
+			call:    searchCall{body: `{"query":{"match":{"field":"title","query":"climate"}},"query_extra":1}`},
+			wantKey: "query_extra",
+		},
+		{
+			name:    "operator on the search box",
+			call:    searchCall{method: http.MethodGet, target: "/v1/articles/search?q=climate+change&operator=or"},
+			wantKey: "operator",
+		},
+		{
+			name:    "fields on the search box",
+			call:    searchCall{method: http.MethodGet, target: "/v1/articles/search?q=climate&fields=title"},
+			wantKey: "fields",
+		},
+		{
+			name:    "fuzziness on the search box",
+			call:    searchCall{method: http.MethodGet, target: "/v1/articles/search?q=climate&fuzziness=auto"},
+			wantKey: "fuzziness",
+		},
+		{
+			name:    "an unknown parameter on the search box",
+			call:    searchCall{method: http.MethodGet, target: "/v1/articles/search?q=climate&sort=date"},
+			wantKey: "sort",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.call.caps = elasticsearchCaps
+			rec := serveSearch(t, tt.call)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400 (body: %s)", rec.Code, rec.Body.String())
+			}
+			var body map[string]string
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+			if !strings.Contains(body["error"], `"`+tt.wantKey+`"`) {
+				t.Errorf("error = %q, want it to name %q", body["error"], tt.wantKey)
+			}
+		})
+	}
+}
+
+func TestStructuredSearchRejectsDataAfterTheBody(t *testing.T) {
+	rec := serveSearch(t, searchCall{caps: elasticsearchCaps, body: `{"query":{"match":{"field":"title","query":"climate"}}} {"size":1}`})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSearchBoxAcceptsTheParamsItDocuments(t *testing.T) {
+	rec := serveSearch(t, searchCall{
+		caps:   elasticsearchCaps,
+		method: http.MethodGet,
+		target: "/v1/articles/search?q=climate&size=5&lang=english",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestStructuredSearchOverTheBodyLimitKeepsItsStatus(t *testing.T) {
+	e := echo.New()
+	(&apiserver.Server{Echo: e}).SetupValidator()
+	e.HTTPErrorHandler = apperr.GlobalErrorHandler()
+	e.Use(middleware.BodyLimit("64"))
+	(&SearchRouter{e: e, searcher: stubFtsSearcher{caps: elasticsearchCaps}}).Bind()
+
+	body := `{"query":{"match":{"field":"title","query":"` + strings.Repeat("a", 200) + `"}}}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/articles/_search", io.NopCloser(strings.NewReader(body)))
+	req.ContentLength = -1
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413 (body: %s)", rec.Code, rec.Body.String())
 	}
 }

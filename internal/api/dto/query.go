@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"bytes"
 	"encoding/json"
 
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
@@ -357,7 +358,10 @@ func (q *QueryWrapper) UnmarshalJSON(data []byte) error {
 		Alias: (*Alias)(q),
 	}
 
-	if err := json.Unmarshal(data, &aux); err != nil {
+	// A custom unmarshaller does not inherit the outer decoder's settings.
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&aux); err != nil {
 		return err
 	}
 
