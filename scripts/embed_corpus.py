@@ -531,6 +531,16 @@ def claim_checkpoints(checkpoint_dir: Path, key: dict[str, Any]) -> None:
     temporary.rename(manifest)
 
 
+def settings_digest(run_key: dict[str, Any]) -> str:
+    """Name a default checkpoint dir after the run's input and settings.
+
+    Batch size and dtype stay out of the name, so a resumed --auto-batch-size run
+    finds its shards, and the manifest refuses one with another batch size.
+    """
+    encoded = json.dumps(run_key, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:8]
+
+
 def recorded_batch_size(checkpoint_dir: Path) -> int | None:
     manifest = checkpoint_dir / CHECKPOINT_MANIFEST
     if not manifest.exists():
@@ -781,8 +791,16 @@ def run(args: argparse.Namespace) -> Path:
     final_dir = (
         output_root / "embeddings" / spec.tag.replace(":", "-") / package_version
     )
-    checkpoint_dir = args.checkpoint_dir or final_dir.with_name(
-        f".checkpoints-{package_version}"
+    run_key = {
+        "resourceHash": source.resource_hash,
+        "canonicalResourceHash": source.canonical.resource_hash,
+        "shardSize": args.shard_size,
+        "limit": args.limit,
+        **spec.to_descriptor(),
+    }
+    checkpoint_dir = (
+        args.checkpoint_dir
+        or final_dir.parent / f".checkpoints-{settings_digest(run_key)}"
     )
     batch_size = args.batch_size
     if args.auto_batch_size:
@@ -801,14 +819,7 @@ def run(args: argparse.Namespace) -> Path:
         batch_size=batch_size, dtype=dtype_name(device), limit=args.limit
     )
     claim_checkpoints(
-        checkpoint_dir,
-        {
-            "resourceHash": source.resource_hash,
-            "canonicalResourceHash": source.canonical.resource_hash,
-            "shardSize": args.shard_size,
-            "limit": args.limit,
-            **embedding_descriptor(spec, inference),
-        },
+        checkpoint_dir, {**run_key, **embedding_descriptor(spec, inference)}
     )
 
     shard_count = -(-total_rows // args.shard_size)

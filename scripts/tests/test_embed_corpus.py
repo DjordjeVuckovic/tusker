@@ -577,3 +577,17 @@ def test_records_the_batch_size_the_sweep_picked_rather_than_the_flag(
         "batchSize"
     ]
     assert recorded in {64, 256, 512}
+
+
+def test_default_checkpoints_are_found_again_by_settings_and_guard_the_batch_size(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, "--batch-size", "1")
+
+    result = embed(
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--batch-size", "3"
+    )
+
+    assert result.returncode != 0
+    assert "batchSize" in result.stderr
