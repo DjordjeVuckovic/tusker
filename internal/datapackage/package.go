@@ -12,6 +12,14 @@ const (
 	ArticleSchema  = "article/v2"
 )
 
+// Resource names the canonical, embeddings and query-vectors packages use for
+// their data file.
+const (
+	ArticlesResource     = "articles"
+	EmbeddingsResource   = "embeddings"
+	QueryVectorsResource = "query-vectors"
+)
+
 // Package is the descriptor: the Data Package v2 subset in use plus the
 // custom properties shared by the canonical, embeddings and raw packages.
 type Package struct {

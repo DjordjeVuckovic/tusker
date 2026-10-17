@@ -96,8 +96,8 @@ func fullPackage() datapackage.Package {
 		Canonical: &datapackage.Ref{Name: "cc-news-canonical", Version: "article-v2-601d5476", ResourceHash: "sha256:" + zeros64},
 		Sources:   []datapackage.Source{{Title: "huggingface vblagoje/cc_news", Path: "https://huggingface.co/datasets/vblagoje/cc_news", Version: "81eb2ce0d2a9dad6ad16b68ef750ec290880fa36"}},
 		Resources: []datapackage.Resource{
-			{Name: "articles", Path: "articles.parquet", Format: "parquet"},
-			{Name: "embeddings", Path: "embeddings.parquet", Format: "parquet"},
+			{Name: datapackage.ArticlesResource, Path: "articles.parquet", Format: "parquet"},
+			{Name: datapackage.EmbeddingsResource, Path: "embeddings.parquet", Format: "parquet"},
 		},
 	}
 }
@@ -149,10 +149,16 @@ func TestWrittenDescriptorUsesContractPropertyNames(t *testing.T) {
 			t.Errorf("%s = %v, want %v", pointer, got, value)
 		}
 	}
-	resource := doc["resources"].([]any)[0].(map[string]any)
-	for _, key := range []string{"name", "path", "format", "bytes", "hash"} {
-		if _, ok := resource[key]; !ok {
-			t.Errorf("resource lacks %q: %v", key, resource)
+	resources := doc["resources"].([]any)
+	for i, name := range []string{"articles", "embeddings"} {
+		resource := resources[i].(map[string]any)
+		if resource["name"] != name {
+			t.Errorf("resource %d is named %v, want %s", i, resource["name"], name)
+		}
+		for _, key := range []string{"name", "path", "format", "bytes", "hash"} {
+			if _, ok := resource[key]; !ok {
+				t.Errorf("resource lacks %q: %v", key, resource)
+			}
 		}
 	}
 }
