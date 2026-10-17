@@ -24,18 +24,12 @@ type Searcher struct {
 	tokenizer *token.BoolTokenizer
 }
 
-func NewSearcher(config ClientConfig) (*Searcher, error) {
-	client, err := newClient(config)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
-	}
-
+func NewSearcher(client *Client) *Searcher {
 	return &Searcher{
-		client:    client,
-		indexName: config.IndexName,
+		client:    client.typed,
+		indexName: client.indexName,
 		tokenizer: token.NewBoolTokenizer(),
-	}, nil
+	}
 }
 
 // SearchStringQuery implements the storage.FtsSearcher interface.

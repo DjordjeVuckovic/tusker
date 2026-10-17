@@ -38,9 +38,9 @@ func TestEnsureIndex_MappingReportsHNSWBuildParams(t *testing.T) {
 		t.Fatalf("NewIndexer: %v", err)
 	}
 
-	client, err := newClient(cfg)
+	client, err := newTypedClient(cfg)
 	if err != nil {
-		t.Fatalf("newClient: %v", err)
+		t.Fatalf("newTypedClient: %v", err)
 	}
 	assertDeclaredBuildParams(t, client, cfg.IndexName)
 }
@@ -50,9 +50,9 @@ func TestEmbedder_RejectsAnIndexBuiltAtOtherBuildParams(t *testing.T) {
 	container := pkgtesting.NewESContainer(ctx, t)
 	cfg := ClientConfig{Addresses: []string{container.Address}, IndexName: "articles_hnsw_legacy_test"}
 
-	client, err := newClient(cfg)
+	client, err := newTypedClient(cfg)
 	if err != nil {
-		t.Fatalf("newClient: %v", err)
+		t.Fatalf("newTypedClient: %v", err)
 	}
 	createIndexWithDefaultedVectorField(t, client, cfg.IndexName)
 

@@ -18,9 +18,9 @@ func TestDescribeIndex_ReadsTheLiveIndex(t *testing.T) {
 	}
 
 	const alias = "news_described_test"
-	client, err := newClient(cfg)
+	client, err := newTypedClient(cfg)
 	if err != nil {
-		t.Fatalf("newClient: %v", err)
+		t.Fatalf("newTypedClient: %v", err)
 	}
 	if _, err := client.Indices.PutAlias(cfg.IndexName, alias).Do(ctx); err != nil {
 		t.Fatalf("put alias: %v", err)

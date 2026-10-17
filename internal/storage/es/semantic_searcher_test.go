@@ -43,11 +43,7 @@ func newSemanticTestEnv(t *testing.T, queryVec []float32) (*Indexer, *Embedder, 
 		embedding.WithExecutorMaxLength(1024),
 		embedding.WithExecutorModel(embedding.DefaultModel),
 	)
-	searcher, err := NewSemanticSearcher(cfg, qEmbedder, embedding.DefaultModel)
-	if err != nil {
-		t.Fatalf("NewSemanticSearcher: %v", err)
-	}
-	return indexer, embIndexer, searcher
+	return indexer, embIndexer, NewSemanticSearcher(newTestClient(t, cfg), qEmbedder, embedding.DefaultModel)
 }
 
 func TestSemanticSearcher_SearchSemantic_ReturnsNearest(t *testing.T) {

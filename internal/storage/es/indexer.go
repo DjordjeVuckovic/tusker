@@ -24,7 +24,7 @@ type Indexer struct {
 }
 
 func NewIndexer(ctx context.Context, config ClientConfig) (*Indexer, error) {
-	client, err := newClient(config)
+	client, err := newTypedClient(config)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
