@@ -301,6 +301,8 @@ type runJudgments struct {
 	coverage judgmentCoverage
 	// dropped are the cells the pool was written without (--allow-partial).
 	dropped []meta.DroppedExecution
+	// pooledEngines are the engines whose results the pool holds.
+	pooledEngines []string
 }
 
 // loadRunJudgments resolves --judgments, else spec.defaults.judgments, and
@@ -336,11 +338,12 @@ func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJ
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return &runJudgments{
-		path:     path,
-		grades:   grades,
-		meta:     judgmentsMeta,
-		coverage: poolCoverage(currentPool, grades),
-		dropped:  currentPool.Meta.DroppedExecutions,
+		path:          path,
+		grades:        grades,
+		meta:          judgmentsMeta,
+		coverage:      poolCoverage(currentPool, grades),
+		dropped:       currentPool.Meta.DroppedExecutions,
+		pooledEngines: currentPool.Meta.Engines,
 	}, nil
 }
 
@@ -379,6 +382,12 @@ func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []stri
 	if cells := erroredCells(result); len(cells) > 0 {
 		failures = append(failures, fmt.Sprintf("%d (query, engine) executions errored: %s", len(cells), strings.Join(cells, ", ")))
 	}
+	if judgments.meta != nil {
+		if engines := unpooledEngines(result, judgments); len(engines) > 0 {
+			failures = append(failures, fmt.Sprintf("engines %s were never pooled, so none of their results are judged; re-pool and re-judge the track",
+				strings.Join(engines, ", ")))
+		}
+	}
 	if missing := unpooledQueries(result, judgments.coverage.pooledQueries); len(missing) > 0 {
 		failures = append(failures, fmt.Sprintf("%d suite queries were never pooled, so none of their results are judged: %s; re-pool and re-judge the track",
 			len(missing), strings.Join(missing, ", ")))
@@ -388,6 +397,29 @@ func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []stri
 			judgments.coverage.unjudged, judgments.coverage.pooled))
 	}
 	return failures
+}
+
+// unpooledEngines lists, sorted, the engines this run measured that the pool
+// neither holds results from nor records as dropped.
+func unpooledEngines(result *runner.BenchmarkResult, judgments *runJudgments) []string {
+	accounted := make(map[string]bool)
+	for _, name := range judgments.pooledEngines {
+		accounted[name] = true
+	}
+	for _, d := range judgments.dropped {
+		accounted[d.Engine] = true
+	}
+	missing := make(map[string]bool)
+	for _, jr := range result.Jobs {
+		for _, byEngine := range jr.Results {
+			for name := range byEngine {
+				if !accounted[name] {
+					missing[name] = true
+				}
+			}
+		}
+	}
+	return slices.Sorted(maps.Keys(missing))
 }
 
 // unpooledQueries lists the queries this run executed that have no pool entry.

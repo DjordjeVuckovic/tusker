@@ -142,11 +142,11 @@ queries:
 
 func (tr lineageTrack) poolPath() string { return filepath.Join(tr.dir, "trec", "pool.yaml") }
 
-// writePool stands in for a bench pool run that produced runID and pooled
-// docs for q1 and q2.
+// writePool stands in for a bench pool run over engines a and b that produced
+// runID and pooled docs for q1 and q2.
 func (tr lineageTrack) writePool(t *testing.T, runID string, docs map[string][]uuid.UUID) {
 	t.Helper()
-	pf := &pool.PoolFile{Meta: meta.Meta{RunID: runID}}
+	pf := &pool.PoolFile{Meta: meta.Meta{RunID: runID, Engines: []string{"a", "b"}}}
 	for _, queryID := range []string{"q1", "q2"} {
 		entry := pool.PoolEntry{QueryID: queryID}
 		for _, id := range docs[queryID] {

@@ -282,3 +282,21 @@ func TestRun_SuiteQueryMissingFromThePoolFailsTheRun(t *testing.T) {
 	assert.Contains(t, err.Error(), "q3")
 	assertLatestUnchanged(t, tr, before)
 }
+
+// An engine added to the spec after pooling contributed nothing to the pool,
+// so its hits were never judged and would score as non-relevant.
+func TestRun_EngineMissingFromThePoolFailsTheRun(t *testing.T) {
+	tr := judgedTrack(t, nil)
+	pf, err := pool.ReadPoolFile(tr.poolPath())
+	require.NoError(t, err)
+	pf.Meta.Engines = []string{"a"}
+	require.NoError(t, pool.WritePoolFile(pf, tr.poolPath()))
+	before := seedLatest(t, tr)
+
+	_, err = execute(t, newRunCmd(), tr.dir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "never pooled")
+	assert.Contains(t, err.Error(), "b")
+	assertLatestUnchanged(t, tr, before)
+}
