@@ -309,9 +309,15 @@ def canonical_id(value: object, row_number: int) -> str:
     if not isinstance(value, str):
         raise PackageError(f"row {row_number} has no string id")
     try:
-        return str(uuid.UUID(value))
+        parsed = uuid.UUID(value)
     except ValueError as error:
         raise PackageError(f"row {row_number} id {value!r} is not a uuid") from error
+    # Loaders compare ids byte for byte, so a rewritten id would pair with nothing.
+    if str(parsed) != value:
+        raise PackageError(
+            f"row {row_number} id {value!r} is not canonical lowercase uuid text"
+        )
+    return value
 
 
 def scan_corpus(source: SourcePackage, limit: int | None) -> int:
@@ -582,6 +588,16 @@ def dataset_root_of(descriptor_path: Path) -> Path:
     return version_dir.parent.parent
 
 
+def positive_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(f"{text!r} is not an integer") from error
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"{value} is below 1")
+    return value
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -611,19 +627,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--dim",
-        type=int,
+        type=positive_int,
         help="keep the first N dimensions, then L2-normalise (default: the model's width)",
     )
     parser.add_argument(
         "--max-tokens",
-        type=int,
+        type=positive_int,
         default=512,
         help="input tokens per document; the rest is cut",
     )
     # 64 measured fastest on Apple Silicon, where wide batches thrash unified memory.
     parser.add_argument(
         "--batch-size",
-        type=int,
+        type=positive_int,
         default=64,
         help="documents per forward pass (lower if OOM)",
     )
@@ -634,13 +650,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--shard-size",
-        type=int,
+        type=positive_int,
         default=20000,
         help="documents per checkpoint; the resume unit",
     )
     parser.add_argument(
         "--limit",
-        type=int,
+        type=positive_int,
         help="embed only the first N rows, as a trial package named <version>-limit-N",
     )
     parser.add_argument(

@@ -164,3 +164,13 @@ def test_refuses_to_publish_non_finite_query_vectors(tmp_path, overflowing_tiny_
     assert result.returncode != 0
     assert "q-climate" in result.stderr
     assert not query_vectors(tmp_path / "track").exists()
+
+
+def test_refuses_a_query_whose_description_is_yaml_null(tmp_path, tiny_model_args):
+    suite = write_suite(tmp_path / "track", SUITE.replace('"  climate change "', "~"))
+
+    result = run_script("embed_queries.py", suite, *tiny_model_args)
+
+    assert result.returncode != 0
+    assert "q-climate" in result.stderr
+    assert not query_vectors(tmp_path / "track").exists()

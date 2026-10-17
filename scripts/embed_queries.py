@@ -26,6 +26,7 @@ the same dataset, and writes /kaggle/working/query-vectors/.
 """
 
 import argparse
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -99,13 +100,23 @@ def instruct_input(text: str) -> str:
     return f"Instruct: {QUERY_TASK}\nQuery:{text.strip()}"
 
 
+class SuiteLoader(yaml.BaseLoader):
+    """Resolve plain null scalars only, as yaml.v3 does before filling a Go string with ""."""
+
+
+SuiteLoader.add_implicit_resolver(
+    "tag:yaml.org,2002:null", re.compile(r"^(?:~|null|Null|NULL|)$"), [*"~nN", ""]
+)
+SuiteLoader.add_constructor("tag:yaml.org,2002:null", lambda loader, node: None)
+
+
 def load_suite(path: Path) -> Suite:
     """Read a suite's query ids and descriptions as raw strings, the way yaml.v3 fills Go strings.
 
-    The base loader resolves no tags, so `yes` or `2024` stay the text the runner sees.
+    Only plain nulls resolve, so `yes` or `2024` stay the text the runner sees.
     """
     try:
-        document = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        document = yaml.load(path.read_text(encoding="utf-8"), Loader=SuiteLoader)
     except (OSError, yaml.YAMLError) as error:
         raise embed_corpus.PackageError(f"read suite {path}: {error}") from error
     if not isinstance(document, dict):
@@ -115,7 +126,9 @@ def load_suite(path: Path) -> Suite:
     for entry in document.get("queries") or []:
         if not isinstance(entry, dict):
             raise embed_corpus.PackageError(f"{path}: every query must be a mapping")
-        query = SuiteQuery(id=entry.get("id", ""), text=entry.get("description", ""))
+        query = SuiteQuery(
+            id=entry.get("id") or "", text=entry.get("description") or ""
+        )
         check_query(query)
         queries.append(query)
     if not queries:
@@ -174,12 +187,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--dim",
-        type=int,
+        type=embed_corpus.positive_int,
         help="keep the first N dimensions, then L2-normalise (default: the model's width)",
     )
     parser.add_argument(
         "--max-tokens",
-        type=int,
+        type=embed_corpus.positive_int,
         default=512,
         help="input tokens per query; the rest is cut",
     )

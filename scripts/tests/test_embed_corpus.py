@@ -530,3 +530,29 @@ def test_refuses_to_publish_non_finite_vectors(tmp_path, overflowing_tiny_model)
     assert "shard 0" in result.stderr
     assert ROWS[0]["id"] in result.stderr
     assert package_dirs(tmp_path / "out") == []
+
+
+@pytest.mark.parametrize(
+    "flag", ["--shard-size", "--batch-size", "--limit", "--max-tokens", "--dim"]
+)
+def test_refuses_a_count_flag_below_one_before_loading_anything(
+    tmp_path, tiny_model_args, flag
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    result = embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, flag, "0")
+
+    assert result.returncode == 2
+    assert flag in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_refuses_an_id_that_is_not_canonical_uuid_text(tmp_path, tiny_model_args):
+    rows = [*ROWS, article("6F1C2B8E-0D5A-4A57-9A0E-1B2C3D4E5F61", "Upper-case id")]
+    canonical = write_canonical_package(tmp_path / "canonical", rows)
+
+    result = embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
+
+    assert result.returncode != 0
+    assert "6F1C2B8E-0D5A-4A57-9A0E-1B2C3D4E5F61" in result.stderr
+    assert package_dirs(tmp_path / "out") == []
