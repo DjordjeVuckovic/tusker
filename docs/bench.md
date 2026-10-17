@@ -246,7 +246,7 @@ query embedder running; this is how the bench gets query vectors from the same r
 documents. `scripts/embed_queries.py` writes the package. The bench refuses it when:
 
 - its resource no longer matches the descriptor's hash
-- its `suite.hash` differs from the sha256 of the `suite.yaml` the jobs run, so any edit to the suite means re-embedding the queries
+- a query in the `suite.yaml` the jobs run has no row, or its row's `text` differs from the query's `description`; the error names the query id. Edits that leave every description as it was don't need re-embedding
 - its `embedding.tag` differs from the engines' `embedding_model`, or no engine declares one
 
 A query whose text the package doesn't hold fails with the text in the error. Without a

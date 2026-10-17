@@ -1,7 +1,7 @@
 {
   "$schema": "https://datapackage.org/profiles/2.0/datapackage.json",
   "name": "fixture-semantic-query-vectors",
-  "version": "query-instruct-v1-1024-da4bd37b",
+  "version": "4271fbe1",
   "embedding": {
     "model": "qwen3-embedding:0.6b",
     "hfModel": "Qwen/Qwen3-Embedding-0.6B",
@@ -16,8 +16,7 @@
     "dtype": "float16"
   },
   "suite": {
-    "id": "fixture-semantic",
-    "hash": "sha256:b7c789b4e4cdb40b13cd874bc2eb1558fac434b8f2de0faacd6957a7af34a846"
+    "id": "fixture-semantic"
   },
   "resources": [
     {

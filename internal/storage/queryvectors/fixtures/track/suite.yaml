@@ -1,7 +1,15 @@
 schema_version: 1
 id: fixture-semantic
+templates:
+  - id: knn
+    args: [embedding_model, query_vector]
+    query: "SELECT article_id FROM article_embeddings WHERE model_name = $1 ORDER BY embedding <=> $2::vector LIMIT 10"
 queries:
   - id: q1
     description: "climate change policy"
+    engines:
+      pg: { template: knn }
   - id: q2
     description: "central bank interest rates"
+    engines:
+      pg: { template: knn }

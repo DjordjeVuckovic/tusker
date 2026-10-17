@@ -4,13 +4,11 @@ package queryvectors
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	"github.com/google/uuid"
@@ -48,18 +46,24 @@ func (e *UnknownQueryError) Error() string {
 	return fmt.Sprintf("query-vectors package %s has no vector for query text %q", e.Package, e.Text)
 }
 
-// SuiteMismatchError reports a package embedded from another version of the
-// suite than the one the bench runs.
-type SuiteMismatchError struct {
-	Package     string
-	PackageHash string
-	Suite       string
-	SuiteHash   string
+// StaleQueryError reports a suite query the package holds no vector for, or
+// one it embedded from a text the suite no longer has.
+type StaleQueryError struct {
+	Package string
+	QueryID string
+	// Text is the query's text in the current suite.
+	Text string
+	// Stored is the text the package embedded; nil when it has no row for QueryID.
+	Stored *string
 }
 
-func (e *SuiteMismatchError) Error() string {
-	return fmt.Sprintf("query-vectors package %s was embedded from a suite hashing %s, but %s now hashes %s: re-embed the queries",
-		e.Package, e.PackageHash, e.Suite, e.SuiteHash)
+func (e *StaleQueryError) Error() string {
+	if e.Stored == nil {
+		return fmt.Sprintf("query-vectors package %s has no row for suite query %s: re-embed the queries",
+			e.Package, e.QueryID)
+	}
+	return fmt.Sprintf("query-vectors package %s embedded suite query %s as %q, but the suite now reads %q: re-embed the queries",
+		e.Package, e.QueryID, *e.Stored, e.Text)
 }
 
 type row struct {
@@ -79,37 +83,40 @@ func Open(ctx context.Context, opts Options) (*Store, error) {
 	if pkg.Embedding == nil {
 		return nil, fmt.Errorf("query-vectors package %s records no embedding", opened.Location)
 	}
-	if err := checkSuite(opened, opts.Suite); err != nil {
-		return nil, err
+	if pkg.Suite == nil {
+		return nil, fmt.Errorf("query-vectors package %s records no suite", opened.Location)
 	}
 	if err := checkEmbedding(opened, opts.Model); err != nil {
 		return nil, err
 	}
-	vectors, err := readVectors(ctx, opened)
+	rows, err := readRows(ctx, opened)
 	if err != nil {
 		return nil, err
 	}
-	store := &Store{location: opened.Location, tag: pkg.Embedding.Tag, vectors: vectors}
+	if err := checkSuiteQueries(opened.Location, rows, opts.Suite); err != nil {
+		return nil, err
+	}
+	store := &Store{location: opened.Location, tag: pkg.Embedding.Tag, vectors: rows.vectorByText}
 	if opts.Postgres != nil {
 		store.docs = pg.NewVectorStore(nil, opts.Postgres, store.tag)
 	}
 	return store, nil
 }
 
-func checkSuite(opened *datapackage.Opened, suitePath string) error {
-	if opened.Package.Suite == nil {
-		return fmt.Errorf("query-vectors package %s records no suite", opened.Location)
-	}
-	current, err := fileHash(suitePath)
+// checkSuiteQueries compares each query's description, the text the runner
+// asks QueryVector for, with the text its row was embedded from.
+func checkSuiteQueries(location string, rows packageRows, suitePath string) error {
+	loaded, err := suite.LoadFromFile(suitePath)
 	if err != nil {
-		return fmt.Errorf("hash suite %s: %w", suitePath, err)
+		return fmt.Errorf("load suite %s to check query vectors: %w", suitePath, err)
 	}
-	if current != opened.Package.Suite.Hash {
-		return &SuiteMismatchError{
-			Package:     opened.Location,
-			PackageHash: opened.Package.Suite.Hash,
-			Suite:       suitePath,
-			SuiteHash:   current,
+	for _, q := range loaded.Suite.Queries {
+		stored, ok := rows.textByQueryID[q.ID]
+		switch {
+		case !ok:
+			return &StaleQueryError{Package: location, QueryID: q.ID, Text: q.Description}
+		case stored != q.Description:
+			return &StaleQueryError{Package: location, QueryID: q.ID, Text: q.Description, Stored: &stored}
 		}
 	}
 	return nil
@@ -135,50 +142,43 @@ func checkEmbedding(opened *datapackage.Opened, declared string) error {
 	return nil
 }
 
-func fileHash(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return "sha256:" + hex.EncodeToString(h.Sum(nil)), nil
+type packageRows struct {
+	vectorByText  map[string][]float32
+	textByQueryID map[string]string
 }
 
-func readVectors(ctx context.Context, opened *datapackage.Opened) (map[string][]float32, error) {
+func readRows(ctx context.Context, opened *datapackage.Opened) (packageRows, error) {
 	resource, err := opened.Resource(ctx, datapackage.QueryVectorsResource)
 	if err != nil {
-		return nil, fmt.Errorf("read query vectors of %s: %w", opened.Location, err)
+		return packageRows{}, fmt.Errorf("read query vectors of %s: %w", opened.Location, err)
 	}
 	defer resource.Close()
 	file, err := parquet.OpenFile(resource, resource.Size())
 	if err != nil {
-		return nil, fmt.Errorf("parse query vectors of %s: %w", opened.Location, err)
+		return packageRows{}, fmt.Errorf("parse query vectors of %s: %w", opened.Location, err)
 	}
 	reader := parquet.NewGenericReader[row](file)
 	defer reader.Close()
 
 	dim := opened.Package.Embedding.Dim
 
-	vectors := make(map[string][]float32)
+	rows := packageRows{vectorByText: make(map[string][]float32), textByQueryID: make(map[string]string)}
 	for {
 		batch := make([]row, 64)
 		n, err := reader.Read(batch)
 		for _, r := range batch[:n] {
 			if len(r.Embedding) != dim {
-				return nil, fmt.Errorf("query %s in %s has %d dimensions, the package declares %d",
+				return packageRows{}, fmt.Errorf("query %s in %s has %d dimensions, the package declares %d",
 					r.QueryID, opened.Location, len(r.Embedding), dim)
 			}
-			vectors[r.Text] = r.Embedding
+			rows.vectorByText[r.Text] = r.Embedding
+			rows.textByQueryID[r.QueryID] = r.Text
 		}
 		if errors.Is(err, io.EOF) {
-			return vectors, nil
+			return rows, nil
 		}
 		if err != nil {
-			return nil, fmt.Errorf("read query vectors of %s: %w", opened.Location, err)
+			return packageRows{}, fmt.Errorf("read query vectors of %s: %w", opened.Location, err)
 		}
 	}
 }

@@ -2,8 +2,6 @@ package queryvectors_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
@@ -21,10 +19,7 @@ import (
 // The fixture was written by pyarrow the way scripts/embed_queries.py writes
 // one: zstd parquet with query_id, text and embedding, two queries at width
 // 1024, q2 being the unit vector e0.
-const (
-	fixtureTag       = "qwen3-embedding:0.6b@1024"
-	fixtureSuiteHash = "sha256:b7c789b4e4cdb40b13cd874bc2eb1558fac434b8f2de0faacd6957a7af34a846"
-)
+const fixtureTag = "qwen3-embedding:0.6b@1024"
 
 // copyFixture copies the fixture track into a temp dir so a test can edit it.
 func copyFixture(t *testing.T) string {
@@ -100,30 +95,84 @@ func TestQueryVector_AnUnknownTextFailsNamingIt(t *testing.T) {
 	}
 }
 
-func TestOpen_RefusesThePackageOnceTheSuiteChanges(t *testing.T) {
-	track := copyFixture(t)
+// editSuite rewrites the fixture suite's from to to, failing when from is absent.
+func editSuite(t *testing.T, track, from, to string) {
+	t.Helper()
 	suitePath := filepath.Join(track, "suite.yaml")
 	suite, err := os.ReadFile(suitePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	edited := []byte(strings.Replace(string(suite), "policy", "Policy", 1))
-	if err := os.WriteFile(suitePath, edited, 0o644); err != nil {
+	if !strings.Contains(string(suite), from) {
+		t.Fatalf("fixture suite has no %q", from)
+	}
+	if err := os.WriteFile(suitePath, []byte(strings.Replace(string(suite), from, to, 1)), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	sum := sha256.Sum256(edited)
-	editedHash := "sha256:" + hex.EncodeToString(sum[:])
+}
 
-	_, err = openTrack(t, track, queryvectors.Options{Model: fixtureTag})
+const fixtureQ2 = `  - id: q2
+    description: "central bank interest rates"
+`
 
-	var mismatch *queryvectors.SuiteMismatchError
-	if !errors.As(err, &mismatch) {
-		t.Fatalf("err = %v, want a SuiteMismatchError", err)
+func TestOpen_RefusesASuiteQueryThePackageHoldsNoVectorFor(t *testing.T) {
+	tests := []struct {
+		name   string
+		from   string
+		to     string
+		wantID string
+	}{
+		{name: "a query's text changed", from: `"climate change policy"`, to: `"climate change Policy"`, wantID: "q1"},
+		{name: "a query's text gained a trailing space", from: `"central bank interest rates"`, to: `"central bank interest rates "`, wantID: "q2"},
+		{
+			name:   "a query added",
+			from:   fixtureQ2,
+			to:     fixtureQ2 + "    engines:\n      pg: { template: knn }\n  - id: q3\n    description: \"housing prices\"\n",
+			wantID: "q3",
+		},
 	}
-	for _, hash := range []string{fixtureSuiteHash, editedHash} {
-		if !strings.Contains(err.Error(), hash) {
-			t.Errorf("err = %q, want it to name %s", err, hash)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			track := copyFixture(t)
+			editSuite(t, track, tt.from, tt.to)
+
+			_, err := openTrack(t, track, queryvectors.Options{Model: fixtureTag})
+
+			var stale *queryvectors.StaleQueryError
+			if !errors.As(err, &stale) {
+				t.Fatalf("err = %v, want a StaleQueryError", err)
+			}
+			if stale.QueryID != tt.wantID || !strings.Contains(err.Error(), tt.wantID) {
+				t.Errorf("err = %q naming query %q, want it to name %s", err, stale.QueryID, tt.wantID)
+			}
+		})
+	}
+}
+
+func TestOpen_AcceptsASuiteEditedOnlyOutsideItsQueryTexts(t *testing.T) {
+	tests := []struct {
+		name string
+		from string
+		to   string
+	}{
+		{name: "a suite name added", from: "id: fixture-semantic\n", to: "id: fixture-semantic\nname: Fixture semantic\n"},
+		{name: "the template's statement changed", from: "LIMIT 10", to: "LIMIT 100"},
+		{name: "a query category added", from: fixtureQ2, to: fixtureQ2 + "    category: economy\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			track := copyFixture(t)
+			editSuite(t, track, tt.from, tt.to)
+
+			store, err := openTrack(t, track, queryvectors.Options{Model: fixtureTag})
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+
+			if _, err := store.QueryVector(context.Background(), "central bank interest rates"); err != nil {
+				t.Errorf("QueryVector: %v", err)
+			}
+		})
 	}
 }
 
