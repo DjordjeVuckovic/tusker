@@ -22,15 +22,6 @@ Each resource is one file, with a `path` relative to the descriptor, its `format
 
 A descriptor can be opened from a local path, an `https://` URL, or `s3://bucket/key`; a remote location that doesn't end in `.json` is a folder holding `datapackage.json`. For S3-compatible stores such as R2, set `DATASET_S3_ENDPOINT`, `DATASET_S3_REGION` (default `auto` with an endpoint), `DATASET_S3_ACCESS_KEY` and `DATASET_S3_SECRET_KEY`. Set both keys or neither: without them, requests go unsigned. `AWS_*` variables and `~/.aws` are never read. Article text and vectors stay in a private bucket because of publisher copyright; only descriptors are public.
 
-Versions are derived from their inputs, so the same inputs always land in the same folder:
-
-| package    | version                                                                          |
-|------------|----------------------------------------------------------------------------------|
-| canonical  | `article-v2-` over `articleSchema`, the mapping hash, then the raw resource hashes |
-| embeddings | `<recipe>-<dim>-` over the canonical resource hash, model revision, recipe, dim, `maxTokens` |
-
-The suffix is the first 8 hex chars of sha256 over the inputs in that order. Each input is an 8-byte big-endian byte length followed by its UTF-8 bytes. Hashes go in as written in the descriptor (`sha256:<hex>`), integers as plain base-10. `datapackage.Version` implements it in Go.
-
 ## Fetching raw data
 
 ```bash
