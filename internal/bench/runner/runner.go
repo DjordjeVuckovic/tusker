@@ -145,7 +145,7 @@ func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
 			if reader.dialect == nil {
 				return nil, fmt.Errorf("job %q engine %q is not declared", job.Name, engName)
 			}
-			if err := checkEveryQueryHasABlock(loaded, engName, binding.QuerySource); err != nil {
+			if err := checkEveryQueryHasABlock(loaded, boundEngine{name: engName, binding: binding}); err != nil {
 				return nil, fmt.Errorf("job %q: %w", job.Name, err)
 			}
 			blocks, err := loaded.Blocks(binding.QuerySource, binding.Params)
@@ -173,17 +173,24 @@ func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
 
 // checkEveryQueryHasABlock rejects an engine with no block for one of the
 // suite's queries, which would otherwise leave that cell of the report empty.
-func checkEveryQueryHasABlock(ls *suite.LoadedSuite, engName, source string) error {
+func checkEveryQueryHasABlock(ls *suite.LoadedSuite, eng boundEngine) error {
+	source := eng.binding.QuerySource
 	for _, q := range ls.Suite.Queries {
 		if block, ok := q.Engines[source]; ok && hasStatement(block) {
 			continue
 		}
-		if source != engName {
-			return fmt.Errorf("query %q has no %q block for engine %q", q.ID, source, engName)
+		if source != eng.name {
+			return fmt.Errorf("query %q has no %q block for engine %q", q.ID, source, eng.name)
 		}
-		return fmt.Errorf("query %q has no block for engine %q", q.ID, engName)
+		return fmt.Errorf("query %q has no block for engine %q", q.ID, eng.name)
 	}
 	return nil
+}
+
+// boundEngine is a job's engine and the binding it reads its queries through.
+type boundEngine struct {
+	name    string
+	binding spec.QueryBinding
 }
 
 func hasStatement(block suite.EngineQuery) bool {
