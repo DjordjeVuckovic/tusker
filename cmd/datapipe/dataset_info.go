@@ -1,15 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/cli"
 	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
-	"github.com/DjordjeVuckovic/tusker/internal/storage"
-	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
 )
 
 // rowCounter is implemented by readers whose format records its row count in
@@ -35,22 +32,4 @@ func datasetFields(path string, source reader.RawParallelReader) []cli.Field {
 	return fields
 }
 
-func fileSize(path string) int64 {
-	info, err := os.Stat(path)
-	if err != nil {
-		return 0
-	}
-	return info.Size()
-}
-
 var _ rowCounter = (*reader.ParquetReader)(nil)
-
-// storageTarget names the backend without going near the connection string. A
-// DSN carries the password, and the safest redaction is not reading it at all;
-// the index name is the part of the target you can actually get wrong.
-func storageTarget(cfg factory.StorageConfig) string {
-	if cfg.Type == storage.ES && cfg.Es != nil {
-		return fmt.Sprintf("elasticsearch index=%s", cfg.Es.IndexName)
-	}
-	return string(cfg.Type)
-}

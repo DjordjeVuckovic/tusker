@@ -1,35 +1,26 @@
 # Embeddings
 
-Document embeddings power the semantic and hybrid search tracks. There are two
-ways to produce them, selected by `EMBEDDING_SOURCE`:
+Document embeddings power the semantic and hybrid search tracks. They are
+precomputed offline, on a GPU, into an embeddings package built from one
+canonical package, and `datapipe load` loads both packages together. Embedding
+generation is a one-time, GPU-bound job, so nothing embeds documents during a
+load.
 
-| `EMBEDDING_SOURCE` | How                                              | Where                                                        |
-|--------------------|--------------------------------------------------|--------------------------------------------------------------|
-| `online` (default) | Generated inline during ingestion via Ollama     | `datapipe load articles` (gated by `EMBEDDING_ENABLED=true`) |
-| `file`             | Precomputed offline, loaded from an object store | `datapipe load embeddings`                                   |
-| `none`             | No embeddings                                    | —                                                            |
-
-The `file` path exists because embedding generation is a one-time, GPU-bound job.
-
-## Offline workflow (`file`)
+## Offline workflow
 
 ```
 datasets/<ds>/canonical/<version>/      canonical package (preprocess)
   → slim_corpus.py                      id, title, description only; the cloud upload
   → embed_corpus.py on a cloud GPU      Kaggle or Colab; Qwen3-Embedding-0.6B, lead-v1
   → datasets/<ds>/embeddings/<tag-dir>/<version>/
-  → datapipe load embeddings            → article_embeddings
+  → datapipe load --canonical … --embeddings …   → articles + article_embeddings
 ```
 
-**Order matters.** Articles have to be ingested first.
-`article_embeddings.article_id` is a foreign key to `articles.id`, and
-embeddings whose `id` has no matching article are skipped and logged rather than
-raised, so a finished multi-GB run can silently load nothing. Confirm the corpus
-is in before spending GPU time on it:
-
-```bash
-docker compose exec -T pg-news-native psql -U news_user -d news_db -c "select count(*) from articles;"
-```
+The embeddings package names the canonical resource it was built from
+(`canonical.resourceHash`), and `datapipe load` refuses a pair that does not
+match before it writes anything. Within the load every vector must belong to
+the article at the same position, so a vector without its article fails the
+load instead of being skipped.
 
 GPU work runs on Kaggle or Colab, never on the laptop. `--device auto` resolves to CUDA
 or CPU and never to Apple's MPS.
@@ -302,35 +293,19 @@ uv run --no-project --python 3.11 --with-requirements scripts/tests/requirements
 ### Running
 
 ```bash
-cp cmd/datapipe/embeddings.env.example cmd/datapipe/embeddings.env   # then edit the file path
-# The example's model name has no width and would match no query vector.
-sed -i.bak 's/^EMBEDDING_MODEL=.*/EMBEDDING_MODEL=qwen3-embedding:0.6b@1024/' cmd/datapipe/embeddings.env
-rm cmd/datapipe/embeddings.env.bak
-go run ./cmd/datapipe load embeddings
+ENV_PATHS=cmd/datapipe/pg.env go run ./cmd/datapipe load --engine native \
+  --canonical datasets/cc-news/canonical/<version>/datapackage.json \
+  --embeddings datasets/cc-news/embeddings/<tag-dir>/<version>/datapackage.json
 ```
 
-Re-runnable: each batch is COPYed into a temp staging table, then upserted
-(`ON CONFLICT (article_id, model_name) DO UPDATE`), so partial runs can be
-repeated safely.
+The target must be empty: `load` refuses a database that already holds a corpus
+or its indexes, so drop the schema first (`make migrate-down-native`). An
+embeddings package from a `--limit` trial loads only with `--trial`. Descriptors
+may also live at `https://…` or `s3://bucket/key` (credentials from
+`DATASET_S3_*`); remote resources are downloaded to `$TMPDIR` and verified
+before the load starts, so it needs room for the vectors, about 2.9 GB for
+cc-news.
 
-The loader reads the model name from Parquet metadata, which `embed_corpus.py`
-no longer writes; the descriptor holds it, as `embedding.tag`. That is why
-`EMBEDDING_MODEL` has to be set to the full tag above.
-
-When loading from S3 the file is first downloaded to a temp file (via
-`os.CreateTemp`, cleaned up on exit). The corpus embeddings file can be several
-GB — ensure the system temp dir (`$TMPDIR`) has enough space, or set
-`EMBEDDING_FILE_PATH` to point at a pre-downloaded local copy.
-
-### Configuration
-
-| Env | Description |
-|-----|-------------|
-| `EMBEDDING_SOURCE` | must be `file` for this command |
-| `EMBEDDING_FILE_PATH` | local Parquet path (skips S3) |
-| `EMBEDDING_S3_ENDPOINT` | S3-compatible endpoint (omit for AWS S3) |
-| `EMBEDDING_S3_REGION` / `_BUCKET` / `_KEY` | object location |
-| `EMBEDDING_S3_ACCESS_KEY` / `_SECRET_KEY` | credentials (falls back to default AWS chain if unset) |
-| `EMBEDDING_S3_USE_PATH_STYLE` | `true` for MinIO, `false` for AWS S3 |
-| `EMBEDDING_MODEL` | model name stored as `model_name`; required for packages `embed_corpus.py` writes, as the full tag (`qwen3-embedding:0.6b@1024`) |
-| `EMBEDDING_BATCH_SIZE` | rows per bulk upsert (default 5000) |
+The descriptor's `embedding.tag` is stored as
+`article_embeddings.model_name`, so document-side and query-side embeddings
+agree on the model.

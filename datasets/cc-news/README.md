@@ -66,9 +66,9 @@ go run ./cmd/datapipe preprocess \
   --mapping datasets/cc-news/mapping.yaml \
   --output datasets/cc-news/canonical-dataset.jsonl
 
-DATASET_PATH=datasets/cc-news/canonical-dataset.jsonl MAPPING_ENABLED=false \
-ENV_PATHS=cmd/datapipe/articles.env,cmd/datapipe/pg.env \
-go run ./cmd/datapipe load articles
+ENV_PATHS=cmd/datapipe/pg.env go run ./cmd/datapipe load --engine native \
+  --canonical datasets/cc-news/canonical/<version>/datapackage.json \
+  --embeddings datasets/cc-news/embeddings/<tag-dir>/<version>/datapackage.json
 ```
 
 Field mapping: `datasets/cc-news/mapping.yaml`.
