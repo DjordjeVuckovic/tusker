@@ -327,7 +327,14 @@ Key flags:
 
 Executes the suite against all engines, computes IR metrics and latency, prints a styled table with per-engine NDCG/MAP/MRR/Bpref + latency percentiles + statistical significance, then writes `reports/<run_id>.json`.
 
-`reports/latest.json` moves only when the run took every spec job at the spec's warmup, iterations and K, no (query, engine) execution errored, and the judgments grade every doc in the track's current pool. A run that misses any of these keeps its report, lists the reasons under `settings.incomplete`, and leaves `latest.json` alone. A failed run (an errored execution or unjudged pooled docs) also exits non-zero.
+The report is always written. A run fails, exits non-zero and leaves `reports/latest.json` alone when:
+- a (query, engine) execution errored
+- it measured a (query, engine) cell the pool dropped (`bench pool --allow-partial`)
+- it ran a query the pool holds no entry for
+- it measured an engine the pool never saw
+- the judgments leave pooled docs unjudged
+
+`latest.json` also stays put, with exit 0, unless the run took every spec job at the spec's warmup, iterations and K, from the track's own `spec.yaml` and `spec.defaults.judgments`. Every reason a run is not the track's result is listed under `settings.incomplete` in its report.
 
 Judgments resolution order:
 1. `--judgments <strategy|path>` (CLI flag)

@@ -48,18 +48,26 @@ The track arg is a path — absolute, or relative to --track-root (default: cwd)
 or a glob, which runs every matching track and writes one report per track.
 
 The judgments file used for scoring resolves in this order:
-  1. --judgments <name|path>      (CLI override)
-  2. spec.defaults.judgments      (per-track default; a relative path starts at the spec's folder)
+  1. --judgments <name|path>   (CLI override)
+  2. spec.defaults.judgments   (per-track default; a relative path starts at
+                                the spec's folder)
   3. none → the run fails before measuring anything
 
-A missing judgments file fails the run the same way. --latency-only measures
-latency without judgments; its report is marked latency_only and never becomes
-latest.json.
+A missing judgments file fails the run the same way, as do judgments graded
+against another pool. --latency-only measures latency without judgments; its
+report is marked latency_only and never becomes latest.json.
 
-The report is always written, but bench run exits non-zero and leaves
-latest.json alone when any (query, engine) execution errored or is one the
-pool dropped (--allow-partial), or the judgments hold pooled docs left unjudged. latest.json also stays put unless the run took
-every spec job at the spec's warmup, iterations and K.`,
+The report is always written. bench run then exits non-zero and leaves
+latest.json alone when the run failed:
+  • a (query, engine) execution errored
+  • it measured a (query, engine) cell the pool dropped (--allow-partial)
+  • it ran a query the pool holds no entry for
+  • it measured an engine the pool never saw
+  • the judgments leave pooled docs unjudged
+
+latest.json also stays put, with exit 0, unless the run took every spec job at
+the spec's warmup, iterations and K, from the track's own spec.yaml and
+spec.defaults.judgments.`,
 		Example: `  bench run tracks/global-news-dataset/fts_quality
   bench run tracks/global-news-dataset/news_semantic
   bench run 'tracks/global-news-dataset/*'        # every paradigm of the dataset
