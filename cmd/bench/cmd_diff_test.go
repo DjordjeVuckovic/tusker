@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -156,4 +157,31 @@ func TestPrintDiff_PerQueryDeltasCountAFailedQueryAsZero(t *testing.T) {
 	printDiff(&out, before, after)
 
 	assert.Regexp(t, `(?m)^q1\s+pg\s+0\.6000\s+0\.0000\s+\S*-0\.6000`, out.String())
+}
+
+func scaffoldDiffTrack(t *testing.T) string {
+	t.Helper()
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	initCmd := newInitCmd()
+	initCmd.SetOut(&bytes.Buffer{})
+	initCmd.SetArgs([]string{"demo"})
+	require.NoError(t, initCmd.Execute())
+	return filepath.Join(cwd, "demo", "reports")
+}
+
+func TestExecuteDiff_BaselineSearchSkipsUnreadableReports(t *testing.T) {
+	reports := scaffoldDiffTrack(t)
+	writeTrackReport(t, reports, "2026-01-01T00-00-01-run-aaaaaa", nil)
+	require.NoError(t, os.WriteFile(filepath.Join(reports, "2026-01-01T00-00-02-run-bbbbbb.json"), []byte("{not json"), 0o644))
+	writeTrackReport(t, reports, "2026-01-01T00-00-03-run-cccccc", nil)
+	require.NoError(t, updateLatestPointer(filepath.Join(reports, "latest.json"),
+		filepath.Join(reports, "2026-01-01T00-00-03-run-cccccc.json")))
+
+	var out bytes.Buffer
+	require.NoError(t, executeDiff(&out, diffFlags{}, []string{"demo"}))
+	assert.Regexp(t, `A \(before\):\s+2026-01-01T00-00-01-run-aaaaaa`, out.String())
+
+	err := executeDiff(&bytes.Buffer{}, diffFlags{pathA: "2026-01-01T00-00-02-run-bbbbbb"}, []string{"demo"})
+	assert.Error(t, err, "an explicitly named unreadable report is still an error")
 }

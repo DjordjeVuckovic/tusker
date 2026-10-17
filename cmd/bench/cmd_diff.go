@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -141,7 +142,8 @@ func previousScoredReport(dir, beforeRunID string) (*report.Report, error) {
 		}
 		rpt, err := report.ReadJSON(filepath.Join(dir, name))
 		if err != nil {
-			return nil, err
+			slog.Warn("skipping unreadable report in baseline search", "report", name, "error", err)
+			continue
 		}
 		if fullyScored(rpt) {
 			return rpt, nil
