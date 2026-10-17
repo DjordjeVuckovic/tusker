@@ -3,9 +3,11 @@ package es
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
+	"math"
 	"net/http"
 	"slices"
 	"strings"
@@ -92,6 +94,115 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 		}
 	})
 
+	t.Run("stores every article with its own vector and model tag", func(t *testing.T) {
+		index := "articles_loaded_test"
+		articles := testArticles(2000)
+		if _, err := loadCorpus(t, container.Address, index, corpusOf(articles, testVectors(articles)), 500); err != nil {
+			t.Fatalf("LoadCorpus: %v", err)
+		}
+
+		stored := fetchByID(t, container.Address, index, articles)
+		for i, a := range articles {
+			doc, ok := stored[a.ID.String()]
+			if !ok {
+				t.Errorf("article %s not stored", a.ID)
+				continue
+			}
+			want := storedDocument{
+				ID:              a.ID.String(),
+				URL:             a.URL,
+				Title:           a.Title,
+				Description:     a.Description,
+				Content:         a.Content,
+				PublishedAt:     a.PublishedAt.Format(time.RFC3339),
+				Language:        "eng",
+				PublisherDomain: a.PublisherDomain,
+				Metadata:        map[string]any{"publisherName": "Example News", "authors": []any{"A. Writer"}},
+				Embedding:       vectorFor(i),
+				EmbeddingModel:  loadTestModelTag,
+			}
+			if diff := cmpDocuments(doc, want); diff != "" {
+				t.Errorf("article %d (%s): %s", i, a.ID, diff)
+			}
+		}
+	})
+
+	for _, tc := range []struct {
+		name    string
+		index   string
+		corrupt func(articles []document.Article, vecs []embedding.Vec)
+	}{
+		{
+			name:    "a NaN vector",
+			index:   "articles_nan_vector_test",
+			corrupt: func(_ []document.Article, vecs []embedding.Vec) { vecs[3].Embedding[0] = float32(math.NaN()) },
+		},
+		{
+			name:  "a publication date past year 9999",
+			index: "articles_year_10000_test",
+			corrupt: func(articles []document.Article, _ []embedding.Vec) {
+				articles[3].PublishedAt = time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
+			},
+		},
+		{
+			name:    "a vector elasticsearch rejects for its width",
+			index:   "articles_short_vector_test",
+			corrupt: func(_ []document.Article, vecs []embedding.Vec) { vecs[3].Embedding = vecs[3].Embedding[:3] },
+		},
+	} {
+		t.Run(tc.name+" fails the load, names the article and leaves no index", func(t *testing.T) {
+			index := tc.index
+			articles := testArticles(5)
+			vecs := testVectors(articles)
+			tc.corrupt(articles, vecs)
+
+			_, err := loadCorpus(t, container.Address, index, corpusOf(articles, vecs), 2)
+			var failed *DocumentsFailedError
+			if !errors.As(err, &failed) {
+				t.Fatalf("LoadCorpus error = %v, want *DocumentsFailedError", err)
+			}
+			if failed.Failed != 1 || len(failed.Failures) != 1 || failed.Failures[0].ID != articles[3].ID {
+				t.Errorf("failures = %d %+v, want only article %s", failed.Failed, failed.Failures, articles[3].ID)
+			}
+			if !strings.Contains(err.Error(), articles[3].ID.String()) {
+				t.Errorf("error %q does not name article %s", err, articles[3].ID)
+			}
+			assertNoIndex(t, container.Address, index)
+		})
+	}
+
+	for _, tc := range []struct {
+		name    string
+		index   string
+		pairing func(vecs []embedding.Vec) []embedding.Vec
+	}{
+		{
+			name:    "vectors out of article order",
+			index:   "articles_swapped_vectors_test",
+			pairing: func(vecs []embedding.Vec) []embedding.Vec { vecs[1], vecs[2] = vecs[2], vecs[1]; return vecs },
+		},
+		{
+			name:    "fewer vectors than articles",
+			index:   "articles_missing_vector_test",
+			pairing: func(vecs []embedding.Vec) []embedding.Vec { return vecs[:len(vecs)-1] },
+		},
+		{
+			name:  "more vectors than articles",
+			index: "articles_extra_vector_test",
+			pairing: func(vecs []embedding.Vec) []embedding.Vec {
+				return append(vecs, embedding.Vec{ID: document.DeriveArticleID("https://example.com/extra"), Embedding: vectorFor(9)})
+			},
+		},
+	} {
+		t.Run(tc.name+" fail the load and leave no index", func(t *testing.T) {
+			articles := testArticles(4)
+			if _, err := loadCorpus(t, container.Address, tc.index, corpusOf(articles, tc.pairing(testVectors(articles))), 2); err == nil {
+				t.Fatal("LoadCorpus paired articles with vectors that are not theirs")
+			}
+			assertNoIndex(t, container.Address, tc.index)
+		})
+	}
+
 	t.Run("refuses a corpus language with no declared analyzer and creates no index", func(t *testing.T) {
 		index := "articles_language_test"
 		c := corpusOf(testArticles(1), nil)
@@ -101,6 +212,80 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 		}
 		assertNoIndex(t, container.Address, index)
 	})
+
+	t.Run("refuses an existing index and leaves its documents alone", func(t *testing.T) {
+		index := "articles_existing_test"
+		var created map[string]any
+		sendJSON(t, http.MethodPut, container.Address+"/"+index+"/_doc/kept?refresh=true", `{"title":"kept"}`, &created)
+
+		_, err := loadCorpus(t, container.Address, index, corpusOf(testArticles(2), nil), 100)
+		var exists *IndexExistsError
+		if !errors.As(err, &exists) {
+			t.Fatalf("LoadCorpus error = %v, want *IndexExistsError", err)
+		}
+		var kept struct {
+			Found bool `json:"found"`
+		}
+		getJSON(t, container.Address+"/"+index+"/_doc/kept", &kept)
+		if !kept.Found {
+			t.Error("the existing document is gone after a refused load")
+		}
+	})
+}
+
+type storedDocument struct {
+	ID              string         `json:"id"`
+	URL             string         `json:"url"`
+	Title           string         `json:"title"`
+	Description     string         `json:"description"`
+	Content         string         `json:"content"`
+	PublishedAt     string         `json:"published_at"`
+	Language        string         `json:"language"`
+	PublisherDomain string         `json:"publisher_domain"`
+	Metadata        map[string]any `json:"metadata"`
+	Embedding       []float32      `json:"embedding"`
+	EmbeddingModel  string         `json:"embedding_model"`
+}
+
+func cmpDocuments(got, want storedDocument) string {
+	if !slices.Equal(got.Embedding, want.Embedding) {
+		return "carries another vector than its own"
+	}
+	got.Embedding, want.Embedding = nil, nil
+	gotJSON, _ := json.Marshal(got)
+	wantJSON, _ := json.Marshal(want)
+	if string(gotJSON) != string(wantJSON) {
+		return fmt.Sprintf("stored %s, want %s", gotJSON, wantJSON)
+	}
+	return ""
+}
+
+// fetchByID reads the articles' documents back with _mget, keyed by _id.
+func fetchByID(t *testing.T, address, index string, articles []document.Article) map[string]storedDocument {
+	t.Helper()
+	ids := make([]string, len(articles))
+	for i, a := range articles {
+		ids[i] = a.ID.String()
+	}
+	body, err := json.Marshal(map[string]any{"ids": ids})
+	if err != nil {
+		t.Fatalf("marshal ids: %v", err)
+	}
+	var res struct {
+		Docs []struct {
+			ID     string         `json:"_id"`
+			Found  bool           `json:"found"`
+			Source storedDocument `json:"_source"`
+		} `json:"docs"`
+	}
+	postJSON(t, address+"/"+index+"/_mget", string(body), &res)
+	stored := make(map[string]storedDocument, len(res.Docs))
+	for _, doc := range res.Docs {
+		if doc.Found {
+			stored[doc.ID] = doc.Source
+		}
+	}
+	return stored
 }
 
 func assertNoIndex(t *testing.T, address, index string) {
@@ -140,6 +325,24 @@ func testArticles(n int) []document.Article {
 	return articles
 }
 
+// vectorFor encodes the article's position in every component, so a vector
+// stored on the wrong document is told apart from its own.
+func vectorFor(i int) []float32 {
+	v := make([]float32, EmbeddingDims)
+	for j := range v {
+		v[j] = float32(i+1) / float32(j+1)
+	}
+	return v
+}
+
+func testVectors(articles []document.Article) []embedding.Vec {
+	vecs := make([]embedding.Vec, len(articles))
+	for i, a := range articles {
+		vecs[i] = embedding.Vec{ID: a.ID, Model: loadTestModelTag, Embedding: vectorFor(i)}
+	}
+	return vecs
+}
+
 func corpusOf(articles []document.Article, vecs []embedding.Vec) storage.Corpus {
 	c := storage.Corpus{
 		Articles:  seqOf(articles),
@@ -175,9 +378,19 @@ func getJSON(t *testing.T, url string, out any) {
 
 func postJSON(t *testing.T, url, body string, out any) {
 	t.Helper()
-	res, err := http.Post(url, "application/json", strings.NewReader(body))
+	sendJSON(t, http.MethodPost, url, body, out)
+}
+
+func sendJSON(t *testing.T, method, url, body string, out any) {
+	t.Helper()
+	req, err := http.NewRequest(method, url, strings.NewReader(body))
 	if err != nil {
-		t.Fatalf("POST %s: %v", url, err)
+		t.Fatalf("%s %s: %v", method, url, err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, url, err)
 	}
 	decodeResponse(t, url, res, out)
 }
@@ -189,7 +402,7 @@ func decodeResponse(t *testing.T, url string, res *http.Response, out any) {
 	if err != nil {
 		t.Fatalf("read %s: %v", url, err)
 	}
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode >= http.StatusMultipleChoices {
 		t.Fatalf("%s: status %d: %s", url, res.StatusCode, body)
 	}
 	if err := json.Unmarshal(body, out); err != nil {

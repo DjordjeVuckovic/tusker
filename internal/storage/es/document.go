@@ -84,6 +84,10 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) (ArticleDocumen
 	if _, err := language.Parse(string(article.Language)); err != nil {
 		return ArticleDocument{}, fmt.Errorf("article %s: %w", article.ID, err)
 	}
+	return newArticleDocument(article), nil
+}
+
+func newArticleDocument(article document.Article) ArticleDocument {
 	return ArticleDocument{
 		ID:              article.ID.String(),
 		URL:             article.URL,
@@ -94,7 +98,7 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) (ArticleDocumen
 		Language:        string(article.Language),
 		PublisherDomain: article.PublisherDomain,
 		Metadata:        article.Metadata,
-	}, nil
+	}
 }
 
 // buildSettings declares every index knob the benchmark compares on rather than
