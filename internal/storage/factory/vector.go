@@ -18,53 +18,37 @@ type VectorStoreConfig struct {
 	Es        *es.ClientConfig
 
 	// EmbeddingClient embeds query text (the document vectors come from the
-	// store). Required for the PG store.
+	// store).
 	EmbeddingClient embedding.Client
-	// Model is the embedding model name; doc vectors are filtered by it so query
-	// and document vectors stay comparable. Defaults to the embedder default.
+	// Model is the name the embedding client is asked for, defaulting to the
+	// embedder default. Document vectors are filtered by the embedder's
+	// model@dim tag, so query and document vectors stay comparable.
 	Model string
 }
 
 // NewVectorStore builds a VectorStore, preferring Postgres over Elasticsearch.
 func NewVectorStore(ctx context.Context, cfg VectorStoreConfig) (storage.VectorStore, error) {
-	switch {
-	case cfg.PgConnStr != "":
-		if cfg.EmbeddingClient == nil {
-			return nil, fmt.Errorf("vector store: embedding client is required for query embedding")
-		}
-		pool, err := pg.NewConnectionPool(ctx, pg.PoolConfig{
-			ConnStr:          cfg.PgConnStr,
-			RegisterVecTypes: true,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("vector store: create PostgreSQL pool: %w", err)
-		}
-		// Query embedding and stored doc vectors must use the same model.
-		model := cfg.Model
-		if model == "" {
-			model = embedding.DefaultModel
-		}
-		embedder := embedding.NewEmbedder(cfg.EmbeddingClient,
-			embedding.WithExecutorMaxLength(1024),
-			embedding.WithExecutorModel(model),
-		)
-		return pg.NewVectorStore(embedder, pool, model), nil
-
-	case cfg.Es != nil:
-		if cfg.EmbeddingClient == nil {
-			return nil, fmt.Errorf("vector store: embedding client is required for query embedding")
-		}
-		model := cfg.Model
-		if model == "" {
-			model = embedding.DefaultModel
-		}
-		embedder := embedding.NewEmbedder(cfg.EmbeddingClient,
-			embedding.WithExecutorMaxLength(1024),
-			embedding.WithExecutorModel(model),
-		)
-		return es.NewVectorStore(*cfg.Es, embedder, model)
-
-	default:
+	if cfg.PgConnStr == "" && cfg.Es == nil {
 		return nil, fmt.Errorf("vector store: no Postgres or Elasticsearch backend configured")
 	}
+	if cfg.EmbeddingClient == nil {
+		return nil, fmt.Errorf("vector store: embedding client is required for query embedding")
+	}
+	var opts []embedding.EmbedderOption
+	if cfg.Model != "" {
+		opts = append(opts, embedding.WithExecutorModel(cfg.Model))
+	}
+	embedder := embedding.NewEmbedder(cfg.EmbeddingClient, opts...)
+
+	if cfg.PgConnStr == "" {
+		return es.NewVectorStore(*cfg.Es, embedder, embedder.Model())
+	}
+	pool, err := pg.NewConnectionPool(ctx, pg.PoolConfig{
+		ConnStr:          cfg.PgConnStr,
+		RegisterVecTypes: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("vector store: create PostgreSQL pool: %w", err)
+	}
+	return pg.NewVectorStore(embedder, pool, embedder.Model()), nil
 }

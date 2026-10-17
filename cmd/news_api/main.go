@@ -21,8 +21,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-const defaultQueryVectorLength = 1024
-
 func main() {
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 
@@ -84,17 +82,16 @@ func main() {
 	}
 }
 
-// newQueryEmbedder embeds queries with the model the corpus was loaded with
-// (EMBEDDING_MODEL), since the searchers only compare against stored vectors
-// tagged with that model.
+// newQueryEmbedder embeds queries with the model and width the corpus was
+// loaded with (EMBEDDING_MODEL, EMBEDDING_DIM), since the searchers only
+// compare against stored vectors tagged model@dim.
 func newQueryEmbedder(client embedding.Client, cfg embedding.Config) *embedding.Embedder {
-	maxLength := defaultQueryVectorLength
-	if cfg.MaxLength != nil {
-		maxLength = *cfg.MaxLength
-	}
-	opts := []embedding.EmbedderOption{embedding.WithExecutorMaxLength(maxLength)}
+	var opts []embedding.EmbedderOption
 	if cfg.Model != "" {
 		opts = append(opts, embedding.WithExecutorModel(cfg.Model))
+	}
+	if cfg.Dim != 0 {
+		opts = append(opts, embedding.WithDim(cfg.Dim))
 	}
 	return embedding.NewEmbedder(client, opts...)
 }

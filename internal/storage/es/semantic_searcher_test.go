@@ -12,6 +12,10 @@ import (
 	"github.com/google/uuid"
 )
 
+// storedTag is how the rebuild tags stored vectors: the Ollama model name the
+// query embedder is configured with, plus the width.
+const storedTag = "qwen3-embedding:0.6b@1024"
+
 // staticEmbedder is an embedding.Client returning a fixed vector.
 type staticEmbedder struct {
 	vec []float32
@@ -40,11 +44,8 @@ func newSemanticTestEnv(t *testing.T, queryVec []float32) (*Indexer, *Embedder, 
 		t.Fatalf("NewEmbedder: %v", err)
 	}
 
-	qEmbedder := embedding.NewEmbedder(staticEmbedder{vec: queryVec},
-		embedding.WithExecutorMaxLength(1024),
-		embedding.WithExecutorModel(embedding.DefaultModel),
-	)
-	return indexer, embIndexer, NewSemanticSearcher(newTestClient(t, cfg), qEmbedder, embedding.DefaultModel)
+	qEmbedder := embedding.NewEmbedder(staticEmbedder{vec: queryVec})
+	return indexer, embIndexer, NewSemanticSearcher(newTestClient(t, cfg), qEmbedder, qEmbedder.Model())
 }
 
 func TestSemanticSearcher_SearchSemantic_ReturnsNearest(t *testing.T) {
@@ -69,8 +70,8 @@ func TestSemanticSearcher_SearchSemantic_ReturnsNearest(t *testing.T) {
 	refresh(t, embIndexer)
 
 	batch := []*embedding.Vec{
-		{ID: nearID, Model: embedding.DefaultModel, Embedding: near},
-		{ID: farID, Model: embedding.DefaultModel, Embedding: far},
+		{ID: nearID, Model: storedTag, Embedding: near},
+		{ID: farID, Model: storedTag, Embedding: far},
 	}
 	if _, err := embIndexer.SaveBulk(ctx, batch); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
@@ -113,8 +114,8 @@ func TestSemanticSearcher_SearchSemantic_OnlySeesTheQueryModel(t *testing.T) {
 	refresh(t, embIndexer)
 
 	batch := []*embedding.Vec{
-		{ID: sameModel, Model: embedding.DefaultModel, Embedding: nearQuery},
-		{ID: otherModel, Model: "other-model", Embedding: queryVec},
+		{ID: sameModel, Model: storedTag, Embedding: nearQuery},
+		{ID: otherModel, Model: embedding.DefaultModel, Embedding: queryVec},
 	}
 	if _, err := embIndexer.SaveBulk(ctx, batch); err != nil {
 		t.Fatalf("SaveBulk: %v", err)

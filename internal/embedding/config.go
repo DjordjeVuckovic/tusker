@@ -34,10 +34,12 @@ type ObjectStoreConfig struct {
 }
 
 type Config struct {
-	Enabled     bool
-	Source      Source
+	Enabled bool
+	Source  Source
+	// Model is the name Ollama is asked for; stored vectors are tagged
+	// Model@Dim.
 	Model       string
-	MaxLength   *int
+	Dim         int
 	BaseURL     string
 	ObjectStore ObjectStoreConfig
 }
@@ -45,7 +47,6 @@ type Config struct {
 func LoadConfigFromEnv() (*Config, error) {
 	enabled := os.Getenv("EMBEDDING_ENABLED")
 	model := os.Getenv("EMBEDDING_MODEL")
-	maxLen := os.Getenv("EMBEDDING_MAX_LENGTH")
 	baseUrl := os.Getenv("EMBEDDING_BASE_URL")
 
 	source := Source(os.Getenv("EMBEDDING_SOURCE"))
@@ -58,7 +59,12 @@ func LoadConfigFromEnv() (*Config, error) {
 		return nil, errors.New("EMBEDDING_BASE_URL environment variable not set")
 	}
 
-	maxLength, err := parseMaxLength(maxLen)
+	// The old name meant an optional truncation; reading past it would quietly
+	// store vectors at DefaultDim instead.
+	if _, set := os.LookupEnv("EMBEDDING_MAX_LENGTH"); set {
+		return nil, errors.New("EMBEDDING_MAX_LENGTH is renamed EMBEDDING_DIM")
+	}
+	dim, err := parseDim(os.Getenv("EMBEDDING_DIM"))
 	if err != nil {
 		return nil, err
 	}
@@ -67,24 +73,24 @@ func LoadConfigFromEnv() (*Config, error) {
 		Enabled:     enabled == "true",
 		Source:      source,
 		Model:       model,
-		MaxLength:   maxLength,
+		Dim:         dim,
 		BaseURL:     baseUrl,
 		ObjectStore: loadObjectStoreFromEnv(),
 	}, nil
 }
 
-// parseMaxLength reads the width stored vectors are truncated to. Zero or a
-// negative width would store empty vectors or panic mid-load, after the batch's
-// articles are already written.
-func parseMaxLength(raw string) (*int, error) {
+// parseDim reads the width vectors are sliced to. Zero or a negative width
+// would store empty vectors or panic mid-load, after the batch's articles are
+// already written.
+func parseDim(raw string) (int, error) {
 	if raw == "" {
-		return nil, nil
+		return DefaultDim, nil
 	}
-	length, err := strconv.Atoi(raw)
-	if err != nil || length <= 0 {
-		return nil, fmt.Errorf("EMBEDDING_MAX_LENGTH must be a positive integer, got %q", raw)
+	dim, err := strconv.Atoi(raw)
+	if err != nil || dim <= 0 {
+		return 0, fmt.Errorf("EMBEDDING_DIM must be a positive integer, got %q", raw)
 	}
-	return &length, nil
+	return dim, nil
 }
 
 func loadObjectStoreFromEnv() ObjectStoreConfig {

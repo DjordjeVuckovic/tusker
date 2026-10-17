@@ -194,7 +194,9 @@ func fakeElasticsearch(t *testing.T) (url string, connections func() int64) {
 func fakeOllama(t *testing.T) string {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(embedding.Response{Embedding: make([]float32, defaultQueryVectorLength)})
+		unit := make([]float32, embedding.DefaultDim)
+		unit[0] = 1
+		_ = json.NewEncoder(w).Encode(embedding.Response{Embedding: unit})
 	}))
 	t.Cleanup(srv.Close)
 	return srv.URL

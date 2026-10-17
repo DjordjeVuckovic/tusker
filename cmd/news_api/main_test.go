@@ -13,21 +13,37 @@ type recordingClient struct {
 
 func (c *recordingClient) Generate(_ context.Context, req embedding.Request) (*embedding.Response, error) {
 	c.models = append(c.models, req.Model)
-	return &embedding.Response{Embedding: []float32{1, 0}}, nil
+	unit := make([]float32, 1024)
+	unit[0] = 1
+	return &embedding.Response{Embedding: unit}, nil
 }
 
 func (c *recordingClient) GenerateBatch(context.Context, embedding.BatchRequest) (*embedding.BatchResponse, error) {
 	return &embedding.BatchResponse{}, nil
 }
 
-func TestNewQueryEmbedder_EmbedsWithConfiguredModel(t *testing.T) {
+func TestNewQueryEmbedder_AsksForThePlainModelAndTagsTheWidth(t *testing.T) {
 	tests := []struct {
-		name      string
-		cfg       embedding.Config
-		wantModel string
+		name        string
+		cfg         embedding.Config
+		wantRequest string
+		wantTag     string
+		wantWidth   int
 	}{
-		{name: "configured model", cfg: embedding.Config{Model: "bge-m3"}, wantModel: "bge-m3"},
-		{name: "no model configured", cfg: embedding.Config{}, wantModel: embedding.DefaultModel},
+		{
+			name:        "configured model and width",
+			cfg:         embedding.Config{Model: "bge-m3", Dim: 512},
+			wantRequest: "bge-m3",
+			wantTag:     "bge-m3@512",
+			wantWidth:   512,
+		},
+		{
+			name:        "nothing configured",
+			cfg:         embedding.Config{},
+			wantRequest: "qwen3-embedding:0.6b",
+			wantTag:     "qwen3-embedding:0.6b@1024",
+			wantWidth:   1024,
+		},
 	}
 
 	for _, tt := range tests {
@@ -39,11 +55,14 @@ func TestNewQueryEmbedder_EmbedsWithConfiguredModel(t *testing.T) {
 				t.Fatalf("EmbedQuery: %v", err)
 			}
 
-			if len(client.models) != 1 || client.models[0] != tt.wantModel {
-				t.Errorf("Ollama asked for %v, want %q", client.models, tt.wantModel)
+			if len(client.models) != 1 || client.models[0] != tt.wantRequest {
+				t.Errorf("Ollama asked for %v, want %q", client.models, tt.wantRequest)
 			}
-			if vec.Model != tt.wantModel {
-				t.Errorf("query vector tagged %q, want %q", vec.Model, tt.wantModel)
+			if vec.Model != tt.wantTag {
+				t.Errorf("query vector tagged %q, want %q", vec.Model, tt.wantTag)
+			}
+			if len(vec.Embedding) != tt.wantWidth {
+				t.Errorf("query vector width = %d, want %d", len(vec.Embedding), tt.wantWidth)
 			}
 		})
 	}

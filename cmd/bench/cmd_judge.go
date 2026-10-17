@@ -353,10 +353,7 @@ func buildVectorStore(ctx context.Context, f judgeFlags) (storage.VectorStore, s
 	if err != nil {
 		return nil, "", err
 	}
-	if model == "" {
-		model = embedding.DefaultModel
-	}
-	return store, model, nil
+	return store, store.Model(), nil
 }
 
 // openArticleReader creates a PG reader for article enrichment. Centralised so

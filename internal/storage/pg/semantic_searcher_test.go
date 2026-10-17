@@ -45,8 +45,8 @@ func TestSemanticSearcher_SearchSemantic_OnlySeesTheQueryModel(t *testing.T) {
 	}
 
 	_, err = NewEmbedder(pool).SaveBulk(testCtx, []*embedding.Vec{
-		{ID: sameModel, Model: embedding.DefaultModel, Embedding: nearQuery},
-		{ID: otherModel, Model: "other-model", Embedding: queryVec},
+		{ID: sameModel, Model: "qwen3-embedding:0.6b@1024", Embedding: nearQuery},
+		{ID: otherModel, Model: embedding.DefaultModel, Embedding: queryVec},
 	})
 	if err != nil {
 		t.Fatalf("SaveBulk: %v", err)
