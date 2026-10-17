@@ -431,7 +431,7 @@ bench export <track> --format run
 trec_eval -c -l <relevance_threshold> -m map -m P.5,10 trec/qrels.<S>.tsv reports/<run_id>.run/<job>.<engine>.run
 ```
 
-Engines return no scores, so run-file scores are derived from rank. NDCG will not match `trec_eval` because of the gain.
+The qrels must hold exactly the job's queries: `-c` averages over every qrels topic, so a topic the job never ran counts as a zero. Filter the qrels to the suite's query ids before running `trec_eval`. Engines return no scores, so run-file scores are derived from rank. NDCG will not match `trec_eval` because of the gain.
 
 ## Artifacts
 
