@@ -75,3 +75,19 @@ func TestClean_RejectsNegativeKeep(t *testing.T) {
 	assert.FileExists(t, kept)
 	assert.FileExists(t, newer)
 }
+
+// Reports written before runs recorded settings.incomplete still show their
+// errored executions in the per-engine error counts.
+func TestClean_ReportWithoutSettingsThatErroredIsIncomplete(t *testing.T) {
+	tr := newLineageTrack(t, "http://unused.invalid")
+	complete := writeCleanReport(t, tr, "2026-10-01T00-00-00-run-r1-complete")
+	errored := filepath.Join(tr.dir, "reports", "2026-10-02T00-00-00-run-r2-errored.json")
+	require.NoError(t, os.WriteFile(errored, []byte(`{"schema_version": 1, "provenance": {"run_id": "r2"},
+  "jobs": [{"JobName": "both", "Aggregated": [{"EngineName": "b", "QueryCount": 2, "ErrorCount": 1}]}]}`), 0o644))
+
+	_, err := execute(t, newCleanCmd(), tr.dir, "--keep=1")
+	require.NoError(t, err)
+
+	assert.FileExists(t, complete)
+	assert.NoFileExists(t, errored)
+}

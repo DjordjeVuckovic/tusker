@@ -148,10 +148,21 @@ func staleReports(newestFirst []string, keep int, latest string) []string {
 }
 
 // isCompleteReport reports whether path is a readable report that bench run
-// recorded nothing incomplete about.
+// recorded nothing incomplete about. Reports written before settings.incomplete
+// existed are checked for errored executions directly.
 func isCompleteReport(path string) bool {
 	rpt, err := report.ReadJSON(path)
-	return err == nil && len(rpt.Settings.Incomplete) == 0
+	if err != nil || len(rpt.Settings.Incomplete) > 0 {
+		return false
+	}
+	for _, job := range rpt.Jobs {
+		for _, entry := range job.Aggregated {
+			if entry.ErrorCount > 0 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // latestTarget is the report latest.json points at, or "" without a readable
