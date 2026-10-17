@@ -23,7 +23,7 @@ func NewAPIExecutor(name, baseURL string) *APIExecutor {
 	return &APIExecutor{
 		name:    name,
 		baseURL: baseURL,
-		client:  &http.Client{Timeout: 30 * time.Second},
+		client:  &http.Client{},
 	}
 }
 

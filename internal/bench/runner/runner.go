@@ -52,12 +52,13 @@ func (r *Runner) RunAll(
 
 	for _, job := range bs.Jobs {
 		jr, err := r.RunJob(ctx, JobRequest{
-			Track:     bs.ID,
-			Job:       job,
-			Suite:     suites[job.Suite],
-			Executors: executors,
-			Bindings:  bindings,
-			Dialects:  dialects,
+			Track:        bs.ID,
+			Job:          job,
+			Suite:        suites[job.Suite],
+			Executors:    executors,
+			Bindings:     bindings,
+			Dialects:     dialects,
+			QueryTimeout: bs.Runs.QueryTimeout,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("run job %q: %w", job.Name, err)
@@ -234,12 +235,17 @@ func RegisterSearchTemplates(ctx context.Context, reg TemplateRegistration) erro
 		}
 	}
 	for _, p := range pending {
-		registrar := reg.Executors[p.engine].(engine.SearchTemplateRegistrar)
-		if err := registrar.RegisterSearchTemplate(ctx, p.template); err != nil {
+		if err := p.register(ctx, reg.Executors[p.engine], reg.Spec.Runs.QueryTimeout); err != nil {
 			return fmt.Errorf("engine %q: %w", p.engine, err)
 		}
 	}
 	return nil
+}
+
+func (p templateOnEngine) register(ctx context.Context, exec engine.Executor, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeoutOrDefault(timeout))
+	defer cancel()
+	return exec.(engine.SearchTemplateRegistrar).RegisterSearchTemplate(ctx, p.template)
 }
 
 // JobRequest is everything one job needs to run: its declaration, the loaded
@@ -252,6 +258,8 @@ type JobRequest struct {
 	Executors map[string]engine.Executor
 	Bindings  map[string]spec.QueryBinding
 	Dialects  map[string]dialect.Dialect
+	// QueryTimeout bounds each execution; zero means spec.DefaultQueryTimeout.
+	QueryTimeout time.Duration
 }
 
 func (r *Runner) RunJob(ctx context.Context, req JobRequest) (*JobResult, error) {
@@ -380,7 +388,11 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				return
 			}
 
-			result := r.executeWithRetries(ctx, exec, req.Dialects[engName].Request(req.Track, resolved), r.config.WarmupRuns, r.config.Runs)
+			result := r.measure(ctx, measurement{
+				executor: exec,
+				request:  req.Dialects[engName].Request(req.Track, resolved),
+				timeout:  req.QueryTimeout,
+			})
 
 			var scores metrics.ScoreSet
 			if result.err == nil && len(judgments) > 0 {
@@ -458,22 +470,25 @@ type execResult struct {
 	err           error
 }
 
-func (r *Runner) executeWithRetries(
-	ctx context.Context,
-	exec engine.Executor,
-	req engine.Request,
-	warmup, runs int,
-) execResult {
-	for i := 0; i < warmup; i++ {
-		_, _ = exec.Execute(ctx, req)
+// measurement is one query on one engine, executed for warmup and then for the
+// measured iterations.
+type measurement struct {
+	executor engine.Executor
+	request  engine.Request
+	timeout  time.Duration
+}
+
+func (r *Runner) measure(ctx context.Context, m measurement) execResult {
+	for i := 0; i < r.config.WarmupRuns; i++ {
+		_, _ = m.execute(ctx)
 	}
 
 	var latencies []time.Duration
 	var lastExec *engine.Execution
 	var lastErr error
 
-	for i := 0; i < runs; i++ {
-		result, err := exec.Execute(ctx, req)
+	for i := 0; i < r.config.Runs; i++ {
+		result, err := m.execute(ctx)
 		if err != nil {
 			lastErr = err
 			continue
@@ -491,4 +506,19 @@ func (r *Runner) executeWithRetries(
 		corpusMatches: lastExec.CorpusMatches,
 		latencyStats:  ComputeLatencyStats(latencies),
 	}
+}
+
+// execute runs once under the query deadline, which the runner owns so that no
+// engine type is cut off sooner or later than another.
+func (m measurement) execute(ctx context.Context) (*engine.Execution, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeoutOrDefault(m.timeout))
+	defer cancel()
+	return m.executor.Execute(ctx, m.request)
+}
+
+func timeoutOrDefault(timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		return spec.DefaultQueryTimeout
+	}
+	return timeout
 }

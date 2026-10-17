@@ -25,7 +25,7 @@ func NewEsExecutor(name, baseURL, index string) *EsExecutor {
 		name:    name,
 		baseURL: baseURL,
 		index:   index,
-		client:  &http.Client{Timeout: 30 * time.Second},
+		client:  &http.Client{},
 	}
 }
 

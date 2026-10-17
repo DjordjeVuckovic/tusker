@@ -341,6 +341,19 @@ Retrieval depth is the suite's own `limit` param (or ES `size`); there is no run
 
 Elapsed time is printed after the results table.
 
+#### Measurement
+
+Every engine is measured under the same rules, so a latency or a failure means the same thing whichever engine produced it.
+
+Each execution, warmup and measured alike, runs under one deadline: `runs.query_timeout` in the spec, 30 s when unset, for every engine type. The runner sets it and no engine client carries a timeout of its own, so a postgres query that runs past it fails the same way an elasticsearch one does. Storing the suite's search templates on an engine is bounded by the same deadline.
+
+```yaml
+runs:
+  warmup: 1
+  iterations: 3
+  query_timeout: 30s
+```
+
 #### Index provenance
 
 Before the first query, `bench run` reads from each live engine how it indexed the corpus and records it under `environment.engines.<name>.index` in the report. It also fills `version`.

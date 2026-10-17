@@ -133,6 +133,9 @@ func validate(s *BenchSpec) error {
 	if s.Runs.Iterations <= 0 {
 		s.Runs.Iterations = 3
 	}
+	if s.Runs.QueryTimeout <= 0 {
+		s.Runs.QueryTimeout = DefaultQueryTimeout
+	}
 	return nil
 }
 
