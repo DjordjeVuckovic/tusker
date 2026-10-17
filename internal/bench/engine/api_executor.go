@@ -34,9 +34,9 @@ type apiRequest struct {
 	Body   string            `json:"body,omitempty"`
 }
 
-func (e *APIExecutor) Execute(ctx context.Context, rawQuery string, _ []any) (*Execution, error) {
+func (e *APIExecutor) Execute(ctx context.Context, search Request) (*Execution, error) {
 	var req apiRequest
-	if err := json.Unmarshal([]byte(rawQuery), &req); err != nil {
+	if err := json.Unmarshal([]byte(search.Query), &req); err != nil {
 		return nil, fmt.Errorf("api parse request descriptor: %w", err)
 	}
 
@@ -106,9 +106,9 @@ func (e *APIExecutor) Close() error { return nil }
 // Validate parses the request descriptor. We can't validate against the live
 // API without firing a real request, so this just checks shape: method, path,
 // optional body/params.
-func (e *APIExecutor) Validate(_ context.Context, rawQuery string) error {
+func (e *APIExecutor) Validate(_ context.Context, search Request) error {
 	var req apiRequest
-	if err := json.Unmarshal([]byte(rawQuery), &req); err != nil {
+	if err := json.Unmarshal([]byte(search.Query), &req); err != nil {
 		return fmt.Errorf("api descriptor: %w", err)
 	}
 	if req.Method == "" {

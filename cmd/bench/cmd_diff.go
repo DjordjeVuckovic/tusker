@@ -128,6 +128,8 @@ func printDiff(w io.Writer, a, b *report.Report) {
 	fmt.Fprintf(w, "  %s %s\n", cDim.Sprint("A (before):"), a.Provenance.RunID)
 	fmt.Fprintf(w, "  %s %s\n\n", cDim.Sprint("B (after): "), cBold.Sprint(b.Provenance.RunID))
 
+	printProvenanceDiff(w, report.DiffProvenance(a, b))
+
 	// Find common jobs by name.
 	jobsA := indexJobs(a)
 	jobsB := indexJobs(b)
@@ -158,6 +160,29 @@ func printDiff(w io.Writer, a, b *report.Report) {
 		printQueryDiff(w, jA, jB, primaryKVal)
 		fmt.Fprintln(w)
 	}
+}
+
+func printProvenanceDiff(w io.Writer, changes []report.ProvenanceChange) {
+	if len(changes) == 0 {
+		fmt.Fprintf(w, "%s\n\n", cDim.Sprint("Index provenance: unchanged"))
+		return
+	}
+	fmt.Fprintf(w, "%s\n\n", cBold.Sprint("Index provenance changes:"))
+	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(tw, "Engine\tField\tA\tB")
+	fmt.Fprintln(tw, "---\t---\t---\t---")
+	for _, c := range changes {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", c.Engine, c.Field, orAbsent(c.Before), orAbsent(c.After))
+	}
+	tw.Flush()
+	fmt.Fprintln(w)
+}
+
+func orAbsent(value string) string {
+	if value == "" {
+		return "—"
+	}
+	return value
 }
 
 func printAggregateDiff(w io.Writer, jA, jB *report.JobReport, kVals []int) {

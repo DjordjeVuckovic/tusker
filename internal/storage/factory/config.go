@@ -9,6 +9,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
+	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
 )
 
 type StorageConfig struct {
@@ -38,6 +39,13 @@ func LoadEnv() (*StorageConfig, error) {
 			IndexName: os.Getenv("ES_INDEX_NAME"),
 			Username:  os.Getenv("ES_USERNAME"),
 			Password:  os.Getenv("ES_PASSWORD"),
+		}
+		var err error
+		if esCfg.DialTimeout, err = env.PositiveDuration("ES_DIAL_TIMEOUT"); err != nil {
+			return nil, err
+		}
+		if esCfg.ResponseHeaderTimeout, err = env.PositiveDuration("ES_RESPONSE_HEADER_TIMEOUT"); err != nil {
+			return nil, err
 		}
 		if len(esCfg.Addresses) == 0 || esCfg.IndexName == "" {
 			slog.Error("Elasticsearch configuration is incomplete", "addresses", esCfg.Addresses, "indexName", esCfg.IndexName)

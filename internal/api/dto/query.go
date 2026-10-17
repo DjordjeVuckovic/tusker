@@ -112,6 +112,9 @@ type StringQueryParams struct {
 }
 
 func (p *StringQueryParams) ToDomain() (*query.String, error) {
+	if err := checkQueryLength("q", p.Query); err != nil {
+		return nil, err
+	}
 	if p.Query == "" {
 		return nil, apperr.NewValidation("q parameter is required")
 	}
@@ -130,6 +133,9 @@ type HybridParams struct {
 }
 
 func (p *HybridParams) ToDomain() (*query.Hybrid, error) {
+	if err := checkQueryLength("query", p.Query); err != nil {
+		return nil, err
+	}
 	if p.Query == "" {
 		return nil, apperr.NewValidation("query is required")
 	}
@@ -150,6 +156,9 @@ func (p *HybridParams) ToDomain() (*query.Hybrid, error) {
 }
 
 func (p *MatchParams) ToDomain() (*query.Match, error) {
+	if err := checkQueryLength("query", p.Query); err != nil {
+		return nil, err
+	}
 	if p.Query == "" {
 		return nil, apperr.NewValidation("query is required")
 	}
@@ -184,6 +193,9 @@ func (p *MatchParams) ToDomain() (*query.Match, error) {
 }
 
 func (p *MultiMatchParams) ToDomain() (*query.MultiMatch, error) {
+	if err := checkQueryLength("query", p.Query); err != nil {
+		return nil, err
+	}
 	var opts []query.MultiMatchQueryOption
 
 	op, err := parseOperator(p.Operator)
@@ -212,6 +224,9 @@ type BooleanParams struct {
 }
 
 func (p *BooleanParams) ToDomain() (*query.Boolean, error) {
+	if err := checkQueryLength("expression", p.Expression); err != nil {
+		return nil, err
+	}
 	if p.Expression == "" {
 		return nil, apperr.NewValidation("expression is required")
 	}
@@ -230,6 +245,9 @@ func (p *BooleanParams) ToDomain() (*query.Boolean, error) {
 }
 
 func (p *PhraseParams) ToDomain() (*query.Phrase, error) {
+	if err := checkQueryLength("query", p.Query); err != nil {
+		return nil, err
+	}
 	if p.Query == "" {
 		return nil, apperr.NewValidation("query is required")
 	}
@@ -293,6 +311,9 @@ type SemanticSearchResponse struct {
 }
 
 func (p *SemanticSearchRequest) ToDomain() (*query.Semantic, error) {
+	if err := checkQueryLength("query", p.Query); err != nil {
+		return nil, err
+	}
 	if p.Query == "" {
 		return nil, apperr.NewValidation("query is required")
 	}

@@ -93,6 +93,50 @@ func TestParse_RejectsBrokenQueriesFrom(t *testing.T) {
 	}
 }
 
+func TestParse_RejectsQueriesFromAcrossEngineTypes(t *testing.T) {
+	tests := []struct {
+		name    string
+		engines string
+	}{
+		{
+			name: "postgres reuses an elasticsearch block",
+			engines: `  pg-arm:
+    type: postgres
+    connection: "postgresql://localhost/test"
+    queries_from: es-arm
+  es-arm:
+    type: elasticsearch
+    connection: "http://localhost:9200"
+`,
+		},
+		{
+			name: "elasticsearch reuses a postgres block",
+			engines: `  pg-arm:
+    type: postgres
+    connection: "postgresql://localhost/test"
+  es-arm:
+    type: elasticsearch
+    connection: "http://localhost:9200"
+    queries_from: pg-arm
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			yaml := validSpecHeader + "engines:\n" + tt.engines + `jobs:
+  - name: fts
+    suite: suite.yaml
+    engines: [pg-arm, es-arm]
+`
+			_, err := Parse([]byte(yaml))
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "pg-arm")
+			assert.ErrorContains(t, err, "es-arm")
+		})
+	}
+}
+
 func TestBenchSpec_QueryBinding(t *testing.T) {
 	s := &BenchSpec{Engines: map[string]Engine{
 		"pg-gin": {Params: map[string]any{"rank_norm": "0"}},
