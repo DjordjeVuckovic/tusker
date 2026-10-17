@@ -61,6 +61,31 @@ func TestPoolResults(t *testing.T) {
 	})
 }
 
+// Engines are walked by name, so the same results always pool in the same
+// order: docs in engine-name then rank order, sources in engine-name order.
+func TestPoolResults_OrderIsFixedByEngineName(t *testing.T) {
+	shared, d1, d2, d3, d4, d5 := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	results := map[string]*engine.Execution{
+		"echo":    {RankedDocIDs: []uuid.UUID{d5, shared}},
+		"charlie": {RankedDocIDs: []uuid.UUID{shared, d3}},
+		"alpha":   {RankedDocIDs: []uuid.UUID{d1, shared}},
+		"delta":   {RankedDocIDs: []uuid.UUID{d4}},
+		"bravo":   {RankedDocIDs: []uuid.UUID{d2, shared}},
+	}
+	want := []PooledDoc{
+		{DocID: d1, Sources: []string{"alpha"}},
+		{DocID: shared, Sources: []string{"alpha", "bravo", "charlie", "echo"}},
+		{DocID: d2, Sources: []string{"bravo"}},
+		{DocID: d3, Sources: []string{"charlie"}},
+		{DocID: d4, Sources: []string{"delta"}},
+		{DocID: d5, Sources: []string{"echo"}},
+	}
+
+	for range 20 {
+		require.Equal(t, want, PoolResults(results, 10))
+	}
+}
+
 func TestPoolFileWriteRead(t *testing.T) {
 	id1 := uuid.New()
 
