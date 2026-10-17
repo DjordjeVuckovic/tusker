@@ -50,16 +50,18 @@ func (opts Options) storeFor(ctx context.Context, location string) (store, strin
 	}
 }
 
-// splitDescriptor separates a slash path into its directory and descriptor
-// file name. A path ending in "/" names the directory, whose descriptor is
-// datapackage.json.
+// splitDescriptor separates a remote slash path into its directory and
+// descriptor file name. Like a local directory, a path not ending in ".json"
+// names a folder whose descriptor is datapackage.json.
 func splitDescriptor(p string) (dir, name string) {
-	i := strings.LastIndex(p, "/")
-	dir, name = p[:i+1], p[i+1:]
-	if name == "" {
-		name = DescriptorName
+	if !strings.HasSuffix(p, ".json") {
+		if dir = strings.TrimSuffix(p, "/"); dir != "" {
+			dir += "/"
+		}
+		return dir, DescriptorName
 	}
-	return dir, name
+	i := strings.LastIndex(p, "/")
+	return p[:i+1], p[i+1:]
 }
 
 type httpsStore struct {

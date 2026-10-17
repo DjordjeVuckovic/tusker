@@ -166,6 +166,8 @@ func TestPackageOpensIdenticallyFromDiskHTTPSAndS3(t *testing.T) {
 		{"disk", filepath.Join(root, "pkg"), datapackage.Options{}},
 		{"https", srv.URL + "/pkg/datapackage.json", datapackage.Options{HTTPClient: srv.Client()}},
 		{"s3", "s3://datasets/cc-news/canonical/v1/datapackage.json", datapackage.Options{S3: datapackage.S3ConfigFromEnv()}},
+		{"https folder", srv.URL + "/pkg", datapackage.Options{HTTPClient: srv.Client()}},
+		{"s3 folder", "s3://datasets/cc-news/canonical/v1", datapackage.Options{S3: datapackage.S3ConfigFromEnv()}},
 	}
 	for _, l := range locations {
 		t.Run(l.name, func(t *testing.T) {
