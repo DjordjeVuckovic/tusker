@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -8,21 +9,26 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
 )
 
-// CorpusLoaderConfig selects the backend a corpus is loaded into. The caller
-// owns and closes the connection it passes in.
-type CorpusLoaderConfig struct {
-	Type     storage.Type
-	EsClient *es.Client
+// LoaderConfig selects the engine a corpus is loaded into and how to reach it.
+type LoaderConfig struct {
+	Engine storage.Type
+	Es     *es.ClientConfig
 }
 
-func NewCorpusLoader(cfg CorpusLoaderConfig) (storage.CorpusLoader, error) {
-	switch cfg.Type {
+// NewCorpusLoader returns the engine's loader and a func that releases its
+// connections.
+func NewCorpusLoader(_ context.Context, cfg LoaderConfig) (storage.CorpusLoader, func(), error) {
+	switch cfg.Engine {
 	case storage.ES:
-		if cfg.EsClient == nil {
-			return nil, errors.New("elasticsearch client is not set")
+		if cfg.Es == nil {
+			return nil, nil, errors.New("elasticsearch config is not set")
 		}
-		return es.NewCorpusLoader(cfg.EsClient), nil
+		client, err := es.NewClient(*cfg.Es)
+		if err != nil {
+			return nil, nil, fmt.Errorf("connect to %s: %w", cfg.Engine, err)
+		}
+		return es.NewCorpusLoader(client), client.Close, nil
 	default:
-		return nil, fmt.Errorf(string(storage.ErrUnsupportedStorer), cfg.Type)
+		return nil, nil, fmt.Errorf("no corpus loader for engine %q", cfg.Engine)
 	}
 }
