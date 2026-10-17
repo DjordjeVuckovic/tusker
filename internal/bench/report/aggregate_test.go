@@ -3,6 +3,7 @@ package report
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -189,4 +190,79 @@ func TestWriteTable_ShowsJudgedCoverage(t *testing.T) {
 
 	assert.Contains(t, strings.ToLower(out.String()), "coverage@10")
 	assert.Contains(t, out.String(), "0.6250")
+}
+
+func TestGenerate_SignificanceIsHolmAdjustedAcrossEnginePairs(t *testing.T) {
+	apByEngine := map[string][]float64{
+		"a": {0.9, 0.8, 0.75, 0.6, 0.55, 0.4, 0.35},
+		"b": {0.1, 0.85, 0.5, 0.2, 0.4, 0.37, 0.0},
+		"c": {0.06, 0.03, 0.21, 0.1, 0.47, 0.02, 0.33},
+	}
+	judged := map[string]int{"11111111-1111-1111-1111-111111111111": 1}
+	jr := &runner.JobResult{
+		JobName:     "holm",
+		EngineNames: []string{"a", "b", "c"},
+		Results:     make(map[string]map[string]runner.QueryResult),
+	}
+	br := &runner.BenchmarkResult{
+		Config: runner.Config{KValues: []int{10}, RelevanceThreshold: 1, Judgments: map[string]map[string]int{}},
+		Jobs:   []*runner.JobResult{jr},
+	}
+	for i := range apByEngine["a"] {
+		qid := fmt.Sprintf("q%d", i)
+		br.Config.Judgments[qid] = judged
+		jr.QueryOrder = append(jr.QueryOrder, qid)
+		jr.Results[qid] = make(map[string]runner.QueryResult)
+		for engine, aps := range apByEngine {
+			jr.Results[qid][engine] = answered(qid, engine, aps[i], time.Millisecond)
+		}
+	}
+
+	byPair := make(map[string]PairwiseSignificance)
+	for _, s := range Generate(br, nil).Jobs[0].Significance {
+		if s.Metric == "MAP" {
+			byPair[s.EngineA+"-"+s.EngineB] = s
+		}
+	}
+
+	// Raw p from scipy.stats.wilcoxon (exact); adjusted from statsmodels
+	// multipletests(method="holm") over the three pairs.
+	tests := []struct {
+		pair          string
+		raw, adjusted float64
+		stars         string
+	}{
+		{pair: "a-b", raw: 0.046875, adjusted: 0.09375, stars: ""},
+		{pair: "a-c", raw: 0.015625, adjusted: 0.046875, stars: "*"},
+		{pair: "b-c", raw: 0.296875, adjusted: 0.296875, stars: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.pair, func(t *testing.T) {
+			got, ok := byPair[tc.pair]
+			require.True(t, ok)
+			assert.InDelta(t, tc.raw, got.P, 1e-12)
+			assert.InDelta(t, tc.adjusted, got.AdjustedP, 1e-12)
+			assert.Equal(t, tc.stars, got.Stars)
+		})
+	}
+}
+
+func TestWriters_ShowRawAndHolmAdjustedP(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:      "holm",
+			PerQuery:     []Entry{{QueryID: "q1", EngineName: "a", Judged: true}},
+			Aggregated:   []AggregatedEntry{{EngineName: "a", JudgedCount: 1, QueryCount: 1}},
+			Significance: []PairwiseSignificance{{EngineA: "a", EngineB: "b", Metric: "MAP", W: 2, P: 0.0123, AdjustedP: 0.0369, Stars: "*"}},
+		}},
+	}
+	var terminal, markdown bytes.Buffer
+	WriteTable(r, &terminal)
+	WriteMarkdown(r, &markdown)
+
+	for name, out := range map[string]string{"table": terminal.String(), "markdown": markdown.String()} {
+		assert.Contains(t, out, "0.0123", name)
+		assert.Contains(t, out, "0.0369", name)
+	}
 }

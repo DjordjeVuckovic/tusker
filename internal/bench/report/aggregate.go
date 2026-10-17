@@ -354,25 +354,45 @@ func computeSignificance(scope jobScope) []PairwiseSignificance {
 					results = append(results, PairwiseSignificance{
 						EngineA: engA, EngineB: engB,
 						Metric: fmt.Sprintf("NDCG@%d", k),
-						W:      res.W, P: res.P, Stars: res.Stars,
+						W:      res.W, P: res.P,
 					})
 				}
 			}
 			if res := metrics.Wilcoxon(mapA, mapB); res != nil {
 				results = append(results, PairwiseSignificance{
 					EngineA: engA, EngineB: engB, Metric: "MAP",
-					W: res.W, P: res.P, Stars: res.Stars,
+					W: res.W, P: res.P,
 				})
 			}
 			if res := metrics.Wilcoxon(mrrA, mrrB); res != nil {
 				results = append(results, PairwiseSignificance{
 					EngineA: engA, EngineB: engB, Metric: "MRR",
-					W: res.W, P: res.P, Stars: res.Stars,
+					W: res.W, P: res.P,
 				})
 			}
 		}
 	}
+	adjustAcrossEnginePairs(results)
 	return results
+}
+
+// adjustAcrossEnginePairs applies the Holm correction to each metric's family
+// of engine-pair tests and marks significance from the adjusted p.
+func adjustAcrossEnginePairs(results []PairwiseSignificance) {
+	byMetric := make(map[string][]int)
+	for i, r := range results {
+		byMetric[r.Metric] = append(byMetric[r.Metric], i)
+	}
+	for _, members := range byMetric {
+		raw := make([]float64, len(members))
+		for i, idx := range members {
+			raw[i] = results[idx].P
+		}
+		for i, adjusted := range metrics.Holm(raw) {
+			results[members[i]].AdjustedP = adjusted
+			results[members[i]].Stars = metrics.SignificanceStars(adjusted)
+		}
+	}
 }
 
 func sampleStddev(vals []float64) float64 {

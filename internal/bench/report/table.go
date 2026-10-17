@@ -182,10 +182,10 @@ func writeMDSignificanceTable(w io.Writer, jr *JobReport) {
 	if len(jr.Significance) == 0 {
 		return
 	}
-	fmt.Fprintf(w, "### Statistical Significance (Wilcoxon signed-rank, two-tailed)\n\n")
+	fmt.Fprintf(w, "### Statistical Significance (Wilcoxon signed-rank, two-tailed, Holm-adjusted across engine pairs)\n\n")
 
 	t := newMDTable()
-	t.AppendHeader(table.Row{"Engine A", "Engine B", "Metric", "W", "p-value", "Sig"})
+	t.AppendHeader(table.Row{"Engine A", "Engine B", "Metric", "W", "p-value", "p (Holm)", "Sig"})
 	for _, s := range jr.Significance {
 		sig := "ns"
 		if s.Stars != "" {
@@ -195,6 +195,7 @@ func writeMDSignificanceTable(w io.Writer, jr *JobReport) {
 			s.EngineA, s.EngineB, s.Metric,
 			fmt.Sprintf("%.1f", s.W),
 			fmt.Sprintf("%.4f", s.P),
+			fmt.Sprintf("%.4f", s.AdjustedP),
 			sig,
 		})
 	}
@@ -374,17 +375,18 @@ func writeSignificanceTable(w io.Writer, jr *JobReport) {
 		return
 	}
 	fmt.Fprintf(w, "%s\n\n",
-		tBold.Sprint("Statistical Significance (Wilcoxon signed-rank, two-tailed · * p<0.05 · ** p<0.01)"))
+		tBold.Sprint("Statistical Significance (Wilcoxon signed-rank, two-tailed, Holm-adjusted across engine pairs · * p<0.05 · ** p<0.01)"))
 
 	t := newTable(w)
-	t.AppendHeader(table.Row{"Engine A", "Engine B", "Metric", "W", "p-value", "Sig"})
-	t.SetColumnConfigs(rightCols(4, 5))
+	t.AppendHeader(table.Row{"Engine A", "Engine B", "Metric", "W", "p-value", "p (Holm)", "Sig"})
+	t.SetColumnConfigs(rightCols(4, 5, 6))
 
 	for _, s := range jr.Significance {
 		t.AppendRow(table.Row{
 			s.EngineA, s.EngineB, s.Metric,
 			fmt.Sprintf("%.1f", s.W),
 			fmt.Sprintf("%.4f", s.P),
+			fmt.Sprintf("%.4f", s.AdjustedP),
 			colorSig(s.Stars),
 		})
 	}

@@ -137,7 +137,7 @@ type htmlLatRow struct {
 
 type htmlSigRow struct {
 	EngineA, EngineB, Metric string
-	W, P                     string
+	W, P, AdjustedP          string
 	Stars                    string
 	NS                       bool
 }
@@ -228,7 +228,7 @@ func buildViewModel(r *Report) htmlReport {
 		for _, sig := range jr.Significance {
 			job.Significance = append(job.Significance, htmlSigRow{
 				EngineA: sig.EngineA, EngineB: sig.EngineB, Metric: sig.Metric,
-				W: fmt.Sprintf("%.1f", sig.W), P: fmt.Sprintf("%.4f", sig.P),
+				W: fmt.Sprintf("%.1f", sig.W), P: fmt.Sprintf("%.4f", sig.P), AdjustedP: fmt.Sprintf("%.4f", sig.AdjustedP),
 				Stars: sig.Stars, NS: sig.Stars == "",
 			})
 		}

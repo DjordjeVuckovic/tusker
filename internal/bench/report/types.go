@@ -83,14 +83,16 @@ type CategoryReport struct {
 
 // PairwiseSignificance is the result of a Wilcoxon signed-rank test comparing
 // two engines on one metric across all judged queries in this job. Populated by
-// Generate() when ≥4 non-tied paired observations are available.
+// Generate() when ≥4 non-zero paired differences are available.
 type PairwiseSignificance struct {
 	EngineA string  // reference engine (listed first in spec jobs[].engines)
 	EngineB string  // comparison engine
 	Metric  string  // e.g. "NDCG@10", "MAP", "MRR"
 	W       float64 // Wilcoxon W statistic
-	P       float64 // two-tailed p-value
-	Stars   string  // "**" p<0.01 | "*" p<0.05 | "" not significant
+	P       float64 // two-tailed p-value, unadjusted
+	// AdjustedP is Holm-corrected across the job's engine pairs on this metric.
+	AdjustedP float64
+	Stars     string // from AdjustedP: "**" p<0.01 | "*" p<0.05 | "" not significant
 }
 
 type ReportConfig struct {
