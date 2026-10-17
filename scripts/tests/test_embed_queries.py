@@ -53,7 +53,7 @@ def test_writes_each_query_with_the_text_the_runner_embeds(tmp_path, tiny_model_
     np.testing.assert_allclose(norms, 1.0, atol=1e-6)
 
 
-def test_descriptor_records_the_tag_query_recipe_and_suite_hash(
+def test_descriptor_records_the_tag_query_recipe_and_suite_id(
     tmp_path, tiny_model, tiny_model_args
 ):
     suite = write_suite(tmp_path / "track")
@@ -74,7 +74,7 @@ def test_descriptor_records_the_tag_query_recipe_and_suite_hash(
         "batchSize": 1,
         "dtype": "float32",
     }
-    assert descriptor["suite"] == {"id": "cc-news-semantic", "hash": sha256_of(suite)}
+    assert descriptor["suite"] == {"id": "cc-news-semantic"}
 
 
 def test_query_instruct_v1_embeds_the_recipe_string_around_the_stripped_query(

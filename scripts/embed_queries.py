@@ -15,9 +15,10 @@
 
 Writes trec/query-vectors/ beside the suite: query-vectors.parquet with one
 (query_id, text, embedding) row per suite query in suite order, and a
-datapackage.json recording the model tag, the query recipe and the suite's
-sha256. `text` is the query's description exactly as the bench runner passes it
-to QueryVector; the model input wraps it with the query-instruct-v1 recipe.
+datapackage.json recording the model tag, the query recipe and the suite id.
+`text` is the query's description exactly as the bench runner passes it to
+QueryVector; the model input wraps it with the query-instruct-v1 recipe. A new
+run replaces the folder.
 
 Uses embed_corpus.py's model loading, pooling and normalisation, so queries and
 documents go through one runtime. As a Kaggle script kernel (no argv) it reads
@@ -72,7 +73,6 @@ class SuiteQuery:
 @dataclass(frozen=True, slots=True)
 class Suite:
     id: str
-    hash: str
     queries: list[SuiteQuery]
 
 
@@ -108,9 +108,7 @@ def load_suite(path: Path) -> Suite:
     duplicates = sorted({query_id for query_id in ids if ids.count(query_id) > 1})
     if duplicates:
         raise embed_corpus.PackageError(f"{path} repeats query ids {duplicates}")
-    return Suite(
-        id=document.get("id", ""), hash=embed_corpus.sha256_hash(path), queries=queries
-    )
+    return Suite(id=document.get("id", ""), queries=queries)
 
 
 def check_query(query: SuiteQuery) -> None:
@@ -244,7 +242,7 @@ def run(args: argparse.Namespace) -> Path:
         "$schema": embed_corpus.DATAPACKAGE_PROFILE,
         "name": f"{suite.id}-query-vectors",
         "embedding": embedding,
-        "suite": {"id": suite.id, "hash": suite.hash},
+        "suite": {"id": suite.id},
     }
     # The folder is fixed per track, so a new embedding of the suite replaces it.
     embed_corpus.publish_replacing(
