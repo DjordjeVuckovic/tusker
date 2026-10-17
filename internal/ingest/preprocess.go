@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -90,21 +91,74 @@ func Preprocess(ctx context.Context, opts PreprocessOptions) (Preprocessed, erro
 		}},
 	}
 
-	dir := filepath.Join(opts.OutputRoot, pkg.Version)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return Preprocessed{}, fmt.Errorf("create canonical package folder: %w", err)
+	return writePackage(ctx, opts.OutputRoot, pkg, corpusSource{raw: opts.Raw, mapper: mapper, seen: map[uuid.UUID]struct{}{}})
+}
+
+// writePackage builds the package in a temporary folder beside its version
+// folder and renames it into place only once it is complete, so a failed or
+// cancelled run leaves nothing behind. A version folder that already exists is
+// never touched: matching content makes the run a no-op, and anything else is
+// a *datapackage.DescriptorConflictError.
+func writePackage(ctx context.Context, outputRoot string, pkg datapackage.Package, source corpusSource) (_ Preprocessed, err error) {
+	if err := os.MkdirAll(outputRoot, 0o755); err != nil {
+		return Preprocessed{}, fmt.Errorf("create canonical output folder: %w", err)
 	}
-	report, err := writeArticlesFile(ctx, filepath.Join(dir, pkg.Resources[0].Path), format, corpusSource{raw: opts.Raw, mapper: mapper, seen: map[uuid.UUID]struct{}{}})
+	tmp, err := os.MkdirTemp(outputRoot, "."+pkg.Version+"-*")
+	if err != nil {
+		return Preprocessed{}, fmt.Errorf("create temporary package folder: %w", err)
+	}
+	defer func() {
+		if tmp == "" {
+			return
+		}
+		if removeErr := os.RemoveAll(tmp); removeErr != nil && err == nil {
+			err = fmt.Errorf("remove temporary package folder: %w", removeErr)
+		}
+	}()
+
+	report, err := writeArticlesFile(ctx, filepath.Join(tmp, pkg.Resources[0].Path), datamapping.OutputFormat(pkg.Resources[0].Format), source)
 	if err != nil {
 		return Preprocessed{}, err
 	}
 	pkg.Report = &report
 
-	written, err := datapackage.Write(ctx, dir, pkg)
+	dir := filepath.Join(outputRoot, pkg.Version)
+	exists, err := copyExistingDescriptor(dir, tmp)
 	if err != nil {
-		return Preprocessed{}, fmt.Errorf("write canonical descriptor: %w", err)
+		return Preprocessed{}, err
 	}
+	written, err := datapackage.Write(ctx, tmp, pkg)
+	if err != nil {
+		return Preprocessed{}, fmt.Errorf("canonical package %s: %w", dir, err)
+	}
+	if exists {
+		return Preprocessed{Package: written, Dir: dir}, nil
+	}
+	if err := os.Chmod(tmp, 0o755); err != nil {
+		return Preprocessed{}, fmt.Errorf("open up temporary package folder: %w", err)
+	}
+	if err := os.Rename(tmp, dir); err != nil {
+		return Preprocessed{}, fmt.Errorf("move canonical package into %s: %w", dir, err)
+	}
+	tmp = ""
 	return Preprocessed{Package: written, Dir: dir}, nil
+}
+
+// copyExistingDescriptor puts the descriptor already at dir into tmp, so
+// datapackage.Write compares the new resources against it rather than
+// replacing it.
+func copyExistingDescriptor(dir, tmp string) (bool, error) {
+	existing, err := os.ReadFile(filepath.Join(dir, datapackage.DescriptorName))
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read existing descriptor: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, datapackage.DescriptorName), existing, 0o644); err != nil {
+		return false, fmt.Errorf("stage existing descriptor: %w", err)
+	}
+	return true, nil
 }
 
 func sha256Hash(content []byte) string {

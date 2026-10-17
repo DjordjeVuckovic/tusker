@@ -8,6 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -414,4 +417,122 @@ func TestPreprocess_DerivesThePublisherDomainFromTheURL(t *testing.T) {
 			assert.Equal(t, tt.want, rows.byURL[tt.url].PublisherDomain)
 		})
 	}
+}
+
+// freeze makes a package folder and its files read-only, so any later write
+// into it fails instead of passing unnoticed.
+func freeze(t *testing.T, dir string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	for _, e := range entries {
+		require.NoError(t, os.Chmod(filepath.Join(dir, e.Name()), 0o444))
+	}
+	require.NoError(t, os.Chmod(dir, 0o555))
+	t.Cleanup(func() {
+		_ = os.Chmod(dir, 0o755)
+		for _, e := range entries {
+			_ = os.Chmod(filepath.Join(dir, e.Name()), 0o644)
+		}
+	})
+}
+
+func TestPreprocess_RerunOverTheSameInputsKeepsTheExistingPackage(t *testing.T) {
+	run := newPreprocessRun(t, ccNewsLikeMapping,
+		csvFile("part.csv", "title,text,url\nOne,Body,https://example.com/1\nTwo,Body,https://example.com/2\n"),
+	)
+	require.NoError(t, run.execute(t.Context()))
+	dir := run.packageDir(t)
+	resourcePath := filepath.Join(dir, "articles.parquet")
+	firstHash := sha256Of(t, resourcePath)
+	before, err := os.Stat(resourcePath)
+	require.NoError(t, err)
+	freeze(t, dir)
+
+	require.NoError(t, run.execute(t.Context()))
+
+	assert.Equal(t, dir, run.packageDir(t))
+	after, err := os.Stat(resourcePath)
+	require.NoError(t, err)
+	assert.True(t, os.SameFile(before, after), "the resource file was replaced")
+	assert.Equal(t, firstHash, sha256Of(t, resourcePath))
+}
+
+func TestPreprocess_TwoRunsOverOneRawPackageWriteIdenticalBytes(t *testing.T) {
+	run := newPreprocessRun(t, ccNewsLikeMapping,
+		parquetFile(t, "train-0.parquet",
+			rawShardRow{Title: "One", Text: "Body", URL: "https://example.com/1", Date: "2019-03-04 05:06:07", Authors: "A; B", Words: "3"},
+			rawShardRow{Title: "Two", Text: "Body", URL: "https://example.com/2"},
+			rawShardRow{Title: "Three", Text: "Body", URL: "https://example.com/3"},
+		),
+	)
+	second := run
+	second.outputRoot = filepath.Join(t.TempDir(), "canonical")
+
+	require.NoError(t, run.execute(t.Context()))
+	require.NoError(t, second.execute(t.Context()))
+
+	first, other := run.packageDir(t), second.packageDir(t)
+	assert.Equal(t, filepath.Base(first), filepath.Base(other))
+	assert.Equal(t, sha256Of(t, filepath.Join(first, "articles.parquet")), sha256Of(t, filepath.Join(other, "articles.parquet")))
+}
+
+func TestPreprocess_RefusesAVersionThatDescribesOtherContent(t *testing.T) {
+	run := newPreprocessRun(t, ccNewsLikeMapping,
+		csvFile("part.csv", "title,text,url\nOne,Body,https://example.com/1\n"),
+	)
+	require.NoError(t, run.execute(t.Context()))
+	dir := run.packageDir(t)
+	descriptorPath := filepath.Join(dir, datapackage.DescriptorName)
+	descriptor, err := os.ReadFile(descriptorPath)
+	require.NoError(t, err)
+	actualHash := sha256Of(t, filepath.Join(dir, "articles.parquet"))
+	tampered := strings.Replace(string(descriptor), actualHash, "sha256:"+strings.Repeat("0", 64), 1)
+	require.NotEqual(t, string(descriptor), tampered)
+	require.NoError(t, os.WriteFile(descriptorPath, []byte(tampered), 0o644))
+
+	err = run.execute(t.Context())
+
+	var conflict *datapackage.DescriptorConflictError
+	require.ErrorAs(t, err, &conflict)
+	assert.Equal(t, dir, run.packageDir(t), "a refused run leaves nothing behind")
+	kept, err := os.ReadFile(descriptorPath)
+	require.NoError(t, err)
+	assert.Equal(t, tampered, string(kept))
+	assert.Equal(t, actualHash, sha256Of(t, filepath.Join(dir, "articles.parquet")))
+}
+
+func TestPreprocess_CancelledRunLeavesNoPackage(t *testing.T) {
+	rawDir := filepath.Join(t.TempDir(), "raw")
+	writeRawPackage(t, rawDir,
+		csvFile("a.csv", "title,text,url\nOne,Body,https://example.com/1\n"),
+		csvFile("b.csv", "title,text,url\nTwo,Body,https://example.com/2\n"),
+	)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	files := http.FileServer(http.Dir(rawDir))
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/b.csv") {
+			cancel()
+		}
+		files.ServeHTTP(w, r)
+	}))
+	defer srv.Close()
+	mappingPath := filepath.Join(t.TempDir(), "mapping.yaml")
+	require.NoError(t, os.WriteFile(mappingPath, []byte(ccNewsLikeMapping), 0o644))
+	outputRoot := filepath.Join(t.TempDir(), "canonical")
+
+	err := runPreprocess(ctx, io.Discard, preprocessConfig{
+		InputPath:   srv.URL + "/datapackage.json",
+		OutputPath:  outputRoot,
+		MappingPath: mappingPath,
+		Packages:    datapackage.Options{HTTPClient: srv.Client(), TempDir: t.TempDir()},
+	})
+
+	require.ErrorIs(t, err, context.Canceled)
+	entries, err := os.ReadDir(outputRoot)
+	if !errors.Is(err, fs.ErrNotExist) {
+		require.NoError(t, err)
+	}
+	assert.Empty(t, entries, "no package and no temporary folder remain")
 }
