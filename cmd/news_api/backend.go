@@ -14,7 +14,8 @@ import (
 )
 
 // searchBackend is everything the API serves from. semantic and hybrid are nil
-// when embeddings are disabled; close releases the shared Postgres pool.
+// when embeddings are disabled; close releases the shared Postgres pool or
+// Elasticsearch client.
 type searchBackend struct {
 	fts      storage.FtsSearcher
 	semantic storage.SemanticSearcher
@@ -43,6 +44,7 @@ func openSearchBackend(ctx context.Context, cfg *NewsSearchConfig) (*searchBacke
 			return nil, fmt.Errorf("create Elasticsearch client: %w", err)
 		}
 		searcherCfg.EsClient = client
+		backend.close = client.Close
 	}
 
 	if err := backend.wire(searcherCfg, cfg.EmbeddingConfig); err != nil {

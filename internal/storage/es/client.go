@@ -13,7 +13,8 @@ import (
 const (
 	DefaultDialTimeout = 5 * time.Second
 	// DefaultResponseHeaderTimeout covers the slowest call the loaders make:
-	// a 5MB bulk flush, which a local node answers in seconds.
+	// a 5MB bulk flush, which a local node answers in seconds. A slower cluster
+	// sets ES_RESPONSE_HEADER_TIMEOUT.
 	DefaultResponseHeaderTimeout = 30 * time.Second
 )
 
@@ -32,21 +33,33 @@ type ClientConfig struct {
 // health checks built from the same Client share its connections.
 type Client struct {
 	typed     *elasticsearch.TypedClient
+	transport *http.Transport
 	indexName string
 }
 
 func NewClient(config ClientConfig) (*Client, error) {
-	typed, err := newTypedClient(config)
+	transport := newTransport(config)
+	typed, err := newTypedClientOn(config, transport)
 	if err != nil {
 		return nil, fmt.Errorf("create Elasticsearch client: %w", err)
 	}
-	return &Client{typed: typed, indexName: config.IndexName}, nil
+	return &Client{typed: typed, transport: transport, indexName: config.IndexName}, nil
+}
+
+// Close releases the client's idle connections. Requests still in flight
+// finish on their own connections.
+func (c *Client) Close() {
+	c.transport.CloseIdleConnections()
 }
 
 func newTypedClient(config ClientConfig) (*elasticsearch.TypedClient, error) {
+	return newTypedClientOn(config, newTransport(config))
+}
+
+func newTypedClientOn(config ClientConfig, transport *http.Transport) (*elasticsearch.TypedClient, error) {
 	cfg := elasticsearch.Config{
 		Addresses:    config.Addresses,
-		Transport:    newTransport(config),
+		Transport:    transport,
 		RetryOnError: retryUnlessTimedOut,
 	}
 

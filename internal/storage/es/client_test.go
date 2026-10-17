@@ -3,6 +3,8 @@ package es
 import (
 	"context"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -75,5 +77,35 @@ func TestSearcher_UnresponsiveClusterFailsInsteadOfHanging(t *testing.T) {
 
 	if got := accepted.Load(); got != 1 {
 		t.Errorf("client opened %d connections, want 1: a timed-out request must not be retried", got)
+	}
+}
+
+func TestClient_CloseReleasesItsConnections(t *testing.T) {
+	var closed atomic.Int32
+	cluster := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-Elastic-Product", "Elasticsearch")
+		w.WriteHeader(http.StatusOK)
+	}))
+	cluster.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateClosed {
+			closed.Add(1)
+		}
+	}
+	cluster.Start()
+	t.Cleanup(cluster.Close)
+
+	client := newTestClient(t, ClientConfig{Addresses: []string{cluster.URL}, IndexName: "articles"})
+	if ok, err := client.typed.Ping().Do(context.Background()); err != nil || !ok {
+		t.Fatalf("ping: ok=%v err=%v", ok, err)
+	}
+
+	client.Close()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for closed.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if closed.Load() == 0 {
+		t.Error("the connection to Elasticsearch stayed open after Close")
 	}
 }
