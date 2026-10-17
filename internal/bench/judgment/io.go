@@ -90,7 +90,7 @@ func writeAtomic(path string, data []byte) error {
 
 // IncrementalWriter persists a JudgmentFile after every query so the user can
 // resume after a crash, Ctrl-C, or rate-limit interrupt. Pass Append on the
-// Runner's Sink and call Flush at the end to write the final file.
+// Runner's Sink.
 type IncrementalWriter struct {
 	Path    string
 	stamp   meta.Meta
@@ -144,13 +144,6 @@ func (w *IncrementalWriter) Append(_ QueryProgress, entry Entry) error {
 	w.current.Queries = append(w.current.Queries, entry)
 	return w.flush()
 }
-
-// Flush writes the current state to disk. Append already flushes; call this
-// only if you mutated current directly.
-func (w *IncrementalWriter) Flush() error { return w.flush() }
-
-// Snapshot returns the in-memory JudgmentFile (read-only).
-func (w *IncrementalWriter) Snapshot() *File { return &w.current }
 
 func (w *IncrementalWriter) flush() error {
 	w.current.Meta = w.stamp
