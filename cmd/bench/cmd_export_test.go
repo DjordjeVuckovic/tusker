@@ -67,3 +67,18 @@ func TestExportQrels_ReplacesTheOldFileWhole(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "q1\t0\t"+doc.String()+"\t3\n", string(newContent))
 }
+
+func TestExportQrels_JudgmentsPathNamesTheDefaultOutput(t *testing.T) {
+	tr, doc := gradedTrack(t)
+
+	_, err := execute(t, newExportCmd(), tr.dir, "--format", "qrels", "--judgments", tr.judgments)
+	require.NoError(t, err)
+
+	written, err := filepath.Glob(filepath.Join(tr.dir, "trec", "*.tsv"))
+	require.NoError(t, err)
+	require.Len(t, written, 1, "one export writes one qrels file")
+	assert.Equal(t, "qrels.fixture.tsv", filepath.Base(written[0]))
+	qrels, err := os.ReadFile(written[0])
+	require.NoError(t, err)
+	assert.Equal(t, "q1\t0\t"+doc.String()+"\t3\n", string(qrels))
+}

@@ -35,7 +35,8 @@ func newExportCmd() *cobra.Command {
   --format markdown  GitHub-Flavored Markdown tables for thesis writing and PRs
 
 qrels/tsv picks the judgments file in this order: --judgments PATH > --strategy NAME >
-defaults to lexical. html and markdown read the track's latest report.`,
+defaults to lexical. Without --output the qrels go to qrels.<name>.tsv beside the
+judgments file. html and markdown read the track's latest report.`,
 		Example: `  bench export tracks/global-news-dataset/fts_quality --format qrels
   bench export tracks/global-news-dataset/fts_quality --format qrels --strategy claude-api
   bench export tracks/global-news-dataset/fts_quality --format html
@@ -76,14 +77,14 @@ func exportTSV(cmd *cobra.Command, f exportFlags, args []string) error {
 		return err
 	}
 
-	jPath := f.judgmentsPath
+	jPath, qrelsName := f.judgmentsPath, f.judgmentsPath
 	if jPath == "" {
-		jPath = tr.JudgmentsPath(f.strategy)
+		jPath, qrelsName = tr.JudgmentsPath(f.strategy), f.strategy
 	}
 
 	outPath := f.output
 	if outPath == "" {
-		outPath = tr.QrelsPath(f.strategy)
+		outPath = tr.QrelsPath(qrelsName)
 	}
 
 	if samePath(jPath, outPath) {
