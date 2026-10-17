@@ -171,7 +171,7 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	}
 	defer cleanup()
 
-	corpus, err := collectCorpusInfo(cmd.Context(), cmd.OutOrStdout(), executors)
+	corpus, err := collectCorpusInfo(cmd.Context(), executors)
 	if err != nil {
 		return err
 	}
@@ -429,10 +429,10 @@ func checkPoolBinding(judgedPoolRunID string, current *pool.PoolFile) error {
 	return nil
 }
 
-// collectCorpusInfo counts each engine's corpus and fails when an engine is
-// empty or the engines disagree, since their metrics would then describe
-// different collections.
-func collectCorpusInfo(ctx context.Context, w io.Writer, executors map[string]engine.Executor) (report.CorpusInfo, error) {
+// collectCorpusInfo counts each engine's corpus and fails when an engine
+// cannot be counted, is empty, or disagrees with the others, since their
+// metrics would then describe different collections.
+func collectCorpusInfo(ctx context.Context, executors map[string]engine.Executor) (report.CorpusInfo, error) {
 	counts := make(map[string]int64)
 	for name, exec := range executors {
 		counter, ok := exec.(engine.CorpusCounter)
@@ -441,8 +441,7 @@ func collectCorpusInfo(ctx context.Context, w io.Writer, executors map[string]en
 		}
 		n, err := counter.CorpusCount(ctx)
 		if err != nil {
-			printWarn(w, fmt.Sprintf("corpus count for %q failed: %v", name, err))
-			continue
+			return report.CorpusInfo{}, fmt.Errorf("count the corpus of engine %q: %w", name, err)
 		}
 		counts[name] = n
 	}

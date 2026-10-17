@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
@@ -11,19 +11,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type countedExecutor struct{ count int64 }
+type countedExecutor struct {
+	count int64
+	err   error
+}
 
 func (countedExecutor) Execute(context.Context, engine.Request) (*engine.Execution, error) {
 	return &engine.Execution{}, nil
 }
 func (countedExecutor) Name() string                                 { return "counted" }
 func (countedExecutor) Close() error                                 { return nil }
-func (e countedExecutor) CorpusCount(context.Context) (int64, error) { return e.count, nil }
+func (e countedExecutor) CorpusCount(context.Context) (int64, error) { return e.count, e.err }
 
 func TestCollectCorpusInfo(t *testing.T) {
 	tests := []struct {
 		name      string
 		counts    map[string]int64
+		failing   string
 		wantErr   string
 		wantCount int64
 	}{
@@ -31,15 +35,19 @@ func TestCollectCorpusInfo(t *testing.T) {
 		{name: "an empty engine alone", counts: map[string]int64{"es": 0}, wantErr: "es"},
 		{name: "every engine empty", counts: map[string]int64{"pg": 0, "es": 0}, wantErr: "0 documents"},
 		{name: "engines disagree", counts: map[string]int64{"pg": 5, "es": 7}, wantErr: "different"},
+		{name: "an engine cannot be counted", counts: map[string]int64{"pg": 5, "es": 5}, failing: "es", wantErr: "connection refused"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			executors := make(map[string]engine.Executor, len(tt.counts))
 			for name, n := range tt.counts {
 				executors[name] = countedExecutor{count: n}
+				if name == tt.failing {
+					executors[name] = countedExecutor{err: errors.New("connection refused")}
+				}
 			}
 
-			info, err := collectCorpusInfo(context.Background(), &bytes.Buffer{}, executors)
+			info, err := collectCorpusInfo(context.Background(), executors)
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
