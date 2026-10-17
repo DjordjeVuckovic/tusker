@@ -179,7 +179,8 @@ def check_resource_path(relative: str) -> None:
         )
 
 
-def copy_hashed(source: Path, target: Path) -> str:
+def copy_verified(source: Path, target: Path, *, sha256: str) -> None:
+    """Copy source to target, refusing bytes that no longer hash to sha256."""
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.name + ".part")
     digest = hashlib.sha256()
@@ -188,10 +189,11 @@ def copy_hashed(source: Path, target: Path) -> str:
             while chunk := reader.read(CHUNK):
                 digest.update(chunk)
                 writer.write(chunk)
+        if digest.hexdigest() != sha256:
+            raise SystemExit(f"{source} changed while it was copied into {rel(target)}")
         partial.replace(target)
     finally:
         partial.unlink(missing_ok=True)
-    return digest.hexdigest()
 
 
 def write_descriptor(raw: Path, package: dict[str, object]) -> None:
@@ -240,7 +242,7 @@ def fetch(ds: Dataset, *, version: int | None, raw: Path, force: bool) -> None:
         relative = source.relative_to(landed).as_posix()
         target = raw / relative
         if not target.exists():
-            copy_hashed(source, target)
+            copy_verified(source, target, sha256=hashes[source])
         print(f"  {rel(target)}  {target.stat().st_size / 1024 / 1024:,.1f} MB")
         resources.append(
             {
