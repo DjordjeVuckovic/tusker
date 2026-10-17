@@ -148,8 +148,7 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 		outPath = tr.JudgmentsPath(judgment.JudgmentSetName(kind, provider))
 	}
 
-	// Stub-equivalent shortcut: manual strategy doesn't need PG or any
-	// network. Just emit grade:-1 placeholders so a human can edit.
+	// Manual grades nothing, so it needs no article reader.
 	if kind == judgment.StrategyManual {
 		var existing *judgment.File
 		if !f.force {
