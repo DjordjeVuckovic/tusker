@@ -7,6 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"log/slog"
+	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,8 +25,13 @@ const (
 	// refreshIntervalAfterLoad is declared rather than reset to null, so the
 	// interval a search sees is the one this build states, not a vendor default.
 	refreshIntervalAfterLoad = "1s"
-	cleanupTimeout           = 30 * time.Second
-	maxFailuresReported      = 10
+	// taskWaitTimeout stays under DefaultResponseHeaderTimeout.
+	taskWaitTimeout     = "20s"
+	cleanupTimeout      = 30 * time.Second
+	maxFailuresReported = 10
+	mergedSegments      = 1
+	engineName          = "elasticsearch"
+	loadMetaKey         = "load"
 )
 
 // CorpusLoader builds the article index from scratch in a single bulk pass, each
@@ -77,9 +85,10 @@ func (e *DocumentsFailedError) add(id uuid.UUID, reason string) {
 	}
 }
 
-// LoadCorpus creates the index and fails if it exists, then bulk-writes every
-// article with its vector. Any failure deletes the index it created, so a
-// failed load leaves nothing behind.
+// LoadCorpus creates the index and fails if it exists, bulk-writes every
+// article with its vector, refreshes, force-merges to one segment and stores
+// the returned record under the index's _meta.load. Any failure deletes the
+// index it created, so a failed load leaves nothing behind.
 func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts storage.LoadOptions) (record storage.LoadRecord, err error) {
 	index := l.client.indexName
 	if index == "" {
@@ -89,7 +98,25 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 		return storage.LoadRecord{}, fmt.Errorf("load corpus into %s: %w", index, err)
 	}
 
-	if err := l.createIndex(ctx, c.Language); err != nil {
+	startedAt := time.Now().UTC()
+	info, err := l.client.typed.Info().Do(ctx)
+	if err != nil {
+		return storage.LoadRecord{}, fmt.Errorf("read elasticsearch version: %w", err)
+	}
+
+	var stages []storage.StageTiming
+	timed := func(name string, stage func() error) error {
+		began := time.Now()
+		if err := stage(); err != nil {
+			return err
+		}
+		seconds := time.Since(began).Seconds()
+		stages = append(stages, storage.StageTiming{Name: name, Seconds: seconds})
+		slog.Info("corpus load stage finished", "index", index, "stage", name, "seconds", seconds)
+		return nil
+	}
+
+	if err := timed("create_index", func() error { return l.createIndex(ctx, c.Language) }); err != nil {
 		return storage.LoadRecord{}, err
 	}
 	defer func() {
@@ -98,14 +125,42 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 		}
 	}()
 
-	written, err := l.writeDocuments(ctx, c, opts.BatchSize)
+	var written writeCounts
+	if err := timed("bulk", func() (err error) {
+		written, err = l.writeDocuments(ctx, c, opts.BatchSize)
+		return err
+	}); err != nil {
+		return storage.LoadRecord{}, err
+	}
+	if err := timed("refresh", func() error { return l.refresh(ctx, written.articles) }); err != nil {
+		return storage.LoadRecord{}, err
+	}
+	if err := timed("force_merge", func() error { return l.forceMerge(ctx) }); err != nil {
+		return storage.LoadRecord{}, err
+	}
+
+	settings, err := l.declaredSettings(ctx)
 	if err != nil {
 		return storage.LoadRecord{}, err
 	}
-	if err := l.restoreRefresh(ctx); err != nil {
+	record = storage.LoadRecord{
+		Engine:        engineName,
+		EngineVersion: info.Version.Int,
+		StartedAt:     startedAt,
+		FinishedAt:    time.Now().UTC(),
+		Canonical:     c.Canonical,
+		Embeddings:    c.Embeddings,
+		ModelTag:      c.ModelTag,
+		Articles:      written.articles,
+		Vectors:       written.vectors,
+		BatchSize:     opts.BatchSize,
+		Stages:        stages,
+		Settings:      settings,
+	}
+	if err := l.writeLoadRecord(ctx, record); err != nil {
 		return storage.LoadRecord{}, err
 	}
-	return storage.LoadRecord{Articles: written.articles, Vectors: written.vectors}, nil
+	return record, nil
 }
 
 func checkCorpus(c storage.Corpus, opts storage.LoadOptions) error {
@@ -153,11 +208,159 @@ func (l *CorpusLoader) deleteIndex(ctx context.Context) error {
 	return nil
 }
 
-func (l *CorpusLoader) restoreRefresh(ctx context.Context) error {
+// refresh restores the refresh interval the load turned off, then checks that
+// search sees exactly the documents the bulk responses reported as stored.
+func (l *CorpusLoader) refresh(ctx context.Context, stored int64) error {
 	index := l.client.indexName
 	restored := types.IndexSettings{RefreshInterval: refreshIntervalAfterLoad}
 	if _, err := l.client.typed.Indices.PutSettings().Indices(index).Settings(&restored).Do(ctx); err != nil {
 		return fmt.Errorf("restore refresh interval of %s: %w", index, err)
+	}
+	if _, err := l.client.typed.Indices.Refresh().Index(index).Do(ctx); err != nil {
+		return fmt.Errorf("refresh %s: %w", index, err)
+	}
+	res, err := l.client.typed.Count().Index(index).Do(ctx)
+	if err != nil {
+		return fmt.Errorf("count documents in %s: %w", index, err)
+	}
+	if res.Count != stored {
+		return fmt.Errorf("%s holds %d documents after refresh, the bulk responses stored %d", index, res.Count, stored)
+	}
+	return nil
+}
+
+// forceMerge leaves one segment, so kNN searches a single HNSW graph. The merge
+// runs as a task, since on a full corpus it outlasts any one response timeout.
+func (l *CorpusLoader) forceMerge(ctx context.Context) error {
+	index := l.client.indexName
+	res, err := l.client.typed.Indices.Forcemerge().Index(index).
+		MaxNumSegments(strconv.Itoa(mergedSegments)).
+		WaitForCompletion(false).
+		Do(ctx)
+	if err != nil {
+		return fmt.Errorf("force-merge %s: %w", index, err)
+	}
+	if res.Task == nil {
+		return fmt.Errorf("force-merge %s: no task id returned", index)
+	}
+	if err := l.waitForTask(ctx, *res.Task); err != nil {
+		return fmt.Errorf("force-merge %s: %w", index, err)
+	}
+
+	segments, err := l.searchSegments(ctx)
+	if err != nil {
+		return err
+	}
+	if segments != mergedSegments {
+		return fmt.Errorf("force-merge %s left %d segments, want %d", index, segments, mergedSegments)
+	}
+	return nil
+}
+
+// waitForTask waits in rounds of taskWaitTimeout, each answered before the
+// client's response timeout; Elasticsearch reports an unfinished round as a
+// timeout_exception.
+func (l *CorpusLoader) waitForTask(ctx context.Context, taskID string) error {
+	for {
+		res, err := l.client.typed.Tasks.Get(taskID).WaitForCompletion(true).Timeout(taskWaitTimeout).Do(ctx)
+		var esErr *types.ElasticsearchError
+		if errors.As(err, &esErr) && esErr.ErrorCause.Type == "timeout_exception" {
+			slog.Info("waiting for elasticsearch task", "task", taskID)
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("wait for task %s: %w", taskID, err)
+		}
+		if res.Error != nil {
+			return fmt.Errorf("task %s failed: %s", taskID, res.Error.Type)
+		}
+		if res.Completed {
+			return nil
+		}
+	}
+}
+
+func (l *CorpusLoader) searchSegments(ctx context.Context) (int, error) {
+	index := l.client.indexName
+	res, err := l.client.typed.Indices.Segments().Index(index).Do(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("read segments of %s: %w", index, err)
+	}
+	segments := 0
+	for _, shards := range res.Indices[index].Shards {
+		for _, shard := range shards {
+			for _, segment := range shard.Segments {
+				if segment.Search {
+					segments++
+				}
+			}
+		}
+	}
+	return segments, nil
+}
+
+// declaredSettings reads back every knob the load declared, as the index
+// reports it, so the record shows what was built rather than what was asked.
+func (l *CorpusLoader) declaredSettings(ctx context.Context) (map[string]string, error) {
+	index := l.client.indexName
+	res, err := l.client.typed.Indices.GetSettings().Index(index).FlatSettings(true).Perform(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read settings of %s: %w", index, err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("read settings of %s: status %d", index, res.StatusCode)
+	}
+	var byIndex map[string]struct {
+		Settings map[string]any `json:"settings"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&byIndex); err != nil {
+		return nil, fmt.Errorf("parse settings of %s: %w", index, err)
+	}
+
+	settings := make(map[string]string)
+	for _, key := range []string{"index.number_of_shards", "index.number_of_replicas", "index.max_result_window", "index.refresh_interval"} {
+		value, ok := byIndex[index].Settings[key].(string)
+		if !ok {
+			return nil, fmt.Errorf("settings of %s do not declare %s", index, key)
+		}
+		settings[key] = value
+	}
+
+	mappings, err := l.client.typed.Indices.GetMapping().Index(index).Do(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read mapping of %s: %w", index, err)
+	}
+	fields := searchFieldMappings(mappings[index].Mappings.Properties)
+	for _, name := range []string{"title", "description", "content"} {
+		settings[name+".analyzer"] = fields[name].Analyzer
+	}
+	vector := fields["embedding"]
+	if vector.VectorIndex == nil {
+		return nil, fmt.Errorf("mapping of %s declares no vector index options", index)
+	}
+	settings["embedding.dims"] = strconv.Itoa(vector.Dims)
+	settings["embedding.similarity"] = vector.Similarity
+	settings["embedding.index_options.type"] = vector.VectorIndex.Type
+	settings["embedding.index_options.m"] = strconv.Itoa(vector.VectorIndex.M)
+	settings["embedding.index_options.ef_construction"] = strconv.Itoa(vector.VectorIndex.EfConstruction)
+
+	segments, err := l.searchSegments(ctx)
+	if err != nil {
+		return nil, err
+	}
+	settings["segments"] = strconv.Itoa(segments)
+	return settings, nil
+}
+
+func (l *CorpusLoader) writeLoadRecord(ctx context.Context, record storage.LoadRecord) error {
+	index := l.client.indexName
+	encoded, err := json.Marshal(record)
+	if err != nil {
+		return fmt.Errorf("encode load record: %w", err)
+	}
+	if _, err := l.client.typed.Indices.PutMapping(index).Meta_(types.Metadata{loadMetaKey: encoded}).Do(ctx); err != nil {
+		return fmt.Errorf("store load record in the _meta of %s: %w", index, err)
 	}
 	return nil
 }

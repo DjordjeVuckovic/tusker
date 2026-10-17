@@ -1,6 +1,7 @@
 package es
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,10 @@ import (
 	"iter"
 	"math"
 	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -18,6 +23,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
 	"github.com/DjordjeVuckovic/tusker/internal/types/language"
+	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 )
 
@@ -97,9 +103,88 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 	t.Run("stores every article with its own vector and model tag", func(t *testing.T) {
 		index := "articles_loaded_test"
 		articles := testArticles(2000)
-		if _, err := loadCorpus(t, container.Address, index, corpusOf(articles, testVectors(articles)), 500); err != nil {
+		corpus := corpusOf(articles, testVectors(articles))
+		corpus.Articles = refreshingMidway(t, container.Address, index, articles)
+		record, err := loadCorpus(t, container.Address, index, corpus, 500)
+		if err != nil {
 			t.Fatalf("LoadCorpus: %v", err)
 		}
+
+		t.Run("merged into one segment", func(t *testing.T) {
+			var segments []map[string]any
+			getJSON(t, container.Address+"/_cat/segments/"+index+"?format=json", &segments)
+			if len(segments) != 1 {
+				t.Errorf("_cat/segments lists %d segments, want 1: %v", len(segments), segments)
+			}
+		})
+
+		t.Run("stores the returned record under _meta.load", func(t *testing.T) {
+			var mappings map[string]struct {
+				Mappings struct {
+					Meta struct {
+						Load storage.LoadRecord `json:"load"`
+					} `json:"_meta"`
+				} `json:"mappings"`
+			}
+			getJSON(t, container.Address+"/"+index+"/_mapping", &mappings)
+			if stored := mappings[index].Mappings.Meta.Load; !reflect.DeepEqual(stored, record) {
+				t.Errorf("_meta.load = %+v, want the returned record %+v", stored, record)
+			}
+		})
+
+		t.Run("records what was loaded and how", func(t *testing.T) {
+			if record.Engine != "elasticsearch" || record.EngineVersion != "8.12.0" {
+				t.Errorf("engine = %q %q, want elasticsearch 8.12.0", record.Engine, record.EngineVersion)
+			}
+			if record.Articles != 2000 || record.Vectors != 2000 {
+				t.Errorf("articles, vectors = %d, %d, want 2000, 2000", record.Articles, record.Vectors)
+			}
+			if record.Canonical != corpus.Canonical || record.Embeddings == nil || *record.Embeddings != *corpus.Embeddings {
+				t.Errorf("packages = %+v %+v, want %+v %+v", record.Canonical, record.Embeddings, corpus.Canonical, corpus.Embeddings)
+			}
+			if record.ModelTag != loadTestModelTag || record.BatchSize != 500 {
+				t.Errorf("model tag, batch size = %q, %d, want %q, 500", record.ModelTag, record.BatchSize, loadTestModelTag)
+			}
+			for key, want := range map[string]string{
+				"index.number_of_shards":                  "1",
+				"index.number_of_replicas":                "0",
+				"index.max_result_window":                 "10001",
+				"index.refresh_interval":                  "1s",
+				"embedding.index_options.type":            "hnsw",
+				"embedding.index_options.m":               "16",
+				"embedding.index_options.ef_construction": "64",
+				"segments": "1",
+			} {
+				if got := record.Settings[key]; got != want {
+					t.Errorf("settings[%s] = %q, want %q", key, got, want)
+				}
+			}
+			if record.FinishedAt.Before(record.StartedAt) {
+				t.Errorf("finished %v before it started %v", record.FinishedAt, record.StartedAt)
+			}
+		})
+
+		t.Run("search hits carry no embedding in _source", func(t *testing.T) {
+			proxy, sources := recordingProxy(t, container.Address)
+			searcher := NewSearcher(newTestClient(t, ClientConfig{Addresses: []string{proxy}, IndexName: index}))
+			for _, method := range searchMethods {
+				res, err := method.search(context.Background(), searcher, "headline", &dquery.BaseOptions{Size: 10})
+				if err != nil {
+					t.Fatalf("%s: %v", method.name, err)
+				}
+				if len(res.Hits) == 0 {
+					t.Errorf("%s found nothing in the loaded index", method.name)
+				}
+			}
+			if len(*sources) == 0 {
+				t.Fatal("no search hit passed through the proxy")
+			}
+			for _, source := range *sources {
+				if _, ok := source["embedding"]; ok {
+					t.Errorf("hit %v carries its embedding in _source", source["id"])
+				}
+			}
+		})
 
 		stored := fetchByID(t, container.Address, index, articles)
 		for i, a := range articles {
@@ -193,8 +278,13 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 				return append(vecs, embedding.Vec{ID: document.DeriveArticleID("https://example.com/extra"), Embedding: vectorFor(9)})
 			},
 		},
+		{
+			name:    "a vector tagged with another model",
+			index:   "articles_other_model_test",
+			pairing: func(vecs []embedding.Vec) []embedding.Vec { vecs[1].Model = "nomic-embed-text"; return vecs },
+		},
 	} {
-		t.Run(tc.name+" fail the load and leave no index", func(t *testing.T) {
+		t.Run(tc.name+": the load fails and leaves no index", func(t *testing.T) {
 			articles := testArticles(4)
 			if _, err := loadCorpus(t, container.Address, tc.index, corpusOf(articles, tc.pairing(testVectors(articles))), 2); err == nil {
 				t.Fatal("LoadCorpus paired articles with vectors that are not theirs")
@@ -202,6 +292,31 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 			assertNoIndex(t, container.Address, tc.index)
 		})
 	}
+
+	t.Run("stops on cancel and leaves no index", func(t *testing.T) {
+		index := "articles_cancelled_test"
+		articles := testArticles(10)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		corpus := corpusOf(articles, nil)
+		corpus.Articles = func(yield func(document.Article, error) bool) {
+			for i, a := range articles {
+				if i == 5 {
+					cancel()
+				}
+				if !yield(a, nil) {
+					return
+				}
+			}
+		}
+
+		client := newTestClient(t, ClientConfig{Addresses: []string{container.Address}, IndexName: index})
+		_, err := NewCorpusLoader(client).LoadCorpus(ctx, corpus, storage.LoadOptions{BatchSize: 2})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("LoadCorpus error = %v, want context.Canceled", err)
+		}
+		assertNoIndex(t, container.Address, index)
+	})
 
 	t.Run("refuses a corpus language with no declared analyzer and creates no index", func(t *testing.T) {
 		index := "articles_language_test"
@@ -288,6 +403,52 @@ func fetchByID(t *testing.T, address, index string, articles []document.Article)
 	return stored
 }
 
+// recordingProxy forwards to Elasticsearch and keeps the _source of every
+// search hit that passes through it.
+func recordingProxy(t *testing.T, address string) (string, *[]map[string]any) {
+	t.Helper()
+	target, err := url.Parse(address)
+	if err != nil {
+		t.Fatalf("parse %s: %v", address, err)
+	}
+	var sources []map[string]any
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	forward := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		forward(req)
+		// Asked for gzip, Elasticsearch would answer a body this proxy cannot read.
+		req.Header.Del("Accept-Encoding")
+	}
+	proxy.ModifyResponse = func(res *http.Response) error {
+		if !strings.HasSuffix(res.Request.URL.Path, "/_search") {
+			return nil
+		}
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+		_ = res.Body.Close()
+		res.Body = io.NopCloser(bytes.NewReader(body))
+		var page struct {
+			Hits struct {
+				Hits []struct {
+					Source map[string]any `json:"_source"`
+				} `json:"hits"`
+			} `json:"hits"`
+		}
+		if err := json.Unmarshal(body, &page); err != nil {
+			return err
+		}
+		for _, hit := range page.Hits.Hits {
+			sources = append(sources, hit.Source)
+		}
+		return nil
+	}
+	server := httptest.NewServer(proxy)
+	t.Cleanup(server.Close)
+	return server.URL, &sources
+}
+
 func assertNoIndex(t *testing.T, address, index string) {
 	t.Helper()
 	res, err := http.Head(address + "/" + index)
@@ -355,6 +516,23 @@ func corpusOf(articles []document.Article, vecs []embedding.Vec) storage.Corpus 
 		c.Embeddings = &storage.PackageRef{Name: "cc-news-embeddings", Version: "lead-v1-1024-0000test", ResourceHash: "sha256:" + fmt.Sprintf("%064d", 1)}
 	}
 	return c
+}
+
+// refreshingMidway refreshes the index halfway through the articles, after the
+// first half was sent, so the load has more than one segment to merge, as a
+// full corpus does once Elasticsearch flushes its indexing buffer.
+func refreshingMidway(t *testing.T, address, index string, articles []document.Article) iter.Seq2[document.Article, error] {
+	return func(yield func(document.Article, error) bool) {
+		for i, a := range articles {
+			if i == len(articles)/2 {
+				var refreshed map[string]any
+				postJSON(t, address+"/"+index+"/_refresh", "", &refreshed)
+			}
+			if !yield(a, nil) {
+				return
+			}
+		}
+	}
 }
 
 func seqOf[T any](items []T) iter.Seq2[T, error] {
