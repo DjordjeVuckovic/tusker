@@ -213,7 +213,8 @@ func (r *Runner) gradeWholePool(ctx context.Context, ps PoolStrategy, q GradingQ
 		return nil, ctxErr
 	}
 	var width *VectorWidthError
-	if errors.As(err, &width) {
+	var noTerms *NoQueryTermsError
+	if errors.As(err, &width) || errors.As(err, &noTerms) {
 		return nil, err
 	}
 	gradedByID := make(map[uuid.UUID]int, len(results))

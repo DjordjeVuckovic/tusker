@@ -89,3 +89,15 @@ func TestHybrid_VectorFailureLeavesPoolUnjudged(t *testing.T) {
 		}
 	}
 }
+
+func TestHybridGradePool_QueryWithoutTermsFails(t *testing.T) {
+	doc := GradingDoc{ID: uuid.New(), Title: "anything"}
+	store := fakeVectorStore{query: []float32{1, 0}, docs: map[uuid.UUID][]float32{doc.ID: {1, 0}}}
+
+	_, err := NewHybridStrategyWithStore(store, "fake").GradePool(context.Background(), GradingQuery{ID: "q1", Description: "the a of"}, []GradingDoc{doc})
+
+	var noTerms *NoQueryTermsError
+	if !errors.As(err, &noTerms) || noTerms.QueryID != "q1" {
+		t.Fatalf("GradePool error = %v, want a NoQueryTermsError for q1", err)
+	}
+}

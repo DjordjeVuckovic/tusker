@@ -35,7 +35,10 @@ func (BM25Strategy) Describe() meta.Judge {
 }
 
 func (s BM25Strategy) GradePool(_ context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
-	norms := s.normScores(q, docs)
+	norms, err := s.normScores(q, docs)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]GradedDoc, len(docs))
 	for i, d := range docs {
 		out[i] = GradedDoc{DocID: d.ID, Grade: gradeFromNorm(norms[i])}
@@ -45,11 +48,14 @@ func (s BM25Strategy) GradePool(_ context.Context, q GradingQuery, docs []Gradin
 
 // normScores returns each doc's BM25 score normalised to [0,1] against the
 // top-scoring candidate in the pool. Shared with HybridStrategy.
-func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) []float64 {
+func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) ([]float64, error) {
+	terms, err := queryTerms(q)
+	if err != nil {
+		return nil, err
+	}
 	norms := make([]float64, len(docs))
-	terms := tokenizeSlice(q.Description)
-	if len(terms) == 0 || len(docs) == 0 {
-		return norms
+	if len(docs) == 0 {
+		return norms, nil
 	}
 
 	counts := make([]map[string]int, len(docs))
@@ -98,7 +104,7 @@ func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) []float64 {
 			norms[i] = scores[i] / maxScore
 		}
 	}
-	return norms
+	return norms, nil
 }
 
 // gradeFromNorm maps a [0,1] relevance score to a grade. Shared by BM25 and the

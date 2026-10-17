@@ -267,13 +267,17 @@ func TestRunner_NilStrategyErrors(t *testing.T) {
 }
 
 func TestRunner_QueryWithoutTermsFailsTheRun(t *testing.T) {
-	pf, articles := buildPool(t, 3)
-	pf.Queries[0].QueryDesc = "the news"
+	for _, strategy := range []Strategy{NewLexicalStrategy(), NewBM25Strategy()} {
+		t.Run(strategy.Name(), func(t *testing.T) {
+			pf, articles := buildPool(t, 3)
+			pf.Queries[0].QueryDesc = "the news"
 
-	r := NewRunner(RunnerConfig{Strategy: NewLexicalStrategy(), Reader: &stubStorageReader{articles: articles}})
-	_, err := r.Run(context.Background(), pf)
+			r := NewRunner(RunnerConfig{Strategy: strategy, Reader: &stubStorageReader{articles: articles}})
+			_, err := r.Run(context.Background(), pf)
 
-	var noTerms *NoQueryTermsError
-	require.ErrorAs(t, err, &noTerms)
-	assert.Equal(t, "q1", noTerms.QueryID)
+			var noTerms *NoQueryTermsError
+			require.ErrorAs(t, err, &noTerms)
+			assert.Equal(t, "q1", noTerms.QueryID)
+		})
+	}
 }

@@ -25,9 +25,9 @@ func (LexicalStrategy) Describe() meta.Judge {
 }
 
 func (LexicalStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) (int, error) {
-	terms := tokenize(q.Description)
-	if len(terms) == 0 {
-		return GradeUnjudged, &NoQueryTermsError{QueryID: q.ID}
+	terms, err := queryTerms(q)
+	if err != nil {
+		return GradeUnjudged, err
 	}
 
 	titleTokens := tokenSet(doc.Title)
@@ -35,7 +35,7 @@ func (LexicalStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) 
 	contentTokens := tokenSet(doc.Content)
 
 	titleHits, otherHits := 0, 0
-	for t := range terms {
+	for _, t := range terms {
 		if titleTokens[t] {
 			titleHits++
 			continue
@@ -68,7 +68,16 @@ type NoQueryTermsError struct {
 }
 
 func (e *NoQueryTermsError) Error() string {
-	return fmt.Sprintf("lexical strategy: query %q has no usable description (regenerate the pool or set --strategy manual)", e.QueryID)
+	return fmt.Sprintf("query %q has no usable description (regenerate the pool or set --strategy manual)", e.QueryID)
+}
+
+// queryTerms returns the query's distinct gradable terms, sorted.
+func queryTerms(q GradingQuery) ([]string, error) {
+	terms := tokenizeSlice(q.Description)
+	if len(terms) == 0 {
+		return nil, &NoQueryTermsError{QueryID: q.ID}
+	}
+	return terms, nil
 }
 
 var (

@@ -2,6 +2,7 @@ package judgment
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
@@ -34,15 +35,17 @@ func TestBM25GradePool_RanksByRelevance(t *testing.T) {
 	}
 }
 
-func TestBM25GradePool_EmptyQueryDescription(t *testing.T) {
-	q := GradingQuery{ID: "q1", Description: "the a of"} // all stopwords/short
+// A query with no usable terms cannot rank anything; grading every doc 0 would
+// pass for a judged pool in which nothing is relevant.
+func TestBM25GradePool_QueryWithoutTermsFails(t *testing.T) {
+	q := GradingQuery{ID: "q1", Description: "the a of"}
 	doc := GradingDoc{ID: uuid.New(), Title: "anything"}
-	got, err := BM25Strategy{}.GradePool(context.Background(), q, []GradingDoc{doc})
-	if err != nil {
-		t.Fatalf("GradePool: %v", err)
-	}
-	if got[0].Grade != GradeNotRelev {
-		t.Errorf("grade = %d, want %d for empty query", got[0].Grade, GradeNotRelev)
+
+	_, err := BM25Strategy{}.GradePool(context.Background(), q, []GradingDoc{doc})
+
+	var noTerms *NoQueryTermsError
+	if !errors.As(err, &noTerms) || noTerms.QueryID != "q1" {
+		t.Fatalf("GradePool error = %v, want a NoQueryTermsError for q1", err)
 	}
 }
 
