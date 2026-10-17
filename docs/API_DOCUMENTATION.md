@@ -16,8 +16,9 @@ Every engine answers the same request in the same way, or says it cannot:
 - **A stated parameter that changes which articles match** (`operator`, `fields`/`field`, `fuzziness`, `language`) is honoured by the engine, or the request fails with 400 naming the parameter and the engine.
 - **An omitted operator** is filled by the engine's own default. The defaults differ on purpose: Postgres favours precision, Elasticsearch recall.
 - **Boosts** (`title^3`) only change ranking. They are best effort, and one the engine drops is listed in `ignored`.
-- **Lenient handling** is opt-in with the RFC 7240 header `Prefer: handling=lenient`. A parameter that would have been a 400 is then dropped and listed in `ignored`, and the response carries `Preference-Applied: handling=lenient`. An unrecognised `handling` value is ignored, so the request stays strict.
-- **Every search response** carries `effective`, the contract the search ran under with every default filled in, and `ignored`, the stated parameters the engine did not honour.
+- **A parameter the request type does not define** is a 400 naming it: an unknown JSON key (`"fuzziness"` on `multi_match`, a misspelt `"operater"`) or a search box query parameter other than `q`, `size`, `cursor` and `lang`.
+- **Lenient handling** is opt-in with the RFC 7240 header `Prefer: handling=lenient`. A parameter that would have been a 400 is removed from the request before it runs and listed in `ignored`, and the response carries `Preference-Applied: handling=lenient`. A field is removed with its boost. When removing fields would leave none to search, the request is still a 400. An unrecognised `handling` value is ignored, so the request stays strict.
+- **Every search response** carries `effective`, the contract the search ran under with every default filled in and every ignored parameter removed, and `ignored`, the stated parameters the engine did not honour.
 
 | | PostgreSQL | Elasticsearch |
 |---|---|---|
@@ -25,7 +26,7 @@ Every engine answers the same request in the same way, or says it cannot:
 | Fields it can match alone | title, description, content | title, subtitle, description, content, author |
 | `fuzziness` | 400, or ignored when lenient | honoured |
 | Phrase `slop` | honoured | honoured |
-| Boosts | applied to title, description, content | applied |
+| Boosts (between 1.4e-45 and 3.4e38) | applied to title, description, content | applied |
 | `language` | `english` stems in English | `english` accepted; analysis is fixed by the index mapping |
 
 Postgres keeps subtitle and author in one weight band (D), so it cannot match either alone; naming one is a 400 unless the request is lenient. `GET /v1/capabilities` reports the running engine's row of this table.
@@ -349,6 +350,7 @@ A parameter the engine cannot honour names itself and the engine:
 **Common causes:**
 - Missing required parameter (`q` or `query` field)
 - A parameter the engine cannot honour in a strict request (see [Search Contract](#search-contract))
+- A JSON key or query parameter the request type does not define
 - Invalid operator value
 - Unsupported language (anything but `english`)
 - Invalid size (exceeds max or negative)

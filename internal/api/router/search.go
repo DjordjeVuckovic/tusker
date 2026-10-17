@@ -127,7 +127,7 @@ func (r *SearchRouter) honour(c echo.Context, q paramQuery) ([]dquery.Ignored, e
 // Results are cacheable and URLs are bookmarkable.
 //
 // @Summary Simple query string search
-// @Description Free-text search over title, description and content: operators and quotes are read as words. Terms combine under the engine's default operator (PostgreSQL AND, Elasticsearch OR); the response echoes it in `effective`. Cacheable and bookmarkable.
+// @Description Free-text search over title, description and content: operators and quotes are read as words. Terms combine under the engine's default operator (PostgreSQL AND, Elasticsearch OR); the response echoes it in `effective`. Any query parameter not listed here is a 400. Cacheable and bookmarkable.
 // @Tags search
 // @Accept json
 // @Produce json
@@ -207,7 +207,7 @@ func (r *SearchRouter) searchHandler(c echo.Context) error {
 // Query types: match, multi_match (more coming: bool, phrase, query_string)
 //
 // @Summary Structured search API
-// @Description Structured match, multi_match, phrase, boolean or hybrid search. A stated operator, field, fuzziness or language is honoured by the engine or the request is a 400 naming the parameter and the engine. An omitted operator takes the engine's default (PostgreSQL AND, Elasticsearch OR). Boosts are best effort. With `Prefer: handling=lenient` an unsupported parameter is dropped instead and listed in `ignored`. Every response echoes `effective` and `ignored`.
+// @Description Structured match, multi_match, phrase, boolean or hybrid search. A stated operator, field, fuzziness or language is honoured by the engine or the request is a 400 naming the parameter and the engine. An omitted operator takes the engine's default (PostgreSQL AND, Elasticsearch OR). Boosts are best effort. A key the query type does not define is a 400. With `Prefer: handling=lenient` an unsupported parameter is removed before the search runs and listed in `ignored`. Every response echoes `effective` and `ignored`.
 // @Tags search
 // @Accept json
 // @Produce json

@@ -9,7 +9,7 @@ The Tusker API provides comprehensive search capabilities across multiple paradi
 - **Boolean Logic**: Complex queries with AND/OR/NOT operators
 - **Phrase Matching**: Exact phrase search
 
-A stated parameter that changes which articles match is honoured by the engine or rejected with 400; an omitted operator takes the engine's default (Postgres AND, Elasticsearch OR). Send `Prefer: handling=lenient` to run anyway and get the dropped parameters back in `ignored`. Every response echoes `effective` and `ignored`. See the search contract in [API_DOCUMENTATION.md](API_DOCUMENTATION.md#search-contract).
+A stated parameter that changes which articles match is honoured by the engine or rejected with 400; an omitted operator takes the engine's default (Postgres AND, Elasticsearch OR). A key or query parameter the request type does not define is a 400 as well. Send `Prefer: handling=lenient` to run without the unsupported parameters and get them back in `ignored`. Every response echoes `effective` and `ignored`. See the search contract in [API_DOCUMENTATION.md](API_DOCUMENTATION.md#search-contract).
 
 ## API Endpoints
 

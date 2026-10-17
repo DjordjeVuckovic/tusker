@@ -309,8 +309,9 @@ paths:
         A stated operator, field, fuzziness or language is honoured by the engine
         or the request is a 400 naming the parameter and the engine. An omitted operator
         takes the engine''s default (PostgreSQL AND, Elasticsearch OR). Boosts are
-        best effort. With `Prefer: handling=lenient` an unsupported parameter is dropped
-        instead and listed in `ignored`. Every response echoes `effective` and `ignored`.'
+        best effort. A key the query type does not define is a 400. With `Prefer:
+        handling=lenient` an unsupported parameter is removed before the search runs
+        and listed in `ignored`. Every response echoes `effective` and `ignored`.'
       parameters:
       - description: Structured search request with query wrapper
         in: body
@@ -358,7 +359,7 @@ paths:
       description: 'Free-text search over title, description and content: operators
         and quotes are read as words. Terms combine under the engine''s default operator
         (PostgreSQL AND, Elasticsearch OR); the response echoes it in `effective`.
-        Cacheable and bookmarkable.'
+        Any query parameter not listed here is a 400. Cacheable and bookmarkable.'
       parameters:
       - description: SearchStringQuery query text
         example: '"climate change"'

@@ -18,7 +18,7 @@
     "paths": {
         "/v1/articles/_search": {
             "post": {
-                "description": "Structured match, multi_match, phrase, boolean or hybrid search. A stated operator, field, fuzziness or language is honoured by the engine or the request is a 400 naming the parameter and the engine. An omitted operator takes the engine's default (PostgreSQL AND, Elasticsearch OR). Boosts are best effort. With `Prefer: handling=lenient` an unsupported parameter is dropped instead and listed in `ignored`. Every response echoes `effective` and `ignored`.",
+                "description": "Structured match, multi_match, phrase, boolean or hybrid search. A stated operator, field, fuzziness or language is honoured by the engine or the request is a 400 naming the parameter and the engine. An omitted operator takes the engine's default (PostgreSQL AND, Elasticsearch OR). Boosts are best effort. A key the query type does not define is a 400. With `Prefer: handling=lenient` an unsupported parameter is removed before the search runs and listed in `ignored`. Every response echoes `effective` and `ignored`.",
                 "consumes": [
                     "application/json"
                 ],
@@ -85,7 +85,7 @@
         },
         "/v1/articles/search": {
             "get": {
-                "description": "Free-text search over title, description and content: operators and quotes are read as words. Terms combine under the engine's default operator (PostgreSQL AND, Elasticsearch OR); the response echoes it in `effective`. Cacheable and bookmarkable.",
+                "description": "Free-text search over title, description and content: operators and quotes are read as words. Terms combine under the engine's default operator (PostgreSQL AND, Elasticsearch OR); the response echoes it in `effective`. Any query parameter not listed here is a 400. Cacheable and bookmarkable.",
                 "consumes": [
                     "application/json"
                 ],
