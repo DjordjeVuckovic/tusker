@@ -16,13 +16,13 @@ const (
 	cliLong  = `datapipe moves news data from a raw dataset into one search engine.
 
 Stages:
-  preprocess           clean + map a raw dataset into a canonical JSONL file
+  preprocess           map a raw data package into a canonical data package
   load                 load a canonical package, and optionally an embeddings
                        package built from it, into native, paradedb, tiger or es
 
 Typical flow:
-  datapipe preprocess --input datasets/<name>/dataset.csv \
-      --output datasets/<name>/canonical.jsonl --mapping m.yaml
+  datapipe preprocess --input datasets/<name>/raw \
+      --output datasets/<name>/canonical --mapping datasets/<name>/mapping.yaml
   datapipe load --engine native \
       --canonical datasets/<name>/canonical/<version>/datapackage.json \
       --embeddings datasets/<name>/embeddings/<tag-dir>/<version>/datapackage.json
