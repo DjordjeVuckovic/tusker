@@ -12,19 +12,37 @@ import (
 )
 
 // searchIndexKnobs is what an engine's search index declares beyond the shared
-// build settings: session settings to read back after the index stages, and a
-// look at the finished index.
+// build settings: settings to read back after the index stages, the subset
+// only the server start can declare, and a look at the finished index.
 type searchIndexKnobs struct {
-	settings []string
-	inspect  func(ctx context.Context, conn *pgx.Conn, settings map[string]string) error
+	settings        []string
+	startupSettings []string
+	inspect         func(ctx context.Context, conn *pgx.Conn, settings map[string]string) error
 }
 
 var engineKnobs = map[storage.Engine]searchIndexKnobs{
 	storage.ParadeDB: {inspect: inspectParadeIndex},
 	storage.Tiger: {
 		settings: []string{"pg_textsearch.memory_limit", "pg_textsearch.segments_per_level", "pg_textsearch.memtable_spill_threshold"},
-		inspect:  inspectTigerIndex,
+		// memory_limit is a sighup setting, which no migration can SET.
+		startupSettings: []string{"pg_textsearch.memory_limit"},
+		inspect:         inspectTigerIndex,
 	},
+}
+
+// refuseUndeclared fails when the server took a startup setting from the
+// extension's built-in default rather than from its configuration.
+func refuseUndeclared(ctx context.Context, conn *pgx.Conn, names []string) error {
+	for _, name := range names {
+		var source string
+		if err := conn.QueryRow(ctx, "SELECT source FROM pg_settings WHERE name = $1", name).Scan(&source); err != nil {
+			return fmt.Errorf("read the source of %s: %w", name, err)
+		}
+		if source == "default" {
+			return fmt.Errorf("%s is on its built-in default; start the server with -c %s=<value>", name, name)
+		}
+	}
+	return nil
 }
 
 const (

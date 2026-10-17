@@ -36,6 +36,12 @@ var engineImages = map[storage.Engine]string{
 	storage.Tiger:          "timescale/timescaledb-ha:pg18",
 }
 
+// engineServerFlags declares the settings only a server start can set, as
+// docker-compose.yml does for the same engine.
+var engineServerFlags = map[storage.Engine][]string{
+	storage.Tiger: {"-c", "pg_textsearch.memory_limit=2GB"},
+}
+
 func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
 	return createPGContainer(ctx, cfg)
 }
@@ -84,6 +90,7 @@ func createPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) 
 		postgres.WithDatabase(cfg.Database),
 		postgres.WithUsername(cfg.Username),
 		postgres.WithPassword(cfg.Password),
+		testcontainers.WithCmdArgs(engineServerFlags[cfg.Engine]...),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).

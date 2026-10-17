@@ -34,7 +34,8 @@ services:
       POSTGRES_USER: news_user
       POSTGRES_PASSWORD: news_password
       POSTGRES_DB: news_db
-    command: postgres -c maintenance_work_mem=1GB
+    # memory_limit can only be set at server start; the load refuses its default.
+    command: postgres -c maintenance_work_mem=1GB -c pg_textsearch.memory_limit=2GB
     shm_size: 5gb
     ports:
       - "54322:5432"
