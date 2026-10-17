@@ -85,35 +85,79 @@ func helloPackage() datapackage.Package {
 	}
 }
 
-func TestWriteIsRepeatableButNeverReplacesADifferentDescriptor(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "hello.txt", "hello\n")
+func versionedHelloPackage(commit string) datapackage.Package {
+	pkg := helloPackage()
+	pkg.Version = "article-v2-601d5476"
+	pkg.ProducedBy = &datapackage.ProducedBy{Tool: "datapipe preprocess", Commit: commit}
+	return pkg
+}
+
+func TestWriteIntoAnExistingVersion(t *testing.T) {
 	ctx := context.Background()
-	if _, err := datapackage.Write(ctx, dir, helloPackage()); err != nil {
-		t.Fatalf("first Write: %v", err)
+	firstWrite := func(t *testing.T) (dir string, descriptor []byte) {
+		t.Helper()
+		dir = t.TempDir()
+		writeFile(t, dir, "hello.txt", "hello\n")
+		if _, err := datapackage.Write(ctx, dir, versionedHelloPackage("c4ecbe3")); err != nil {
+			t.Fatalf("first Write: %v", err)
+		}
+		descriptor, err := os.ReadFile(filepath.Join(dir, datapackage.DescriptorName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return dir, descriptor
 	}
-	first, err := os.ReadFile(filepath.Join(dir, datapackage.DescriptorName))
-	if err != nil {
-		t.Fatal(err)
+	unchanged := func(t *testing.T, dir string, before []byte) {
+		t.Helper()
+		after, err := os.ReadFile(filepath.Join(dir, datapackage.DescriptorName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(before, after) {
+			t.Errorf("descriptor changed:\n%s", after)
+		}
 	}
 
-	if _, err := datapackage.Write(ctx, dir, helloPackage()); err != nil {
-		t.Fatalf("identical Write: %v", err)
-	}
+	t.Run("a rerun at a new commit returns the existing descriptor", func(t *testing.T) {
+		dir, before := firstWrite(t)
 
-	changed := helloPackage()
-	changed.Version = "other"
-	_, err = datapackage.Write(ctx, dir, changed)
-	if !errors.Is(err, datapackage.ErrDescriptorExists) {
-		t.Fatalf("Write over a different descriptor: err = %v, want ErrDescriptorExists", err)
-	}
-	after, err := os.ReadFile(filepath.Join(dir, datapackage.DescriptorName))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(first, after) {
-		t.Errorf("descriptor changed after a refused Write:\n%s", after)
-	}
+		got, err := datapackage.Write(ctx, dir, versionedHelloPackage("4be80e0"))
+		if err != nil {
+			t.Fatalf("rerun Write: %v", err)
+		}
+		if got.ProducedBy == nil || got.ProducedBy.Commit != "c4ecbe3" {
+			t.Errorf("rerun returned producedBy %+v, want the existing commit c4ecbe3", got.ProducedBy)
+		}
+		unchanged(t, dir, before)
+	})
+
+	t.Run("a changed resource at the same version is refused", func(t *testing.T) {
+		dir, before := firstWrite(t)
+		writeFile(t, dir, "hello.txt", "hello, again\n")
+
+		_, err := datapackage.Write(ctx, dir, versionedHelloPackage("c4ecbe3"))
+		var conflict *datapackage.DescriptorConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("err = %v, want DescriptorConflictError", err)
+		}
+		if !strings.Contains(conflict.Error(), "hello") {
+			t.Errorf("conflict %q does not name resource hello", conflict.Error())
+		}
+		unchanged(t, dir, before)
+	})
+
+	t.Run("another version in the same folder is refused", func(t *testing.T) {
+		dir, before := firstWrite(t)
+		other := versionedHelloPackage("c4ecbe3")
+		other.Version = "article-v2-3fafa1cf"
+
+		_, err := datapackage.Write(ctx, dir, other)
+		var conflict *datapackage.DescriptorConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("err = %v, want DescriptorConflictError", err)
+		}
+		unchanged(t, dir, before)
+	})
 }
 
 func TestWriteRejectsAnInvalidPackageWithoutWritingIt(t *testing.T) {
