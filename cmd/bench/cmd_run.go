@@ -172,7 +172,10 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	}
 	defer cleanup()
 
-	corpus := collectCorpusInfo(cmd.Context(), cmd.OutOrStdout(), executors)
+	corpus, err := collectCorpusInfo(cmd.Context(), cmd.OutOrStdout(), executors)
+	if err != nil {
+		return err
+	}
 	indexes := collectIndexProvenance(cmd.Context(), cmd.OutOrStdout(), executors)
 
 	r := runner.New(runCfg)
@@ -409,7 +412,10 @@ func checkPoolBinding(judgedPoolRunID string, current *pool.PoolFile) error {
 	return nil
 }
 
-func collectCorpusInfo(ctx context.Context, w io.Writer, executors map[string]engine.Executor) report.CorpusInfo {
+// collectCorpusInfo counts each engine's corpus and fails when an engine is
+// empty or the engines disagree, since their metrics would then describe
+// different collections.
+func collectCorpusInfo(ctx context.Context, w io.Writer, executors map[string]engine.Executor) (report.CorpusInfo, error) {
 	counts := make(map[string]int64)
 	for name, exec := range executors {
 		counter, ok := exec.(engine.CorpusCounter)
@@ -424,27 +430,31 @@ func collectCorpusInfo(ctx context.Context, w io.Writer, executors map[string]en
 		counts[name] = n
 	}
 	if len(counts) == 0 {
-		return report.CorpusInfo{}
+		return report.CorpusInfo{}, nil
 	}
 
-	info := report.CorpusInfo{PerEngine: counts}
+	var empty []string
+	for _, name := range slices.Sorted(maps.Keys(counts)) {
+		if counts[name] == 0 {
+			empty = append(empty, name)
+		}
+	}
+	if len(empty) > 0 {
+		return report.CorpusInfo{}, fmt.Errorf("engines %s index 0 documents; load the corpus before running", strings.Join(empty, ", "))
+	}
+
 	var first int64
-	same := true
+	seen := false
 	for _, n := range counts {
-		if first == 0 {
-			first = n
+		if !seen {
+			first, seen = n, true
 			continue
 		}
 		if n != first {
-			same = false
+			return report.CorpusInfo{}, fmt.Errorf("engines index different document counts %v, so their metrics are not comparable", counts)
 		}
 	}
-	if same {
-		info.DocCount = first
-	} else {
-		printWarn(w, fmt.Sprintf("engines index different document counts: %v — cross-engine metrics are not comparable", counts))
-	}
-	return info
+	return report.CorpusInfo{PerEngine: counts, DocCount: first}, nil
 }
 
 // indexDescribeTimeout bounds each engine's provenance read, so an engine that
