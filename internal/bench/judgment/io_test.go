@@ -100,7 +100,7 @@ func TestIncrementalWriter_LoadPriorRoundTrip(t *testing.T) {
 	require.NoError(t, WriteFile(prior, path))
 
 	w := NewIncrementalWriter(path, meta.Meta{Judge: &meta.Judge{Strategy: "test"}})
-	loaded, err := w.LoadPrior()
+	loaded, err := w.LoadPrior(poolOf("q1"))
 	require.NoError(t, err)
 	require.NotNil(t, loaded)
 	assert.Len(t, loaded.Queries, 1)
@@ -131,7 +131,7 @@ func TestIncrementalWriter_StampsMetaOnEveryFlush(t *testing.T) {
 	stamp := meta.Meta{Judge: &meta.Judge{Strategy: "test"}, PoolRef: "pool.yaml"}
 
 	w := NewIncrementalWriter(path, stamp)
-	_, err := w.LoadPrior()
+	_, err := w.LoadPrior(poolOf("q1", "q2"))
 	require.NoError(t, err)
 	require.NoError(t, w.Append(QueryProgress{QueryID: "q2"}, Entry{QueryID: "q2"}))
 
@@ -200,4 +200,38 @@ func TestWriteFile_RecordsZeroUnjudged(t *testing.T) {
 	raw, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), "unjudged_count: 0")
+}
+
+func poolOf(queryIDs ...string) *pool.PoolFile {
+	pf := &pool.PoolFile{}
+	for _, id := range queryIDs {
+		pf.Queries = append(pf.Queries, pool.PoolEntry{QueryID: id})
+	}
+	return pf
+}
+
+// A query that has left the pool is no longer judged, so an interrupted resume
+// must not carry it into a file stamped and counted as this run's.
+func TestIncrementalWriter_LoadPriorDropsQueriesThatLeftThePool(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ann.yaml")
+	require.NoError(t, WriteFile(&File{
+		Meta: meta.Meta{Judge: &meta.Judge{Strategy: "test"}},
+		Queries: []Entry{
+			{QueryID: "q1", Docs: []GradedDoc{{DocID: uuid.New(), Grade: 2}}},
+			{QueryID: "q-gone", Docs: []GradedDoc{{DocID: uuid.New(), Grade: GradeUnjudged}}},
+		},
+	}, path))
+
+	w := NewIncrementalWriter(path, meta.Meta{Judge: &meta.Judge{Strategy: "test"}})
+	_, err := w.LoadPrior(poolOf("q1", "q2"))
+	require.NoError(t, err)
+	require.NoError(t, w.Append(QueryProgress{QueryID: "q2"}, Entry{QueryID: "q2"}))
+
+	jf, err := ReadFile(path)
+	require.NoError(t, err)
+	var ids []string
+	for _, qe := range jf.Queries {
+		ids = append(ids, qe.QueryID)
+	}
+	assert.ElementsMatch(t, []string{"q1", "q2"}, ids)
 }

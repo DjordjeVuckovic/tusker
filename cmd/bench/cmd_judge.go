@@ -207,7 +207,7 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 	writer := judgment.NewIncrementalWriter(outPath, runMeta)
 	var prior *judgment.File
 	if f.resume {
-		prior, err = writer.LoadPrior()
+		prior, err = writer.LoadPrior(pf)
 		if err != nil {
 			return fmt.Errorf("load prior judgments: %w", err)
 		}

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/version"
 	"gopkg.in/yaml.v3"
 )
@@ -107,10 +108,11 @@ func NewIncrementalWriter(path string, stamp meta.Meta) *IncrementalWriter {
 	}
 }
 
-// LoadPrior reads the existing output file (if any) into the writer's state.
-// Returns the prior JudgmentFile so the caller can pass it as Runner.Existing.
-// The prior file's meta is not carried over; later flushes write the stamp.
-func (w *IncrementalWriter) LoadPrior() (*File, error) {
+// LoadPrior reads the existing output file (if any) and seeds the writer with
+// its queries that are still in pf. Returns the whole prior JudgmentFile so the
+// caller can pass it as Runner.Existing. The prior file's meta is not carried
+// over; later flushes write the stamp.
+func (w *IncrementalWriter) LoadPrior(pf *pool.PoolFile) (*File, error) {
 	jf, err := ReadFileIfExists(w.Path)
 	if err != nil {
 		return nil, err
@@ -118,7 +120,16 @@ func (w *IncrementalWriter) LoadPrior() (*File, error) {
 	if jf == nil {
 		return nil, nil
 	}
-	w.current = *jf
+	pooled := make(map[string]bool, len(pf.Queries))
+	for _, entry := range pf.Queries {
+		pooled[entry.QueryID] = true
+	}
+	w.current = File{Queries: []Entry{}}
+	for _, qe := range jf.Queries {
+		if pooled[qe.QueryID] {
+			w.current.Queries = append(w.current.Queries, qe)
+		}
+	}
 	return jf, nil
 }
 
