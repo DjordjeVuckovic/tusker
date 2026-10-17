@@ -243,6 +243,29 @@ func TestQrelsPath_StrategySuffix(t *testing.T) {
 		tr.QrelsPath("claude-api"))
 }
 
+func TestQrelsPath_AnnotationsPathMapsToQrelsBesideIt(t *testing.T) {
+	dir := t.TempDir()
+	track := filepath.Join(dir, "tracks", "demo")
+	makeTrack(t, track)
+	tr, err := Resolve(Inputs{TrackArg: track})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"annotations yaml", "trec/annotations.claude-cli.yaml", "trec/qrels.claude-cli.tsv"},
+		{"any yml", "/tmp/grades/hand.yml", "/tmp/grades/qrels.hand.tsv"},
+		{"tsv path used verbatim", "/tmp/out/q.tsv", "/tmp/out/q.tsv"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tr.QrelsPath(tt.value))
+		})
+	}
+}
+
 func TestReportPath_UsesRunID(t *testing.T) {
 	dir := t.TempDir()
 	track := filepath.Join(dir, "tracks", "demo")

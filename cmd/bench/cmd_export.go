@@ -86,15 +86,66 @@ func exportTSV(cmd *cobra.Command, f exportFlags, args []string) error {
 		outPath = tr.QrelsPath(f.strategy)
 	}
 
+	if samePath(jPath, outPath) {
+		return fmt.Errorf("qrels output %s is the judgments file it is exported from; pass a different --output", outPath)
+	}
+
 	jf, err := judgment.ReadFile(jPath)
 	if err != nil {
 		return fmt.Errorf("read judgments %s: %w", jPath, err)
 	}
-	if err := judgment.WriteQrels(jf, outPath); err != nil {
-		return fmt.Errorf("write qrels: %w", err)
+	if err := writeQrelsAtomic(jf, outPath); err != nil {
+		return fmt.Errorf("write qrels %s: %w", outPath, err)
 	}
 	printDone(cmd.OutOrStdout(), "Qrels written: "+outPath)
 	return nil
+}
+
+// writeQrelsAtomic writes the qrels beside path and renames them over it, so a
+// reader of path sees the old file or the new one, never a partial write.
+func writeQrelsAtomic(jf *judgment.File, path string) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".qrels-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp: %w", err)
+	}
+	tmpPath := tmp.Name()
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("close temp: %w", err)
+	}
+	if err := judgment.WriteQrels(jf, tmpPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Chmod(tmpPath, 0o644); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("chmod temp: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("rename temp: %w", err)
+	}
+	return nil
+}
+
+// samePath reports whether a and b name one file, through symlinked
+// directories too. b need not exist yet.
+func samePath(a, b string) bool {
+	return resolvedPath(a) == resolvedPath(b)
+}
+
+func resolvedPath(p string) string {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return filepath.Clean(p)
+	}
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		return real
+	}
+	if dir, err := filepath.EvalSymlinks(filepath.Dir(abs)); err == nil {
+		return filepath.Join(dir, filepath.Base(abs))
+	}
+	return abs
 }
 
 func exportMarkdown(cmd *cobra.Command, f exportFlags, args []string) error {
