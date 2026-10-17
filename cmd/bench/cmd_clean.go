@@ -85,7 +85,7 @@ func executeClean(cmd *cobra.Command, f cleanFlags, args []string) error {
 	sort.Slice(jsons, func(i, j int) bool { return jsons[i] > jsons[j] })
 	sort.Slice(htmls, func(i, j int) bool { return htmls[i] > htmls[j] })
 
-	toDelete := staleReports(jsons, f.keep, latestTarget(tr.LatestReportPath()))
+	toDelete := staleReports(jsons, reportRetention{keep: f.keep, latest: latestTarget(tr.LatestReportPath())})
 	toDelete = append(toDelete, collectStale(htmls, f.keep)...)
 
 	if len(toDelete) == 0 {
@@ -115,10 +115,17 @@ func executeClean(cmd *cobra.Command, f cleanFlags, args []string) error {
 	return nil
 }
 
-// staleReports picks the reports to delete from newestFirst, keeping keep of
-// them: the one latest.json points at, then complete runs, then incomplete
+// reportRetention is how many reports bench clean keeps and which one it must.
+type reportRetention struct {
+	keep   int
+	latest string
+}
+
+// staleReports picks the reports to delete from newestFirst, keeping
+// retention.keep of them: the latest one, then complete runs, then incomplete
 // ones, newest first within each.
-func staleReports(newestFirst []string, keep int, latest string) []string {
+func staleReports(newestFirst []string, retention reportRetention) []string {
+	keep, latest := retention.keep, retention.latest
 	kept := make(map[string]bool)
 	if slices.Contains(newestFirst, latest) {
 		kept[latest] = true
