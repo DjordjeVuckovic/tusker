@@ -25,10 +25,6 @@ import (
 // canonicalVersionPrefix starts every canonical package version.
 const canonicalVersionPrefix = "article-v2"
 
-// articleIDNamespace is the namespace document.DeriveArticleID hashes under,
-// recorded so a descriptor alone says how its ids were derived.
-const articleIDNamespace = "697bf49f-ca14-4303-83eb-f9d05f7c7c42"
-
 // PreprocessOptions names the raw package to map, the mapping that maps it and
 // the folder that receives canonical/<version>.
 type PreprocessOptions struct {
@@ -195,7 +191,7 @@ func idStrategyOf(mapping *datamapping.DataMapper) *datapackage.IDStrategy {
 	kind, _ := mapping.IdStrategy.ResolvedKind()
 	strategy := &datapackage.IDStrategy{Kind: kind, Source: mapping.IdStrategy.Source}
 	if kind == datamapping.IdStrategyUuidV5 {
-		strategy.Namespace = articleIDNamespace
+		strategy.Namespace = document.ArticleIDNamespace.String()
 	}
 	return strategy
 }
