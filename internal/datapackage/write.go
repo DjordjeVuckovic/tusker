@@ -42,11 +42,17 @@ func Write(ctx context.Context, dir string, pkg Package) (Package, error) {
 		return Package{}, fmt.Errorf("encode descriptor: %w", err)
 	}
 	descriptor = append(descriptor, '\n')
+	// Decoding the bytes, not returning pkg, makes the result equal what Open
+	// reads back: omitempty turns empty maps and slices into nil.
+	var written Package
+	if err := json.Unmarshal(descriptor, &written); err != nil {
+		return Package{}, fmt.Errorf("decode written descriptor: %w", err)
+	}
 	path := filepath.Join(dir, DescriptorName)
 	existing, err := os.ReadFile(path)
 	switch {
 	case err == nil && bytes.Equal(existing, descriptor):
-		return pkg, nil
+		return written, nil
 	case err == nil:
 		return Package{}, fmt.Errorf("write %s: %w", path, ErrDescriptorExists)
 	case !errors.Is(err, fs.ErrNotExist):
@@ -55,7 +61,7 @@ func Write(ctx context.Context, dir string, pkg Package) (Package, error) {
 	if err := writeAtomic(path, descriptor); err != nil {
 		return Package{}, err
 	}
-	return pkg, nil
+	return written, nil
 }
 
 type digest struct {

@@ -25,17 +25,31 @@ func writeFullPackage(t *testing.T, dir string) datapackage.Package {
 }
 
 func TestOpenReturnsTheWrittenDescriptor(t *testing.T) {
-	dir := t.TempDir()
-	written := writeFullPackage(t, dir)
+	sparse := fullPackage()
+	sparse.Report = &datapackage.Report{Read: 3, Written: 3, Dropped: map[string]int64{}}
+	sparse.Sources = []datapackage.Source{}
+	packages := map[string]datapackage.Package{"every property": fullPackage(), "empty collections": sparse}
 
-	for _, location := range []string{dir, filepath.Join(dir, datapackage.DescriptorName)} {
-		opened, err := datapackage.Open(context.Background(), location)
-		if err != nil {
-			t.Fatalf("Open(%s): %v", location, err)
-		}
-		if !reflect.DeepEqual(opened.Package, written) {
-			t.Errorf("Open(%s) descriptor differs:\n got %+v\nwant %+v", location, opened.Package, written)
-		}
+	for name, pkg := range packages {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "articles.parquet", "not really parquet")
+			writeFile(t, dir, "embeddings.parquet", "not really vectors")
+			written, err := datapackage.Write(context.Background(), dir, pkg)
+			if err != nil {
+				t.Fatalf("Write: %v", err)
+			}
+
+			for _, location := range []string{dir, filepath.Join(dir, datapackage.DescriptorName)} {
+				opened, err := datapackage.Open(context.Background(), location)
+				if err != nil {
+					t.Fatalf("Open(%s): %v", location, err)
+				}
+				if !reflect.DeepEqual(opened.Package, written) {
+					t.Errorf("Open(%s) descriptor differs:\n got %#v\nwant %#v", location, opened.Package, written)
+				}
+			}
+		})
 	}
 }
 
