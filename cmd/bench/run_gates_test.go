@@ -37,6 +37,24 @@ func judgedTrackDocs(t *testing.T, failing map[string]bool) (tr lineageTrack, re
 	return tr, relevant, other
 }
 
+// seedLatest points latest.json at an earlier complete report and returns the
+// pointer's bytes, so a run that must leave latest.json alone can be checked
+// against them.
+func seedLatest(t *testing.T, tr lineageTrack) []byte {
+	t.Helper()
+	require.NoError(t, updateLatestPointer(tr.latestPath(), writeCleanReport(t, tr, "2026-01-01T00-00-00-seed-prior")))
+	pointer, err := os.ReadFile(tr.latestPath())
+	require.NoError(t, err)
+	return pointer
+}
+
+func assertLatestUnchanged(t *testing.T, tr lineageTrack, before []byte) {
+	t.Helper()
+	after, err := os.ReadFile(tr.latestPath())
+	require.NoError(t, err, "latest.json must survive the run")
+	assert.Equal(t, string(before), string(after), "latest.json must not move")
+}
+
 func TestRun_CompleteRunMovesLatest(t *testing.T) {
 	tr := judgedTrack(t, nil)
 
@@ -52,18 +70,20 @@ func TestRun_CompleteRunMovesLatest(t *testing.T) {
 func TestRun_MissingDefaultJudgmentsFailsBeforeRunning(t *testing.T) {
 	tr := judgedTrack(t, nil)
 	require.NoError(t, os.Remove(tr.judgments))
+	before := seedLatest(t, tr)
 
 	_, err := execute(t, newRunCmd(), tr.dir)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "--latency-only")
 	assert.Empty(t, tr.reports(t))
-	assert.NoFileExists(t, tr.latestPath(), "latest.json must not move")
+	assertLatestUnchanged(t, tr, before)
 }
 
 func TestRun_LatencyOnlyWritesAMarkedReportAndLeavesLatest(t *testing.T) {
 	tr := judgedTrack(t, nil)
 	require.NoError(t, os.Remove(tr.judgments))
+	before := seedLatest(t, tr)
 
 	_, err := execute(t, newRunCmd(), tr.dir, "--latency-only")
 
@@ -72,7 +92,7 @@ func TestRun_LatencyOnlyWritesAMarkedReportAndLeavesLatest(t *testing.T) {
 	require.Len(t, reports, 1)
 	assert.True(t, reports[0].Settings.LatencyOnly)
 	assert.NotEmpty(t, reports[0].Settings.Incomplete)
-	assert.NoFileExists(t, tr.latestPath(), "latest.json must not move")
+	assertLatestUnchanged(t, tr, before)
 }
 
 func TestRun_LatencyOnlyRejectsExplicitJudgments(t *testing.T) {
@@ -113,6 +133,7 @@ func TestRun_FailedRunWritesTheReportButLeavesLatest(t *testing.T) {
 			if tt.regrade != nil {
 				tr.writeJudgments(t, judgedPoolRunID, tt.regrade(relevant, other))
 			}
+			before := seedLatest(t, tr)
 
 			_, err := execute(t, newRunCmd(), tr.dir)
 
@@ -122,7 +143,7 @@ func TestRun_FailedRunWritesTheReportButLeavesLatest(t *testing.T) {
 			reports := tr.reports(t)
 			require.Len(t, reports, 1, "the report is kept for inspection")
 			assert.NotEmpty(t, reports[0].Settings.Incomplete)
-			assert.NoFileExists(t, tr.latestPath(), "latest.json must not move")
+			assertLatestUnchanged(t, tr, before)
 		})
 	}
 }
@@ -144,6 +165,7 @@ func TestRun_LatestMovesOnlyForTheSpecsOwnRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tr := judgedTrack(t, nil)
+			before := seedLatest(t, tr)
 
 			_, err := execute(t, newRunCmd(), append([]string{tr.dir}, tt.args...)...)
 
@@ -151,10 +173,10 @@ func TestRun_LatestMovesOnlyForTheSpecsOwnRun(t *testing.T) {
 			reports := tr.reports(t)
 			require.Len(t, reports, 1)
 			if tt.wantMoved {
-				assert.NotNil(t, tr.latestReport(t))
+				assert.Equal(t, reports[0].Provenance.RunID, tr.latestReport(t).Provenance.RunID)
 				assert.Empty(t, reports[0].Settings.Incomplete)
 			} else {
-				assert.NoFileExists(t, tr.latestPath(), "latest.json must not move")
+				assertLatestUnchanged(t, tr, before)
 				assert.NotEmpty(t, reports[0].Settings.Incomplete)
 			}
 		})
