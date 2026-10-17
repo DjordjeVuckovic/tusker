@@ -2,17 +2,26 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"maps"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
+	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/queryvectors"
 )
 
 // trackRootEnv names the environment variable behind the --track-root flag.
@@ -27,45 +36,121 @@ func createExecutors(ctx context.Context, bs *spec.BenchSpec) (map[string]engine
 	return engine.CreateFromSpec(ctx, bs.Engines)
 }
 
-// buildQueryVectorStore builds the vector store pool/run use to embed queries
-// for vector/hybrid tracks (PG precedence: it borrows a postgres engine's
-// connection). Returns (nil, nil) when EMBEDDING_BASE_URL is unset or the spec
-// has no postgres engine — tracks without vector queries don't need it, and
-// vector queries without it simply fail to resolve (logged per-engine).
-func buildQueryVectorStore(ctx context.Context, bs *spec.BenchSpec) (storage.VectorStore, error) {
+// buildQueryVectorStore builds the vector store validate/pool/run use to
+// embed queries for vector/hybrid tracks. A track holding a query-vectors
+// package is served from it, with no live embedder; otherwise queries are
+// embedded through Ollama, borrowing a postgres engine's connection. Returns a
+// nil store when there is no package and EMBEDDING_BASE_URL is unset or the
+// spec has no postgres engine. The returned close func is always callable.
+func buildQueryVectorStore(ctx context.Context, bs *spec.BenchSpec, tr *trackctx.Track) (storage.VectorStore, func(), error) {
+	noop := func() {}
+	packageDir := filepath.Join(tr.Root, "trec", "query-vectors")
+	_, err := os.Stat(filepath.Join(packageDir, datapackage.DescriptorName))
+	switch {
+	case err == nil:
+		return openQueryVectors(ctx, bs, packageDir)
+	case !errors.Is(err, fs.ErrNotExist):
+		return nil, noop, fmt.Errorf("look for query vectors in %s: %w", packageDir, err)
+	}
+
 	baseURL := os.Getenv("EMBEDDING_BASE_URL")
-	if baseURL == "" {
-		return nil, nil
-	}
-	var pgConn string
-	for _, eng := range bs.Engines {
-		if eng.Type == spec.EnginePostgres {
-			pgConn = eng.Connection
-			break
-		}
-	}
-	if pgConn == "" {
-		return nil, nil
+	pgConn := postgresConnection(bs)
+	if baseURL == "" || pgConn == "" {
+		return nil, noop, nil
 	}
 	client, err := embedding.NewOllamaClient(baseURL)
 	if err != nil {
-		return nil, fmt.Errorf("embedding client: %w", err)
+		return nil, noop, fmt.Errorf("embedding client: %w", err)
 	}
-	return factory.NewVectorStore(ctx, factory.VectorStoreConfig{
+	store, err := factory.NewVectorStore(ctx, factory.VectorStoreConfig{
 		PgConnStr:       pgConn,
 		EmbeddingClient: client,
 		Model:           os.Getenv("EMBEDDING_MODEL"),
 	})
+	return store, noop, err
 }
 
-// requireEmbedder fails when the track's kind needs a live query embedder but
-// none was built (EMBEDDING_BASE_URL unset or no postgres engine), so a
-// semantic/hybrid track fails once up front instead of once per vector query.
+// openQueryVectors opens the track's query-vectors package against the one
+// suite its jobs run and the embedding_model its engines declare.
+func openQueryVectors(ctx context.Context, bs *spec.BenchSpec, packageDir string) (storage.VectorStore, func(), error) {
+	noop := func() {}
+	suitePath, err := jobSuite(bs)
+	if err != nil {
+		return nil, noop, err
+	}
+	model, err := declaredEmbeddingModel(bs)
+	if err != nil {
+		return nil, noop, err
+	}
+	opts := queryvectors.Options{Package: packageDir, Suite: suitePath, Model: model}
+	closePool := noop
+	if conn := postgresConnection(bs); conn != "" {
+		pool, err := pg.NewConnectionPool(ctx, pg.PoolConfig{ConnStr: conn, RegisterVecTypes: true})
+		if err != nil {
+			return nil, noop, fmt.Errorf("vector store: create PostgreSQL pool: %w", err)
+		}
+		opts.Postgres = pool
+		closePool = pool.Close
+	}
+	store, err := queryvectors.Open(ctx, opts)
+	if err != nil {
+		closePool()
+		return nil, noop, err
+	}
+	return store, closePool, nil
+}
+
+// jobSuite is the suite every job runs. A query-vectors package is embedded
+// from one suite, so jobs running another could not be served from it.
+func jobSuite(bs *spec.BenchSpec) (string, error) {
+	var suitePath string
+	for _, job := range bs.Jobs {
+		switch {
+		case suitePath == "":
+			suitePath = job.Suite
+		case job.Suite != suitePath:
+			return "", fmt.Errorf("jobs run suites %s and %s, but a query-vectors package covers one", suitePath, job.Suite)
+		}
+	}
+	if suitePath == "" {
+		return "", errors.New("spec has no job to take the query-vectors suite from")
+	}
+	return suitePath, nil
+}
+
+func declaredEmbeddingModel(bs *spec.BenchSpec) (string, error) {
+	var model, declaredBy string
+	for _, name := range slices.Sorted(maps.Keys(bs.Engines)) {
+		declared, _ := bs.Engines[name].Params[suite.EmbeddingModelParam].(string)
+		switch {
+		case declared == "" || declared == model:
+		case model == "":
+			model, declaredBy = declared, name
+		default:
+			return "", fmt.Errorf("engines %q and %q declare different %s: %q and %q",
+				declaredBy, name, suite.EmbeddingModelParam, model, declared)
+		}
+	}
+	return model, nil
+}
+
+func postgresConnection(bs *spec.BenchSpec) string {
+	for _, name := range slices.Sorted(maps.Keys(bs.Engines)) {
+		if eng := bs.Engines[name]; eng.Type == spec.EnginePostgres {
+			return eng.Connection
+		}
+	}
+	return ""
+}
+
+// requireEmbedder fails when the track's kind needs query vectors but no store
+// was built, so a semantic/hybrid track fails once up front instead of once
+// per vector query.
 func requireEmbedder(bs *spec.BenchSpec, store storage.VectorStore) error {
 	if !bs.Kind.RequiresEmbedder() || store != nil {
 		return nil
 	}
-	return fmt.Errorf("kind %q requires an embedder: set EMBEDDING_BASE_URL and ensure a postgres engine is configured", bs.Kind)
+	return fmt.Errorf("kind %q requires query vectors: add trec/query-vectors, or set EMBEDDING_BASE_URL and configure a postgres engine", bs.Kind)
 }
 
 // printSpecWarnings emits load-time advisories (e.g. kind omitted) once.

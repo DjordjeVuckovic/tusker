@@ -137,10 +137,11 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 
 	printSpecWarnings(cmd.OutOrStdout(), bs)
 
-	vectorStore, err := buildQueryVectorStore(cmd.Context(), bs)
+	vectorStore, closeVectorStore, err := buildQueryVectorStore(cmd.Context(), bs, tr)
 	if err != nil {
 		return fmt.Errorf("build vector store: %w", err)
 	}
+	defer closeVectorStore()
 	if err := requireEmbedder(bs, vectorStore); err != nil {
 		return err
 	}

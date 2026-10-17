@@ -88,10 +88,11 @@ func poolTrack(cmd *cobra.Command, f poolFlags, tr *trackctx.Track) error {
 
 	printSpecWarnings(cmd.OutOrStdout(), bs)
 
-	vectorStore, err := buildQueryVectorStore(cmd.Context(), bs)
+	vectorStore, closeVectorStore, err := buildQueryVectorStore(cmd.Context(), bs, tr)
 	if err != nil {
 		return fmt.Errorf("build vector store: %w", err)
 	}
+	defer closeVectorStore()
 	if err := requireEmbedder(bs, vectorStore); err != nil {
 		return err
 	}

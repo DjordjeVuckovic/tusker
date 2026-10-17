@@ -1,0 +1,32 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/datapackage.json",
+  "name": "fixture-semantic-query-vectors",
+  "version": "query-instruct-v1-1024-da4bd37b",
+  "embedding": {
+    "model": "qwen3-embedding:0.6b",
+    "hfModel": "Qwen/Qwen3-Embedding-0.6B",
+    "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+    "tag": "qwen3-embedding:0.6b@1024",
+    "dim": 1024,
+    "recipe": "query-instruct-v1",
+    "pooling": "last_token",
+    "normalized": true,
+    "maxTokens": 512,
+    "batchSize": 1,
+    "dtype": "float16"
+  },
+  "suite": {
+    "id": "fixture-semantic",
+    "hash": "sha256:b7c789b4e4cdb40b13cd874bc2eb1558fac434b8f2de0faacd6957a7af34a846"
+  },
+  "resources": [
+    {
+      "name": "query-vectors",
+      "path": "query-vectors.parquet",
+      "format": "parquet",
+      "mediatype": "application/vnd.apache.parquet",
+      "bytes": 1251,
+      "hash": "sha256:4271fbe10ccf385cdc2e45ee1b3482f4dfe0649752b4bcfec7b6e968ccaa8a84"
+    }
+  ]
+}

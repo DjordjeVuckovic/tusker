@@ -1,0 +1,7 @@
+schema_version: 1
+id: fixture-semantic
+queries:
+  - id: q1
+    description: "climate change policy"
+  - id: q2
+    description: "central bank interest rates"

@@ -229,15 +229,30 @@ engines:
     type: postgres
     connection: "postgresql://…"
     params:
-      embedding_model: "qwen3-embedding:0.6b"
+      embedding_model: "qwen3-embedding:0.6b@1024"
 ```
 
-`article_embeddings` is keyed `(article_id, model_name)`, so vectors from two models coexist
-in it by design, and the vector templates take `embedding_model` as an arg and filter on it
-(`WHERE model_name = $1`) rather than ranking across both spaces. The declared value is checked against the model that
-embeds the query (`EMBEDDING_MODEL`, defaulting to `qwen3-embedding:0.6b`) before `validate`,
-`pool` or `run` touches an engine, and a disagreement fails: comparing vectors from two models
-is arithmetic that succeeds and ranks nothing.
+The value is the tag stored vectors carry: the model with its width. `article_embeddings` is
+keyed `(article_id, model_name)`, so vectors from two models coexist in it by design, and the
+vector templates take `embedding_model` as an arg and filter on it (`WHERE model_name = $1`)
+rather than ranking across both spaces. The declared value is checked against the tag of the
+query vectors before `validate`, `pool` or `run` touches an engine, and a disagreement fails:
+comparing vectors from two models is arithmetic that succeeds and ranks nothing.
+
+#### Query vectors
+
+A track that holds a query-vectors package at `trec/query-vectors/` is served from it, with no
+query embedder running; this is how the bench gets query vectors from the same runtime as the
+documents. `scripts/embed_queries.py` writes the package. The bench refuses it when:
+
+- its resource no longer matches the descriptor's hash
+- its `suite.hash` differs from the sha256 of the `suite.yaml` the jobs run, so any edit to the suite means re-embedding the queries
+- its `embedding.tag` differs from the engines' `embedding_model`, or no engine declares one
+
+A query whose text the package doesn't hold fails with the text in the error. Without a
+package, queries are embedded through Ollama (`EMBEDDING_BASE_URL`, `EMBEDDING_MODEL` and
+`EMBEDDING_DIM`, defaulting to `qwen3-embedding:0.6b` at 1024, tagged
+`qwen3-embedding:0.6b@1024`).
 
 The Elasticsearch arm needs no such filter — its vector is a `dense_vector` field on the
 article document, so re-embedding overwrites rather than accumulates — but it declares
@@ -284,9 +299,10 @@ Every command accepts a track path as a positional arg (`bench run tracks/global
 `storage.VectorStore` (Postgres `article_embeddings` today, ES later — PG takes
 precedence) and only the **query** is embedded at runtime via local Ollama. They
 do not re-embed documents. Configure with `--pg`/`PG_CONNECTION_STRING` and
-`--embedding-base`/`EMBEDDING_BASE_URL` (+ optional `EMBEDDING_MODEL`). The same
-`VectorStore` powers `pool`/`run`, which embed the query and pass it to vector
-queries as the reserved `query_vector` arg. `bm25` computes
+`--embedding-base`/`EMBEDDING_BASE_URL` (+ optional `EMBEDDING_MODEL`); they don't
+read a track's query-vectors package. `validate`/`pool`/`run` get their query vectors from the
+track's package when it has one, from Ollama otherwise, and pass them to vector queries
+as the reserved `query_vector` arg. `bm25` computes
 term statistics over each query's candidate pool, so it runs with no external
 services.
 
