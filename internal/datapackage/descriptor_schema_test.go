@@ -63,7 +63,6 @@ func representativePackages() map[string]datapackage.Package {
 			Version:       "article-v2-601d5476",
 			ArticleSchema: datapackage.ArticleSchema,
 			Language:      "eng",
-			Mapping:       &datapackage.FileRef{Path: "mapping.yaml", Hash: "sha256:" + zeros64},
 			IDStrategy:    &datapackage.IDStrategy{Kind: "uuidv5", Source: "url", Namespace: "6ba7b811-9dad-11d1-80b4-00c04fd430c8"},
 			ProducedBy:    &datapackage.ProducedBy{Tool: "datapipe preprocess", Commit: "c4ecbe3"},
 			Report:        &datapackage.Report{Read: 10, Written: 7, Deduped: 1, Dropped: map[string]int64{"invalid_url": 2}},
@@ -168,6 +167,12 @@ func TestDescriptorSchemaRejectsKeysTheContractDoesNotList(t *testing.T) {
 		}},
 		{"unknown top-level key", "createdAt", func(doc map[string]any) {
 			doc["createdAt"] = "2026-10-17T00:00:00Z"
+		}},
+		{"retired mapping hash", "mapping", func(doc map[string]any) {
+			doc["mapping"] = map[string]any{"path": "mapping.yaml", "hash": "sha256:" + zeros64}
+		}},
+		{"retired suite hash", "hash", func(doc map[string]any) {
+			doc["suite"] = map[string]any{"id": "cc-news-fts", "hash": "sha256:" + zeros64}
 		}},
 	}
 	for _, tt := range tests {

@@ -17,7 +17,7 @@ func queryVectorsPackage() datapackage.Package {
 			Tag: "qwen3-embedding:0.6b@1024", Dim: 1024, Recipe: "query-instruct-v1", Pooling: "last_token",
 			Normalized: true, MaxTokens: 512, BatchSize: 1, DType: "float16",
 		},
-		Suite: &datapackage.Suite{ID: "cc-news-fts", Hash: "sha256:" + zeros64},
+		Suite: &datapackage.Suite{ID: "cc-news-fts"},
 		Resources: []datapackage.Resource{
 			{Name: datapackage.QueryVectorsResource, Path: "query-vectors.parquet", Format: "parquet"},
 		},
@@ -33,8 +33,8 @@ func TestQueryVectorsSuiteRoundTripsThroughWriteAndOpen(t *testing.T) {
 	}
 
 	doc := readDescriptorJSON(t, dir)
-	if lookup(doc, "suite/id") != "cc-news-fts" || lookup(doc, "suite/hash") != "sha256:"+zeros64 {
-		t.Errorf("suite = %v, want {id: cc-news-fts, hash: sha256:<zeros>}", doc["suite"])
+	if lookup(doc, "suite/id") != "cc-news-fts" {
+		t.Errorf("suite = %v, want {id: cc-news-fts}", doc["suite"])
 	}
 	opened, err := datapackage.Open(context.Background(), dir)
 	if err != nil {
@@ -43,7 +43,7 @@ func TestQueryVectorsSuiteRoundTripsThroughWriteAndOpen(t *testing.T) {
 	if !reflect.DeepEqual(opened.Package, written) {
 		t.Errorf("descriptor differs:\n got %#v\nwant %#v", opened.Package, written)
 	}
-	if opened.Package.Suite == nil || *opened.Package.Suite != (datapackage.Suite{ID: "cc-news-fts", Hash: "sha256:" + zeros64}) {
+	if opened.Package.Suite == nil || *opened.Package.Suite != (datapackage.Suite{ID: "cc-news-fts"}) {
 		t.Errorf("opened suite = %+v", opened.Package.Suite)
 	}
 }
@@ -53,7 +53,7 @@ func TestSuiteIsRefusedOutsideAQueryVectorsPackage(t *testing.T) {
 	writeFile(t, dir, "articles.parquet", "not really parquet")
 	writeFile(t, dir, "embeddings.parquet", "not really vectors")
 	pkg := fullPackage()
-	pkg.Suite = &datapackage.Suite{ID: "cc-news-fts", Hash: "sha256:" + zeros64}
+	pkg.Suite = &datapackage.Suite{ID: "cc-news-fts"}
 
 	if _, err := datapackage.Write(context.Background(), dir, pkg); err == nil {
 		t.Error("Write accepted a suite on a package without a query-vectors resource")

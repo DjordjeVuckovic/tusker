@@ -88,7 +88,6 @@ func fullPackage() datapackage.Package {
 		Version:       "article-v2-601d5476",
 		ArticleSchema: datapackage.ArticleSchema,
 		Language:      "eng",
-		Mapping:       &datapackage.FileRef{Path: "mapping.yaml", Hash: "sha256:2d0edef8b70bf82650502ae43740637a3a0c5270a8ddca0d48f161cd74d6bf98"},
 		IDStrategy:    &datapackage.IDStrategy{Kind: "uuidv5", Source: "url", Namespace: "6ba7b811-9dad-11d1-80b4-00c04fd430c8"},
 		ProducedBy:    &datapackage.ProducedBy{Tool: "datapipe preprocess", Version: "v0.1.0", Commit: "c4ecbe3"},
 		Report: &datapackage.Report{
@@ -128,8 +127,6 @@ func TestWrittenDescriptorUsesContractPropertyNames(t *testing.T) {
 		"version":                    "article-v2-601d5476",
 		"articleSchema":              "article/v2",
 		"language":                   "eng",
-		"mapping/path":               "mapping.yaml",
-		"mapping/hash":               "sha256:2d0edef8b70bf82650502ae43740637a3a0c5270a8ddca0d48f161cd74d6bf98",
 		"idStrategy/kind":            "uuidv5",
 		"producedBy/tool":            "datapipe preprocess",
 		"producedBy/version":         "v0.1.0",

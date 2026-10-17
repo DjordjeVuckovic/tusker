@@ -111,22 +111,6 @@
     "language": {
       "type": "string"
     },
-    "mapping": {
-      "type": "object",
-      "required": [
-        "path",
-        "hash"
-      ],
-      "properties": {
-        "hash": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
     "name": {
       "type": "string"
     },
@@ -230,13 +214,9 @@
     "suite": {
       "type": "object",
       "required": [
-        "id",
-        "hash"
+        "id"
       ],
       "properties": {
-        "hash": {
-          "type": "string"
-        },
         "id": {
           "type": "string"
         }

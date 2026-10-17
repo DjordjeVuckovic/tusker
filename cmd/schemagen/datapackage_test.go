@@ -58,7 +58,7 @@ func TestDataPackageSchemaAllowsOnlyListedProperties(t *testing.T) {
 	}
 	closed("", doc)
 
-	for _, object := range []string{"mapping", "idStrategy", "producedBy", "report", "embedding", "canonical", "suite"} {
+	for _, object := range []string{"idStrategy", "producedBy", "report", "embedding", "canonical", "suite"} {
 		if _, ok := objectAt(t, doc, "properties", object)["properties"]; !ok {
 			t.Errorf("%s is not described as an object with properties", object)
 		}

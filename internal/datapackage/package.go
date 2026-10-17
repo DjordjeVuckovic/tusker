@@ -28,7 +28,6 @@ type Package struct {
 	Version       string      `json:"version,omitempty"`
 	ArticleSchema string      `json:"articleSchema,omitempty"`
 	Language      string      `json:"language,omitempty"`
-	Mapping       *FileRef    `json:"mapping,omitempty"`
 	IDStrategy    *IDStrategy `json:"idStrategy,omitempty"`
 	ProducedBy    *ProducedBy `json:"producedBy,omitempty"`
 	Report        *Report     `json:"report,omitempty"`
@@ -54,11 +53,6 @@ type Source struct {
 	Title   string `json:"title,omitempty"`
 	Path    string `json:"path,omitempty"`
 	Version string `json:"version,omitempty"`
-}
-
-type FileRef struct {
-	Path string `json:"path"`
-	Hash string `json:"hash"`
 }
 
 // IDStrategy records how article ids were minted. Kind is the mapping's
@@ -109,9 +103,7 @@ type Ref struct {
 	ResourceHash string `json:"resourceHash"`
 }
 
-// Suite pins the bench suite a query-vectors package was embedded from. Hash
-// is the sha256 of suite.yaml as "sha256:<hex>".
+// Suite names the bench suite a query-vectors package was embedded from.
 type Suite struct {
-	ID   string `json:"id"`
-	Hash string `json:"hash"`
+	ID string `json:"id"`
 }
