@@ -258,8 +258,13 @@ func (dm *DataMapper) Validate() error {
 			return fmt.Errorf("target %q must set required: true, since a record without it is dropped", target)
 		}
 	}
-	if _, mapped := byTarget[TargetID]; mapped && dm.IdStrategy.isSet() {
-		return fmt.Errorf("target %q overrides the id strategy, so idStrategy must be left out", TargetID)
+	if id, mapped := byTarget[TargetID]; mapped {
+		if dm.IdStrategy.isSet() {
+			return fmt.Errorf("target %q overrides the id strategy, so idStrategy must be left out", TargetID)
+		}
+		if !id.Required {
+			return fmt.Errorf("target %q must set required: true, or a record without an id would get a random one", TargetID)
+		}
 	}
 	if err := dm.IdStrategy.validate(byTarget[TargetURL].Source); err != nil {
 		return fmt.Errorf("idStrategy: %w", err)

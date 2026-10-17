@@ -156,6 +156,7 @@ var rejectedMappings = []struct {
 	{name: "a uuidv5 id over a column other than the url", doc: validMapping + "idStrategy:\n  kind: uuidv5\n  source: title\n", wantInErr: `"title"`, crossField: true},
 	{name: "a random id strategy with a source", doc: validMapping + "idStrategy:\n  kind: random\n  source: link\n", wantInErr: "link", crossField: true},
 	{name: "a mapped id alongside an id strategy", doc: withMappings(validMapping, "  - {source: uid, sourceType: uuid, target: ID}\n") + "idStrategy:\n  kind: uuidv5\n  source: link\n", wantInErr: "ID", crossField: true},
+	{name: "an optional mapped id", doc: withMappings(validMapping, "  - {source: uid, sourceType: uuid, target: ID}\n"), wantInErr: "ID", crossField: true},
 	{name: "the retired targetType", doc: replaced(validMapping, "    target: Title\n", "    target: Title\n    targetType: string\n"), wantInErr: "targetType", crossField: true},
 }
 
