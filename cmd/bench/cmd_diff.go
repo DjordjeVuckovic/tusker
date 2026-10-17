@@ -89,7 +89,7 @@ func afterReport(tr *trackctx.Track, flag string) (*report.Report, error) {
 	}
 	rpt, err := report.ReadLatestReport(tr.LatestReportPath())
 	if errors.Is(err, fs.ErrNotExist) {
-		return previousScoredReport(reportsDir(tr), "")
+		return previousScoredReport(baselineSearch{ReportsDir: reportsDir(tr)})
 	}
 	return rpt, err
 }
@@ -102,7 +102,7 @@ func beforeReport(tr *trackctx.Track, flag string, after *report.Report) (*repor
 	if tr == nil {
 		return nil, fmt.Errorf("no path or run ID given and no track available")
 	}
-	return previousScoredReport(reportsDir(tr), after.Provenance.RunID)
+	return previousScoredReport(baselineSearch{ReportsDir: reportsDir(tr), BeforeRunID: after.Provenance.RunID})
 }
 
 func reportsDir(tr *trackctx.Track) string {
@@ -121,10 +121,17 @@ func readExplicitReport(tr *trackctx.Track, flag string) (*report.Report, error)
 	return report.ReadJSON(path)
 }
 
-// previousScoredReport returns the newest report in dir whose run ID sorts
-// before beforeRunID (any, when empty) and that is fully scored, falling back
-// to the newest readable one when none is.
-func previousScoredReport(dir, beforeRunID string) (*report.Report, error) {
+// baselineSearch scopes the hunt for a report to diff against.
+type baselineSearch struct {
+	ReportsDir string
+	// BeforeRunID limits the search to older reports; empty searches them all.
+	BeforeRunID string
+}
+
+// previousScoredReport returns the newest report in scope that is fully
+// scored, falling back to the newest readable one when none is.
+func previousScoredReport(search baselineSearch) (*report.Report, error) {
+	dir := search.ReportsDir
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("read reports dir %s: %w", dir, err)
@@ -139,7 +146,7 @@ func previousScoredReport(dir, beforeRunID string) (*report.Report, error) {
 	sort.Sort(sort.Reverse(sort.StringSlice(names)))
 	var newestReadable *report.Report
 	for _, name := range names {
-		if beforeRunID != "" && strings.TrimSuffix(name, ".json") >= beforeRunID {
+		if search.BeforeRunID != "" && strings.TrimSuffix(name, ".json") >= search.BeforeRunID {
 			continue
 		}
 		rpt, err := report.ReadJSON(filepath.Join(dir, name))
