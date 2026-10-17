@@ -11,7 +11,6 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/version"
-	"github.com/google/uuid"
 )
 
 type GenerateOptions struct {
@@ -90,7 +89,7 @@ type jobScope struct {
 func newJobScope(jr *runner.JobResult, cfg runner.Config) jobScope {
 	judged := make(map[string]bool, len(jr.QueryOrder))
 	for _, qID := range jr.QueryOrder {
-		if hasUsableGrade(cfg.Judgments[qID]) {
+		if len(cfg.Judgments[qID]) > 0 {
 			judged[qID] = true
 			continue
 		}
@@ -103,17 +102,6 @@ func newJobScope(jr *runner.JobResult, cfg runner.Config) jobScope {
 		}
 	}
 	return jobScope{job: jr, kValues: cfg.KValues, judged: judged, grades: cfg.Judgments}
-}
-
-// hasUsableGrade mirrors the runner, which drops grades whose doc id is not a
-// UUID before deciding whether a query is judged.
-func hasUsableGrade(grades map[string]int) bool {
-	for docID := range grades {
-		if _, err := uuid.Parse(docID); err == nil {
-			return true
-		}
-	}
-	return false
 }
 
 // scoresOf returns zero scores for a cell that failed or was never run.
