@@ -4,6 +4,9 @@ metadata:
   name: "Kaggle Global News Dataset"
   description: "Mapping for Kaggle Global News Dataset fields. The source column content is the truncated NewsAPI excerpt of full_content and has no Article target."
 dataset: kaggle
+idStrategy:
+  kind: uuidv5
+  source: url
 dateFormat: "2006-01-02 15:04:05.000000"
 constants:
   Language: eng
