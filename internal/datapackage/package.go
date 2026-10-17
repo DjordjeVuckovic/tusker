@@ -1,7 +1,10 @@
 // Package datapackage reads and writes Frictionless Data Package v2 descriptors.
 package datapackage
 
-import "github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
+import (
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
+	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
+)
 
 const (
 	Profile        = "https://datapackage.org/profiles/2.0/datapackage.json"
@@ -18,19 +21,19 @@ const (
 
 // Package is a data package descriptor.
 type Package struct {
-	Schema        string      `json:"$schema"`
-	Name          string      `json:"name"`
-	Version       string      `json:"version,omitempty"`
-	ArticleSchema string      `json:"articleSchema,omitempty"`
-	Language      string      `json:"language,omitempty"`
-	IDStrategy    *IDStrategy `json:"idStrategy,omitempty"`
-	ProducedBy    *ProducedBy `json:"producedBy,omitempty"`
-	Report        *Report     `json:"report,omitempty"`
-	Embedding     *Embedding  `json:"embedding,omitempty"`
-	Canonical     *Ref        `json:"canonical,omitempty"`
-	Suite         *Suite      `json:"suite,omitempty"`
-	Sources       []Source    `json:"sources,omitempty"`
-	Resources     []Resource  `json:"resources" schema:"required,minItems=1"`
+	Schema        string        `json:"$schema"`
+	Name          string        `json:"name"`
+	Version       string        `json:"version,omitempty"`
+	ArticleSchema string        `json:"articleSchema,omitempty"`
+	Language      language.Code `json:"language,omitempty"`
+	IDStrategy    *IDStrategy   `json:"idStrategy,omitempty"`
+	ProducedBy    *ProducedBy   `json:"producedBy,omitempty"`
+	Report        *Report       `json:"report,omitempty"`
+	Embedding     *Embedding    `json:"embedding,omitempty"`
+	Canonical     *Ref          `json:"canonical,omitempty"`
+	Suite         *Suite        `json:"suite,omitempty"`
+	Sources       []Source      `json:"sources,omitempty"`
+	Resources     []Resource    `json:"resources" schema:"required,minItems=1"`
 }
 
 // Resource is one file of a package; Path is relative to the descriptor.

@@ -5,10 +5,17 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
 )
 
 func (p Package) validate() error {
+	// Embeddings and raw packages carry no corpus language.
+	if p.Language != "" {
+		if _, err := language.Parse(string(p.Language)); err != nil {
+			return fmt.Errorf("package %s: %w", p.Name, err)
+		}
+	}
 	if p.IDStrategy != nil {
 		if _, err := datamapping.ParseIdStrategyKind(string(p.IDStrategy.Kind)); err != nil {
 			return fmt.Errorf("package %s: %w", p.Name, err)
