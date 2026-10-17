@@ -161,7 +161,7 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 		jf.Meta = meta.New("judge")
 		jf.Meta.Judge = &judge
 		jf.Meta.PoolRef = poolPath
-		if err := writeJudgments(jf, outPath); err != nil {
+		if err := judgment.WriteFile(jf, outPath); err != nil {
 			return fmt.Errorf("write judgments: %w", err)
 		}
 		printDone(cmd.OutOrStdout(), fmt.Sprintf("Manual template written: %s  (queries=%d)", outPath, len(jf.Queries)))
@@ -195,8 +195,14 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 		return err
 	}
 
+	// Every flush carries this meta, so a file left by an interrupted run names
+	// its run and grader.
 	judge := strat.Describe()
-	writer := judgment.NewIncrementalWriter(outPath, meta.Meta{Judge: &judge})
+	runMeta := meta.New("judge")
+	runMeta.Judge = &judge
+	runMeta.PoolRef = poolPath
+	runMeta.RelevanceScale = []int{0, 1, 2, 3}
+	writer := judgment.NewIncrementalWriter(outPath, runMeta)
 	var prior *judgment.File
 	if f.resume {
 		prior, err = writer.LoadPrior()
@@ -249,17 +255,10 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 		return fmt.Errorf("judge run: %w", runErr)
 	}
 
-	// Final write with completed meta block. The judge descriptor captures what
-	// the strategy actually resolved to — including the model, which is empty on
-	// the flag whenever the user relied on the default — and the prompt version,
-	// so rubric drift is detectable on resume. Run returns only the queries
-	// still in the pool, so a query dropped since the last run is not carried
-	// over.
-	final.Meta = meta.New("judge")
-	final.Meta.Judge = &judge
-	final.Meta.PoolRef = poolPath
-	final.Meta.RelevanceScale = []int{0, 1, 2, 3}
-	if err := writeJudgments(final, outPath); err != nil {
+	// Run returns only the queries still in the pool, so a query dropped since
+	// the last run is not carried over.
+	final.Meta = runMeta
+	if err := judgment.WriteFile(final, outPath); err != nil {
 		return fmt.Errorf("finalise judgments: %w", err)
 	}
 
@@ -401,33 +400,14 @@ func buildManualJudgments(pf *pool.PoolFile, existing *judgment.File) *judgment.
 	return jf
 }
 
-func writeJudgments(jf *judgment.File, path string) error {
-	graded, unjudged := countGrades(jf)
-	jf.Meta.GradedCount, jf.Meta.UnjudgedCount = &graded, &unjudged
-	return judgment.WriteFile(jf, path)
-}
-
 // requireJudged fails when a pooled doc has no grade: bench run would score it
 // as non-relevant against whichever engine retrieved it.
 func requireJudged(jf *judgment.File, allowUnjudged bool) error {
-	_, unjudged := countGrades(jf)
+	_, unjudged := jf.GradeCounts()
 	if unjudged == 0 || allowUnjudged {
 		return nil
 	}
 	return fmt.Errorf("%d pooled docs are unjudged: re-run with --resume to retry them, or pass --allow-unjudged to keep the file as is", unjudged)
-}
-
-func countGrades(jf *judgment.File) (graded, unjudged int) {
-	for _, qe := range jf.Queries {
-		for _, d := range qe.Docs {
-			if d.Grade >= 0 {
-				graded++
-			} else {
-				unjudged++
-			}
-		}
-	}
-	return graded, unjudged
 }
 
 func formatHistogram(h map[int]int) string {

@@ -152,3 +152,52 @@ func TestIncrementalWriter_StampsMetaOnFirstFlush(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "pool.yaml", jf.Meta.PoolRef)
 }
+
+// A file left behind by an interrupted run must say how much of it is unjudged.
+func TestIncrementalWriter_FlushRecordsGradeCounts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ann.yaml")
+	w := NewIncrementalWriter(path, meta.Meta{Judge: &meta.Judge{Strategy: "test"}})
+
+	require.NoError(t, w.Append(QueryProgress{QueryID: "q1"}, Entry{QueryID: "q1", Docs: []GradedDoc{
+		{DocID: uuid.New(), Grade: GradeRelevant},
+		{DocID: uuid.New(), Grade: GradeUnjudged},
+	}}))
+
+	jf, err := ReadFile(path)
+	require.NoError(t, err)
+	require.NotNil(t, jf.Meta.GradedCount)
+	require.NotNil(t, jf.Meta.UnjudgedCount)
+	assert.Equal(t, 1, *jf.Meta.GradedCount)
+	assert.Equal(t, 1, *jf.Meta.UnjudgedCount)
+}
+
+func fileWithGrades(grades ...int) *File {
+	docs := make([]GradedDoc, len(grades))
+	for i, g := range grades {
+		docs[i] = GradedDoc{DocID: uuid.New(), Grade: g}
+	}
+	return &File{Meta: meta.Meta{Judge: &meta.Judge{Strategy: "test"}}, Queries: []Entry{{QueryID: "q1", Docs: docs}}}
+}
+
+// A file in which every grade failed must still say so: an absent count reads
+// the same as a file that was never counted.
+func TestWriteFile_RecordsCountsWhenNothingWasGraded(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ann.yaml")
+
+	require.NoError(t, WriteFile(fileWithGrades(GradeUnjudged, GradeUnjudged), path))
+
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), "graded_count: 0")
+	assert.Contains(t, string(raw), "unjudged_count: 2")
+}
+
+func TestWriteFile_RecordsZeroUnjudged(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ann.yaml")
+
+	require.NoError(t, WriteFile(fileWithGrades(GradeRelevant), path))
+
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), "unjudged_count: 0")
+}

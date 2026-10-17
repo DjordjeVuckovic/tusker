@@ -14,9 +14,11 @@ import (
 // WriteFile writes a JudgmentFile atomically: marshals to a tmp file in the
 // same directory, fsyncs, then renames. Prevents readers from seeing a
 // half-written YAML if the process is killed mid-write. Stamps schema_version
-// every write so reloads always see a current artifact.
+// and the grade counts on every write so reloads always see a current artifact.
 func WriteFile(jf *File, path string) error {
 	jf.SchemaVersion = version.SchemaVersion
+	graded, unjudged := jf.GradeCounts()
+	jf.Meta.GradedCount, jf.Meta.UnjudgedCount = &graded, &unjudged
 	data, err := yaml.Marshal(jf)
 	if err != nil {
 		return fmt.Errorf("marshal judgment file: %w", err)

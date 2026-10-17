@@ -130,29 +130,6 @@ func judgmentsWithGrades(grades ...int) *judgment.File {
 	}
 }
 
-// A file in which every grade failed must still say so: an absent count reads
-// the same as a file that was never counted.
-func TestWriteJudgments_RecordsCountsWhenNothingWasGraded(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "annotations.bm25.yaml")
-
-	require.NoError(t, writeJudgments(judgmentsWithGrades(judgment.GradeUnjudged, judgment.GradeUnjudged), path))
-
-	raw, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Contains(t, string(raw), "graded_count: 0")
-	assert.Contains(t, string(raw), "unjudged_count: 2")
-}
-
-func TestWriteJudgments_RecordsZeroUnjudged(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "annotations.bm25.yaml")
-
-	require.NoError(t, writeJudgments(judgmentsWithGrades(judgment.GradeRelevant), path))
-
-	raw, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Contains(t, string(raw), "unjudged_count: 0")
-}
-
 func TestRequireJudged(t *testing.T) {
 	cases := []struct {
 		name          string
@@ -406,4 +383,43 @@ func TestJudge_ManualForceReplacesAnotherJudgesFile(t *testing.T) {
 	require.NoError(t, fx.judge(t, "--strategy", "manual", "--output", bm25Path, "--force"))
 
 	assert.Equal(t, string(judgment.StrategyManual), fx.annotations(t, "bm25").Judge().Strategy)
+}
+
+// interruptingStore cancels the run when the given query's articles are fetched.
+type interruptingStore struct {
+	articleStore
+	calls     int
+	interrupt context.CancelFunc
+}
+
+func (s *interruptingStore) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]document.Article, error) {
+	s.calls++
+	if s.calls == 2 {
+		s.interrupt()
+	}
+	return s.articleStore.GetByIDs(ctx, ids)
+}
+
+// An interrupted run leaves only its intermediate flush, which must carry the
+// run's provenance and counts like a finished file.
+func TestJudge_InterruptedRunLeavesAnIdentifiedFile(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	second := fx.pool.Queries[0]
+	second.QueryID = "q2"
+	fx.pool.Queries = append(fx.pool.Queries, second)
+	fx.writePool(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	store := &interruptingStore{articleStore: fx.articles, interrupt: cancel}
+
+	cmd := newJudgeCmdWithReader(func(*cobra.Command, string) (storage.Reader, error) { return store, nil })
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs([]string{fx.track, "--strategy", "bm25"})
+	require.ErrorIs(t, cmd.ExecuteContext(ctx), context.Canceled)
+
+	jf := fx.annotations(t, "bm25")
+	assert.NotEmpty(t, jf.Meta.RunID)
+	assert.NotNil(t, jf.Meta.UnjudgedCount)
+	assert.Contains(t, gradesByQuery(jf), "q1")
 }
