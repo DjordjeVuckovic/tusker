@@ -11,12 +11,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ReservedQueryVectorParam is the template/param placeholder replaced at run
-// time with the live query embedding (the {{precomputed}} blocker). The
-// pool/run pipeline embeds the query once and injects it under this name; the
-// PG vector template wraps it as '[...]'::vector and the ES knn body inlines it
-// as a JSON array.
-const ReservedQueryVectorParam = "precomputed"
+// QueryVectorArg is the reserved arg the runner fills with the query's
+// embedding, so a statement needs the vector exactly when its args name it.
+// Postgres receives it as pgvector text, cast in SQL with $N::vector.
+const QueryVectorArg = "query_vector"
 
 // EmbeddingModelParam names the engine-level param carrying the embedding model
 // an arm is measured against. article_embeddings is keyed (article_id,
@@ -53,10 +51,12 @@ type Query struct {
 }
 
 type EngineQuery struct {
-	Query    string         `yaml:"query,omitempty"`
-	File     string         `yaml:"file,omitempty"`
-	Template string         `yaml:"template,omitempty"`
-	Params   TemplateParams `yaml:"params,omitempty"`
+	Query    string `yaml:"query,omitempty"`
+	File     string `yaml:"file,omitempty"`
+	Template string `yaml:"template,omitempty"`
+	// Args name the param behind each $N of an inline or file query, in order.
+	Args   []string       `yaml:"args,omitempty"`
+	Params TemplateParams `yaml:"params,omitempty"`
 }
 
 func (eq *EngineQuery) UnmarshalYAML(value *yaml.Node) error {
@@ -69,8 +69,7 @@ func (eq *EngineQuery) UnmarshalYAML(value *yaml.Node) error {
 }
 
 // ResolveOptions addresses one engine's query inside a suite query and carries
-// the three param layers, widest first: engine Defaults, the query's own
-// params, then Extra.
+// what the engine and the run add to the query's own params.
 type ResolveOptions struct {
 	// Engine names the per-query block to read. Under engine aliasing this is
 	// the engine that owns the queries, which need not be the one being
@@ -78,48 +77,66 @@ type ResolveOptions struct {
 	Engine   string
 	Registry *TemplateRegistry
 	SuiteDir string
-	// Defaults are the running engine's declared params, the widest layer.
+	// Defaults are the running engine's declared params; the query's own params
+	// win over them.
 	Defaults TemplateParams
-	// Extra are run-time params absent from the suite, chiefly the live query
-	// vector under ReservedQueryVectorParam.
-	Extra TemplateParams
+	// QueryVector fills the reserved QueryVectorArg.
+	QueryVector []float32
 }
 
-// Resolve renders the engine query, merging the param layers so a narrower one
-// wins: engine defaults, then the query's own params, then run-time extras.
+// Resolve reads the engine's statement and looks up each of its args in the
+// query's params, the engine defaults and the query vector.
 func (eq *EngineQuery) Resolve(opts ResolveOptions) (*ResolvedQuery, error) {
-	params := mergeParams(opts.Defaults, eq.Params, opts.Extra)
-	if eq.Template != "" {
-		if opts.Registry == nil {
-			return nil, fmt.Errorf("template %q referenced but no registry available", eq.Template)
-		}
-		return opts.Registry.RenderQuery(eq.Template, params, opts.SuiteDir)
+	params := mergeParams(opts.Defaults, eq.Params)
+	if opts.QueryVector != nil {
+		params[QueryVectorArg] = opts.QueryVector
 	}
-	if eq.File != "" {
+	statement, argNames, err := eq.statement(opts.Registry, opts.SuiteDir)
+	if err != nil {
+		return nil, err
+	}
+	args, err := valuesInOrder(argNames, params)
+	if err != nil {
+		return nil, err
+	}
+	return &ResolvedQuery{Query: statement, Args: args, Template: eq.Template, Params: params}, nil
+}
+
+func (eq *EngineQuery) statement(registry *TemplateRegistry, suiteDir string) (string, []string, error) {
+	switch {
+	case eq.Template != "":
+		if registry == nil {
+			return "", nil, fmt.Errorf("template %q referenced but no registry available", eq.Template)
+		}
+		t, ok := registry.Get(eq.Template)
+		if !ok {
+			return "", nil, fmt.Errorf("template %q not found", eq.Template)
+		}
+		return t.Query, t.Args, nil
+	case eq.File != "":
 		path := eq.File
 		if !filepath.IsAbs(path) {
-			path = filepath.Join(opts.SuiteDir, path)
+			path = filepath.Join(suiteDir, path)
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("read query file %q: %w", eq.File, err)
+			return "", nil, fmt.Errorf("read query file %q: %w", eq.File, err)
 		}
-		return resolveInline(string(data), params)
+		return string(data), eq.Args, nil
+	default:
+		return eq.Query, eq.Args, nil
 	}
-	return resolveInline(eq.Query, params)
 }
 
-// resolveInline substitutes params into an inline/file query and rejects any
-// {{...}} left unresolved. Without this, an un-injected placeholder (e.g.
-// {{precomputed}} when no embedder ran) ships verbatim to the engine — ES then
-// parses the literal "{" as an object and returns a cryptic START_OBJECT 400.
-// Templates already fail loudly via Render; this gives inline queries parity.
-func resolveInline(s string, params TemplateParams) (*ResolvedQuery, error) {
-	s = substituteParams(s, params)
-	if missing := findMissingPlaceholders(s); len(missing) > 0 {
-		return nil, fmt.Errorf("query has unresolved placeholders: %v", missing)
+// declaredArgs are the args of the statement the block runs. The template must
+// already be known to the registry.
+func (eq *EngineQuery) declaredArgs(registry *TemplateRegistry) []string {
+	if eq.Template != "" {
+		if t, ok := registry.Get(eq.Template); ok {
+			return t.Args
+		}
 	}
-	return &ResolvedQuery{Query: s}, nil
+	return eq.Args
 }
 
 // mergeParams overlays layers left to right into a fresh map, so a narrower
@@ -135,18 +152,16 @@ func mergeParams(layers ...TemplateParams) TemplateParams {
 	return out
 }
 
-// substituteParams replaces {{key}} for each key in params. Inline/file queries
-// aren't template-rendered, so this is how they receive params; only the
-// provided keys are touched, leaving any other braces untouched.
-func substituteParams(s string, params TemplateParams) string {
-	for k, v := range params {
-		s = strings.ReplaceAll(s, "{{"+k+"}}", formatValue(v))
-	}
-	return s
-}
-
 type ResolvedQuery struct {
 	Query string
+	// Args are the param values the statement's args name, in order.
+	Args []any
+	// Template is the suite template the query came from, empty for an inline
+	// or file query.
+	Template string
+	// Params are every value the query, its engine and the run supply, with the
+	// query vector as numbers, for an engine that renders the template itself.
+	Params TemplateParams
 }
 
 type RelevanceJudgment struct {
@@ -180,28 +195,14 @@ func (q *Query) ResolveEngineQuery(opts ResolveOptions) (*ResolvedQuery, error) 
 	if !ok {
 		return nil, nil
 	}
-	return eq.Resolve(opts)
-}
-
-// NeedsQueryVector reports whether any engine query references the reserved
-// query-vector placeholder, so the pipeline knows to embed the query.
-func (q *Query) NeedsQueryVector() bool {
-	token := "{{" + ReservedQueryVectorParam + "}}"
-	for _, eq := range q.Engines {
-		if strings.Contains(eq.Query, token) {
-			return true
-		}
-		for _, v := range eq.Params {
-			if s, ok := v.(string); ok && strings.Contains(s, token) {
-				return true
-			}
-		}
+	resolved, err := eq.Resolve(opts)
+	if err != nil {
+		return nil, fmt.Errorf("query %q engine %q: %w", q.ID, opts.Engine, err)
 	}
-	return false
+	return resolved, nil
 }
 
-// FormatVector renders a float vector as a bracketed array literal — valid both
-// as a pgvector input ('[...]'::vector) and as a JSON array for ES knn.
+// FormatVector renders a float vector as pgvector's text input.
 func FormatVector(vec []float32) string {
 	var b strings.Builder
 	b.WriteByte('[')

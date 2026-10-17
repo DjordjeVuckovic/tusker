@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "provenance": {
+    "run_id": "2026-07-26T23-37-36-run-cccccc",
+    "tool": "bench test",
+    "generated_at": "2026-09-30T10:00:00Z",
+    "spec_id": "cc-news-fts"
+  },
+  "environment": {
+    "engines": {
+      "pg-native": {
+        "type": "postgres",
+        "connection": "postgresql://bench@localhost:54320/news_db"
+      },
+      "es": {
+        "type": "elasticsearch",
+        "connection": "http://localhost:9200"
+      },
+      "api": {
+        "type": "api",
+        "connection": "http://localhost:8080"
+      }
+    },
+    "platform": {
+      "go_version": "go1.25",
+      "os": "darwin",
+      "arch": "arm64",
+      "num_cpu": 8
+    }
+  },
+  "jobs": [
+    {
+      "JobName": "fts",
+      "Aggregated": [
+        {
+          "EngineName": "pg-native",
+          "NDCG": {
+            "10": 0.61
+          },
+          "MAP": 0.5,
+          "MRR": 0.7,
+          "QueryCount": 2,
+          "JudgedCount": 2
+        },
+        {
+          "EngineName": "es",
+          "NDCG": {
+            "10": 0.58
+          },
+          "MAP": 0.48,
+          "MRR": 0.66,
+          "QueryCount": 2,
+          "JudgedCount": 2
+        }
+      ],
+      "PerQuery": []
+    }
+  ],
+  "config": {
+    "KValues": [
+      10
+    ],
+    "RelevanceThreshold": 1
+  }
+}

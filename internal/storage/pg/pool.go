@@ -17,7 +17,8 @@ type PoolConfig struct {
 	ConnectionSettings map[string]string
 }
 type ConnectionPool struct {
-	conn *pgxpool.Pool
+	conn     *pgxpool.Pool
+	settings map[string]string
 }
 
 func NewConnectionPool(ctx context.Context, cfg PoolConfig) (*ConnectionPool, error) {
@@ -38,7 +39,7 @@ func NewConnectionPool(ctx context.Context, cfg PoolConfig) (*ConnectionPool, er
 		return nil, fmt.Errorf("failed to ping DB: %w", err)
 	}
 
-	return &ConnectionPool{conn: dbpool}, nil
+	return &ConnectionPool{conn: dbpool, settings: cfg.ConnectionSettings}, nil
 }
 
 func afterConnect(registerVec bool, settings map[string]string) func(ctx context.Context, conn *pgx.Conn) error {

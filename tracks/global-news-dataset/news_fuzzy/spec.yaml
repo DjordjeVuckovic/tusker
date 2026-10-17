@@ -14,12 +14,18 @@ engines:
   pg-trgm:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
+    connection_settings:
+      plan_cache_mode: force_custom_plan
   pg-levenshtein:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54320/news_db"
+    connection_settings:
+      plan_cache_mode: force_custom_plan
   paradedb:
     type: postgres
     connection: "postgresql://news_user:news_password@localhost:54321/news_db"
+    connection_settings:
+      plan_cache_mode: force_custom_plan
   elasticsearch:
     type: elasticsearch
     connection: "http://localhost:9200"

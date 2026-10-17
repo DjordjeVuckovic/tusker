@@ -2,97 +2,104 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestHasKnn(t *testing.T) {
-	tests := []struct {
-		name string
-		body string
-		want bool
-	}{
-		{"knn only", `{"knn":{"field":"embedding","query_vector":[0.1],"k":10}}`, true},
-		{"query plus knn", `{"query":{"match_all":{}},"knn":{"field":"e","query_vector":[0.1]}}`, true},
-		{"query only", `{"query":{"match_all":{}}}`, false},
-		{"not json", `not json`, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := hasKnn(tt.body); got != tt.want {
-				t.Errorf("hasKnn(%s) = %v, want %v", tt.body, got, tt.want)
-			}
-		})
-	}
+// fakeValidateAPI answers <index>/_validate/query the way Elasticsearch does:
+// it rejects knn and any top-level key besides query, and explains an unknown
+// query type.
+func fakeValidateAPI(t *testing.T) *httptest.Server {
+	t.Helper()
+	es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.True(t, strings.HasSuffix(r.URL.Path, "/_validate/query"), r.URL.Path)
+		raw, _ := io.ReadAll(r.Body)
+		var body map[string]json.RawMessage
+		assert.NoError(t, json.Unmarshal(raw, &body))
+		switch {
+		case body["knn"] != nil:
+			_, _ = w.Write([]byte(`{"valid": false, "explanations": [{"error": "request does not support [knn]"}]}`))
+		case len(body) > 1:
+			_, _ = w.Write([]byte(`{"valid": false}`))
+		case strings.Contains(string(body["query"]), "bogus"):
+			_, _ = w.Write([]byte(`{"valid": false, "explanations": [{"error": "unknown query [bogus]"}]}`))
+		default:
+			_, _ = w.Write([]byte(`{"valid": true}`))
+		}
+	}))
+	t.Cleanup(es.Close)
+	return es
 }
 
-func TestValidateKnnClause(t *testing.T) {
+func TestEsExecutor_Validate(t *testing.T) {
+	const vector = `"field": "embedding", "query_vector": [0.1, 0.2], "k": 10`
 	tests := []struct {
 		name    string
-		clause  string
-		wantErr string // substring; "" means no error
+		body    string
+		wantErr string
 	}{
-		{"valid object", `{"field":"embedding","query_vector":[0.1,0.2],"k":10}`, ""},
-		{"placeholder vector", `{"field":"embedding","query_vector":"{{precomputed}}","k":50}`, ""},
-		{"query_vector_builder", `{"field":"embedding","query_vector_builder":{"text_embedding":{}}}`, ""},
-		{"valid array", `[{"field":"a","query_vector":[0.1]},{"field":"b","query_vector":[0.2]}]`, ""},
-		{"missing field", `{"query_vector":[0.1]}`, "missing required \"field\""},
-		{"empty field", `{"field":"","query_vector":[0.1]}`, "non-empty string"},
-		{"missing vector", `{"field":"embedding","k":10}`, "requires \"query_vector\""},
-		{"empty array", `[]`, "knn array is empty"},
-		{"empty clause", ``, "knn clause is empty"},
-		{"bad entry in array", `[{"field":"a"}]`, "knn[0]"},
+		{name: "query DSL", body: `{"query": {"match_all": {}}}`},
+		{name: "query with search options", body: `{"query": {"match_all": {}}, "size": 10}`},
+		{name: "unknown query type", body: `{"query": {"bogus": {}}}`, wantErr: "bogus"},
+		{name: "knn only", body: `{"knn": {` + vector + `}}`},
+		{name: "query and knn", body: `{"query": {"match_all": {}}, "knn": {` + vector + `}}`},
+		{name: "knn array", body: `{"knn": [{` + vector + `}, {` + vector + `}]}`},
+		{name: "knn embeds the query itself", body: `{"knn": {"field": "embedding", "query_vector_builder": {"text_embedding": {}}}}`},
+		{name: "knn without a field", body: `{"knn": {"query_vector": [0.1]}}`, wantErr: `"field"`},
+		{name: "knn with an empty field", body: `{"knn": {"field": "", "query_vector": [0.1]}}`, wantErr: "non-empty"},
+		{name: "knn without a vector", body: `{"knn": {"field": "embedding", "k": 10}}`, wantErr: "query_vector"},
+		{name: "empty knn array", body: `{"knn": []}`, wantErr: "empty"},
+		{name: "bad entry in a knn array", body: `{"knn": [{` + vector + `}, {"field": "e"}]}`, wantErr: "knn[1]"},
+		{name: "knn beside a broken query", body: `{"query": {"bogus": {}}, "knn": {` + vector + `}}`, wantErr: "bogus"},
 	}
+	es := fakeValidateAPI(t)
+	exec := NewEsExecutor("es", es.URL, "articles")
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateKnnClause([]byte(tt.clause))
-			switch {
-			case tt.wantErr == "" && err != nil:
-				t.Errorf("unexpected error: %v", err)
-			case tt.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tt.wantErr)):
-				t.Errorf("error = %v, want substring %q", err, tt.wantErr)
+			err := exec.Validate(context.Background(), Request{Query: tt.body})
+
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
 			}
+			assert.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
 
-// validateKnnBody on a knn-only body performs no network call (no `query`
-// block), so it can be exercised without a live Elasticsearch.
-func TestValidateKnnBody_KnnOnly(t *testing.T) {
-	e := NewEsExecutor("es", "http://127.0.0.1:1", "articles")
-	body := `{"knn":{"field":"embedding","query_vector":"{{precomputed}}","k":50,"num_candidates":200}}`
-	if err := e.validateKnnBody(context.Background(), body); err != nil {
-		t.Fatalf("expected valid knn body, got: %v", err)
-	}
-
-	bad := `{"knn":{"k":50}}`
-	if err := e.validateKnnBody(context.Background(), bad); err == nil {
-		t.Fatal("expected error for knn body missing field/vector")
-	}
-}
-
-func TestExactTotal(t *testing.T) {
+func TestEsExecutor_Execute_ReportsCorpusMatchesOnlyWhenCounted(t *testing.T) {
+	docID := uuid.New()
 	tests := []struct {
 		name  string
-		total esTotal
+		total string
 		want  *int64
 	}{
-		{"counted every match", esTotal{Value: 2466, Relation: "eq"}, ptr(int64(2466))},
-		{"stopped at track_total_hits", esTotal{Value: 10000, Relation: "gte"}, nil},
-		{"relation absent", esTotal{Value: 42}, ptr(int64(42))},
+		{name: "counted every match", total: `{"value": 2466, "relation": "eq"}`, want: ptr(int64(2466))},
+		{name: "stopped counting at track_total_hits", total: `{"value": 10000, "relation": "gte"}`},
+		{name: "relation absent", total: `{"value": 42}`, want: ptr(int64(42))},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.total.exactCount()
-			switch {
-			case tt.want == nil && got != nil:
-				t.Fatalf("got %d, want nil", *got)
-			case tt.want != nil && got == nil:
-				t.Fatalf("got nil, want %d", *tt.want)
-			case tt.want != nil && *got != *tt.want:
-				t.Fatalf("got %d, want %d", *got, *tt.want)
-			}
+			es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(`{"hits": {"total": ` + tt.total + `, "hits": [{"_source": {"id": "` + docID.String() + `"}}]}}`))
+			}))
+			defer es.Close()
+
+			got, err := NewEsExecutor("es", es.URL, "articles").Execute(context.Background(), Request{Query: `{"query": {"match_all": {}}}`})
+
+			require.NoError(t, err)
+			assert.Equal(t, []uuid.UUID{docID}, got.RankedDocIDs)
+			assert.Equal(t, tt.want, got.CorpusMatches)
 		})
 	}
 }

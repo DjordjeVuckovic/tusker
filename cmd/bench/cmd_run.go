@@ -165,6 +165,7 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	defer cleanup()
 
 	corpus := collectCorpusInfo(cmd.Context(), cmd.OutOrStdout(), executors)
+	indexes := collectIndexProvenance(cmd.Context(), cmd.OutOrStdout(), executors)
 
 	r := runner.New(runCfg)
 	sp := startSpinner("Running " + tr.Name() + "…")
@@ -177,8 +178,9 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	}
 
 	rpt := report.Generate(result, &report.GenerateOptions{
-		Spec:   bs,
-		Corpus: corpus,
+		Spec:    bs,
+		Corpus:  corpus,
+		Indexes: indexes,
 	})
 	rpt.Provenance.SpecID = bs.ID
 	rpt.Provenance.Sources = &meta.Sources{
@@ -286,6 +288,37 @@ func collectCorpusInfo(ctx context.Context, w io.Writer, executors map[string]en
 		printWarn(w, fmt.Sprintf("engines index different document counts: %v — cross-engine metrics are not comparable", counts))
 	}
 	return info
+}
+
+// indexDescribeTimeout bounds each engine's provenance read, so an engine that
+// does not answer delays the run by this much rather than stalling it.
+const indexDescribeTimeout = 15 * time.Second
+
+// collectIndexProvenance records, for every engine, how it indexed the corpus.
+// A failed read is warned about and kept in the engine's block as its error.
+func collectIndexProvenance(ctx context.Context, w io.Writer, executors map[string]engine.Executor) map[string]report.IndexProvenance {
+	provenance := make(map[string]report.IndexProvenance, len(executors))
+	for name, exec := range executors {
+		describer, ok := exec.(engine.IndexDescriber)
+		if !ok {
+			provenance[name] = report.IndexProvenance{Error: "engine cannot describe its index"}
+			continue
+		}
+		description, err := describeIndex(ctx, describer)
+		if err != nil {
+			printWarn(w, fmt.Sprintf("index provenance for %q not recorded: %v", name, err))
+			provenance[name] = report.IndexProvenance{Error: err.Error()}
+			continue
+		}
+		provenance[name] = report.IndexProvenance{IndexDescription: *description}
+	}
+	return provenance
+}
+
+func describeIndex(ctx context.Context, describer engine.IndexDescriber) (*engine.IndexDescription, error) {
+	ctx, cancel := context.WithTimeout(ctx, indexDescribeTimeout)
+	defer cancel()
+	return describer.DescribeIndex(ctx)
 }
 
 func firstNonZero(a, b int) int {
