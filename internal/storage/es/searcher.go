@@ -322,23 +322,12 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	// Extract query parameters
-	fields := query.GetFields()
-
-	// Build field list with boosting
-	fieldsWithWeight := make([]string, 0, len(fields))
-	for _, field := range fields {
-		if field.Weight != 1.0 {
-			fieldsWithWeight = append(fieldsWithWeight, fmt.Sprintf("%s^%.1f", field.Name, field.Weight))
-		} else {
-			fieldsWithWeight = append(fieldsWithWeight, field.Name)
-		}
-	}
-
-	// Build multi_match query
+	// cross_fields lets each term match any of the fields, as the Postgres
+	// search_vector does; the default best_fields wants every term in one.
 	multiMatch := &types.MultiMatchQuery{
 		Query:    query.Query,
-		Fields:   fieldsWithWeight,
+		Fields:   boostedFields(query.Params().Fields),
+		Type:     &textquerytype.Crossfields,
 		Operator: termOperator(query.Operator),
 	}
 

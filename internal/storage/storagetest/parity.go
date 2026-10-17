@@ -133,6 +133,20 @@ func ParityCases() []ParityCase {
 			WantByEngine: map[Engine][]uuid.UUID{Postgres: titleEveryTerm, Elasticsearch: titleAnyTerm},
 		},
 		{
+			Name: "multi_match with AND matches terms across the fields",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return searchFields(ctx, s, []string{"title", "content"}, query.WithMultiMatchOperator(operator.And))
+			},
+			Want: titleOrContentEveryTerm,
+		},
+		{
+			Name: "multi_match boosts leave the recall alone",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return searchFields(ctx, s, []string{"description^2.5", "content"}, query.WithMultiMatchOperator(operator.And))
+			},
+			Want: []uuid.UUID{descriptionAndContent, descriptionThenContent},
+		},
+		{
 			Name: "multi_match with OR",
 			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
 				return searchFields(ctx, s, []string{"title", "content"}, query.WithMultiMatchOperator(operator.Or))
