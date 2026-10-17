@@ -113,12 +113,21 @@ func buildRankExpression(fieldBoosts []query.FieldWeight, lang query.Language, o
 	return fmt.Sprintf("ts_rank(%s, %s)", vectorExpr, queryExpr)
 }
 
-// buildTsWhereClause matches the query against the requested fields only.
-// No fields, or fields covering all four bands, match the whole vector.
-// Otherwise the query also runs on the fields' weight bands; the whole-vector
-// match goes first so the GIN index narrows the rows.
+// DefaultOperator is what Postgres applies when a request names no operator:
+// plainto_tsquery requires every term.
+const DefaultOperator = operator.And
+
+// buildTsWhereClause matches free text against the requested fields only.
 func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
-	queryExpr := buildTsQuery(op, lang, paramNum)
+	return buildFieldMatch(fieldBoosts, buildTsQuery(op, lang, paramNum), true)
+}
+
+// buildFieldMatch matches queryExpr on the fields' weight bands. No fields, or
+// fields covering all four bands, match the whole vector. With prefilter the
+// whole-vector match goes first so the GIN index narrows the rows; that is only
+// sound when a band match implies a whole-vector match, which a negated term
+// breaks.
+func buildFieldMatch(fieldBoosts []query.FieldWeight, queryExpr string, prefilter bool) string {
 	match := fmt.Sprintf("search_vector @@ %s", queryExpr)
 
 	fields := make([]string, 0, len(fieldBoosts))
@@ -131,7 +140,11 @@ func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op
 	}
 
 	bands := strings.Split(strings.ToLower(labels), "")
-	return fmt.Sprintf("%s AND ts_filter(search_vector, '{%s}') @@ %s", match, strings.Join(bands, ","), queryExpr)
+	bandMatch := fmt.Sprintf("ts_filter(search_vector, '{%s}') @@ %s", strings.Join(bands, ","), queryExpr)
+	if !prefilter {
+		return bandMatch
+	}
+	return fmt.Sprintf("%s AND %s", match, bandMatch)
 }
 
 // buildPhraseSlopQuery constructs a phrase query with slop support

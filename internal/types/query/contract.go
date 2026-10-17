@@ -59,17 +59,18 @@ func ParseFieldBoost(spec string) (FieldWeight, error) {
 
 // SearchContract is the question a query string asks every engine: which fields
 // to match, how to combine terms and how to analyse them. Engines build their
-// query from it, so one request means one recall set. Field weights are ranking
-// boosts, and an engine may rank with its own weights instead.
+// query from it. A nil Operator leaves each engine's default in charge, so the
+// recall differs by engine exactly as their defaults do. Field weights are
+// ranking boosts, and an engine may rank with its own weights instead.
 type SearchContract struct {
 	Fields   []FieldWeight
-	Operator operator.Operator
+	Operator *operator.Operator
 	Language Language
 }
 
-// DefaultSearchContract is the query-string search of the API: every term must
-// appear in the title, description or content, analysed in English, with title
-// boosted 3 and description 2.
+// DefaultSearchContract is the query-string search of the API: the terms match
+// the title, description or content under the engine's default operator,
+// analysed in English, with title boosted 3 and description 2.
 func DefaultSearchContract() SearchContract {
 	return SearchContract{
 		Fields: []FieldWeight{
@@ -77,7 +78,6 @@ func DefaultSearchContract() SearchContract {
 			{Field: FieldDescription, Weight: 2.0},
 			{Field: FieldContent, Weight: 1.0},
 		},
-		Operator: operator.And,
 		Language: DefaultLanguage,
 	}
 }

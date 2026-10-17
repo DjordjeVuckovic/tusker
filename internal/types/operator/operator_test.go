@@ -8,7 +8,7 @@ func TestParse(t *testing.T) {
 		want    Operator
 		wantErr bool
 	}{
-		{input: "", want: And},
+		{input: "", wantErr: true},
 		{input: "and", want: And},
 		{input: "OR", want: Or},
 		{input: "not", wantErr: true},

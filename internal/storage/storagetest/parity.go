@@ -1,0 +1,224 @@
+// Package storagetest holds search cases every storage engine must pass, with
+// the recall worked out by hand over a small fixed corpus.
+package storagetest
+
+import (
+	"context"
+	"slices"
+	"testing"
+
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
+	"github.com/DjordjeVuckovic/tusker/internal/types/query"
+	"github.com/google/uuid"
+)
+
+// Engine names the backend an engine-specific expectation belongs to.
+type Engine string
+
+const (
+	Postgres      Engine = "postgres"
+	Elasticsearch Engine = "elasticsearch"
+)
+
+// The corpus terms are budget, tariff and harbor: none is a stopword and each
+// stems to itself, so recall does not depend on how an engine analyses text.
+var (
+	bothInTitle            = uuid.MustParse("00000000-0000-0000-0000-00000000c001")
+	titleAndContent        = uuid.MustParse("00000000-0000-0000-0000-00000000c002")
+	descriptionAndContent  = uuid.MustParse("00000000-0000-0000-0000-00000000c003")
+	tariffTitleAuthor      = uuid.MustParse("00000000-0000-0000-0000-00000000c004")
+	bothOnlyInSubtitle     = uuid.MustParse("00000000-0000-0000-0000-00000000c005")
+	budgetTitleOnly        = uuid.MustParse("00000000-0000-0000-0000-00000000c006")
+	unrelated              = uuid.MustParse("00000000-0000-0000-0000-00000000c007")
+	budgetTitleSubtitle    = uuid.MustParse("00000000-0000-0000-0000-00000000c008")
+	descriptionThenContent = uuid.MustParse("00000000-0000-0000-0000-00000000c009")
+	termsApartInTitle      = uuid.MustParse("00000000-0000-0000-0000-00000000c010")
+	tariffDescriptionOnly  = uuid.MustParse("00000000-0000-0000-0000-00000000c011")
+)
+
+// ParityCorpus returns the articles every ParityCase searches.
+func ParityCorpus() []document.Article {
+	articles := []document.Article{
+		{ID: bothInTitle, Title: "budget tariff"},
+		{ID: titleAndContent, Title: "budget", Content: "tariff"},
+		{ID: descriptionAndContent, Title: "harbor", Description: "tariff", Content: "budget"},
+		{ID: tariffTitleAuthor, Title: "tariff", Author: "budget"},
+		{ID: bothOnlyInSubtitle, Title: "harbor", Subtitle: "budget tariff"},
+		{ID: budgetTitleOnly, Title: "budget"},
+		{ID: unrelated, Title: "harbor"},
+		{ID: budgetTitleSubtitle, Title: "budget", Subtitle: "tariff"},
+		{ID: descriptionThenContent, Title: "harbor", Description: "budget", Content: "tariff"},
+		{ID: termsApartInTitle, Title: "budget harbor tariff"},
+		{ID: tariffDescriptionOnly, Title: "harbor", Description: "tariff"},
+	}
+	for i := range articles {
+		articles[i].URL = "https://example.com/" + articles[i].ID.String()
+		articles[i].Language = "english"
+	}
+	return articles
+}
+
+// ParityCase is one search over ParityCorpus. Want is the recall every engine
+// must return; WantByEngine replaces it where the request leaves a choice, such
+// as the operator, to the engine.
+type ParityCase struct {
+	Name         string
+	Search       func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error)
+	Want         []uuid.UUID
+	WantByEngine map[Engine][]uuid.UUID
+}
+
+// Recall of "budget tariff" in a field set, with every term or any term. The
+// contract fields are title, description and content.
+var (
+	titleEveryTerm    = []uuid.UUID{bothInTitle, termsApartInTitle}
+	titleAnyTerm      = []uuid.UUID{bothInTitle, titleAndContent, tariffTitleAuthor, budgetTitleOnly, budgetTitleSubtitle, termsApartInTitle}
+	contractEveryTerm = []uuid.UUID{bothInTitle, titleAndContent, descriptionAndContent, descriptionThenContent, termsApartInTitle}
+	contractAnyTerm   = []uuid.UUID{
+		bothInTitle, titleAndContent, descriptionAndContent, tariffTitleAuthor, budgetTitleOnly,
+		budgetTitleSubtitle, descriptionThenContent, termsApartInTitle, tariffDescriptionOnly,
+	}
+	titleOrContentEveryTerm = []uuid.UUID{bothInTitle, titleAndContent, termsApartInTitle}
+	titleOrContentAnyTerm   = []uuid.UUID{
+		bothInTitle, titleAndContent, descriptionAndContent, tariffTitleAuthor, budgetTitleOnly,
+		budgetTitleSubtitle, descriptionThenContent, termsApartInTitle,
+	}
+)
+
+func ParityCases() []ParityCase {
+	return []ParityCase{
+		{
+			Name: "query string under the engine default operator",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return s.SearchStringQuery(ctx, query.NewQueryString("budget tariff"), page())
+			},
+			WantByEngine: map[Engine][]uuid.UUID{Postgres: contractEveryTerm, Elasticsearch: contractAnyTerm},
+		},
+		{
+			Name: "match with AND",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return s.SearchField(ctx, query.NewMatch("title", "budget tariff", query.WithMatchOperator(operator.And)), page())
+			},
+			Want: titleEveryTerm,
+		},
+		{
+			Name: "match with OR",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return s.SearchField(ctx, query.NewMatch("title", "budget tariff", query.WithMatchOperator(operator.Or)), page())
+			},
+			Want: titleAnyTerm,
+		},
+		{
+			Name: "match with OR reads a leading minus as text",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return s.SearchField(ctx, query.NewMatch("title", "budget -tariff", query.WithMatchOperator(operator.Or)), page())
+			},
+			Want: titleAnyTerm,
+		},
+		{
+			Name: "match with OR of words no article holds",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return s.SearchField(ctx, query.NewMatch("title", "the of", query.WithMatchOperator(operator.Or)), page())
+			},
+			Want: nil,
+		},
+		{
+			Name: "match under the engine default operator",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return s.SearchField(ctx, query.NewMatch("title", "budget tariff"), page())
+			},
+			WantByEngine: map[Engine][]uuid.UUID{Postgres: titleEveryTerm, Elasticsearch: titleAnyTerm},
+		},
+		{
+			Name: "multi_match with OR",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return searchFields(ctx, s, []string{"title", "content"}, query.WithMultiMatchOperator(operator.Or))
+			},
+			Want: titleOrContentAnyTerm,
+		},
+		{
+			Name: "multi_match under the engine default operator",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return searchFields(ctx, s, []string{"title", "content"})
+			},
+			WantByEngine: map[Engine][]uuid.UUID{Postgres: titleOrContentEveryTerm, Elasticsearch: titleOrContentAnyTerm},
+		},
+		{
+			Name: "boolean AND across the contract fields",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return s.SearchBoolean(ctx, &query.Boolean{Expression: "budget AND tariff"}, page())
+			},
+			Want: contractEveryTerm,
+		},
+		{
+			Name: "boolean OR across the contract fields",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return s.SearchBoolean(ctx, &query.Boolean{Expression: "budget OR tariff"}, page())
+			},
+			Want: contractAnyTerm,
+		},
+		{
+			// A tariff outside the contract fields does not exclude an article.
+			Name: "boolean NOT across the contract fields",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return s.SearchBoolean(ctx, &query.Boolean{Expression: "budget AND NOT tariff"}, page())
+			},
+			Want: []uuid.UUID{budgetTitleOnly, budgetTitleSubtitle},
+		},
+		{
+			Name: "boolean adjacent words under the engine default operator",
+			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
+				return s.SearchBoolean(ctx, &query.Boolean{Expression: "budget tariff"}, page())
+			},
+			WantByEngine: map[Engine][]uuid.UUID{Postgres: contractEveryTerm, Elasticsearch: contractAnyTerm},
+		},
+	}
+}
+
+func page() *query.BaseOptions {
+	return &query.BaseOptions{Size: 100}
+}
+
+func searchFields(ctx context.Context, s storage.FtsSearcher, fields []string, opts ...query.MultiMatchQueryOption) (*storage.SearchResult, error) {
+	q, err := query.NewMultiMatchQuery("budget tariff", fields, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return s.SearchFields(ctx, q, page())
+}
+
+// RunParity runs every ParityCase on a searcher whose engine holds exactly
+// ParityCorpus.
+func RunParity(t *testing.T, engine Engine, searcher storage.FtsSearcher) {
+	t.Helper()
+	for _, c := range ParityCases() {
+		t.Run(c.Name, func(t *testing.T) {
+			want, ok := c.WantByEngine[engine]
+			if !ok {
+				want = c.Want
+			}
+			res, err := c.Search(t.Context(), searcher)
+			if err != nil {
+				t.Fatalf("search: %v", err)
+			}
+			got := make([]uuid.UUID, 0, len(res.Hits))
+			for _, hit := range res.Hits {
+				got = append(got, hit.Article.ID)
+			}
+			if !slices.Equal(sortedIDs(got), sortedIDs(want)) {
+				t.Errorf("recall = %v, want %v", sortedIDs(got), sortedIDs(want))
+			}
+			if res.TotalMatches != int64(len(want)) {
+				t.Errorf("TotalMatches = %d, want %d", res.TotalMatches, len(want))
+			}
+		})
+	}
+}
+
+func sortedIDs(ids []uuid.UUID) []uuid.UUID {
+	out := slices.Clone(ids)
+	slices.SortFunc(out, func(a, b uuid.UUID) int { return slices.Compare(a[:], b[:]) })
+	return out
+}

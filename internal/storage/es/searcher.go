@@ -34,6 +34,10 @@ func NewSearcher(client *Client) *Searcher {
 	}
 }
 
+// DefaultOperator is what Elasticsearch's match and multi_match apply when a
+// request names no operator.
+const DefaultOperator = queryoperator.Or
+
 // SearchStringQuery matches the query's SearchContract with a cross_fields
 // multi_match, so each term may hit any contract field, as it does in the
 // Postgres search_vector. The contract language is not applied: analysis is
@@ -45,7 +49,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 	slog.Info("Executing es query_string search",
 		"query", query.Query,
 		"fields", contract.Fields,
-		"operator", contract.Operator,
+		"operator", queryoperator.Resolve(contract.Operator, DefaultOperator),
 		"language", contract.Language,
 		"has_cursor", cursor != nil,
 		"size", size)
@@ -120,7 +124,12 @@ func boostedFields(fields []dquery.FieldWeight) []string {
 	return boosted
 }
 
-func termOperator(op queryoperator.Operator) *operator.Operator {
+// termOperator is nil when the request names no operator, so Elasticsearch
+// applies its own default.
+func termOperator(op *queryoperator.Operator) *operator.Operator {
+	if op == nil {
+		return nil
+	}
 	termOp := operator.And
 	if op.IsOr() {
 		termOp = operator.Or
@@ -220,34 +229,20 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	slog.Info("Executing es match search",
 		"query", query.Query,
 		"field", query.Field,
-		"operator", query.GetOperator(),
+		"operator", queryoperator.Resolve(query.Operator, DefaultOperator),
 		"fuzziness", query.GetFuzziness(),
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	// Build single-field match query
 	matchQuery := &types.MatchQuery{
-		Query: query.Query,
-	}
-
-	// Set operator using value object
-	if query.GetOperator().IsAnd() {
-		and := operator.And
-		matchQuery.Operator = &and
-	} else {
-		or := operator.Or
-		matchQuery.Operator = &or
+		Query:    query.Query,
+		Operator: termOperator(query.Operator),
 	}
 
 	if fuzziness := query.GetFuzziness(); fuzziness != dquery.NoFuzziness {
 		editDistance := string(fuzziness)
 		matchQuery.Fuzziness = &editDistance
 	}
-
-	slog.Debug("Elasticsearch match query",
-		"field", query.Field,
-		"operator", query.GetOperator(),
-		"fuzziness", query.GetFuzziness())
 
 	// Build search request with match query on specific field
 	searchReq := r.client.Search().
@@ -310,13 +305,12 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	slog.Info("Executing es multi_match search",
 		"query", query.Query,
 		"fields", query.Fields,
-		"operator", query.GetOperator(),
+		"operator", queryoperator.Resolve(query.Operator, DefaultOperator),
 		"has_cursor", cursor != nil,
 		"size", size)
 
 	// Extract query parameters
 	fields := query.GetFields()
-	queryOperator := query.GetOperator()
 
 	// Build field list with boosting
 	fieldsWithWeight := make([]string, 0, len(fields))
@@ -330,17 +324,9 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 
 	// Build multi_match query
 	multiMatch := &types.MultiMatchQuery{
-		Query:  query.Query,
-		Fields: fieldsWithWeight,
-	}
-
-	// Set operator using value object
-	if queryOperator.IsAnd() {
-		and := operator.And
-		multiMatch.Operator = &and
-	} else {
-		or := operator.Or
-		multiMatch.Operator = &or
+		Query:    query.Query,
+		Fields:   fieldsWithWeight,
+		Operator: termOperator(query.Operator),
 	}
 
 	// Build and execute search request

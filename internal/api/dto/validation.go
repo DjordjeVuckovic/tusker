@@ -17,12 +17,17 @@ func parseLanguage(raw string) (query.Language, error) {
 	return lang, nil
 }
 
-func parseOperator(raw string) (operator.Operator, error) {
+// parseOperator returns nil for an empty value, so the engine applies its own
+// default operator.
+func parseOperator(raw string) (*operator.Operator, error) {
+	if raw == "" {
+		return nil, nil
+	}
 	op, err := operator.Parse(raw)
 	if err != nil {
-		return "", apperr.NewValidationWrap("invalid operator", err)
+		return nil, apperr.NewValidationWrap("invalid operator", err)
 	}
-	return op, nil
+	return &op, nil
 }
 
 // validateField rejects a field outside query.SearchableFields. Postgres would

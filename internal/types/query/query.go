@@ -227,9 +227,8 @@ type Match struct {
 	// Language: Prompt search language configuration
 	Language Language `json:"language,omitempty"`
 
-	// Operator: How to combine multiple terms
-	// Default: operator.Or
-	Operator operator.Operator `json:"operator,omitempty"`
+	// Operator combines the terms; nil leaves the engine's default.
+	Operator *operator.Operator `json:"operator,omitempty"`
 
 	// Fuzziness: Typo tolerance (general search concept)
 	// Elasticsearch: Native support via fuzziness parameter
@@ -243,14 +242,6 @@ func (q *Match) GetLanguage() Language {
 		return DefaultLanguage
 	}
 	return q.Language
-}
-
-// GetOperator returns the operator with default fallback
-func (q *Match) GetOperator() operator.Operator {
-	if q.Operator == "" {
-		return operator.Default
-	}
-	return q.Operator
 }
 
 func (q *Match) GetFuzziness() Fuzziness {
@@ -267,7 +258,6 @@ func NewMatch(field, query string, opts ...MatchQueryOption) *Match {
 		Field:     field,
 		Query:     query,
 		Language:  DefaultLanguage,
-		Operator:  operator.Default,
 		Fuzziness: NoFuzziness,
 	}
 
@@ -288,7 +278,7 @@ func WithMatchLanguage(lang Language) MatchQueryOption {
 // WithMatchOperator sets the operator for Match query
 func WithMatchOperator(op operator.Operator) MatchQueryOption {
 	return func(q *Match) {
-		q.Operator = op
+		q.Operator = &op
 	}
 }
 
@@ -344,9 +334,8 @@ type MultiMatch struct {
 	// Language: Prompt search language configuration
 	Language Language `json:"language,omitempty"`
 
-	// Operator: How to combine multiple terms
-	// Default: operator.Or
-	Operator operator.Operator `json:"operator,omitempty"`
+	// Operator combines the terms; nil leaves the engine's default.
+	Operator *operator.Operator `json:"operator,omitempty"`
 
 	MatchStrategy MultiMatchStrategy `json:"match_strategy,omitempty"`
 }
@@ -368,7 +357,6 @@ func NewMultiMatchQuery(query string, fields []string, opts ...MultiMatchQueryOp
 	q := &MultiMatch{
 		Query:         query,
 		Language:      DefaultLanguage,
-		Operator:      operator.Default,
 		MatchStrategy: MultiMatchBestFields,
 		Fields:        parsedFields,
 	}
@@ -388,7 +376,7 @@ func WithMultiMatchLanguage(lang Language) MultiMatchQueryOption {
 
 func WithMultiMatchOperator(op operator.Operator) MultiMatchQueryOption {
 	return func(q *MultiMatch) {
-		q.Operator = op
+		q.Operator = &op
 	}
 }
 
@@ -413,13 +401,6 @@ func (q *MultiMatch) GetLanguage() Language {
 
 func (q *MultiMatch) GetFields() []MultiMatchField {
 	return q.Fields
-}
-
-func (q *MultiMatch) GetOperator() operator.Operator {
-	if q.Operator == "" {
-		return operator.Default
-	}
-	return q.Operator
 }
 
 type Semantic struct {

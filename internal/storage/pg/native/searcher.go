@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/api/dto"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
+	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/DjordjeVuckovic/tusker/pkg/utils"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,18 +27,19 @@ func NewReader(pool *pg.ConnectionPool) (*Searcher, error) {
 func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	cursor, size := baseOpts.Cursor, baseOpts.Size
 	contract := query.Contract()
+	op := operator.Resolve(contract.Operator, DefaultOperator)
 	slog.Info("Executing pool query_string search",
 		"query", query.Query,
 		"fields", contract.Fields,
-		"operator", contract.Operator,
+		"operator", op,
 		"language", contract.Language,
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	whereClause := buildTsWhereClause(contract.Fields, contract.Language, contract.Operator, 1)
+	whereClause := buildTsWhereClause(contract.Fields, contract.Language, op, 1)
 	// The contract's boosts reach Elasticsearch only. Postgres ranks with its
 	// default weights, as the benchmark's Postgres arms do.
-	rankExpr := buildRankExpression(nil, contract.Language, contract.Operator, 1)
+	rankExpr := buildRankExpression(nil, contract.Language, op, 1)
 
 	var globalMaxScore float64
 	var count int64
@@ -96,20 +99,19 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 // Performs single-field match query using PostgreSQL's tsvector
 func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	cursor, size := baseOpts.Cursor, baseOpts.Size
+	lang := query.GetLanguage()
+	op := operator.Resolve(query.Operator, DefaultOperator)
 	slog.Info("Executing pool match search",
 		"query", query.Query,
 		"field", query.Field,
-		"operator", query.GetOperator(),
-		"language", query.GetLanguage(),
+		"operator", op,
+		"language", lang,
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	lang := query.GetLanguage()
-	operator := query.GetOperator()
-
 	fieldBoosts := []dquery.FieldWeight{{Field: dquery.Field(query.Field), Weight: 1.0}}
-	whereClause := buildTsWhereClause(fieldBoosts, lang, operator, 1)
-	rankExpr := buildRankExpression(fieldBoosts, lang, operator, 1)
+	whereClause := buildTsWhereClause(fieldBoosts, lang, op, 1)
+	rankExpr := buildRankExpression(fieldBoosts, lang, op, 1)
 
 	slog.Debug("PostgreSQL match query components",
 		"where", whereClause,
@@ -176,7 +178,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, baseOpts *dquery.BaseOptions) (*storage.SearchResult, error) {
 	cursor, size := baseOpts.Cursor, baseOpts.Size
 	lang := query.GetLanguage()
-	operator := query.GetOperator()
+	op := operator.Resolve(query.Operator, DefaultOperator)
 
 	fieldBoosts := make([]dquery.FieldWeight, 0, len(query.Fields))
 	for _, f := range query.Fields {
@@ -189,13 +191,13 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	slog.Info("Executing pool multi_match search",
 		"query", query.Query,
 		"fields", query.Fields,
-		"operator", operator,
+		"operator", op,
 		"language", lang,
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	whereClause := buildTsWhereClause(fieldBoosts, lang, operator, 1)
-	rankExpr := buildRankExpression(fieldBoosts, lang, operator, 1)
+	whereClause := buildTsWhereClause(fieldBoosts, lang, op, 1)
+	rankExpr := buildRankExpression(fieldBoosts, lang, op, 1)
 
 	slog.Info("PostgreSQL multi_match query components",
 		"where_clause", whereClause,
@@ -442,8 +444,10 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 
 	slog.Debug("Parsed boolean expression", "input", query.Expression, "tsquery", tsqueryStr)
 
+	// The expression matches the contract fields, as it does on Elasticsearch.
 	queryExpr := fmt.Sprintf("to_tsquery('%s'::regconfig, $1)", lang)
-	whereClause := fmt.Sprintf("search_vector @@ %s", queryExpr)
+	negated := strings.Contains(tsqueryStr, "!")
+	whereClause := buildFieldMatch(dquery.DefaultSearchContract().Fields, queryExpr, !negated)
 	rankExpr := fmt.Sprintf("ts_rank(search_vector, %s)", queryExpr)
 
 	var globalMaxScore float64

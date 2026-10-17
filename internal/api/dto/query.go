@@ -175,7 +175,9 @@ func (p *MatchParams) ToDomain() (*query.Match, error) {
 	if err != nil {
 		return nil, err
 	}
-	opts = append(opts, query.WithMatchOperator(op))
+	if op != nil {
+		opts = append(opts, query.WithMatchOperator(*op))
+	}
 
 	fuzziness, err := parseFuzziness(p.Fuzziness)
 	if err != nil {
@@ -202,7 +204,9 @@ func (p *MultiMatchParams) ToDomain() (*query.MultiMatch, error) {
 	if err != nil {
 		return nil, err
 	}
-	opts = append(opts, query.WithMultiMatchOperator(op))
+	if op != nil {
+		opts = append(opts, query.WithMultiMatchOperator(*op))
+	}
 
 	lang, err := parseLanguage(p.Language)
 	if err != nil {
