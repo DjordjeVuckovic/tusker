@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
 )
 
@@ -62,6 +63,7 @@ func (p IndexProvenance) Fields() []ProvenanceField {
 		for name, value := range d.Settings {
 			add("setting."+name, value)
 		}
+		addLoadFields(add, d.Load)
 	}
 	if d := p.Elasticsearch; d != nil {
 		add("version", d.Version)
@@ -72,6 +74,7 @@ func (p IndexProvenance) Fields() []ProvenanceField {
 		for path, field := range d.Fields {
 			add("field."+path, describeField(field))
 		}
+		addLoadFields(add, d.Load)
 	}
 	sort.Slice(fields, func(i, j int) bool { return fields[i].Name < fields[j].Name })
 	return fields
@@ -93,6 +96,7 @@ func (p IndexProvenance) Summary() string {
 		if len(d.Settings) > 0 {
 			parts = append(parts, "settings: "+formatSettings(d.Settings))
 		}
+		parts = appendLoadSummary(parts, d.Load)
 	}
 	if d := p.Elasticsearch; d != nil {
 		parts = append(parts, "elasticsearch "+d.Version, "index: "+d.Index)
@@ -100,6 +104,7 @@ func (p IndexProvenance) Summary() string {
 			parts = append(parts, "analyzers: "+strings.Join(analyzers, ", "))
 		}
 		parts = append(parts, fmt.Sprintf("fields: %d", len(d.Fields)))
+		parts = appendLoadSummary(parts, d.Load)
 	}
 	if p.Error != "" {
 		parts = append(parts, "error: "+p.Error)
@@ -127,6 +132,31 @@ func DiffProvenance(before, after *Report) []ProvenanceChange {
 		}
 	}
 	return changes
+}
+
+// addLoadFields records which packages the corpus was loaded from, so two
+// runs over different loads never read as the same index.
+func addLoadFields(add func(name, value string), load *storage.LoadRecord) {
+	if load == nil {
+		return
+	}
+	add("load.canonical.version", load.Canonical.Version)
+	add("load.embeddings.version", embeddingsVersion(load))
+	add("load.model_tag", load.ModelTag)
+}
+
+func appendLoadSummary(parts []string, load *storage.LoadRecord) []string {
+	if load == nil {
+		return append(parts, "load: "+notRecorded)
+	}
+	return append(parts, fmt.Sprintf("load: %s + %s (%s)", load.Canonical.Version, embeddingsVersion(load), load.ModelTag))
+}
+
+func embeddingsVersion(load *storage.LoadRecord) string {
+	if load.Embeddings == nil {
+		return "no embeddings"
+	}
+	return load.Embeddings.Version
 }
 
 func sharedEngines(a, b *Report) []string {
