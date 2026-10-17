@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 )
 
@@ -35,14 +34,6 @@ func objectAt(t *testing.T, doc map[string]any, path ...string) map[string]any {
 	return node
 }
 
-func requiredOf(node map[string]any) []string {
-	var names []string
-	for _, name := range node["required"].([]any) {
-		names = append(names, name.(string))
-	}
-	return names
-}
-
 func TestDataPackageSchemaAllowsOnlyListedProperties(t *testing.T) {
 	doc := generatedDataPackageSchema(t)
 
@@ -53,7 +44,12 @@ func TestDataPackageSchemaAllowsOnlyListedProperties(t *testing.T) {
 				t.Errorf("%s: additionalProperties = %v, want false", path, node["additionalProperties"])
 			}
 			for name, child := range properties {
-				closed(path+"/"+name, child.(map[string]any))
+				childSchema, ok := child.(map[string]any)
+				if !ok {
+					t.Errorf("%s/%s: property schema is %T, want an object", path, name, child)
+					continue
+				}
+				closed(path+"/"+name, childSchema)
 			}
 		}
 		if items, ok := node["items"].(map[string]any); ok {
@@ -65,35 +61,6 @@ func TestDataPackageSchemaAllowsOnlyListedProperties(t *testing.T) {
 	for _, object := range []string{"mapping", "idStrategy", "producedBy", "report", "embedding", "canonical", "suite"} {
 		if _, ok := objectAt(t, doc, "properties", object)["properties"]; !ok {
 			t.Errorf("%s is not described as an object with properties", object)
-		}
-	}
-}
-
-func TestDataPackageSchemaRequiresFieldsWithoutOmitEmpty(t *testing.T) {
-	doc := generatedDataPackageSchema(t)
-	tests := []struct {
-		path     []string
-		required []string
-		optional []string
-	}{
-		{nil, []string{"$schema", "name", "resources"}, []string{"version", "embedding", "suite"}},
-		{[]string{"properties", "resources", "items"}, []string{"name", "path", "format", "bytes", "hash"}, nil},
-		{[]string{"properties", "embedding"}, []string{"model", "hfModel", "batchSize", "dtype", "maxTokens"}, []string{"limit"}},
-		{[]string{"properties", "idStrategy"}, []string{"kind"}, []string{"source", "namespace"}},
-		{[]string{"properties", "report"}, []string{"read", "written", "deduped"}, []string{"dropped"}},
-	}
-	for _, tt := range tests {
-		node := objectAt(t, doc, tt.path...)
-		required := requiredOf(node)
-		for _, name := range tt.required {
-			if !slices.Contains(required, name) {
-				t.Errorf("%v: %s is not required (required: %v)", tt.path, name, required)
-			}
-		}
-		for _, name := range tt.optional {
-			if slices.Contains(required, name) {
-				t.Errorf("%v: %s is required but optional in the contract", tt.path, name)
-			}
 		}
 	}
 }

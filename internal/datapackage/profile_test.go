@@ -24,9 +24,11 @@ func (r ecmaRegexp) MatchString(s string) bool {
 
 func (r ecmaRegexp) String() string { return r.re.String() }
 
-func compileProfile(t *testing.T) *jsonschema.Schema {
+// compileSchema compiles the JSON schema file at path under the resource id
+// its references resolve against.
+func compileSchema(t *testing.T, path, id string) *jsonschema.Schema {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("testdata", "datapackage-profile-2.0.json"))
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,14 +44,19 @@ func compileProfile(t *testing.T) *jsonschema.Schema {
 		}
 		return ecmaRegexp{re}, nil
 	})
-	if err := c.AddResource(datapackage.Profile, doc); err != nil {
+	if err := c.AddResource(id, doc); err != nil {
 		t.Fatal(err)
 	}
-	schema, err := c.Compile(datapackage.Profile)
+	schema, err := c.Compile(id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return schema
+}
+
+func compileProfile(t *testing.T) *jsonschema.Schema {
+	t.Helper()
+	return compileSchema(t, filepath.Join("testdata", "datapackage-profile-2.0.json"), datapackage.Profile)
 }
 
 func TestWrittenDescriptorConformsToDataPackageV2Profile(t *testing.T) {

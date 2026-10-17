@@ -22,23 +22,7 @@ var descriptorSchemaPath = filepath.Join("..", "..", "api", "datapackage-spec", 
 
 func compileDescriptorSchema(t *testing.T) *jsonschema.Schema {
 	t.Helper()
-	raw, err := os.ReadFile(descriptorSchemaPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := jsonschema.NewCompiler()
-	if err := c.AddResource("datapackage-v1.json", doc); err != nil {
-		t.Fatal(err)
-	}
-	schema, err := c.Compile("datapackage-v1.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return schema
+	return compileSchema(t, descriptorSchemaPath, "datapackage-v1.json")
 }
 
 func validateDescriptor(t *testing.T, schema *jsonschema.Schema, descriptor []byte) error {
@@ -103,8 +87,7 @@ func representativePackages() map[string]datapackage.Package {
 	}
 }
 
-// writeDescriptor writes pkg with placeholder content for each resource and
-// returns the descriptor bytes Write produced.
+// writeDescriptor writes pkg with placeholder content for each resource.
 func writeDescriptor(t *testing.T, pkg datapackage.Package) []byte {
 	t.Helper()
 	dir := t.TempDir()
@@ -132,7 +115,6 @@ func TestEveryWrittenDescriptorShapeConformsToTheDescriptorSchema(t *testing.T) 
 	}
 }
 
-// edit decodes a descriptor, applies change, and encodes it again.
 func edit(t *testing.T, descriptor []byte, change func(doc map[string]any)) []byte {
 	t.Helper()
 	var doc map[string]any
