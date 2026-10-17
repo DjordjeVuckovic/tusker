@@ -272,3 +272,53 @@ func (e *templateStoringRecorder) RegisterSearchTemplate(_ context.Context, temp
 	e.stored = append(e.stored, template.ID)
 	return nil
 }
+
+// deadlineRecorder records, for every call, when it started and the deadline
+// its context carried.
+type deadlineRecorder struct {
+	name  string
+	calls []recordedDeadline
+}
+
+type recordedDeadline struct {
+	start       time.Time
+	deadline    time.Time
+	hasDeadline bool
+}
+
+func (e *deadlineRecorder) Execute(ctx context.Context, _ engine.Request) (*engine.Execution, error) {
+	deadline, ok := ctx.Deadline()
+	e.calls = append(e.calls, recordedDeadline{start: time.Now(), deadline: deadline, hasDeadline: ok})
+	// Calls a millisecond apart cannot share a deadline by accident of clock resolution.
+	time.Sleep(time.Millisecond)
+	return &engine.Execution{}, nil
+}
+
+func (e *deadlineRecorder) Name() string { return e.name }
+func (e *deadlineRecorder) Close() error { return nil }
+
+func TestRunAll_EveryExecutionGetsItsOwnDeadline(t *testing.T) {
+	const queryTimeout = time.Hour
+	bs := oneJobTrack(t, `queries:
+  - id: q1
+    engines:
+      pg: { query: "SELECT id FROM articles" }
+`, map[string]spec.Engine{"pg": postgres}, nil)
+	bs.Runs.QueryTimeout = queryTimeout
+	cfg := DefaultConfig()
+	cfg.WarmupRuns = 1
+	cfg.Runs = 2
+	pg := &deadlineRecorder{name: "pg"}
+
+	_, err := New(cfg).RunAll(context.Background(), bs, map[string]engine.Executor{"pg": pg})
+
+	require.NoError(t, err)
+	require.Len(t, pg.calls, cfg.WarmupRuns+cfg.Runs)
+	for i, call := range pg.calls {
+		require.True(t, call.hasDeadline, "execution %d (warmup first) ran without a deadline", i)
+		assert.False(t, call.deadline.After(call.start.Add(queryTimeout)), "execution %d deadline is past its query timeout", i)
+		if i > 0 {
+			assert.True(t, call.deadline.After(pg.calls[i-1].deadline), "execution %d reuses an earlier execution's deadline", i)
+		}
+	}
+}
