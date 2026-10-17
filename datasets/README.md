@@ -14,7 +14,7 @@ datasets/<ds>/
 
 `<tag-dir>` is the model tag with `:` replaced by `-`, e.g. `qwen3-embedding-0.6b@1024`.
 
-Descriptors and load records are committed. Everything else is gitignored and has to be fetched or regenerated.
+Git tracks each dataset's `README.md`, `mapping.yaml` and `kernel-metadata.json`, every `datapackage.json`, and the load records under `loads/`. It ignores the data: everything else under `raw/`, `canonical/` and `embeddings/`, and any `.csv`, `.json`, `.jsonl`, `.parquet`, `.npz` or `.gz` file elsewhere in `datasets/`. Fetch or regenerate those.
 
 ## Packages
 
