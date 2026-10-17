@@ -322,7 +322,7 @@ Key flags:
 - `--resume` — skip docs already graded (errors if the strategy, provider, model, prompt version or rubric version changed). `bm25` and `hybrid` skip only fully graded queries and regrade any other query whole, since their grades are relative to the pool
 - `--batch N` — override LLM batch size (`bm25` and `hybrid` grade each query's whole pool at once and refuse it)
 - `--concurrency N` — parallel Grade calls (per-doc mode)
-- `--allow-unjudged` — exit 0 even when some pooled docs are left unjudged
+- `--allow-unjudged` — exit 0 even when some pooled docs are left unjudged. A query with no usable terms still fails the run
 - `--force` — `manual` only: rewrite the placeholders from scratch. Without it, `manual` keeps every existing hand grade, adds `-1` placeholders for new pool docs, and refuses a file another judge wrote
 
 ### `bench run [<name>] [--judgments <S|path>] [--jobs <name,...>]`
