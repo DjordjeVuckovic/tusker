@@ -36,7 +36,7 @@ type Package struct {
 	Canonical     *Ref        `json:"canonical,omitempty"`
 	Suite         *Suite      `json:"suite,omitempty"`
 	Sources       []Source    `json:"sources,omitempty"`
-	Resources     []Resource  `json:"resources"`
+	Resources     []Resource  `json:"resources" schema:"required,minItems=1"`
 }
 
 // Resource is one file of the package. Path is relative to the descriptor;

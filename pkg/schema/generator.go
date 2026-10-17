@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"encoding"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -136,6 +137,10 @@ func (g *Generator) generateSchemaForType(t reflect.Type, isRoot bool) (*JSONSch
 		t = t.Elem()
 	}
 
+	if g.config.ClosedObjects && marshalsItself(t) {
+		return nil, fmt.Errorf("%s implements json.Marshaler or encoding.TextMarshaler, so its JSON shape is not its Go shape", t)
+	}
+
 	schema := &JSONSchema{}
 
 	// Only add schema reference to root elements unless configured otherwise
@@ -197,6 +202,10 @@ func (g *Generator) generateStructSchema(t reflect.Type, isRoot bool) (*JSONSche
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
+
+		if err := g.checkEncodableField(field); err != nil {
+			return nil, err
+		}
 
 		// Skip unexported fields
 		if !field.IsExported() {
@@ -442,28 +451,69 @@ func (g *Generator) validateSchemaConstraints(schema *JSONSchema) error {
 }
 
 func (g *Generator) getFieldName(field reflect.StructField) string {
-	jsonTag := field.Tag.Get("json")
-	if jsonTag == "" {
-		return strings.ToLower(field.Name[:1]) + field.Name[1:]
+	if name := jsonName(field); name != "" {
+		return name
 	}
-
-	parts := strings.Split(jsonTag, ",")
-	if parts[0] == "" {
-		return strings.ToLower(field.Name[:1]) + field.Name[1:]
+	if g.followsEncodingJSON() {
+		return field.Name
 	}
+	return strings.ToLower(field.Name[:1]) + field.Name[1:]
+}
 
-	return parts[0]
+// followsEncodingJSON reports whether the schema must match what
+// encoding/json writes exactly, rather than describe it loosely.
+func (g *Generator) followsEncodingJSON() bool {
+	return g.config.ClosedObjects || g.config.RequireUnlessOmitted
+}
+
+// checkEncodableField refuses, in the strict modes, a field whose JSON a
+// generated schema would describe wrongly.
+func (g *Generator) checkEncodableField(field reflect.StructField) error {
+	if field.Anonymous && jsonName(field) == "" && g.config.ClosedObjects {
+		return fmt.Errorf("field %s is embedded, and encoding/json flattens its keys into the parent", field.Name)
+	}
+	if !g.config.RequireUnlessOmitted || !field.IsExported() || field.Tag.Get("json") == "-" {
+		return nil
+	}
+	switch field.Type.Kind() {
+	case reflect.Pointer, reflect.Slice, reflect.Map:
+		if !omitsZero(field) && !strings.Contains(field.Tag.Get("schema"), "required") {
+			return fmt.Errorf("field %s is a %s that encoding/json writes as null when unset; add omitempty, or declare schema:\"required\" if it is never nil",
+				field.Name, field.Type.Kind())
+		}
+	}
+	return nil
+}
+
+var (
+	jsonMarshalerType = reflect.TypeFor[json.Marshaler]()
+	textMarshalerType = reflect.TypeFor[encoding.TextMarshaler]()
+)
+
+func marshalsItself(t reflect.Type) bool {
+	for _, candidate := range []reflect.Type{t, reflect.PointerTo(t)} {
+		if candidate.Implements(jsonMarshalerType) || candidate.Implements(textMarshalerType) {
+			return true
+		}
+	}
+	return false
+}
+
+func jsonName(field reflect.StructField) string {
+	name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+	return name
+}
+
+func omitsZero(field reflect.StructField) bool {
+	options := strings.Split(field.Tag.Get("json"), ",")[1:]
+	return slices.Contains(options, "omitempty") || slices.Contains(options, "omitzero")
 }
 
 func (g *Generator) isFieldRequired(field reflect.StructField) bool {
 	if strings.Contains(field.Tag.Get("schema"), "required") {
 		return true
 	}
-	if !g.config.RequireUnlessOmitted {
-		return false
-	}
-	options := strings.Split(field.Tag.Get("json"), ",")[1:]
-	return !slices.Contains(options, "omitempty") && !slices.Contains(options, "omitzero")
+	return g.config.RequireUnlessOmitted && !omitsZero(field)
 }
 
 func (g *Generator) getTypeComment(t reflect.Type) string {
