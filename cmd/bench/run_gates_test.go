@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -212,4 +213,52 @@ func TestRun_SpecDefaultJudgmentsPathIsRelativeToTheTrack(t *testing.T) {
 
 	require.NoError(t, err, "the test runs from cmd/bench, so only the track folder holds trec/")
 	assert.NotNil(t, tr.latestReport(t))
+}
+
+// A pool written with --allow-partial holds nothing from the cells it dropped,
+// so a run measuring one of them would score its hits as non-relevant.
+func TestRun_PartialPoolFailsTheCellsItDropped(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr bool
+	}{
+		{name: "the run measures the dropped cell", wantErr: true},
+		{name: "the run leaves the dropped engine out", args: []string{"--jobs", "a-only"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			relevant, other, unpooled := uuid.New(), uuid.New(), uuid.New()
+			b := &fakeIndex{
+				count:   10,
+				ranked:  map[string][]uuid.UUID{"q1": {other, relevant}, "q2": {unpooled, relevant}},
+				failing: map[string]bool{"q2": true},
+			}
+			cluster := fakeCluster(t, map[string]*fakeIndex{
+				"a": {count: 10, ranked: map[string][]uuid.UUID{"q1": {relevant, other}, "q2": {relevant}}},
+				"b": b,
+			})
+			tr := newLineageTrack(t, cluster)
+			_, err := execute(t, newPoolCmd(), tr.dir, "--allow-partial")
+			require.NoError(t, err)
+			pf, err := pool.ReadPoolFile(tr.poolPath())
+			require.NoError(t, err)
+			tr.writeJudgments(t, pf.Meta.RunID, map[string]map[uuid.UUID]int{
+				"q1": {relevant: 3, other: 0},
+				"q2": {relevant: 2},
+			})
+			b.failing = nil
+			before := seedLatest(t, tr)
+
+			_, err = execute(t, newRunCmd(), append([]string{tr.dir}, tt.args...)...)
+
+			if !tt.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "q2/b")
+			assertLatestUnchanged(t, tr, before)
+		})
+	}
 }

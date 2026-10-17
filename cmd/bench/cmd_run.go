@@ -57,8 +57,8 @@ latency without judgments; its report is marked latency_only and never becomes
 latest.json.
 
 The report is always written, but bench run exits non-zero and leaves
-latest.json alone when any (query, engine) execution errored or the judgments
-hold pooled docs left unjudged. latest.json also stays put unless the run took
+latest.json alone when any (query, engine) execution errored or is one the
+pool dropped (--allow-partial), or the judgments hold pooled docs left unjudged. latest.json also stays put unless the run took
 every spec job at the spec's warmup, iterations and K.`,
 		Example: `  bench run tracks/global-news-dataset/fts_quality
   bench run tracks/global-news-dataset/news_semantic
@@ -211,7 +211,7 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		LatencyOnly:  f.latencyOnly,
 		EngineParams: declaredEngineParams(bs),
 	}
-	failures := runFailures(result, judgments.coverage)
+	failures := runFailures(result, judgments)
 	rpt.Settings.Incomplete = append(slices.Clone(failures),
 		specDeviations(f, len(bs.Jobs) == specJobCount, measuredAsSpecified(runCfg, bs, defaultKValues(cmd)))...)
 
@@ -288,6 +288,8 @@ type runJudgments struct {
 	grades   map[string]map[string]int
 	meta     *meta.Meta
 	coverage judgmentCoverage
+	// dropped are the cells the pool was written without (--allow-partial).
+	dropped []meta.DroppedExecution
 }
 
 // loadRunJudgments resolves --judgments, else spec.defaults.judgments, and
@@ -327,6 +329,7 @@ func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJ
 		grades:   grades,
 		meta:     judgmentsMeta,
 		coverage: poolCoverage(currentPool, grades),
+		dropped:  currentPool.Meta.DroppedExecutions,
 	}, nil
 }
 
@@ -354,16 +357,34 @@ func poolCoverage(pf *pool.PoolFile, grades map[string]map[string]int) judgmentC
 }
 
 // runFailures lists why a finished run cannot stand as the track's result.
-func runFailures(result *runner.BenchmarkResult, coverage judgmentCoverage) []string {
+func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []string {
 	var failures []string
+	if cells := measuredDroppedCells(result, judgments.dropped); len(cells) > 0 {
+		failures = append(failures, fmt.Sprintf("the pool holds no documents for %d measured (query, engine) executions, so their hits score as non-relevant: %s; re-pool without --allow-partial",
+			len(cells), strings.Join(cells, ", ")))
+	}
 	if cells := erroredCells(result); len(cells) > 0 {
 		failures = append(failures, fmt.Sprintf("%d (query, engine) executions errored: %s", len(cells), strings.Join(cells, ", ")))
 	}
-	if coverage.unjudged > 0 {
+	if judgments.coverage.unjudged > 0 {
 		failures = append(failures, fmt.Sprintf("the judgments leave %d of %d pooled docs unjudged; finish judging (bench judge --resume)",
-			coverage.unjudged, coverage.pooled))
+			judgments.coverage.unjudged, judgments.coverage.pooled))
 	}
 	return failures
+}
+
+// measuredDroppedCells lists the dropped pool cells this run executed.
+func measuredDroppedCells(result *runner.BenchmarkResult, dropped []meta.DroppedExecution) []string {
+	var cells []string
+	for _, d := range dropped {
+		for _, jr := range result.Jobs {
+			if _, ran := jr.Results[d.QueryID][d.Engine]; ran {
+				cells = append(cells, d.QueryID+"/"+d.Engine)
+				break
+			}
+		}
+	}
+	return cells
 }
 
 func erroredCells(result *runner.BenchmarkResult) []string {
