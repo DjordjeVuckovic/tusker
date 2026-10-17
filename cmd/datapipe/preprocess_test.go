@@ -100,13 +100,18 @@ func parquetFile(t *testing.T, name string, rows ...rawShardRow) rawFile {
 
 const hubSource = "https://huggingface.co/datasets/example/news"
 
-// writeRawPackage lays out a raw package the way the fetch scripts do and
-// returns its folder.
-func writeRawPackage(t *testing.T, dir string, files ...rawFile) {
+// rawVersion is the top-level version the fetch scripts record: the Hugging
+// Face commit sha, or the Kaggle dataset version.
+const rawVersion = "0123abcd"
+
+// writeRawPackage lays out a raw package the way the fetch scripts do. An
+// empty version leaves the descriptor without one, as older fetches did.
+func writeRawPackage(t *testing.T, dir, version string, files ...rawFile) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	pkg := datapackage.Package{
-		Name: "test-news-raw",
+		Name:    "test-news-raw",
+		Version: version,
 		Sources: []datapackage.Source{
 			{Title: "Hugging Face example/news", Path: hubSource, Version: "0123abcd"},
 			{Title: "fetch notes", Path: "notes.txt"},
@@ -135,7 +140,7 @@ func newPreprocessRun(t *testing.T, mapping string, files ...rawFile) preprocess
 		outputRoot:  filepath.Join(dir, "canonical"),
 	}
 	require.NoError(t, os.WriteFile(run.mappingPath, []byte(mapping), 0o644))
-	writeRawPackage(t, run.rawDir, files...)
+	writeRawPackage(t, run.rawDir, rawVersion, files...)
 	return run
 }
 
@@ -295,6 +300,7 @@ func TestPreprocess_DescriptorAloneRecomputesItsVersion(t *testing.T) {
 	rawB, rawA := sha256Of(t, filepath.Join(run.rawDir, "b.csv")), sha256Of(t, filepath.Join(run.rawDir, "a.csv"))
 	assert.Equal(t, &datapackage.RawRef{
 		Name:      "test-news-raw",
+		Version:   rawVersion,
 		Resources: []datapackage.ResourceRef{{Name: "b.csv", Hash: rawB}, {Name: "a.csv", Hash: rawA}},
 	}, pkg.Raw)
 	assert.Equal(t, sha256Of(t, run.mappingPath), pkg.Mapping.Hash)
@@ -504,7 +510,7 @@ func TestPreprocess_RefusesAVersionThatDescribesOtherContent(t *testing.T) {
 
 func TestPreprocess_CancelledRunLeavesNoPackage(t *testing.T) {
 	rawDir := filepath.Join(t.TempDir(), "raw")
-	writeRawPackage(t, rawDir,
+	writeRawPackage(t, rawDir, rawVersion,
 		csvFile("a.csv", "title,text,url\nOne,Body,https://example.com/1\n"),
 		csvFile("b.csv", "title,text,url\nTwo,Body,https://example.com/2\n"),
 	)
@@ -567,4 +573,21 @@ func TestPreprocess_DerivesIDsFromTheURLWhenTheMappingNamesNoStrategy(t *testing
 	namespace, err := uuid.Parse(pkg.IDStrategy.Namespace)
 	require.NoError(t, err)
 	assert.Equal(t, uuid.NewSHA1(namespace, []byte("https://example.com/1")), rows.byURL["https://example.com/1"].ID)
+}
+
+func TestPreprocess_OmitsTheRawVersionWhenTheRawPackageHasNone(t *testing.T) {
+	run := newPreprocessRun(t, ccNewsLikeMapping, csvFile("part.csv", "title,text,url\nOne,Body,https://example.com/1\n"))
+	require.NoError(t, os.RemoveAll(run.rawDir))
+	writeRawPackage(t, run.rawDir, "", csvFile("part.csv", "title,text,url\nOne,Body,https://example.com/1\n"))
+
+	require.NoError(t, run.execute(t.Context()))
+
+	descriptor, err := os.ReadFile(filepath.Join(run.packageDir(t), datapackage.DescriptorName))
+	require.NoError(t, err)
+	var doc struct {
+		Raw map[string]json.RawMessage `json:"raw"`
+	}
+	require.NoError(t, json.Unmarshal(descriptor, &doc))
+	assert.Contains(t, doc.Raw, "name")
+	assert.NotContains(t, doc.Raw, "version")
 }
