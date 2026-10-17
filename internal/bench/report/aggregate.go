@@ -178,6 +178,7 @@ func generateJobReport(scope jobScope) JobReport {
 				ReturnedCount: qr.ReturnedCount,
 				CorpusMatches: qr.CorpusMatches,
 				Latency:       fromRunnerLatencyStats(qr.Latency),
+				Ranking:       rankDerivedScores(qr.RankedDocIDs),
 			}
 			if qr.Error != nil {
 				entry.Error = qr.Error.Error()

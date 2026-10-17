@@ -63,6 +63,8 @@ func executeExport(cmd *cobra.Command, f exportFlags, args []string) error {
 		return exportHTML(cmd, f, args)
 	case "markdown", "md":
 		return exportMarkdown(cmd, f, args)
+	case "run":
+		return exportRun(cmd, f, args)
 	default:
 		return fmt.Errorf("unknown format %q (choose qrels, html, or markdown)", f.format)
 	}
@@ -153,5 +155,37 @@ func exportHTML(cmd *cobra.Command, f exportFlags, args []string) error {
 		return fmt.Errorf("write HTML report: %w", err)
 	}
 	printDone(cmd.OutOrStdout(), "HTML report written: "+outPath)
+	return nil
+}
+
+// exportRun writes the latest report's rankings as TREC run files, one per job
+// and engine, into --output or reports/<run_id>.run/.
+func exportRun(cmd *cobra.Command, f exportFlags, args []string) error {
+	tr, err := trackctx.Resolve(trackInputs(f.trackArg, args))
+	if err != nil {
+		return err
+	}
+
+	rpt, err := report.ReadLatestReport(tr.LatestReportPath())
+	if err != nil {
+		return fmt.Errorf("read latest report: %w", err)
+	}
+
+	outDir := f.output
+	if outDir == "" {
+		runID := rpt.Provenance.RunID
+		if runID == "" {
+			runID = "report"
+		}
+		outDir = filepath.Join(filepath.Dir(tr.LatestReportPath()), runID+".run")
+	}
+
+	paths, err := report.WriteTRECRuns(rpt, outDir)
+	if err != nil {
+		return fmt.Errorf("write TREC runs: %w", err)
+	}
+	for _, path := range paths {
+		printDone(cmd.OutOrStdout(), "TREC run written: "+path)
+	}
 	return nil
 }

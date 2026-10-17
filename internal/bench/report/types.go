@@ -6,6 +6,7 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
+	"github.com/google/uuid"
 )
 
 // Report is the root artifact produced by bench run. It has exactly two
@@ -117,6 +118,17 @@ type Entry struct {
 	CorpusMatches *int64
 	Latency       LatencyStats
 	Error         string
+	// Ranking is what the engine returned, best first; nil in reports written
+	// before rankings were recorded.
+	Ranking []RankedDoc `json:",omitempty"`
+}
+
+// RankedDoc is one retrieved document. Engines report no scores today, so
+// Score is derived from rank: it strictly decreases down the list, which is
+// all trec_eval reads from it.
+type RankedDoc struct {
+	DocID uuid.UUID `json:"doc_id"`
+	Score float64   `json:"score"`
 }
 
 type AggregatedEntry struct {
