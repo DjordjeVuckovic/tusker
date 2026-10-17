@@ -84,15 +84,16 @@ func TestEsExecutor_Execute_ReportsCorpusMatchesOnlyWhenCounted(t *testing.T) {
 		total string
 		want  *int64
 	}{
-		{name: "counted every match", total: `{"value": 2466, "relation": "eq"}`, want: ptr(int64(2466))},
-		{name: "stopped counting at track_total_hits", total: `{"value": 10000, "relation": "gte"}`},
-		{name: "relation absent", total: `{"value": 42}`, want: ptr(int64(42))},
+		{name: "counted every match", total: `"total": {"value": 2466, "relation": "eq"}, `, want: ptr(int64(2466))},
+		{name: "stopped counting at track_total_hits", total: `"total": {"value": 10000, "relation": "gte"}, `},
+		{name: "relation absent", total: `"total": {"value": 42}, `, want: ptr(int64(42))},
+		{name: "total absent with track_total_hits false"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			es := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				_, _ = w.Write([]byte(`{"hits": {"total": ` + tt.total + `, "hits": [{"_source": {"id": "` + docID.String() + `"}}]}}`))
+				_, _ = w.Write([]byte(`{"hits": {` + tt.total + `"hits": [{"_source": {"id": "` + docID.String() + `"}}]}}`))
 			}))
 			defer es.Close()
 

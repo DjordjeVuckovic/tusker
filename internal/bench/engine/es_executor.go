@@ -400,19 +400,20 @@ type esSearchResponse struct {
 }
 
 type esHits struct {
-	Total esTotal `json:"total"`
-	Hits  []esHit `json:"hits"`
+	Total *esTotal `json:"total"`
+	Hits  []esHit  `json:"hits"`
 }
 
-// esTotal is ES hits.total. Relation is "gte" when ES stopped counting at
-// track_total_hits rather than counting every match.
+// esTotal is ES hits.total, absent when track_total_hits is false. Relation is
+// "gte" when ES stopped counting at track_total_hits rather than counting every
+// match.
 type esTotal struct {
 	Value    int64  `json:"value"`
 	Relation string `json:"relation"`
 }
 
-func (t esTotal) exactCount() *int64 {
-	if t.Relation == "gte" {
+func (t *esTotal) exactCount() *int64 {
+	if t == nil || t.Relation == "gte" {
 		return nil
 	}
 	v := t.Value
