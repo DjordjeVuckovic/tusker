@@ -11,9 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// searchIndexKnobs is what an engine's search index declares beyond the shared
-// build settings: settings to read back after the index stages, the subset
-// only the server start can declare, and a look at the finished index.
+// searchIndexKnobs is what an engine's search index declares beyond the shared build settings.
 type searchIndexKnobs struct {
 	settings        []string
 	startupSettings []string
@@ -24,14 +22,13 @@ var engineKnobs = map[storage.Engine]searchIndexKnobs{
 	storage.ParadeDB: {inspect: inspectParadeIndex},
 	storage.Tiger: {
 		settings: []string{"pg_textsearch.memory_limit", "pg_textsearch.segments_per_level", "pg_textsearch.memtable_spill_threshold"},
-		// memory_limit is a sighup setting, which no migration can SET.
+		// memory_limit is sighup, so no migration can SET it.
 		startupSettings: []string{"pg_textsearch.memory_limit"},
 		inspect:         inspectTigerIndex,
 	},
 }
 
-// refuseUndeclared fails when the server took a startup setting from the
-// extension's built-in default rather than from its configuration.
+// refuseUndeclared fails on a startup setting left at the extension's default.
 func refuseUndeclared(ctx context.Context, conn *pgx.Conn, names []string) error {
 	for _, name := range names {
 		var source string
@@ -50,9 +47,7 @@ const (
 	tigerSearchIndex  = "idx_articles_bm25"
 )
 
-// inspectParadeIndex records the bm25 options the catalog holds and refuses an
-// index of more than one segment, the layout Elasticsearch's force-merge to one
-// produces.
+// inspectParadeIndex refuses more than one segment, matching Elasticsearch's force-merge to one.
 func inspectParadeIndex(ctx context.Context, conn *pgx.Conn, settings map[string]string) error {
 	var options []string
 	err := conn.QueryRow(ctx, "SELECT coalesce(reloptions, '{}') FROM pg_class WHERE oid = to_regclass($1)", paradeSearchIndex).Scan(&options)
@@ -79,8 +74,7 @@ func inspectParadeIndex(ctx context.Context, conn *pgx.Conn, settings map[string
 	return nil
 }
 
-// tigerSegmentTotal finds the segment total in bm25_summarize_index's report,
-// the only place pg_textsearch 1.1.0 states it.
+// pg_textsearch 1.1.0 states the segment total only in bm25_summarize_index.
 var tigerSegmentTotal = regexp.MustCompile(`Total: (\d+) segments`)
 
 func inspectTigerIndex(ctx context.Context, conn *pgx.Conn, settings map[string]string) error {

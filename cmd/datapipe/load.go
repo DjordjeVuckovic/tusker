@@ -123,8 +123,7 @@ func runLoad(ctx context.Context, out io.Writer, opts loadOptions) error {
 	return nil
 }
 
-// derivedRecordsDir maps datasets/<ds>/canonical/<version>/ to
-// datasets/<ds>/loads/<engine>/.
+// derivedRecordsDir maps datasets/<ds>/canonical/<version>/ to datasets/<ds>/loads/<engine>/.
 func derivedRecordsDir(canonical string, engine storage.Engine) (string, error) {
 	if strings.Contains(canonical, "://") {
 		return "", fmt.Errorf("canonical package %s is remote; pass --records-dir", canonical)
@@ -143,8 +142,7 @@ func derivedRecordsDir(canonical string, engine storage.Engine) (string, error) 
 	return filepath.Join(filepath.Dir(filepath.Dir(dir)), "loads", string(engine)), nil
 }
 
-// writeLoadRecord writes record as <startedAt>.json and never replaces an
-// existing record.
+// writeLoadRecord never replaces an existing record.
 func writeLoadRecord(dir string, record storage.LoadRecord) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create %s: %w", dir, err)
@@ -153,7 +151,7 @@ func writeLoadRecord(dir string, record storage.LoadRecord) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("encode load record: %w", err)
 	}
-	// No ':' in the name, so the record checks out on every filesystem.
+	// Windows forbids ':' in file names.
 	path := filepath.Join(dir, record.StartedAt.UTC().Format("2006-01-02T15-04-05.000000Z")+".json")
 	tmp, err := os.CreateTemp(dir, ".load-record-*")
 	if err != nil {
@@ -173,7 +171,6 @@ func writeLoadRecord(dir string, record storage.LoadRecord) (string, error) {
 	return path, nil
 }
 
-// loadInputs are the verified packages a load reads.
 type loadInputs struct {
 	canonical      *datapackage.Opened
 	articles       *datapackage.ResourceFile
@@ -184,8 +181,7 @@ type loadInputs struct {
 	vectorsHash    string
 }
 
-// openLoadInputs checks both descriptors before reading any resource, then
-// verifies each resource against its hash.
+// openLoadInputs checks both descriptors before it reads either resource.
 func openLoadInputs(ctx context.Context, opts loadOptions) (*loadInputs, error) {
 	inputs := &loadInputs{}
 	if err := inputs.open(ctx, opts); err != nil {
@@ -247,8 +243,7 @@ func describedResource(pkg datapackage.Package, name string) (datapackage.Resour
 	return datapackage.Resource{}, &datapackage.ResourceNotFoundError{Package: pkg.Name, Name: name}
 }
 
-// checkEmbeddings refuses vectors not embedded from the canonical resource
-// being loaded, and a --limit trial unless the caller asked for one.
+// checkEmbeddings refuses vectors from another canonical resource, and an unrequested trial.
 func checkEmbeddings(pkg datapackage.Package, canonicalHash string, trial bool) error {
 	if pkg.Embedding == nil || pkg.Embedding.Tag == "" {
 		return fmt.Errorf("embeddings package %s does not record its model tag", pkg.Name)
@@ -326,7 +321,6 @@ func canonicalArticles(ctx context.Context, file *datapackage.ResourceFile, form
 
 		readCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		// A single worker keeps the file's row order.
 		records, err := source.ReadParallel(readCtx, 1)
 		if err != nil {
 			yield(document.Article{}, fmt.Errorf("read canonical resource: %w", err))
@@ -349,16 +343,14 @@ func canonicalArticles(ctx context.Context, file *datapackage.ResourceFile, form
 			}
 			row++
 		}
-		// The reader also closes its channel on cancel, which must not read as
-		// the end of the corpus.
+		// The reader closes records on cancel too; that is not the end of the corpus.
 		if err := ctx.Err(); err != nil {
 			yield(document.Article{}, err)
 		}
 	}
 }
 
-// embeddingRow needs `,list` to read the 3-level LIST encoding pyarrow writes,
-// which parquet-go otherwise decodes to nil.
+// embeddingRow needs ,list to read pyarrow's 3-level LIST encoding.
 type embeddingRow struct {
 	ID        string    `parquet:"id"`
 	Embedding []float32 `parquet:"embedding,list"`

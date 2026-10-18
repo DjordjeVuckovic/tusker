@@ -2,7 +2,6 @@ package storage
 
 import "fmt"
 
-// Engine names one search engine a corpus is loaded into.
 type Engine string
 
 const (
@@ -23,7 +22,6 @@ func ParseEngine(s string) (Engine, error) {
 	return "", fmt.Errorf("unknown engine %q: want one of %q", s, engines)
 }
 
-// Type is the storage backend the engine runs on.
 func (e Engine) Type() Type {
 	switch e {
 	case PostgresNative, ParadeDB, Tiger:

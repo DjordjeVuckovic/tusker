@@ -32,7 +32,6 @@ var databases atomic.Int64
 
 var fixtureNamespace = uuid.MustParse("3b1f6f0e-2a4c-4d3e-9b1a-7c2d5e8f9a10")
 
-// declaredIndexes lists every index each engine must have after a full load.
 var declaredIndexes = map[storage.Engine][]string{
 	storage.PostgresNative: {
 		"idx_articles_search_vector", "idx_articles_title_trgm", "idx_articles_title_desc_trgm",
@@ -42,8 +41,6 @@ var declaredIndexes = map[storage.Engine][]string{
 	storage.Tiger:    {"idx_articles_bm25", "idx_articles_published_at", "idx_articles_publisher_domain", "idx_article_embedding"},
 }
 
-// declaredSettings is what each engine's index migrations declare, as the
-// engine reports it back after a load of the fixture corpus.
 var declaredSettings = map[storage.Engine]map[string]string{
 	storage.PostgresNative: {
 		"maintenance_work_mem":             "1GB",
@@ -262,8 +259,7 @@ func TestCorpusLoader(t *testing.T) {
 			if engine == storage.ParadeDB {
 				t.Run("builds the bm25 index as one segment", func(t *testing.T) {
 					db := newDatabase(t, server.ConnString)
-					// Big enough for Postgres to plan parallel build workers, each
-					// of which writes its own segment unless the index caps them.
+					// Enough rows for parallel build workers, each writing its own segment.
 					const rows = 20_000
 					articles, _ := fixture(rows)
 					for i := range articles {
@@ -383,8 +379,6 @@ func loadWithContext(ctx context.Context, t *testing.T, connString string, engin
 	return loader.LoadCorpus(ctx, c, opts)
 }
 
-// newDatabase creates an empty database on the server, so each case loads
-// into a target nothing else has touched.
 func newDatabase(t *testing.T, serverConnString string) string {
 	t.Helper()
 	ctx := context.Background()
@@ -494,7 +488,6 @@ func query(t *testing.T, connString string, run func(*pgx.Conn) error) {
 	require.NoError(t, run(conn))
 }
 
-// indexDefinitions maps each index on the corpus tables to pg_indexes.indexdef.
 func indexDefinitions(t *testing.T, connString string) map[string]string {
 	t.Helper()
 	ctx := context.Background()

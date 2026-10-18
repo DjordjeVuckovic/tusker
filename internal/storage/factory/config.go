@@ -27,8 +27,6 @@ func LoadEnv() (*StorageConfig, error) {
 	return LoadEnvFor(storageType)
 }
 
-// LoadEnvFor reads the connection settings of the given backend from the
-// environment.
 func LoadEnvFor(storageType storage.Type) (*StorageConfig, error) {
 	if storageType != storage.ES && storageType != storage.PG && storageType != storage.InMem {
 		slog.Error("Invalid STORAGE_TYPE environment variable value", "value", storageType)

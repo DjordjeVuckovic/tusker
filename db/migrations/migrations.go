@@ -1,6 +1,4 @@
-// Package migrations embeds each Postgres engine's schema and index
-// migrations and applies them in golang-migrate's version-table format, so the
-// migrate CLI and the corpus loader agree on what is applied.
+// Package migrations applies each Postgres engine's migrations in golang-migrate's format.
 package migrations
 
 import (
@@ -27,16 +25,15 @@ const (
 	indexesTable = "schema_migrations_indexes"
 )
 
-// Set is one directory of migrations and the version table that tracks it.
+// Set is one directory of migrations and its version table.
 type Set struct {
 	files fs.FS
 	table string
 }
 
-// Schema holds the engine's tables and generated columns.
 func Schema(e storage.Engine) (Set, error) { return newSet(e, "schema", schemaTable) }
 
-// Indexes holds the engine's indexes, one migration per index.
+// Indexes holds one migration per index.
 func Indexes(e storage.Engine) (Set, error) { return newSet(e, "indexes", indexesTable) }
 
 func newSet(e storage.Engine, dir, table string) (Set, error) {
@@ -50,14 +47,13 @@ func newSet(e storage.Engine, dir, table string) (Set, error) {
 	return Set{files: sub, table: table}, nil
 }
 
-// Migration is one up file; Name is its file name minus version and suffix.
+// Migration is one up file; Name drops the version and suffix.
 type Migration struct {
 	Version uint64
 	Name    string
 	file    string
 }
 
-// upFile is golang-migrate's file name pattern, restricted to up migrations.
 var upFile = regexp.MustCompile(`^([0-9]+)_(.*)\.up\.sql$`)
 
 func (s Set) Migrations() ([]Migration, error) {
@@ -81,7 +77,7 @@ func (s Set) Migrations() ([]Migration, error) {
 	return list, nil
 }
 
-// DirtyError reports a version table left dirty by a migration that failed midway.
+// DirtyError reports a migration that failed midway.
 type DirtyError struct {
 	Table   string
 	Version uint64
@@ -114,8 +110,7 @@ func (s Set) Version(ctx context.Context, conn *pgx.Conn) (version uint64, ok bo
 	return version, true, nil
 }
 
-// Pending lists the migrations after the applied version. A database at a
-// version the set does not hold was migrated from other files and is refused.
+// Pending refuses a database at a version the set does not hold.
 func (s Set) Pending(ctx context.Context, conn *pgx.Conn) ([]Migration, error) {
 	all, err := s.Migrations()
 	if err != nil {
@@ -132,8 +127,7 @@ func (s Set) Pending(ctx context.Context, conn *pgx.Conn) ([]Migration, error) {
 	return all[at+1:], nil
 }
 
-// Apply runs one migration on conn and records its version. A failed
-// migration leaves the version dirty, as golang-migrate does.
+// Apply leaves the version dirty when the migration fails, as golang-migrate does.
 func (s Set) Apply(ctx context.Context, conn *pgx.Conn, m Migration) error {
 	body, err := fs.ReadFile(s.files, m.file)
 	if err != nil {

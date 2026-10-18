@@ -21,8 +21,7 @@ import (
 
 var _ storage.CorpusLoader = (*CorpusLoader)(nil)
 
-// CorpusLoader builds one Postgres engine's corpus: schema migrations, COPY
-// of articles and vectors, then each index migration, timed one by one.
+// CorpusLoader migrates the schema, copies the corpus, then times each index build.
 type CorpusLoader struct {
 	pool    *ConnectionPool
 	engine  storage.Engine
@@ -30,9 +29,7 @@ type CorpusLoader struct {
 	indexes migrations.Set
 }
 
-// NewCorpusLoader loads into the database pool connects to, which must run
-// engine. The pool must not register the vector types, since the extension
-// may not exist until the schema migrations run.
+// NewCorpusLoader needs a pool that skips vector types; the schema migrations create them.
 func NewCorpusLoader(pool *ConnectionPool, engine storage.Engine) (*CorpusLoader, error) {
 	schema, err := migrations.Schema(engine)
 	if err != nil {
@@ -45,8 +42,7 @@ func NewCorpusLoader(pool *ConnectionPool, engine storage.Engine) (*CorpusLoader
 	return &CorpusLoader{pool: pool, engine: engine, schema: schema, indexes: indexes}, nil
 }
 
-// LoadCorpus refuses a database that already holds a corpus or its indexes:
-// the caller drops the schema first, so a load never lands on stale state.
+// LoadCorpus refuses a database that already holds a corpus or its indexes.
 func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts storage.LoadOptions) (storage.LoadRecord, error) {
 	if err := validateCorpus(c, opts); err != nil {
 		return storage.LoadRecord{}, err
@@ -62,8 +58,7 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 		Settings:   map[string]string{},
 	}
 
-	// One session runs the whole load, so the settings an index migration
-	// declares can be read back from it; closing it keeps them out of the pool.
+	// One session, so index settings read back from it and never reach the pool.
 	pooled, err := l.pool.conn.Acquire(ctx)
 	if err != nil {
 		return storage.LoadRecord{}, fmt.Errorf("acquire connection: %w", err)
@@ -135,8 +130,7 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 	}
 
 	record.FinishedAt = now()
-	// Without its indexes the corpus is not the one a bench run measures, so
-	// it gets no load record.
+	// An unindexed corpus is not what a bench run measures, so corpus_load skips it.
 	if opts.SkipIndex {
 		return record, nil
 	}
@@ -146,7 +140,6 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 	return record, nil
 }
 
-// engineVersion is the server version followed by each search extension's.
 func engineVersion(ctx context.Context, conn *pgx.Conn) (string, error) {
 	var version strings.Builder
 	var server string
@@ -180,7 +173,6 @@ func validateCorpus(c storage.Corpus, opts storage.LoadOptions) error {
 	return nil
 }
 
-// loadLockKey is the advisory lock that keeps two loads off one database.
 const loadLockKey = 0x7475736b6572 // "tusker"
 
 func lockLoad(ctx context.Context, conn *pgx.Conn) error {
@@ -213,11 +205,9 @@ func (l *CorpusLoader) refuseLoaded(ctx context.Context, conn *pgx.Conn) error {
 	return nil
 }
 
-// indexBuildSettings are the session settings every index migration declares.
 var indexBuildSettings = []string{"maintenance_work_mem", "max_parallel_maintenance_workers"}
 
-// buildIndexes refuses index migrations that disagree on a build setting,
-// since the record holds one value per setting.
+// buildIndexes refuses migrations that disagree on a build setting; the record holds one value each.
 func (l *CorpusLoader) buildIndexes(ctx context.Context, conn *pgx.Conn, record *storage.LoadRecord) error {
 	pending, err := l.indexes.Pending(ctx, conn)
 	if err != nil {
@@ -251,8 +241,7 @@ func (l *CorpusLoader) buildIndexes(ctx context.Context, conn *pgx.Conn, record 
 	return nil
 }
 
-// now is microsecond UTC, the precision timestamptz keeps, so a record read
-// back from corpus_load equals the one returned.
+// now truncates to timestamptz's microseconds, so records round-trip through corpus_load.
 func now() time.Time {
 	return time.Now().UTC().Truncate(time.Microsecond)
 }
@@ -286,8 +275,7 @@ func copyArticles(ctx context.Context, tx pgx.Tx, c storage.Corpus, batchSize in
 	return ids, nil
 }
 
-// copyVectors refuses a vector out of step with the articles, which also
-// refuses one whose article is not in the corpus.
+// copyVectors refuses any vector out of step with the articles, orphans included.
 func copyVectors(ctx context.Context, tx pgx.Tx, c storage.Corpus, ids []uuid.UUID, batchSize int) (int64, error) {
 	var n int64
 	toRow := func(v embedding.Vec) ([]any, error) {
@@ -334,8 +322,7 @@ func copyBatches[T any](ctx context.Context, tx pgx.Tx, plan copyPlan[T]) error 
 	return nil
 }
 
-// batchSource is a pgx.CopyFromSource that ends after left rows, so one
-// iterator feeds consecutive COPY statements.
+// batchSource ends after left rows, so one iterator feeds consecutive COPYs.
 type batchSource[T any] struct {
 	next      func() (T, error, bool)
 	toRow     func(T) ([]any, error)

@@ -28,8 +28,7 @@ const loadFixtureModelTag = "qwen3-embedding:0.6b@1024"
 
 var loadFixtureNamespace = uuid.MustParse("5a0c2f3e-8d41-4b6a-9e2f-1c7b3d9a6e54")
 
-// producerRow is independent of the loader's row type and forces the 3-level
-// LIST encoding pyarrow writes.
+// producerRow writes pyarrow's 3-level LIST encoding.
 type producerRow struct {
 	ID        string    `parquet:"id"`
 	Embedding []float32 `parquet:"embedding,list"`

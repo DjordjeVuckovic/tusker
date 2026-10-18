@@ -19,9 +19,7 @@ type PGContainer struct {
 	ConnString string
 }
 
-// PGConfig selects the database a container starts. Engine defaults to
-// storage.PostgresNative. The engine's schema and index migrations are
-// applied unless Unmigrated is set.
+// PGConfig defaults Engine to storage.PostgresNative and migrates unless Unmigrated is set.
 type PGConfig struct {
 	Database   string
 	Username   string
@@ -36,8 +34,7 @@ var engineImages = map[storage.Engine]string{
 	storage.Tiger:          "timescale/timescaledb-ha:pg18",
 }
 
-// engineServerFlags declares the settings only a server start can set, as
-// docker-compose.yml does for the same engine.
+// engineServerFlags mirrors the server-start settings in docker-compose.yml.
 var engineServerFlags = map[storage.Engine][]string{
 	storage.Tiger: {"-c", "pg_textsearch.memory_limit=2GB"},
 }
@@ -51,8 +48,7 @@ func NewPGContainerWithCleanup(ctx context.Context, tb testing.TB) *PGContainer 
 	return NewPGContainerWithConfig(ctx, tb, PGConfig{})
 }
 
-// NewPGContainerWithConfig starts the container cfg describes and terminates
-// it when the test ends. An empty Database means news_test_db as test/test.
+// NewPGContainerWithConfig defaults an empty Database to news_test_db as test/test.
 func NewPGContainerWithConfig(ctx context.Context, tb testing.TB, cfg PGConfig) *PGContainer {
 	tb.Helper()
 	if testing.Short() {

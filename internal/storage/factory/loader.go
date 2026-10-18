@@ -10,23 +10,20 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 )
 
-// LoaderConfig selects the engine a corpus is loaded into and how to reach it.
 type LoaderConfig struct {
 	Engine storage.Engine
 	Pg     *pg.PoolConfig
 	Es     *es.ClientConfig
 }
 
-// NewCorpusLoader returns the engine's loader and a func that releases its
-// connections.
+// NewCorpusLoader returns the loader and a func that closes its connections.
 func NewCorpusLoader(ctx context.Context, cfg LoaderConfig) (storage.CorpusLoader, func(), error) {
 	switch cfg.Engine.Type() {
 	case storage.PG:
 		if cfg.Pg == nil {
 			return nil, nil, errors.New("postgres config is not set")
 		}
-		// The loader registers the vector types itself once its schema
-		// migrations have created them.
+		// The loader registers vector types after its migrations create them.
 		pool, err := pg.NewConnectionPool(ctx, pg.PoolConfig{ConnStr: cfg.Pg.ConnStr})
 		if err != nil {
 			return nil, nil, fmt.Errorf("connect to %s: %w", cfg.Engine, err)
