@@ -341,6 +341,35 @@ Retrieval depth is the suite's own `limit` param (or ES `size`); there is no run
 
 Elapsed time is printed after the results table.
 
+#### Measurement
+
+Every engine is measured under the same rules, so a latency or a failure means the same thing whichever engine produced it.
+
+Each execution, warmup and measured alike, runs under one deadline: `runs.query_timeout` in the spec, 30 s when unset, for every engine type. The runner sets it and no engine client carries a timeout of its own, so a postgres query that runs past it fails the same way an elasticsearch one does. Storing the suite's search templates on an engine is bounded by the same deadline. `bench validate` checks each query under the same deadline. Elasticsearch calls made with no deadline, such as the corpus count, stop at the 30 s default.
+
+```yaml
+runs:
+  warmup: 1
+  iterations: 3
+  query_timeout: 30s
+```
+
+`bench pool` runs a job's queries all at once, at most as many executions at a time as the job has engines, and they may all land on one postgres engine. Waiting for a pool connection counts against the deadline, so a postgres engine queues there only when the job has more engines than its `pool_max_conns` (pgx default: 4 or the CPU count, whichever is larger); otherwise a pool timeout means the query itself ran past `query_timeout`.
+
+The clock covers sending the query and receiving the whole result. For postgres that means reading every row; for elasticsearch and the API it means reading the full response body. Decoding the result into document ids happens after the clock stops, on every engine.
+
+One failed measured iteration fails the query with that iteration's error, so a timeout can never vanish from p95, p99 and max behind the iterations that succeeded. A failed warmup does not fail the query; it is logged with the query and the engine.
+
+Every engine ships the same payload: document ids only. Postgres templates `SELECT id`, so elasticsearch templates set `"_source": false`. Without it each hit carries the full article and its 1024-dim embedding, and a `size: 100` search times shipping a hundred articles against postgres shipping a hundred ids. The executor reads the id from `hit._id`, which the indexer sets to the article id, and falls back to `_source.id` only when `_id` is not a UUID.
+
+```json
+{"query": {"multi_match": {"query": "{{terms}}", "fields": ["title^3", "description^2", "content"]}}, "size": 100, "_source": false, "track_total_hits": false}
+```
+
+Every engine in a job answers every query of its suite. If an engine has no block for one of them (its own, or the one its `queries_from` names), `bench validate`, `bench pool` and `bench run` reject the track when its suites load, before any template is stored or query runs, and name the query and the engine.
+
+Measured elasticsearch templates should set `"track_total_hits": false` until its cost has been measured. By default elasticsearch counts matches up to 10,000 to fill `hits.total`, which delays its early termination of a top-k search, while postgres reports no total at all. Leaving it on makes elasticsearch do work postgres does not, by an amount nobody has sized yet. With it off, elasticsearch omits `hits.total` and `corpus_matches` is left empty for those queries.
+
 #### Index provenance
 
 Before the first query, `bench run` reads from each live engine how it indexed the corpus and records it under `environment.engines.<name>.index` in the report. It also fills `version`.

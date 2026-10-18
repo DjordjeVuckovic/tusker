@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -104,6 +105,40 @@ jobs:
 		assert.Equal(t, 1, s.Metrics.RelevanceThreshold)
 		assert.Equal(t, 1, s.Runs.Warmup)
 		assert.Equal(t, 3, s.Runs.Iterations)
+		assert.Equal(t, 30*time.Second, s.Runs.QueryTimeout)
+	})
+
+	t.Run("query timeout", func(t *testing.T) {
+		yaml := validSpecHeader + `engines:
+  pg:
+    type: postgres
+    connection: "postgresql://localhost/test"
+runs:
+  query_timeout: 2m30s
+jobs:
+  - name: test
+    suite: suite.yaml
+    engines: [pg]
+`
+		s, err := Parse([]byte(yaml))
+		require.NoError(t, err)
+		assert.Equal(t, 150*time.Second, s.Runs.QueryTimeout)
+	})
+
+	t.Run("negative query timeout", func(t *testing.T) {
+		yaml := validSpecHeader + `engines:
+  pg:
+    type: postgres
+    connection: "postgresql://localhost/test"
+runs:
+  query_timeout: -5s
+jobs:
+  - name: test
+    suite: suite.yaml
+    engines: [pg]
+`
+		_, err := Parse([]byte(yaml))
+		assert.ErrorContains(t, err, "runs.query_timeout")
 	})
 
 	t.Run("invalid engine type", func(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	neturl "net/url"
 	"time"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/google/uuid"
 )
 
@@ -18,6 +19,8 @@ type EsExecutor struct {
 	baseURL string
 	index   string
 	client  *http.Client
+	// defaultTimeout bounds a call whose caller set no deadline.
+	defaultTimeout time.Duration
 }
 
 func NewEsExecutor(name, baseURL, index string) *EsExecutor {
@@ -25,8 +28,19 @@ func NewEsExecutor(name, baseURL, index string) *EsExecutor {
 		name:    name,
 		baseURL: baseURL,
 		index:   index,
-		client:  &http.Client{Timeout: 30 * time.Second},
+		client:  &http.Client{},
+
+		defaultTimeout: spec.DefaultQueryTimeout,
 	}
+}
+
+// withDeadline keeps the caller's deadline, or sets the default one: the client
+// carries no timeout of its own.
+func (e *EsExecutor) withDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, e.defaultTimeout)
 }
 
 func (e *EsExecutor) Execute(ctx context.Context, search Request) (*Execution, error) {
@@ -52,12 +66,12 @@ func (e *EsExecutor) Execute(ctx context.Context, search Request) (*Execution, e
 		return nil, fmt.Errorf("es request: %w", err)
 	}
 	defer resp.Body.Close()
-	latency := time.Since(start)
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("es read response: %w", err)
 	}
+	latency := time.Since(start)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("es status %d: %s", resp.StatusCode, string(respBody))
@@ -70,9 +84,9 @@ func (e *EsExecutor) Execute(ctx context.Context, search Request) (*Execution, e
 
 	ids := make([]uuid.UUID, 0, len(esResp.Hits.Hits))
 	for _, hit := range esResp.Hits.Hits {
-		id, err := uuid.Parse(hit.Source.ID)
+		id, err := hit.articleID()
 		if err != nil {
-			return nil, fmt.Errorf("es parse doc id %q: %w", hit.Source.ID, err)
+			return nil, err
 		}
 		ids = append(ids, id)
 	}
@@ -150,6 +164,8 @@ func (e *EsExecutor) send(ctx context.Context, method, url string, body []byte) 
 }
 
 func (e *EsExecutor) CorpusCount(ctx context.Context) (int64, error) {
+	ctx, cancel := e.withDeadline(ctx)
+	defer cancel()
 	url := fmt.Sprintf("%s/%s/_count", e.baseURL, e.index)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -190,6 +206,8 @@ func (e *EsExecutor) Close() error { return nil }
 // `knn` outright ("request does not support [knn]"), so the knn clause is
 // checked structurally instead.
 func (e *EsExecutor) Validate(ctx context.Context, search Request) error {
+	ctx, cancel := e.withDeadline(ctx)
+	defer cancel()
 	rawQuery := search.Query
 	if search.SearchTemplateID != "" {
 		rendered, err := e.renderTemplate(ctx, search)
@@ -380,19 +398,20 @@ type esSearchResponse struct {
 }
 
 type esHits struct {
-	Total esTotal `json:"total"`
-	Hits  []esHit `json:"hits"`
+	Total *esTotal `json:"total"`
+	Hits  []esHit  `json:"hits"`
 }
 
-// esTotal is ES hits.total. Relation is "gte" when ES stopped counting at
-// track_total_hits rather than counting every match.
+// esTotal is ES hits.total, absent when track_total_hits is false. Relation is
+// "gte" when ES stopped counting at track_total_hits rather than counting every
+// match.
 type esTotal struct {
 	Value    int64  `json:"value"`
 	Relation string `json:"relation"`
 }
 
-func (t esTotal) exactCount() *int64 {
-	if t.Relation == "gte" {
+func (t *esTotal) exactCount() *int64 {
+	if t == nil || t.Relation == "gte" {
 		return nil
 	}
 	v := t.Value
@@ -400,7 +419,22 @@ func (t esTotal) exactCount() *int64 {
 }
 
 type esHit struct {
+	ID     string   `json:"_id"`
 	Source esSource `json:"_source"`
+}
+
+// articleID reads the article id from _id, which the indexer sets to it, so a
+// search can disable _source. _source.id covers an index whose _id is not the
+// article id.
+func (h esHit) articleID() (uuid.UUID, error) {
+	if id, err := uuid.Parse(h.ID); err == nil {
+		return id, nil
+	}
+	id, err := uuid.Parse(h.Source.ID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("es parse doc id: _id %q and _source.id %q are not uuids: %w", h.ID, h.Source.ID, err)
+	}
+	return id, nil
 }
 
 type esSource struct {

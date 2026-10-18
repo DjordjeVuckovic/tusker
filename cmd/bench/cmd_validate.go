@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/dialect"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
@@ -131,20 +132,21 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 				seen[key] = struct{}{}
 
 				row := validateOne(cmd.Context(), validateInput{
-					query:      q,
-					track:      bs.ID,
-					engineName: engName,
-					binding:    bs.QueryBinding(engName),
-					loaded:     ls,
-					executor:   executors[engName],
-					store:      vectorStore,
-					dialect:    dialects[engName],
+					query:        q,
+					track:        bs.ID,
+					engineName:   engName,
+					binding:      bs.QueryBinding(engName),
+					loaded:       ls,
+					executor:     executors[engName],
+					store:        vectorStore,
+					dialect:      dialects[engName],
+					queryTimeout: bs.Runs.QueryTimeout,
 				})
 				if err := cmd.Context().Err(); err != nil {
 					return err
 				}
 				rows = append(rows, row)
-				if row.status != "OK" && row.status != "SKIP" {
+				if row.status != "OK" {
 					failures++
 					if f.failFast {
 						printValidateRows(cmd.OutOrStdout(), rows)
@@ -172,14 +174,15 @@ func validateTrack(cmd *cobra.Command, f validateFlags, tr *trackctx.Track) erro
 // validateInput is one (query, engine) pair to dry-run, with everything needed
 // to resolve and check it.
 type validateInput struct {
-	query      suite.Query
-	track      string
-	engineName string
-	binding    spec.QueryBinding
-	loaded     *suite.LoadedSuite
-	executor   engine.Executor
-	store      storage.VectorStore
-	dialect    dialect.Dialect
+	query        suite.Query
+	track        string
+	engineName   string
+	binding      spec.QueryBinding
+	loaded       *suite.LoadedSuite
+	executor     engine.Executor
+	store        storage.VectorStore
+	dialect      dialect.Dialect
+	queryTimeout time.Duration
 }
 
 func validateOne(ctx context.Context, in validateInput) validateRow {
@@ -217,18 +220,15 @@ func validateOne(ctx context.Context, in validateInput) validateRow {
 		row.detail = err.Error()
 		return row
 	}
-	if resolved == nil {
-		row.status = "SKIP"
-		row.detail = "no query for this engine"
-		return row
-	}
 	v, ok := exec.(engine.Validator)
 	if !ok {
 		row.status = "UNSUPPORTED"
 		row.detail = "executor does not implement Validator"
 		return row
 	}
-	if err := v.Validate(ctx, in.dialect.Request(in.track, resolved)); err != nil {
+	validateCtx, cancel := context.WithTimeout(ctx, in.queryTimeout)
+	defer cancel()
+	if err := v.Validate(validateCtx, in.dialect.Request(in.track, resolved)); err != nil {
 		row.status = "INVALID"
 		row.detail = truncate(err.Error(), 120)
 		return row

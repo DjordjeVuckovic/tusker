@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -31,6 +32,9 @@ func (r *Runner) RunAll(
 	bs *spec.BenchSpec,
 	executors map[string]engine.Executor,
 ) (*BenchmarkResult, error) {
+	if err := r.config.validate(); err != nil {
+		return nil, err
+	}
 	if err := VerifyEmbeddingModel(bs.Engines, r.config.VectorStore); err != nil {
 		return nil, err
 	}
@@ -52,12 +56,13 @@ func (r *Runner) RunAll(
 
 	for _, job := range bs.Jobs {
 		jr, err := r.RunJob(ctx, JobRequest{
-			Track:     bs.ID,
-			Job:       job,
-			Suite:     suites[job.Suite],
-			Executors: executors,
-			Bindings:  bindings,
-			Dialects:  dialects,
+			Track:        bs.ID,
+			Job:          job,
+			Suite:        suites[job.Suite],
+			Executors:    executors,
+			Bindings:     bindings,
+			Dialects:     dialects,
+			QueryTimeout: bs.Runs.QueryTimeout,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("run job %q: %w", job.Name, err)
@@ -140,6 +145,9 @@ func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
 			if reader.dialect == nil {
 				return nil, fmt.Errorf("job %q engine %q is not declared", job.Name, engName)
 			}
+			if err := checkEveryQueryHasABlock(loaded, boundEngine{name: engName, binding: binding}); err != nil {
+				return nil, fmt.Errorf("job %q: %w", job.Name, err)
+			}
 			blocks, err := loaded.Blocks(binding.QuerySource, binding.Params)
 			if err != nil {
 				return nil, fmt.Errorf("job %q engine %q: %w", job.Name, engName, err)
@@ -161,6 +169,32 @@ func LoadSuites(bs *spec.BenchSpec) (map[string]*suite.LoadedSuite, error) {
 		}
 	}
 	return suites, nil
+}
+
+// checkEveryQueryHasABlock rejects an engine whose block for one of the suite's
+// queries is absent or empty. RunJob resolves every block without checking.
+func checkEveryQueryHasABlock(ls *suite.LoadedSuite, eng boundEngine) error {
+	source := eng.binding.QuerySource
+	for _, q := range ls.Suite.Queries {
+		if block, ok := q.Engines[source]; ok && hasStatement(block) {
+			continue
+		}
+		if source != eng.name {
+			return fmt.Errorf("query %q has no %q block for engine %q", q.ID, source, eng.name)
+		}
+		return fmt.Errorf("query %q has no block for engine %q", q.ID, eng.name)
+	}
+	return nil
+}
+
+// boundEngine is a job's engine and the binding it reads its queries through.
+type boundEngine struct {
+	name    string
+	binding spec.QueryBinding
+}
+
+func hasStatement(block suite.EngineQuery) bool {
+	return block.Query != "" || block.File != "" || block.Template != ""
 }
 
 type templateInSuite struct {
@@ -234,16 +268,23 @@ func RegisterSearchTemplates(ctx context.Context, reg TemplateRegistration) erro
 		}
 	}
 	for _, p := range pending {
-		registrar := reg.Executors[p.engine].(engine.SearchTemplateRegistrar)
-		if err := registrar.RegisterSearchTemplate(ctx, p.template); err != nil {
+		if err := p.register(ctx, reg.Executors[p.engine], reg.Spec.Runs.QueryTimeout); err != nil {
 			return fmt.Errorf("engine %q: %w", p.engine, err)
 		}
 	}
 	return nil
 }
 
+func (p templateOnEngine) register(ctx context.Context, exec engine.Executor, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeoutOrDefault(timeout))
+	defer cancel()
+	return exec.(engine.SearchTemplateRegistrar).RegisterSearchTemplate(ctx, p.template)
+}
+
 // JobRequest is everything one job needs to run: its declaration, the loaded
-// suite, the executors to drive, and how each engine reaches its queries.
+// suite, the executors to drive, and how each engine reaches its queries. The
+// suite must come from LoadSuites, which guarantees every engine a block for
+// every query.
 type JobRequest struct {
 	// Track is the spec id, which namespaces the job's stored search templates.
 	Track     string
@@ -252,6 +293,8 @@ type JobRequest struct {
 	Executors map[string]engine.Executor
 	Bindings  map[string]spec.QueryBinding
 	Dialects  map[string]dialect.Dialect
+	// QueryTimeout bounds each execution; zero means spec.DefaultQueryTimeout.
+	QueryTimeout time.Duration
 }
 
 func (r *Runner) RunJob(ctx context.Context, req JobRequest) (*JobResult, error) {
@@ -376,11 +419,14 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				slog.Warn("resolve query failed", "query", q.ID, "engine", engName, "error", err)
 				return
 			}
-			if resolved == nil {
-				return
-			}
 
-			result := r.executeWithRetries(ctx, exec, req.Dialects[engName].Request(req.Track, resolved), r.config.WarmupRuns, r.config.Runs)
+			result := r.measure(ctx, measurement{
+				queryID:  q.ID,
+				engine:   engName,
+				executor: exec,
+				request:  req.Dialects[engName].Request(req.Track, resolved),
+				timeout:  req.QueryTimeout,
+			})
 
 			var scores metrics.ScoreSet
 			if result.err == nil && len(judgments) > 0 {
@@ -458,37 +504,57 @@ type execResult struct {
 	err           error
 }
 
-func (r *Runner) executeWithRetries(
-	ctx context.Context,
-	exec engine.Executor,
-	req engine.Request,
-	warmup, runs int,
-) execResult {
-	for i := 0; i < warmup; i++ {
-		_, _ = exec.Execute(ctx, req)
+// measurement is one query on one engine, executed for warmup and then for the
+// measured iterations.
+type measurement struct {
+	queryID  string
+	engine   string
+	executor engine.Executor
+	request  engine.Request
+	timeout  time.Duration
+}
+
+// measure fails on the first failed measured iteration: keeping the others
+// would drop a timeout from the latency tail and report the query as answered.
+func (r *Runner) measure(ctx context.Context, m measurement) execResult {
+	for i := 0; i < r.config.WarmupRuns; i++ {
+		if _, err := m.execute(ctx); err != nil {
+			slog.Warn("warmup failed", "query", m.queryID, "engine", m.engine, "iteration", i+1, "error", err)
+		}
 	}
 
 	var latencies []time.Duration
 	var lastExec *engine.Execution
-	var lastErr error
-
-	for i := 0; i < runs; i++ {
-		result, err := exec.Execute(ctx, req)
+	for i := 0; i < r.config.Runs; i++ {
+		result, err := m.execute(ctx)
 		if err != nil {
-			lastErr = err
-			continue
+			return execResult{err: fmt.Errorf("measured iteration %d of %d: %w", i+1, r.config.Runs, err)}
 		}
 		lastExec = result
 		latencies = append(latencies, result.Latency)
 	}
 
 	if lastExec == nil {
-		return execResult{err: lastErr}
+		return execResult{err: errors.New("no measured iteration ran")}
 	}
-
 	return execResult{
 		rankedIDs:     lastExec.RankedDocIDs,
 		corpusMatches: lastExec.CorpusMatches,
 		latencyStats:  ComputeLatencyStats(latencies),
 	}
+}
+
+// execute runs once under the query deadline, which the runner owns so that no
+// engine type is cut off sooner or later than another.
+func (m measurement) execute(ctx context.Context) (*engine.Execution, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeoutOrDefault(m.timeout))
+	defer cancel()
+	return m.executor.Execute(ctx, m.request)
+}
+
+func timeoutOrDefault(timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		return spec.DefaultQueryTimeout
+	}
+	return timeout
 }
