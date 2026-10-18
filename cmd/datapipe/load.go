@@ -113,7 +113,7 @@ func runLoad(ctx context.Context, out io.Writer, opts loadOptions) error {
 	}
 	if opts.SkipIndex {
 		cli.Summary(out, "Corpus loaded without indexes", fields...)
-		cli.Warn(out, "no load record written; build the indexes with make migrate-indexes-"+string(engine))
+		cli.Warn(out, "no load record written, so this corpus is not benchmarkable; drop it and reload without --skip-index")
 		return nil
 	}
 	path, err := writeLoadRecord(recordsDir, record)
