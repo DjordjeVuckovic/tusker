@@ -1,0 +1,74 @@
+queries 300 zero hits {'es.standard': 91, 'es.english': 67, 'es.standard+pgstop+snowball': 67, 'es.standard+apos+pgstop+snowball': 67, 'es.standard+lucenestop+porter2': 67, 'es.standard+lucenestop+porter': 69, 'es.standard+lucenestop+kstem': 75, 'es.standard+lucenestop+minimal': 80, 'es.standard+lucenestop+hunspell': 70, 'pg.english': 67, 'pg.english_nostop': 67, 'pg.simple': 89, 'pg.hunspell': 68}
+es.standard                        es.english                         n=209 J=0.615 nfull=109 RBOext=0.654 same=0.273
+es.standard                        es.standard+pgstop+snowball        n=209 J=0.627 nfull=109 RBOext=0.668 same=0.297
+es.standard                        es.standard+apos+pgstop+snowball   n=209 J=0.615 nfull=109 RBOext=0.657 same=0.278
+es.standard                        es.standard+lucenestop+porter2     n=209 J=0.636 nfull=109 RBOext=0.681 same=0.306
+es.standard                        es.standard+lucenestop+porter      n=209 J=0.642 nfull=109 RBOext=0.685 same=0.335
+es.standard                        es.standard+lucenestop+kstem       n=209 J=0.712 nfull=109 RBOext=0.762 same=0.378
+es.standard                        es.standard+lucenestop+minimal     n=209 J=0.777 nfull=109 RBOext=0.773 same=0.474
+es.standard                        es.standard+lucenestop+hunspell    n=209 J=0.635 nfull=109 RBOext=0.696 same=0.316
+es.english                         es.standard+pgstop+snowball        n=233 J=0.884 nfull=136 RBOext=0.877 same=0.571
+es.english                         es.standard+apos+pgstop+snowball   n=233 J=0.909 nfull=136 RBOext=0.899 same=0.657
+es.english                         es.standard+lucenestop+porter2     n=233 J=0.930 nfull=136 RBOext=0.921 same=0.755
+es.english                         es.standard+lucenestop+porter      n=231 J=0.941 nfull=134 RBOext=0.939 same=0.753
+es.english                         es.standard+lucenestop+kstem       n=224 J=0.760 nfull=125 RBOext=0.783 same=0.433
+es.english                         es.standard+lucenestop+minimal     n=220 J=0.741 nfull=122 RBOext=0.782 same=0.423
+es.english                         es.standard+lucenestop+hunspell    n=227 J=0.832 nfull=133 RBOext=0.854 same=0.581
+es.standard+pgstop+snowball        es.standard+apos+pgstop+snowball   n=233 J=0.954 nfull=139 RBOext=0.953 same=0.790
+es.standard+pgstop+snowball        es.standard+lucenestop+porter2     n=233 J=0.939 nfull=138 RBOext=0.931 same=0.730
+es.standard+pgstop+snowball        es.standard+lucenestop+porter      n=231 J=0.882 nfull=134 RBOext=0.869 same=0.563
+es.standard+pgstop+snowball        es.standard+lucenestop+kstem       n=224 J=0.764 nfull=126 RBOext=0.781 same=0.420
+es.standard+pgstop+snowball        es.standard+lucenestop+minimal     n=220 J=0.722 nfull=122 RBOext=0.749 same=0.364
+es.standard+pgstop+snowball        es.standard+lucenestop+hunspell    n=227 J=0.795 nfull=135 RBOext=0.807 same=0.454
+es.standard+apos+pgstop+snowball   es.standard+lucenestop+porter2     n=233 J=0.912 nfull=138 RBOext=0.906 same=0.635
+es.standard+apos+pgstop+snowball   es.standard+lucenestop+porter      n=231 J=0.869 nfull=134 RBOext=0.856 same=0.537
+es.standard+apos+pgstop+snowball   es.standard+lucenestop+kstem       n=224 J=0.753 nfull=126 RBOext=0.769 same=0.393
+es.standard+apos+pgstop+snowball   es.standard+lucenestop+minimal     n=220 J=0.711 nfull=122 RBOext=0.737 same=0.341
+es.standard+apos+pgstop+snowball   es.standard+lucenestop+hunspell    n=227 J=0.796 nfull=135 RBOext=0.812 same=0.454
+es.standard+lucenestop+porter2     es.standard+lucenestop+porter      n=231 J=0.931 nfull=134 RBOext=0.922 same=0.762
+es.standard+lucenestop+porter2     es.standard+lucenestop+kstem       n=224 J=0.790 nfull=126 RBOext=0.819 same=0.504
+es.standard+lucenestop+porter2     es.standard+lucenestop+minimal     n=220 J=0.745 nfull=122 RBOext=0.779 same=0.445
+es.standard+lucenestop+porter2     es.standard+lucenestop+hunspell    n=227 J=0.823 nfull=134 RBOext=0.841 same=0.555
+es.standard+lucenestop+porter      es.standard+lucenestop+kstem       n=224 J=0.798 nfull=125 RBOext=0.828 same=0.571
+es.standard+lucenestop+porter      es.standard+lucenestop+minimal     n=220 J=0.785 nfull=122 RBOext=0.830 same=0.564
+es.standard+lucenestop+porter      es.standard+lucenestop+hunspell    n=227 J=0.828 nfull=132 RBOext=0.846 same=0.559
+es.standard+lucenestop+kstem       es.standard+lucenestop+minimal     n=219 J=0.800 nfull=120 RBOext=0.828 same=0.580
+es.standard+lucenestop+kstem       es.standard+lucenestop+hunspell    n=221 J=0.785 nfull=127 RBOext=0.808 same=0.516
+es.standard+lucenestop+minimal     es.standard+lucenestop+hunspell    n=218 J=0.765 nfull=122 RBOext=0.812 same=0.472
+pg.english                         pg.english_nostop                  n=233 J=0.990 nfull=139 RBOext=0.991 same=0.983
+pg.english                         pg.simple                          n=211 J=0.684 nfull=114 RBOext=0.759 same=0.436
+pg.english                         pg.hunspell                        n=229 J=0.848 nfull=136 RBOext=0.877 same=0.664
+pg.english_nostop                  pg.simple                          n=211 J=0.689 nfull=114 RBOext=0.767 same=0.445
+pg.english_nostop                  pg.hunspell                        n=229 J=0.846 nfull=136 RBOext=0.871 same=0.664
+pg.simple                          pg.hunspell                        n=211 J=0.675 nfull=114 RBOext=0.761 same=0.450
+{
+ "es_field_bytes": {
+  "es.standard": 47068173,
+  "es.english": 36630674,
+  "es.standard+pgstop+snowball": 33159590,
+  "es.standard+apos+pgstop+snowball": 32607981,
+  "es.standard+lucenestop+porter2": 37092130,
+  "es.standard+lucenestop+porter": 37319364,
+  "es.standard+lucenestop+kstem": 37992585,
+  "es.standard+lucenestop+minimal": 38693386,
+  "es.standard+lucenestop+hunspell": 40013982
+ },
+ "pg": {
+  "pg.english": {
+   "tsvector_bytes": 118306721,
+   "gin_bytes": 47095808
+  },
+  "pg.english_nostop": {
+   "tsvector_bytes": 154751653,
+   "gin_bytes": 51191808
+  },
+  "pg.simple": {
+   "tsvector_bytes": 169113927,
+   "gin_bytes": 58040320
+  },
+  "pg.hunspell": {
+   "tsvector_bytes": 136930302,
+   "gin_bytes": 52420608
+  }
+ }
+}

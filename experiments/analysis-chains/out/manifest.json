@@ -1,0 +1,19 @@
+{
+  "source": "../../datasets/cc-news/dataset-canonical.jsonl",
+  "source_sha256": "4b61eb9518fb8a678afd57270a368dfd65b541604a30ab1ba876dced302b3f76",
+  "source_lines": 707910,
+  "seed": 20261008,
+  "fields": [
+    "title",
+    "description",
+    "content"
+  ],
+  "sample_a": {
+    "rows": 10000,
+    "sha256": "c2c575fa3b037af9fa92d2299cfbf1b127edc03b7e7b5980ec98ed20bd2faa91"
+  },
+  "sample_b": {
+    "rows": 50000,
+    "sha256": "931a1ded719bbeb33e304e7677af69d13ff62f3b4ad53597b2e38c96f7dd6dd5"
+  }
+}

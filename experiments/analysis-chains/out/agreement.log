@@ -1,0 +1,20 @@
+== tokenizer_only
+es.standard                          title J=0.9389 exact=0.708 vocabJ=0.8738  descr J=0.9429 exact=0.539 vocabJ=0.8652  conte J=0.9353 exact=0.084 vocabJ=0.7250
+es.classic                           title J=0.9417 exact=0.732 vocabJ=0.8609  descr J=0.9430 exact=0.572 vocabJ=0.8476  conte J=0.9453 exact=0.113 vocabJ=0.7430
+es.letter                            title J=0.9392 exact=0.645 vocabJ=0.8729  descr J=0.9489 exact=0.524 vocabJ=0.8394  conte J=0.9290 exact=0.064 vocabJ=0.7156
+es.whitespace                        title J=0.7989 exact=0.358 vocabJ=0.6704  descr J=0.7385 exact=0.066 vocabJ=0.5575  conte J=0.6805 exact=0.001 vocabJ=0.3660
+es.icu                               title J=0.9389 exact=0.708 vocabJ=0.8736  descr J=0.9431 exact=0.541 vocabJ=0.8659  conte J=0.9354 exact=0.085 vocabJ=0.7255
+es.standard+apos                     title J=0.9783 exact=0.833 vocabJ=0.9254  descr J=0.9803 exact=0.731 vocabJ=0.9118  conte J=0.9701 exact=0.188 vocabJ=0.7781
+pdb.unicode_words                    title J=0.9389 exact=0.708 vocabJ=0.8725  descr J=0.9429 exact=0.539 vocabJ=0.8651  conte J=0.9353 exact=0.083 vocabJ=0.7250
+pdb.simple                           title J=0.9683 exact=0.808 vocabJ=0.9085  descr J=0.9709 exact=0.689 vocabJ=0.8760  conte J=0.9586 exact=0.153 vocabJ=0.7482
+pdb.whitespace                       title J=0.7989 exact=0.358 vocabJ=0.6704  descr J=0.7385 exact=0.066 vocabJ=0.5573  conte J=0.6805 exact=0.001 vocabJ=0.3660
+pdb.icu                              title J=0.9389 exact=0.708 vocabJ=0.8736  descr J=0.9435 exact=0.543 vocabJ=0.8686  conte J=0.9358 exact=0.085 vocabJ=0.7275
+== full_chain
+es.english                           title J=0.8394 exact=0.372 vocabJ=0.8377  descr J=0.7751 exact=0.101 vocabJ=0.8139  conte J=0.7557 exact=0.001 vocabJ=0.6746
+es.standard+pgstop+snowball          title J=0.9558 exact=0.760 vocabJ=0.8799  descr J=0.9521 exact=0.609 vocabJ=0.8515  conte J=0.9298 exact=0.104 vocabJ=0.6867
+es.standard+apos+pgstop+snowball     title J=0.9716 exact=0.822 vocabJ=0.9065  descr J=0.9695 exact=0.705 vocabJ=0.8772  conte J=0.9562 exact=0.169 vocabJ=0.7223
+es.icu+pgstop+snowball               title J=0.9558 exact=0.760 vocabJ=0.8797  descr J=0.9524 exact=0.612 vocabJ=0.8523  conte J=0.9300 exact=0.105 vocabJ=0.6873
+es.standard+lucenestop+porter2       title J=0.9004 exact=0.487 vocabJ=0.8763  descr J=0.8517 exact=0.165 vocabJ=0.8491  conte J=0.8223 exact=0.006 vocabJ=0.6863
+pdb.unicode_words+stem+stop          title J=0.9017 exact=0.492 vocabJ=0.8748  descr J=0.8558 exact=0.173 vocabJ=0.8491  conte J=0.8258 exact=0.006 vocabJ=0.6871
+pdb.simple+stem+stop                 title J=0.8908 exact=0.439 vocabJ=0.8816  descr J=0.8472 exact=0.148 vocabJ=0.8406  conte J=0.8272 exact=0.004 vocabJ=0.6950
+pdb.icu+stem+stop                    title J=0.9017 exact=0.492 vocabJ=0.8761  descr J=0.8563 exact=0.173 vocabJ=0.8534  conte J=0.8260 exact=0.006 vocabJ=0.6892

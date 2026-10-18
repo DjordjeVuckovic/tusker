@@ -1,0 +1,44 @@
+{
+  "title": {
+    "tiger": {
+      "total_docs": 10000,
+      "total_len": 77243,
+      "terms": 16293
+    },
+    "pg": {
+      "docs_with_terms": 10000,
+      "total_len": 77243,
+      "terms": 16293
+    },
+    "words_checked": 500,
+    "word_mismatches": []
+  },
+  "description": {
+    "tiger": {
+      "total_docs": 7450,
+      "total_len": 131377,
+      "terms": 20954
+    },
+    "pg": {
+      "docs_with_terms": 7450,
+      "total_len": 131377,
+      "terms": 20954
+    },
+    "words_checked": 500,
+    "word_mismatches": []
+  },
+  "content": {
+    "tiger": {
+      "total_docs": 10000,
+      "total_len": 2456678,
+      "terms": 94943
+    },
+    "pg": {
+      "docs_with_terms": 10000,
+      "total_len": 2456678,
+      "terms": 94943
+    },
+    "words_checked": 500,
+    "word_mismatches": []
+  }
+}

@@ -1,0 +1,761 @@
+{
+ "es.standard vs pdb.unicode_words": {
+  "title": {
+   "jaccard_mean": 0.99990625,
+   "exact_share": 0.9999,
+   "vocab_jaccard": 0.9985055295406994,
+   "only_left": {
+    "non_latin_script": 2
+   },
+   "only_right": {
+    "non_latin_script": 28
+   },
+   "top_only_left": [
+    [
+     "โอบาฯประเดิมสวยปืนถล่มท็อฟฟี่",
+     1
+    ],
+    [
+     "แรมซี่ย์แฮททริก",
+     1
+    ]
+   ],
+   "top_only_right": [
+    [
+     "ท็",
+     1
+    ],
+    [
+     "ปื",
+     1
+    ],
+    [
+     "ม",
+     1
+    ]
+   ]
+  },
+  "description": {
+   "jaccard_mean": 0.999996166452627,
+   "exact_share": 0.9998658258419428,
+   "vocab_jaccard": 0.9999618742613138,
+   "only_left": {},
+   "only_right": {
+    "symbol_or_emoji": 1
+   },
+   "top_only_left": [],
+   "top_only_right": [
+    [
+     "½",
+     1
+    ]
+   ]
+  },
+  "content": {
+   "jaccard_mean": 0.9999739081533088,
+   "exact_share": 0.9952,
+   "vocab_jaccard": 0.9998005783228637,
+   "only_left": {
+    "symbol_or_emoji": 13,
+    "apostrophe": 1,
+    "alpha": 1
+   },
+   "only_right": {
+    "symbol_or_emoji": 37,
+    "apostrophe": 1,
+    "latin_diacritic": 1
+   },
+   "top_only_left": [
+    [
+     "⚽️",
+     2
+    ],
+    [
+     "♡",
+     2
+    ],
+    [
+     "⛳️",
+     1
+    ],
+    [
+     "siha'lar",
+     1
+    ],
+    [
+     "ibrahim",
+     1
+    ]
+   ],
+   "top_only_right": [
+    [
+     "½",
+     25
+    ],
+    [
+     "³",
+     3
+    ],
+    [
+     "¼",
+     2
+    ],
+    [
+     "si̇ha'lar",
+     1
+    ],
+    [
+     "i̇brahim",
+     1
+    ]
+   ]
+  }
+ },
+ "es.icu vs pdb.icu": {
+  "title": {
+   "jaccard_mean": 0.9999823529411764,
+   "exact_share": 0.9999,
+   "vocab_jaccard": 0.9999002294722139,
+   "only_left": {
+    "other_punctuation": 1
+   },
+   "only_right": {
+    "dotted_host": 1,
+    "alpha": 1
+   },
+   "top_only_left": [
+    [
+     "wect.com:news",
+     1
+    ]
+   ],
+   "top_only_right": [
+    [
+     "wect.com",
+     1
+    ],
+    [
+     "news",
+     1
+    ]
+   ]
+  },
+  "description": {
+   "jaccard_mean": 0.9995786953173182,
+   "exact_share": 0.9940963370454851,
+   "vocab_jaccard": 0.9967226858732517,
+   "only_left": {
+    "other_punctuation": 48,
+    "non_latin_script": 2,
+    "alpha": 2
+   },
+   "only_right": {
+    "alpha": 75,
+    "dotted_host": 4,
+    "latin_diacritic": 2,
+    "stopword": 1,
+    "slash_or_url": 1
+   },
+   "top_only_left": [
+    [
+     "nasdaq:adms",
+     1
+    ],
+    [
+     "nyse:src",
+     1
+    ],
+    [
+     "nasdaq:args",
+     1
+    ],
+    [
+     "ανονισμού",
+     1
+    ],
+    [
+     "ιντ",
+     1
+    ],
+    [
+     "k",
+     1
+    ],
+    [
+     "eramerican",
+     1
+    ]
+   ],
+   "top_only_right": [
+    [
+     "nasdaq",
+     16
+    ],
+    [
+     "nyse",
+     16
+    ],
+    [
+     "tse",
+     4
+    ],
+    [
+     "bbu.un",
+     1
+    ],
+    [
+     "bbd.a",
+     1
+    ],
+    [
+     "bbd.b",
+     1
+    ],
+    [
+     "kανονισμού",
+     1
+    ],
+    [
+     "ιντeramerican",
+     1
+    ]
+   ]
+  },
+  "content": {
+   "jaccard_mean": 0.9995419131808899,
+   "exact_share": 0.949,
+   "vocab_jaccard": 0.9967568644858543,
+   "only_left": {
+    "underscore": 243,
+    "symbol_or_emoji": 219,
+    "other_punctuation": 203,
+    "alpha": 2,
+    "contains_digit": 2,
+    "non_latin_script": 1,
+    "apostrophe": 1,
+    "latin_diacritic": 1
+   },
+   "only_right": {
+    "alpha": 198,
+    "dotted_host": 20,
+    "slash_or_url": 13,
+    "latin_diacritic": 3,
+    "stopword": 3,
+    "contains_digit": 2,
+    "apostrophe": 1
+   },
+   "top_only_left": [
+    [
+     "___",
+     205
+    ],
+    [
+     "_____",
+     18
+    ],
+    [
+     "__",
+     9
+    ],
+    [
+     "❤️",
+     14
+    ],
+    [
+     "😂",
+     9
+    ],
+    [
+     "💙",
+     6
+    ],
+    [
+     "multimedia:http",
+     19
+    ],
+    [
+     "content:http",
+     14
+    ]
+   ],
+   "top_only_right": [
+    [
+     "nyse",
+     25
+    ],
+    [
+     "multimedia",
+     19
+    ],
+    [
+     "nasdaq",
+     17
+    ],
+    [
+     "businesswire.com",
+     8
+    ],
+    [
+     "goo.gl",
+     4
+    ],
+    [
+     "brk.a",
+     2
+    ],
+    [
+     "http",
+     12
+    ],
+    [
+     "https",
+     1
+    ]
+   ]
+  }
+ },
+ "es.standard vs es.icu": {
+  "title": {
+   "jaccard_mean": 0.9997888021611807,
+   "exact_share": 0.9993,
+   "vocab_jaccard": 0.9979567427489285,
+   "only_left": {
+    "non_latin_script": 19,
+    "symbol_or_emoji": 5
+   },
+   "only_right": {
+    "non_latin_script": 20
+   },
+   "top_only_left": [
+    [
+     "โอบาฯประเดิมสวยปืนถล่มท็อฟฟี่",
+     1
+    ],
+    [
+     "แรมซี่ย์แฮททริก",
+     1
+    ],
+    [
+     "年",
+     1
+    ],
+    [
+     "®",
+     3
+    ],
+    [
+     "™",
+     2
+    ]
+   ],
+   "top_only_right": [
+    [
+     "ย์",
+     1
+    ],
+    [
+     "ทริก",
+     1
+    ],
+    [
+     "แรม",
+     1
+    ]
+   ]
+  },
+  "description": {
+   "jaccard_mean": 0.9996435381140849,
+   "exact_share": 0.9943646853615994,
+   "vocab_jaccard": 0.9981708014176289,
+   "only_left": {
+    "symbol_or_emoji": 28,
+    "non_latin_script": 21,
+    "latin_diacritic": 12
+   },
+   "only_right": {
+    "non_latin_script": 13,
+    "alpha": 2
+   },
+   "top_only_left": [
+    [
+     "™",
+     17
+    ],
+    [
+     "®",
+     11
+    ],
+    [
+     "年",
+     1
+    ],
+    [
+     "牙",
+     1
+    ],
+    [
+     "蘇",
+     1
+    ],
+    [
+     "hindi:शहीद",
+     1
+    ],
+    [
+     "hindi:अंशुल",
+     1
+    ],
+    [
+     "hindi:पेट्रोल",
+     1
+    ]
+   ],
+   "top_only_right": [
+    [
+     "फरीदाबाद",
+     1
+    ],
+    [
+     "सहारनपुर",
+     1
+    ],
+    [
+     "ανονισμού",
+     1
+    ],
+    [
+     "k",
+     1
+    ],
+    [
+     "eramerican",
+     1
+    ]
+   ]
+  },
+  "content": {
+   "jaccard_mean": 0.9994883802127199,
+   "exact_share": 0.9483,
+   "vocab_jaccard": 0.995072199065074,
+   "only_left": {
+    "non_latin_script": 364,
+    "symbol_or_emoji": 278,
+    "latin_diacritic": 1
+   },
+   "only_right": {
+    "non_latin_script": 286,
+    "underscore": 243,
+    "alpha": 1,
+    "symbol_or_emoji": 1
+   },
+   "top_only_left": [
+    [
+     "源",
+     3
+    ],
+    [
+     "一",
+     3
+    ],
+    [
+     "大",
+     3
+    ],
+    [
+     "©",
+     216
+    ],
+    [
+     "™",
+     31
+    ],
+    [
+     "®",
+     30
+    ],
+    [
+     "10μm",
+     1
+    ]
+   ],
+   "top_only_right": [
+    [
+     "來源",
+     2
+    ],
+    [
+     "新聞",
+     2
+    ],
+    [
+     "ない",
+     2
+    ],
+    [
+     "___",
+     205
+    ],
+    [
+     "_____",
+     18
+    ],
+    [
+     "__",
+     9
+    ],
+    [
+     "m",
+     1
+    ],
+    [
+     "❤️️",
+     1
+    ]
+   ]
+  }
+ },
+ "es.standard+lucenestop+porter2 vs pdb.unicode_words+stem+stop": {
+  "title": {
+   "jaccard_mean": 0.9981633622955991,
+   "exact_share": 0.9848,
+   "vocab_jaccard": 0.9973563737184861,
+   "only_left": {
+    "stopword": 147,
+    "symbol_or_emoji": 5,
+    "non_latin_script": 2
+   },
+   "only_right": {
+    "non_latin_script": 28
+   },
+   "top_only_left": [
+    [
+     "it",
+     86
+    ],
+    [
+     "be",
+     45
+    ],
+    [
+     "in",
+     5
+    ],
+    [
+     "®",
+     3
+    ],
+    [
+     "™",
+     2
+    ],
+    [
+     "โอบาฯประเดิมสวยปืนถล่มท็อฟฟี่",
+     1
+    ],
+    [
+     "แรมซี่ย์แฮททริก",
+     1
+    ]
+   ],
+   "top_only_right": [
+    [
+     "ท็",
+     1
+    ],
+    [
+     "ปื",
+     1
+    ],
+    [
+     "ม",
+     1
+    ]
+   ]
+  },
+  "description": {
+   "jaccard_mean": 0.9950377259986889,
+   "exact_share": 0.905004696095532,
+   "vocab_jaccard": 0.9994007191370355,
+   "only_left": {
+    "stopword": 694,
+    "symbol_or_emoji": 28
+   },
+   "only_right": {
+    "symbol_or_emoji": 1
+   },
+   "top_only_left": [
+    [
+     "it",
+     502
+    ],
+    [
+     "be",
+     145
+    ],
+    [
+     "that",
+     27
+    ],
+    [
+     "™",
+     17
+    ],
+    [
+     "®",
+     11
+    ]
+   ],
+   "top_only_right": [
+    [
+     "½",
+     1
+    ]
+   ]
+  },
+  "content": {
+   "jaccard_mean": 0.9952515858508388,
+   "exact_share": 0.4747,
+   "vocab_jaccard": 0.9979589428975932,
+   "only_left": {
+    "stopword": 7179,
+    "symbol_or_emoji": 496,
+    "apostrophe": 1,
+    "alpha": 1
+   },
+   "only_right": {
+    "symbol_or_emoji": 37,
+    "apostrophe": 1,
+    "latin_diacritic": 1
+   },
+   "top_only_left": [
+    [
+     "it",
+     3723
+    ],
+    [
+     "be",
+     2264
+    ],
+    [
+     "that",
+     497
+    ],
+    [
+     "©",
+     216
+    ],
+    [
+     "™",
+     31
+    ],
+    [
+     "®",
+     30
+    ],
+    [
+     "siha'lar",
+     1
+    ],
+    [
+     "ibrahim",
+     1
+    ]
+   ],
+   "top_only_right": [
+    [
+     "½",
+     25
+    ],
+    [
+     "³",
+     3
+    ],
+    [
+     "¼",
+     2
+    ],
+    [
+     "si̇ha'lar",
+     1
+    ],
+    [
+     "i̇brahim",
+     1
+    ]
+   ]
+  }
+ },
+ "stopwords": {
+  "lucene_drops_of_pg127": [
+   "a",
+   "an",
+   "and",
+   "are",
+   "as",
+   "at",
+   "be",
+   "but",
+   "by",
+   "for",
+   "if",
+   "in",
+   "into",
+   "is",
+   "it",
+   "no",
+   "not",
+   "of",
+   "on",
+   "or",
+   "such",
+   "that",
+   "the",
+   "their",
+   "then",
+   "there",
+   "these",
+   "they",
+   "this",
+   "to",
+   "was",
+   "will",
+   "with"
+  ],
+  "paradedb_drops_of_pg127": [
+   "a",
+   "an",
+   "and",
+   "are",
+   "as",
+   "at",
+   "be",
+   "but",
+   "by",
+   "for",
+   "if",
+   "in",
+   "into",
+   "is",
+   "it",
+   "no",
+   "not",
+   "of",
+   "on",
+   "or",
+   "such",
+   "that",
+   "the",
+   "their",
+   "then",
+   "there",
+   "these",
+   "they",
+   "this",
+   "to",
+   "was",
+   "will",
+   "with"
+  ],
+  "identical": true
+ }
+}
