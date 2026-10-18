@@ -138,15 +138,37 @@ func (t *Track) JudgmentsPath(value string) string {
 	return filepath.Join(t.trecDir, "annotations."+value+".yaml")
 }
 
-// QrelsPath mirrors JudgmentsPath for TREC qrels exports.
+// DefaultJudgmentsPath resolves spec.defaults.judgments like JudgmentsPath,
+// except a relative path starts at the spec file's folder rather than the cwd,
+// the same anchor the spec's suite paths use.
+func (t *Track) DefaultJudgmentsPath(value string) string {
+	path := t.JudgmentsPath(value)
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	specDir, err := filepath.Abs(filepath.Dir(t.Spec))
+	if err != nil {
+		specDir = filepath.Dir(t.Spec)
+	}
+	return filepath.Join(specDir, path)
+}
+
+// QrelsPath mirrors JudgmentsPath for TREC qrels exports. An annotations YAML
+// path maps to the qrels.<name>.tsv beside it, so an export given the file it
+// reads never writes over it; any other path is used verbatim.
 func (t *Track) QrelsPath(value string) string {
 	if value == "" {
 		return ""
 	}
-	if isPath(value) {
+	if !isPath(value) {
+		return filepath.Join(t.trecDir, "qrels."+value+".tsv")
+	}
+	ext := filepath.Ext(value)
+	if ext != ".yaml" && ext != ".yml" {
 		return value
 	}
-	return filepath.Join(t.trecDir, "qrels."+value+".tsv")
+	name := strings.TrimPrefix(strings.TrimSuffix(filepath.Base(value), ext), "annotations.")
+	return filepath.Join(filepath.Dir(value), "qrels."+name+".tsv")
 }
 
 // ReportPath returns <track>/reports/<run_id>.json. Callers pass the run_id

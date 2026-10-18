@@ -271,7 +271,7 @@ func (fx *judgeFixture) writePriorBM25(t *testing.T, runID string, queries ...ju
 	t.Helper()
 	judge := judgment.NewBM25Strategy().Describe()
 	require.NoError(t, judgment.WriteFile(&judgment.File{
-		Meta:    meta.Meta{RunID: runID, Judge: &judge},
+		Meta:    meta.Meta{RunID: runID, Judge: &judge, PoolRunID: fx.pool.Meta.RunID},
 		Queries: queries,
 	}, filepath.Join(fx.track, "trec", "annotations.bm25.yaml")))
 }
@@ -380,7 +380,7 @@ func TestJudge_ResumeDropsQueriesThatLeftThePool(t *testing.T) {
 	fx := newJudgeFixture(t, "climate change", "climate change summit")
 	judge := judgment.NewBM25Strategy().Describe()
 	require.NoError(t, judgment.WriteFile(&judgment.File{
-		Meta:    meta.Meta{Judge: &judge},
+		Meta:    meta.Meta{Judge: &judge, PoolRunID: fx.pool.Meta.RunID},
 		Queries: []judgment.Entry{{QueryID: "q-gone", Docs: []judgment.GradedDoc{{DocID: uuid.New(), Grade: judgment.GradeUnjudged}}}},
 	}, filepath.Join(fx.track, "trec", "annotations.bm25.yaml")))
 
@@ -426,7 +426,7 @@ func (s *interruptingStore) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]do
 }
 
 // An interrupted run leaves only its intermediate flush, which must carry the
-// run's provenance and counts like a finished file.
+// run's provenance, pool binding and counts like a finished file.
 func TestJudge_InterruptedRunLeavesAnIdentifiedFile(t *testing.T) {
 	fx := newJudgeFixture(t, "climate change", "climate change summit")
 	q2Doc := uuid.New()
@@ -445,6 +445,7 @@ func TestJudge_InterruptedRunLeavesAnIdentifiedFile(t *testing.T) {
 
 	jf := fx.annotations(t, "bm25")
 	assert.NotEmpty(t, jf.Meta.RunID)
+	assert.Equal(t, fx.pool.Meta.RunID, jf.Meta.PoolRunID, "--resume reads only this flush, so it must name the pool")
 	assert.NotNil(t, jf.Meta.UnjudgedCount)
 	assert.Contains(t, gradesByQuery(jf), "q1")
 }

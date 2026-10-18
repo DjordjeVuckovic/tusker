@@ -327,17 +327,29 @@ Key flags:
 
 ### `bench run [<name>] [--judgments <S|path>] [--jobs <name,...>]`
 
-Executes the suite against all engines, computes IR metrics and latency, prints a styled table with per-engine NDCG/MAP/MRR/Bpref + latency percentiles + statistical significance, then writes `reports/<run_id>.json` and updates `reports/latest.json`.
+Executes the suite against all engines, computes IR metrics and latency, prints a styled table with per-engine NDCG/MAP/MRR/Bpref + latency percentiles + statistical significance, then writes `reports/<run_id>.json`.
+
+The report is always written. A run fails, exits non-zero and leaves `reports/latest.json` alone when:
+- a (query, engine) execution errored
+- it measured a (query, engine) cell the pool dropped (`bench pool --allow-partial`)
+- it ran a query the pool holds no entry for
+- it measured an engine the pool never saw
+- the judgments leave pooled docs unjudged
+
+`latest.json` also stays put, with exit 0, unless the run took every spec job at the spec's warmup, iterations and K, from the track's own `spec.yaml` and `spec.defaults.judgments`. Every reason a run is not the track's result is listed under `settings.incomplete` in its report.
 
 Judgments resolution order:
 1. `--judgments <strategy|path>` (CLI flag)
-2. `spec.defaults.judgments` (per-track default)
-3. None → latency-only report, warning printed
+2. `spec.defaults.judgments` (per-track default; a relative path starts at the spec file's folder, like the spec's suite paths)
+3. None → the run fails before measuring anything
+
+A judgments file that does not exist fails the run the same way, as do judgments whose `pool_run_id` is not the current pool's `run_id`. `--latency-only` measures latency without judgments; its report is marked `settings.latency_only` and never becomes `latest.json`. A report's `provenance.unjudged_count` is the number of pooled docs the run found ungraded, not the judge's own count.
 
 Flags:
 - `--jobs pg,es` — run only the named job(s) from the spec (useful during development)
 - `--k 3,5,10` — NDCG/P cut-off values
 - `--warmup N`, `--iterations N` — override spec settings
+- `--latency-only` — measure latency without judgments
 
 Retrieval depth is the suite's own `limit` param (or ES `size`); there is no run flag for it.
 
@@ -347,7 +359,7 @@ Elapsed time is printed after the results table.
 
 Every engine is measured under the same rules, so a latency or a failure means the same thing whichever engine produced it.
 
-Each execution, warmup and measured alike, runs under one deadline: `runs.query_timeout` in the spec, 30 s when unset, for every engine type. The runner sets it and no engine client carries a timeout of its own, so a postgres query that runs past it fails the same way an elasticsearch one does. Storing the suite's search templates on an engine is bounded by the same deadline. `bench validate` checks each query under the same deadline. Elasticsearch calls made with no deadline, such as the corpus count, stop at the 30 s default.
+Each execution, warmup and measured alike, runs under one deadline: `runs.query_timeout` in the spec, 30 s when unset, for every engine type. The runner sets it and no engine client carries a timeout of its own, so a postgres query that runs past it fails the same way an elasticsearch one does. Each report records it as `settings.query_timeout`. Storing the suite's search templates on an engine is bounded by the same deadline. `bench validate` checks each query under the same deadline. Elasticsearch calls made with no deadline, such as the corpus count, stop at the 30 s default.
 
 ```yaml
 runs:
@@ -409,7 +421,7 @@ Prints a one-glance dashboard showing which artifacts exist, when they were last
 
 ### `bench diff [<name>]`
 
-Compares the report `latest.json` points at with the newest earlier report that has judged metrics and no failed queries. When no earlier report qualifies, it warns and falls back to the newest earlier one. It warns when the judge, relevance threshold or judgments file differ, lists the index provenance fields that changed, then shows per-engine metric deltas (NDCG, MAP, MRR, latency) and per-query NDCG regressions sorted by magnitude. NDCG is compared at the largest K both runs computed. Pass `--a` / `--b` to compare specific run IDs.
+Compares the report `latest.json` points at with the newest earlier complete report: judged metrics, no failed queries and nothing in `settings.incomplete`. When no earlier report qualifies, it warns and falls back to the newest earlier one. It warns when the judge, relevance threshold or judgments file differ, lists the index provenance fields that changed, then shows per-engine metric deltas (NDCG, MAP, MRR, latency) and per-query NDCG regressions sorted by magnitude. NDCG is compared at the largest K both runs computed. Pass `--a` / `--b` to compare specific run IDs.
 
 ### `bench show <subcommand> [<name>|path]`
 
@@ -426,7 +438,7 @@ Pretty-prints a one-page summary of any artifact:
 
 ### `bench clean [<name>] [--keep N]`
 
-Removes old JSON, HTML, and Markdown files from `reports/`, keeping the `--keep` most-recent (default 5). `latest.json` is never deleted.
+Removes old JSON, HTML, and Markdown files from `reports/`, keeping the `--keep` most-recent (default 5). `latest.json` is never deleted, and neither is the JSON report it points at. Of the JSON reports, complete runs fill the remaining slots before incomplete ones (failed, partial or latency-only), so those go first. HTML and Markdown exports keep only the `--keep` newest, even the latest run's export. A deleted report takes its `reports/<run_id>.run/` run files with it.
 
 ```bash
 bench clean tracks/global-news-dataset/fts_quality            # keep 5 most recent

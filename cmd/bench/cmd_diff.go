@@ -34,8 +34,9 @@ func newDiffCmd() *cobra.Command {
 per-query NDCG regressions sorted by magnitude.
 
 Without --b, B is the report latest.json points at. Without --a, A is the
-newest earlier report that has judged metrics and no failed queries, or the
-newest earlier report, with a warning, when none has. --a and --b accept run IDs
+newest earlier complete report (judged metrics, no failed queries, nothing
+recorded in settings.incomplete), or the newest earlier report, with a
+warning, when none is. --a and --b accept run IDs
 (e.g. 2026-05-26T23-39-05-run-7e0750) or direct paths to report.json files.`,
 		Example: `  bench diff tracks/global-news-dataset/fts_quality                               # latest two runs
   bench diff tracks/global-news-dataset/fts_quality --b 2026-05-26T23-39-05-run-7e0750
@@ -164,16 +165,17 @@ func previousScoredReport(search baselineSearch) (*report.Report, error) {
 	if newestReadable == nil {
 		return nil, fmt.Errorf("no earlier readable report in %s", dir)
 	}
-	slog.Warn("no earlier report has judged metrics and no failed queries; diffing against the newest one",
+	slog.Warn("no earlier report is complete; diffing against the newest one",
 		"report", newestReadable.Provenance.RunID)
 	return newestReadable, nil
 }
 
-// fullyScored reports whether every job carries quality metrics and no
-// (query, engine) cell failed. A latency-only or partial run is not a
-// baseline: its deltas would measure the failures, not the engines.
+// fullyScored reports whether every job carries quality metrics, no
+// (query, engine) cell failed and bench run recorded nothing incomplete. A
+// latency-only, partial or off-spec run is not a baseline: its deltas would
+// measure the failures, not the engines.
 func fullyScored(r *report.Report) bool {
-	if len(r.Jobs) == 0 {
+	if len(r.Jobs) == 0 || len(r.Settings.Incomplete) > 0 {
 		return false
 	}
 	for _, job := range r.Jobs {

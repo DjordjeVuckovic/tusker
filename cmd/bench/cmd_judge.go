@@ -165,6 +165,7 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 		jf.Meta = meta.New("judge")
 		jf.Meta.Judge = &judge
 		jf.Meta.PoolRef = poolPath
+		jf.Meta.PoolRunID = pf.Meta.RunID
 		if err := judgment.WriteFile(jf, outPath); err != nil {
 			return fmt.Errorf("write judgments: %w", err)
 		}
@@ -205,6 +206,7 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 	runMeta := meta.New("judge")
 	runMeta.Judge = &judge
 	runMeta.PoolRef = poolPath
+	runMeta.PoolRunID = pf.Meta.RunID
 	runMeta.RelevanceScale = []int{0, 1, 2, 3}
 	writer := judgment.NewIncrementalWriter(outPath, runMeta)
 	var prior *judgment.File
@@ -217,10 +219,12 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 			if err := checkResumeCompat(prior, strat); err != nil {
 				return err
 			}
+			if err := checkPoolBinding(prior.Meta.PoolRunID, pf); err != nil {
+				return fmt.Errorf("--resume: %w\n  • re-run without --resume to grade the current pool from scratch", err)
+			}
 			printWarn(cmd.OutOrStdout(), fmt.Sprintf("Resume: loaded %d prior queries from %s", len(prior.Queries), outPath))
 		}
 	}
-
 	jrunner := judgment.NewRunner(judgment.RunnerConfig{
 		Strategy:    strat,
 		Reader:      reader,

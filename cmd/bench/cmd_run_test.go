@@ -9,16 +9,24 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadJudgmentsMap_EmptyPath(t *testing.T) {
-	m, jm, err := loadJudgmentsMap("", true)
+func TestLoadRunJudgments_NoneConfiguredNeedsLatencyOnly(t *testing.T) {
+	tr := newLineageTrack(t, "http://unused.invalid")
+	resolved, err := trackctx.Resolve(trackctx.Inputs{TrackArg: tr.dir})
 	require.NoError(t, err)
-	assert.Nil(t, m, "empty path is always silent regardless of explicit")
-	assert.Nil(t, jm)
+
+	_, err = loadRunJudgments(runFlags{}, &spec.BenchSpec{}, resolved)
+	require.Error(t, err, "a spec without default judgments and no --judgments has nothing to score against")
+	assert.Contains(t, err.Error(), "--latency-only")
+
+	judgments, err := loadRunJudgments(runFlags{latencyOnly: true}, &spec.BenchSpec{}, resolved)
+	require.NoError(t, err)
+	assert.Nil(t, judgments.grades)
 }
 
 func TestLoadJudgmentsMap_MissingFileExplicitErrors(t *testing.T) {
@@ -28,10 +36,10 @@ func TestLoadJudgmentsMap_MissingFileExplicitErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "lexical", "error should list valid strategies")
 }
 
-func TestLoadJudgmentsMap_MissingFileImplicitSilent(t *testing.T) {
-	m, _, err := loadJudgmentsMap(filepath.Join(t.TempDir(), "nope.yaml"), false)
-	require.NoError(t, err, "spec.defaults missing file should NOT error — runner reports it")
-	assert.Nil(t, m)
+func TestLoadJudgmentsMap_MissingFileImplicitErrors(t *testing.T) {
+	_, _, err := loadJudgmentsMap(filepath.Join(t.TempDir(), "nope.yaml"), false)
+	require.Error(t, err, "a missing spec-default judgments file must not yield an unscored report")
+	assert.Contains(t, err.Error(), "spec.defaults.judgments")
 }
 
 func TestLoadJudgmentsMap_FlattensAndFiltersUnjudged(t *testing.T) {
