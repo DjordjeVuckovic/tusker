@@ -62,7 +62,7 @@ func LoadConfigFromEnv() (*Config, error) {
 	if _, set := os.LookupEnv("EMBEDDING_MAX_LENGTH"); set {
 		return nil, errors.New("EMBEDDING_MAX_LENGTH is renamed EMBEDDING_DIM")
 	}
-	dim, err := parseDim(os.Getenv("EMBEDDING_DIM"))
+	dim, err := DimFromEnv()
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +75,11 @@ func LoadConfigFromEnv() (*Config, error) {
 		BaseURL:     baseUrl,
 		ObjectStore: loadObjectStoreFromEnv(),
 	}, nil
+}
+
+// DimFromEnv reads EMBEDDING_DIM, the width vectors are sliced to and tagged with.
+func DimFromEnv() (int, error) {
+	return parseDim(os.Getenv("EMBEDDING_DIM"))
 }
 
 func parseDim(raw string) (int, error) {

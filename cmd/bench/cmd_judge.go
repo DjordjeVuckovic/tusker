@@ -362,11 +362,15 @@ func buildVectorStore(ctx context.Context, f judgeFlags, tr *trackctx.Track) (st
 	if err != nil {
 		return nil, "", noop, fmt.Errorf("embedding client: %w", err)
 	}
-	model := envOrFlag("EMBEDDING_MODEL", f.embeddingModel)
+	dim, err := embedding.DimFromEnv()
+	if err != nil {
+		return nil, "", noop, err
+	}
 	store, err := factory.NewVectorStore(ctx, factory.VectorStoreConfig{
 		PgConnStr:       pgConn,
 		EmbeddingClient: client,
-		Model:           model,
+		Model:           envOrFlag("EMBEDDING_MODEL", f.embeddingModel),
+		Dim:             dim,
 	})
 	if err != nil {
 		return nil, "", noop, err

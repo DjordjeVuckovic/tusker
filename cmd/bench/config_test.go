@@ -9,9 +9,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,4 +102,25 @@ func copyQueryVectorsTrack(t *testing.T) string {
 	src := filepath.Join("..", "..", "internal", "storage", "queryvectors", "fixtures", "track")
 	require.NoError(t, os.CopyFS(track, os.DirFS(src)))
 	return track
+}
+
+// Following VerifyEmbeddingModel's remedy for a spec declaring another width
+// must give a store that passes it.
+func TestBuildQueryVectorStore_OllamaStoreTagsTheConfiguredWidth(t *testing.T) {
+	ctx := context.Background()
+	container := pkgtesting.NewPGContainerWithCleanup(ctx, t)
+	t.Setenv("EMBEDDING_BASE_URL", "http://127.0.0.1:1")
+	t.Setenv("EMBEDDING_MODEL", "qwen3-embedding:0.6b")
+	t.Setenv("EMBEDDING_DIM", "768")
+	bs := &spec.BenchSpec{Engines: map[string]spec.Engine{"pg": {
+		Type:       spec.EnginePostgres,
+		Connection: container.ConnString,
+		Params:     map[string]any{"embedding_model": "qwen3-embedding:0.6b@768"},
+	}}}
+
+	store, closeStore, err := buildQueryVectorStore(ctx, bs, &trackctx.Track{Root: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(closeStore)
+
+	require.NoError(t, runner.VerifyEmbeddingModel(bs.Engines, store))
 }

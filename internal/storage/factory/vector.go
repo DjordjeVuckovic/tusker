@@ -22,6 +22,8 @@ type VectorStoreConfig struct {
 	EmbeddingClient embedding.Client
 	// Model defaults to embedding.DefaultModel.
 	Model string
+	// Dim defaults to embedding.DefaultDim.
+	Dim int
 }
 
 // NewVectorStore builds a VectorStore, preferring Postgres over Elasticsearch.
@@ -35,6 +37,9 @@ func NewVectorStore(ctx context.Context, cfg VectorStoreConfig) (storage.VectorS
 	var opts []embedding.EmbedderOption
 	if cfg.Model != "" {
 		opts = append(opts, embedding.WithExecutorModel(cfg.Model))
+	}
+	if cfg.Dim != 0 {
+		opts = append(opts, embedding.WithDim(cfg.Dim))
 	}
 	embedder := embedding.NewEmbedder(cfg.EmbeddingClient, opts...)
 

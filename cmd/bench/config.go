@@ -57,10 +57,15 @@ func buildQueryVectorStore(ctx context.Context, bs *spec.BenchSpec, tr *trackctx
 	if err != nil {
 		return nil, noop, fmt.Errorf("embedding client: %w", err)
 	}
+	dim, err := embedding.DimFromEnv()
+	if err != nil {
+		return nil, noop, err
+	}
 	store, err := factory.NewVectorStore(ctx, factory.VectorStoreConfig{
 		PgConnStr:       pgConn,
 		EmbeddingClient: client,
 		Model:           os.Getenv("EMBEDDING_MODEL"),
+		Dim:             dim,
 	})
 	return store, noop, err
 }
