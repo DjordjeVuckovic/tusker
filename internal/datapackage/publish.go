@@ -10,62 +10,88 @@ import (
 	"strings"
 )
 
+// DefaultVersion names a package published without a version.
+const DefaultVersion = "v1"
+
 // PublishOptions locates a package being published. StagingDir holds the
 // package's resource file and must sit on the same filesystem as ParentDir,
-// since publishing renames it.
+// since publishing renames it. Version names the folder the package lands in;
+// empty means DefaultVersion.
 type PublishOptions struct {
 	StagingDir string
 	ParentDir  string
+	Version    string
 }
 
 // Published is a package in its version folder. Existing reports that the
-// version was already published, so the staged copy was discarded.
+// version already held the same bytes, so the staged copy was discarded.
 type Published struct {
 	Dir      string
 	Package  Package
 	Existing bool
 }
 
-// Publish versions a single-resource package (canonical, embeddings or query
-// vectors) by its resource's bytes: it writes the descriptor in StagingDir with
-// that version and renames StagingDir to ParentDir/<version>. A folder already
-// at that version holds the same bytes, so Publish then removes StagingDir and
-// returns the package already there. Raw packages keep their source version
-// and use Write instead.
+// VersionConflictError reports a Publish into a version already published
+// with other bytes. Nothing is replaced.
+type VersionConflictError struct {
+	Dir           string
+	Version       string
+	PublishedHash string
+	StagedHash    string
+}
+
+func (e *VersionConflictError) Error() string {
+	return fmt.Sprintf("version %s at %s already holds %s, not the staged %s; publish under another version",
+		e.Version, e.Dir, e.PublishedHash, e.StagedHash)
+}
+
+// Publish writes the descriptor of a single-resource package (canonical or
+// embeddings) in StagingDir and renames StagingDir to
+// ParentDir/<version>. When that version is already published, Publish
+// removes StagingDir and returns the published package if its resource has
+// the same hash, or a *VersionConflictError if not. Raw and query-vectors
+// packages live in fixed folders and use Write instead.
 func Publish(ctx context.Context, pkg Package, opts PublishOptions) (Published, error) {
+	if opts.Version == "" {
+		opts.Version = DefaultVersion
+	}
 	if err := checkPublishable(pkg, opts); err != nil {
 		return Published{}, err
 	}
-	written, err := write(ctx, opts.StagingDir, pkg, true)
+	pkg.Version = opts.Version
+	staged, err := Write(ctx, opts.StagingDir, pkg)
 	if err != nil {
 		return Published{}, err
 	}
-	target := filepath.Join(opts.ParentDir, written.Version)
+	target := filepath.Join(opts.ParentDir, opts.Version)
 	if existing, ok, err := openPublished(ctx, target); err != nil || ok {
 		if err != nil {
 			return Published{}, err
 		}
-		return discardStaging(opts.StagingDir, existing)
+		return keepPublished(opts.StagingDir, existing, staged)
 	}
 	if err := os.MkdirAll(opts.ParentDir, 0o755); err != nil {
 		return Published{}, fmt.Errorf("create %s: %w", opts.ParentDir, err)
 	}
 	if err := os.Rename(opts.StagingDir, target); err != nil {
-		// Another producer may have published the same bytes meanwhile.
+		// Another producer may have published this version meanwhile.
 		if existing, ok, openErr := openPublished(ctx, target); openErr == nil && ok {
-			return discardStaging(opts.StagingDir, existing)
+			return keepPublished(opts.StagingDir, existing, staged)
 		}
 		return Published{}, fmt.Errorf("publish %s as %s: %w", opts.StagingDir, target, err)
 	}
-	return Published{Dir: target, Package: written}, nil
+	return Published{Dir: target, Package: staged}, nil
 }
 
 func checkPublishable(pkg Package, opts PublishOptions) error {
 	if len(pkg.Resources) != 1 {
-		return fmt.Errorf("publish package %s: its version comes from one resource, it lists %d", pkg.Name, len(pkg.Resources))
+		return fmt.Errorf("publish package %s: it must list one resource, it lists %d", pkg.Name, len(pkg.Resources))
 	}
 	if pkg.Version != "" {
-		return fmt.Errorf("publish package %s: version %q is set, but Publish derives it from the resource", pkg.Name, pkg.Version)
+		return fmt.Errorf("publish package %s: version %q is set on the package; pass it in PublishOptions", pkg.Name, pkg.Version)
+	}
+	if err := validateResourcePath(opts.Version); err != nil || strings.Contains(opts.Version, "/") {
+		return fmt.Errorf("publish package %s: version %q must be a single folder name", pkg.Name, opts.Version)
 	}
 	if opts.StagingDir == "" || opts.ParentDir == "" {
 		return errors.New("publish needs both a staging and a parent folder")
@@ -95,15 +121,19 @@ func openPublished(ctx context.Context, dir string) (Published, bool, error) {
 	return Published{Dir: dir, Package: opened.Package, Existing: true}, true, nil
 }
 
-func discardStaging(staging string, existing Published) (Published, error) {
+// keepPublished discards the staged copy and returns the published package,
+// unless the two resources differ.
+func keepPublished(staging string, existing Published, staged Package) (Published, error) {
 	if err := os.RemoveAll(staging); err != nil {
 		return Published{}, fmt.Errorf("remove staging %s: %w", staging, err)
 	}
+	// Open has validated that the published package lists at least one resource.
+	publishedHash := existing.Package.Resources[0].Hash
+	if len(existing.Package.Resources) != 1 || publishedHash != staged.Resources[0].Hash {
+		return Published{}, &VersionConflictError{
+			Dir: existing.Dir, Version: staged.Version,
+			PublishedHash: publishedHash, StagedHash: staged.Resources[0].Hash,
+		}
+	}
 	return existing, nil
-}
-
-// versionOf names a package after the first 8 hex chars of its resource's
-// sha256, so the version folder follows from the bytes.
-func versionOf(r Resource) string {
-	return strings.TrimPrefix(r.Hash, hashPrefix)[:8]
 }

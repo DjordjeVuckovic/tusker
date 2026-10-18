@@ -37,14 +37,14 @@ func validateDescriptor(t *testing.T, schema *jsonschema.Schema, descriptor []by
 func embeddingsPackage() datapackage.Package {
 	return datapackage.Package{
 		Name:       "cc-news-embeddings",
-		Version:    "938b2254",
+		Version:    "v1",
 		ProducedBy: &datapackage.ProducedBy{Tool: "scripts/embed_corpus.py"},
 		Embedding: &datapackage.Embedding{
 			Model: "qwen3-embedding:0.6b", HuggingFaceModel: "Qwen/Qwen3-Embedding-0.6B", Revision: "abc123",
 			Tag: "qwen3-embedding:0.6b@1024", Dim: 1024, Recipe: "lead-v1", Pooling: "last_token",
 			Normalized: true, MaxTokens: 512, BatchSize: 32, DType: "float16",
 		},
-		Canonical: &datapackage.Ref{Name: "cc-news-canonical", Version: "601d5476", ResourceHash: "sha256:" + zeros64},
+		Canonical: &datapackage.Ref{Name: "cc-news-canonical", Version: "v1", ResourceHash: "sha256:" + zeros64},
 		Resources: []datapackage.Resource{{Name: datapackage.EmbeddingsResource, Path: "embeddings.parquet", Format: "parquet"}},
 	}
 }
@@ -52,7 +52,7 @@ func embeddingsPackage() datapackage.Package {
 func representativePackages() map[string]datapackage.Package {
 	limit := 500
 	trial := embeddingsPackage()
-	trial.Version = "5c33ee7e"
+	trial.Version = "v1-trial"
 	trialEmbedding := *trial.Embedding
 	trialEmbedding.Limit = &limit
 	trial.Embedding = &trialEmbedding
@@ -60,7 +60,7 @@ func representativePackages() map[string]datapackage.Package {
 	return map[string]datapackage.Package{
 		"canonical": {
 			Name:          "cc-news-canonical",
-			Version:       "601d5476",
+			Version:       "v1",
 			ArticleSchema: datapackage.ArticleSchema,
 			Language:      "eng",
 			IDStrategy:    &datapackage.IDStrategy{Kind: "uuidv5", Source: "url", Namespace: "6ba7b811-9dad-11d1-80b4-00c04fd430c8"},

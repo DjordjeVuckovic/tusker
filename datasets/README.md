@@ -22,7 +22,7 @@ Each resource is one file, with a `path` relative to the descriptor, its `format
 
 A descriptor can be opened from a local path, an `https://` URL, or `s3://bucket/key`; a remote location that doesn't end in `.json` is a folder holding `datapackage.json`. For S3-compatible stores such as R2, set `DATASET_S3_ENDPOINT`, `DATASET_S3_REGION` (default `auto` with an endpoint), `DATASET_S3_ACCESS_KEY` and `DATASET_S3_SECRET_KEY`. Set both keys or neither: without them, requests go unsigned. `AWS_*` variables and `~/.aws` are never read. Article text and vectors stay in a private bucket because of publisher copyright; only descriptors are public.
 
-A canonical, embeddings or query-vectors package's version is the first 8 hex chars of its resource's sha256, so its folder name follows from the bytes: `datapackage.Publish` renames the staged package to `<version>/` and keeps a folder already there, which holds the same bytes. A raw package's version is its source version, the Hugging Face commit or the Kaggle dataset version.
+A canonical or embeddings package's version is a name its producer is given, `v1` by default. `datapackage.Publish` renames the staged package to `<version>/`; when that folder exists, a resource with the same hash keeps it and a different hash is refused, so a `--limit` trial needs its own version such as `v1-trial`. Query-vectors packages live in one fixed folder with no version, and a raw package's version is its source version, the Hugging Face commit or the Kaggle dataset version.
 
 ## Fetching raw data
 

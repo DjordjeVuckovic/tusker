@@ -10,8 +10,7 @@ import (
 
 func queryVectorsPackage() datapackage.Package {
 	return datapackage.Package{
-		Name:    "cc-news-fts-query-vectors",
-		Version: "3fafa1cf",
+		Name: "cc-news-fts-query-vectors",
 		Embedding: &datapackage.Embedding{
 			Model: "qwen3-embedding:0.6b", HuggingFaceModel: "Qwen/Qwen3-Embedding-0.6B", Revision: "abc123",
 			Tag: "qwen3-embedding:0.6b@1024", Dim: 1024, Recipe: "query-instruct-v1", Pooling: "last_token",
@@ -91,13 +90,13 @@ func TestOpenDecodesAnEmbeddingsDescriptorFromThePythonProducer(t *testing.T) {
 	writeFile(t, dir, datapackage.DescriptorName, `{
   "$schema": "https://datapackage.org/profiles/2.0/datapackage.json",
   "name": "cc-news-embeddings",
-  "version": "5c33ee7e",
+  "version": "v1-trial",
   "embedding": {
     "model": "qwen3-embedding:0.6b", "hfModel": "Qwen/Qwen3-Embedding-0.6B", "revision": "abc123",
     "tag": "qwen3-embedding:0.6b@1024", "dim": 1024, "recipe": "lead-v1", "pooling": "last_token",
     "normalized": true, "maxTokens": 512, "batchSize": 32, "dtype": "float16", "limit": 500
   },
-  "canonical": {"name": "cc-news-canonical", "version": "601d5476", "resourceHash": "sha256:`+zeros64+`"},
+  "canonical": {"name": "cc-news-canonical", "version": "v1", "resourceHash": "sha256:`+zeros64+`"},
   "resources": [{"name": "embeddings", "path": "embeddings.parquet", "format": "parquet", "bytes": 6,
     "hash": "sha256:5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"}]
 }`)
