@@ -315,7 +315,7 @@ def package_dirs(output_root: Path) -> list[str]:
 
 
 def trial_flags(output_root: Path) -> dict[Path, bool]:
-    """Map each written package to whether its descriptor marks it as a --limit trial."""
+    """Each package mapped to whether `embedding.limit` marks it a trial."""
     return {
         path: "limit" in json.loads(path.read_text())["embedding"]
         for path in output_root.glob("embeddings/*/*/datapackage.json")
@@ -487,7 +487,7 @@ def test_each_vector_belongs_to_its_row_when_a_batch_pads_mixed_lengths(
 
 
 def model_card_last_token_pool(last_hidden_states, attention_mask):
-    """The pooling function from the Qwen3-Embedding model card, verbatim."""
+    """Verbatim from the Qwen3-Embedding model card."""
     left_padding = attention_mask[:, -1].sum() == attention_mask.shape[0]
     if left_padding:
         return last_hidden_states[:, -1]

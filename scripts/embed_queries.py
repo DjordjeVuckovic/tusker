@@ -9,21 +9,11 @@
 #   "pyyaml>=6",
 # ]
 # ///
-"""Embed a bench track's queries into a query-vectors package.
+"""Embed a track's suite queries into trec/query-vectors/ beside the suite.
 
   uv run scripts/embed_queries.py tracks/<dataset>/<paradigm>/suite.yaml
 
-Writes trec/query-vectors/ beside the suite: query-vectors.parquet with one
-(query_id, text, embedding) row per suite query in suite order, and a
-datapackage.json recording the model tag, the query recipe and the suite id.
-`text` is the query's description exactly as the bench runner passes it to
-QueryVector; the model input wraps it with the query-instruct-v1 recipe. A new
-run replaces the folder.
-
-Uses embed_corpus.py's model loading, pooling and normalisation, so queries and
-documents go through one runtime. As a Kaggle script kernel (no argv) it reads
-the one suite.yaml under /kaggle/input, imports the embed_corpus.py shipped in
-the same dataset, and writes /kaggle/working/query-vectors/.
+With no argument it runs as a Kaggle kernel, importing the embed_corpus.py in its input.
 """
 
 import argparse
@@ -42,7 +32,7 @@ KAGGLE_WORKING = Path("/kaggle/working")
 try:
     import embed_corpus
 except ModuleNotFoundError:
-    # A kernel pushes a single code file; embed_corpus.py travels in the input dataset.
+    # A kernel pushes one code file; embed_corpus.py rides in the input dataset.
     sys.path.extend(
         sorted({str(path.parent) for path in KAGGLE_INPUT.glob("**/embed_corpus.py")})
     )
@@ -50,8 +40,7 @@ except ModuleNotFoundError:
 
 
 QUERY_RECIPE = "query-instruct-v1"
-# One query per forward pass: no padding, so a query's vector never depends on
-# which other queries share the suite.
+# One query per pass, so no vector depends on padding to its neighbours.
 QUERY_BATCH_SIZE = 1
 QUERY_TASK = "Given a web search, retrieve all relevant news documents"
 
@@ -77,15 +66,12 @@ class Suite:
 
 
 def instruct_input(text: str) -> str:
-    """Wrap a query in the query-instruct-v1 recipe."""
+    """The query-instruct-v1 recipe."""
     return f"Instruct: {QUERY_TASK}\nQuery:{text.strip()}"
 
 
 def load_suite(path: Path) -> Suite:
-    """Read a suite's query ids and descriptions as strings.
-
-    The base loader resolves no tags, so `yes` or `2024` stay the text the runner sees.
-    """
+    """BaseLoader keeps `yes` or `2024` as the text the runner sees."""
     try:
         document = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     except (OSError, yaml.YAMLError) as error:
@@ -130,7 +116,7 @@ def write_query_vectors(
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    # No abbreviations: a stale flag such as --out must not quietly become --output-root.
+    # A stale flag such as --out must not match --output-root.
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -241,7 +227,6 @@ def run(args: argparse.Namespace) -> Path:
         "embedding": embedding,
         "suite": {"id": suite.id},
     }
-    # The folder is fixed per track, so a new embedding of the suite replaces it.
     embed_corpus.publish_replacing(
         out, lambda directory: write_query_vectors(directory, rows, descriptor)
     )

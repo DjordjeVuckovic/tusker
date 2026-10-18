@@ -8,19 +8,11 @@
 #   "pyarrow>=16",
 # ]
 # ///
-"""Project a canonical package down to the columns embed_corpus.py reads.
+"""Project a canonical package to the columns embed_corpus.py reads, for the cloud upload.
 
   uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
 
-Writes a package of its own to <out>/<version>/ (--version, default v1):
-articles.parquet holding id, title and description in canonical row order, and a
-slim.datapackage.json whose `canonical` property names the canonical package it
-came from. embed_corpus.py reads that property, so embedding the projection
-yields the same bytes as embedding the canonical package. The article body is most of the bytes, so
-this is what goes to the Kaggle dataset.
-
-The output is plain parquet next to its descriptor: Kaggle decompresses .gz
-uploads, which would break the recorded hash.
+Writes <out>/<version>/ as plain parquet: Kaggle decompresses .gz uploads, breaking the hash.
 """
 
 import argparse
@@ -90,7 +82,7 @@ def write_slim_package(
 
 
 def parse_args() -> argparse.Namespace:
-    # No abbreviations: a stale flag such as --out must not quietly become --output-root.
+    # A stale flag such as --out must not match --output-root.
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,

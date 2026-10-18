@@ -1,7 +1,4 @@
-"""The Colab notebook only drives the scripts, so its calls must parse against their CLIs.
-
-Nothing here runs the notebook: it needs a Colab GPU and a mounted Drive.
-"""
+"""The notebook only drives the scripts, so its calls must parse; it can't run here."""
 
 import argparse
 import importlib
@@ -27,10 +24,9 @@ def code_cells() -> list[str]:
 
 
 def settings() -> dict[str, object]:
-    """Run the notebook's settings cell, which holds plain assignments and nothing else."""
     (cell,) = [source for source in code_cells() if source.startswith(SETTINGS_HEADER)]
     namespace: dict[str, object] = {}
-    exec(cell, {}, namespace)  # noqa: S102  # the notebook's own settings cell, plain assignments
+    exec(cell, {}, namespace)  # noqa: S102  # the settings cell holds plain assignments
     return namespace
 
 

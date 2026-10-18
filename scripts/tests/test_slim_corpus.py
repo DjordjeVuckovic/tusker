@@ -31,7 +31,6 @@ def only_package(output_root):
 
 
 def slim_package(out):
-    """Return the one version folder slim_corpus.py wrote under --out."""
     (descriptor,) = out.glob("*/slim.datapackage.json")
     return descriptor.parent
 
