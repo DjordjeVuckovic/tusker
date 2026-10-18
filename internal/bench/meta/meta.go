@@ -25,13 +25,16 @@ type Meta struct {
 	SuiteVersion string `yaml:"suite_version,omitempty" json:"suite_version,omitempty"`
 
 	// Pool-only fields.
-	PoolDepth int      `yaml:"pool_depth,omitempty" json:"pool_depth,omitempty"`
-	Engines   []string `yaml:"engines,omitempty" json:"engines,omitempty"`
+	PoolDepth         int                `yaml:"pool_depth,omitempty" json:"pool_depth,omitempty"`
+	Engines           []string           `yaml:"engines,omitempty" json:"engines,omitempty"`
+	DroppedExecutions []DroppedExecution `yaml:"dropped_executions,omitempty" json:"dropped_executions,omitempty"`
 
 	// Judgment-only fields.
 	Judge          *Judge `yaml:"judge,omitempty" json:"judge,omitempty"`
 	PoolRef        string `yaml:"pool_ref,omitempty" json:"pool_ref,omitempty"`
-	GradedCount    int    `yaml:"graded_count,omitempty" json:"graded_count,omitempty"`
+	PoolRunID      string `yaml:"pool_run_id,omitempty" json:"pool_run_id,omitempty"`
+	GradedCount    *int   `yaml:"graded_count,omitempty" json:"graded_count,omitempty"`
+	UnjudgedCount  *int   `yaml:"unjudged_count,omitempty" json:"unjudged_count,omitempty"`
 	RelevanceScale []int  `yaml:"relevance_scale,omitempty" json:"relevance_scale,omitempty"`
 
 	// Legacy flat judgment fields, retained read-only so annotations written
@@ -45,6 +48,14 @@ type Meta struct {
 	Sources *Sources `yaml:"sources,omitempty" json:"sources,omitempty"`
 }
 
+// DroppedExecution is a (query, engine) pair a pool written with
+// --allow-partial holds no documents for, because every execution of it failed.
+type DroppedExecution struct {
+	QueryID string `yaml:"query_id" json:"query_id"`
+	Engine  string `yaml:"engine" json:"engine"`
+	Error   string `yaml:"error" json:"error"`
+}
+
 // Judge attests who graded an annotations file. Structured rather than flat so
 // a judgment set names its grader unambiguously: Strategy is the generic
 // taxonomy entry (lexical, bm25, vector, hybrid, llm-cli, llm-api, manual) and
@@ -56,6 +67,8 @@ type Judge struct {
 	Provider      string `yaml:"provider,omitempty" json:"provider,omitempty"`
 	Model         string `yaml:"model,omitempty" json:"model,omitempty"`
 	PromptVersion string `yaml:"prompt_version,omitempty" json:"prompt_version,omitempty"`
+	// RubricVersion names the grading rules of a heuristic judge, which has no prompt.
+	RubricVersion string `yaml:"rubric_version,omitempty" json:"rubric_version,omitempty"`
 }
 
 // Equal reports whether two judges would produce comparable grades. Used by the

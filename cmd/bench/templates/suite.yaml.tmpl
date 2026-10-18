@@ -22,11 +22,13 @@ templates:
       LIMIT $2::int
 
   # An elasticsearch search template is Mustache over the Query DSL: quote string
-  # params, and render the query_vector arg with toJson.
+  # params, and render the query_vector arg with toJson. "_source": false ships
+  # ids only, as the postgres template selects only id; "track_total_hits": false
+  # skips the match count postgres never makes.
   # - id: es_multi_match
   #   args: [terms]
   #   query: |
-  #     {"query": {"multi_match": {"query": "{{`{{terms}}`}}", "fields": ["title^3", "description^2", "content"]}}, "size": 100}
+  #     {"query": {"multi_match": {"query": "{{`{{terms}}`}}", "fields": ["title^3", "description^2", "content"]}}, "size": 100, "_source": false, "track_total_hits": false}
 
 queries:
   - id: example-q1

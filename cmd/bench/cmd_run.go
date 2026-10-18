@@ -2,16 +2,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/report"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
@@ -20,15 +24,16 @@ import (
 )
 
 type runFlags struct {
-	trackArg  string
-	specPath  string
-	suitePath string
-	judgments string
-	output    string
-	kValues   string
-	jobs      string // comma-separated job name filter
-	warmup    int
-	iters     int
+	trackArg    string
+	specPath    string
+	suitePath   string
+	judgments   string
+	output      string
+	kValues     string
+	jobs        string // comma-separated job name filter
+	warmup      int
+	iters       int
+	latencyOnly bool
 }
 
 func newRunCmd() *cobra.Command {
@@ -43,9 +48,26 @@ The track arg is a path — absolute, or relative to --track-root (default: cwd)
 or a glob, which runs every matching track and writes one report per track.
 
 The judgments file used for scoring resolves in this order:
-  1. --judgments <name|path>      (CLI override)
-  2. spec.defaults.judgments      (per-track default)
-  3. none → metrics-less report, warning printed`,
+  1. --judgments <name|path>   (CLI override)
+  2. spec.defaults.judgments   (per-track default; a relative path starts at
+                                the spec's folder)
+  3. none → the run fails before measuring anything
+
+A missing judgments file fails the run the same way, as do judgments graded
+against another pool. --latency-only measures latency without judgments; its
+report is marked latency_only and never becomes latest.json.
+
+The report is always written. bench run then exits non-zero and leaves
+latest.json alone when the run failed:
+  • a (query, engine) execution errored
+  • it measured a (query, engine) cell the pool dropped (--allow-partial)
+  • it ran a query the pool holds no entry for
+  • it measured an engine the pool never saw
+  • the judgments leave pooled docs unjudged
+
+latest.json also stays put, with exit 0, unless the run took every spec job at
+the spec's warmup, iterations and K, from the track's own spec.yaml and
+spec.defaults.judgments.`,
 		Example: `  bench run tracks/global-news-dataset/fts_quality
   bench run tracks/global-news-dataset/news_semantic
   bench run 'tracks/global-news-dataset/*'        # every paradigm of the dataset
@@ -64,6 +86,7 @@ The judgments file used for scoring resolves in this order:
 	cmd.Flags().StringVar(&f.jobs, "jobs", "", "Comma-separated job names to run (default: all jobs in spec)")
 	cmd.Flags().IntVar(&f.warmup, "warmup", 0, "Warmup iterations")
 	cmd.Flags().IntVar(&f.iters, "iterations", 0, "Measured iterations (0 = spec.runs.iterations)")
+	cmd.Flags().BoolVar(&f.latencyOnly, "latency-only", false, "Measure latency without judgments; the report never becomes latest.json")
 	return cmd
 }
 
@@ -104,24 +127,13 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		return fmt.Errorf("load spec: %w", err)
 	}
 
-	// Wire judgments: --judgments wins, else spec.defaults.judgments, else nothing.
-	// "Explicit" (CLI flag) → missing file is a hard error so typos surface
-	// loudly. "Default" (from spec) → missing is silent so validate/pool can
-	// run before any judging has happened.
-	judgmentsValue := f.judgments
-	explicit := judgmentsValue != ""
-	if !explicit {
-		judgmentsValue = bs.Defaults.Judgments
-	}
-	jPath := tr.JudgmentsPath(judgmentsValue)
-
-	judgmentsMap, judgmentsMeta, err := loadJudgmentsMap(jPath, explicit)
+	judgments, err := loadRunJudgments(f, bs, tr)
 	if err != nil {
 		return err
 	}
 
 	runCfg := newRunConfig(f, bs, ks, cmd.Flags().Changed("k"))
-	runCfg.Judgments = judgmentsMap
+	runCfg.Judgments = judgments.grades
 
 	printSpecWarnings(cmd.OutOrStdout(), bs)
 
@@ -135,6 +147,8 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	runCfg.VectorStore = vectorStore
 
 	// Apply --jobs filter: keep only the named jobs.
+	specJobCount := len(bs.Jobs)
+	var jobFilter []string
 	if f.jobs != "" {
 		wanted := make(map[string]bool)
 		for _, name := range strings.Split(f.jobs, ",") {
@@ -142,6 +156,7 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 				wanted[n] = true
 			}
 		}
+		jobFilter = slices.Sorted(maps.Keys(wanted))
 		filtered := bs.Jobs[:0]
 		for _, job := range bs.Jobs {
 			if wanted[job.Name] {
@@ -164,7 +179,10 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	}
 	defer cleanup()
 
-	corpus := collectCorpusInfo(cmd.Context(), cmd.OutOrStdout(), executors)
+	corpus, err := collectCorpusInfo(cmd.Context(), executors)
+	if err != nil {
+		return err
+	}
 	indexes := collectIndexProvenance(cmd.Context(), cmd.OutOrStdout(), executors)
 
 	r := runner.New(runCfg)
@@ -187,13 +205,31 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		Spec:      tr.Spec,
 		Suite:     tr.Suite,
 		Pool:      tr.Pool,
-		Judgments: jPath,
+		Judgments: judgments.path,
 	}
-	if judgmentsMeta != nil {
-		rpt.Provenance.Judge = judgmentsMeta.Judge
-		rpt.Provenance.GradedCount = judgmentsMeta.GradedCount
-		rpt.Provenance.PoolRef = judgmentsMeta.PoolRef
+	if judgments.meta != nil {
+		rpt.Provenance.Judge = judgments.meta.Judge
+		rpt.Provenance.GradedCount = judgments.meta.GradedCount
+		rpt.Provenance.UnjudgedCount = &judgments.coverage.unjudged
+		rpt.Provenance.PoolRef = judgments.meta.PoolRef
 	}
+	rpt.Settings = report.RunSettings{
+		Warmup:       runCfg.WarmupRuns,
+		Iterations:   runCfg.Runs,
+		QueryTimeout: bs.Runs.QueryTimeout,
+		JobFilter:    jobFilter,
+		LatencyOnly:  f.latencyOnly,
+		EngineParams: declaredEngineParams(bs),
+	}
+	failures := runFailures(result, judgments)
+	rpt.Settings.Incomplete = append(slices.Clone(failures),
+		specConformance{
+			specOverridden:      f.specPath != "",
+			judgmentsOverridden: f.judgments != "" && !samePath(judgments.path, tr.DefaultJudgmentsPath(bs.Defaults.Judgments)),
+			latencyOnly:         f.latencyOnly,
+			ranEveryJob:         len(bs.Jobs) == specJobCount,
+			measuredAsSpecified: measuredAsSpecified(runCfg, bs),
+		}.deviations()...)
 
 	report.WriteTable(rpt, os.Stdout)
 	fmt.Fprintf(os.Stdout, "%s %s\n", cDim.Sprint("Elapsed:"), elapsed.Round(time.Millisecond))
@@ -205,34 +241,263 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	if err := report.WriteJSON(rpt, outPath); err != nil {
 		return fmt.Errorf("write report: %w", err)
 	}
-	if outPath != "" && f.output == "" {
+	printDone(cmd.OutOrStdout(), "Report written: "+outPath)
+
+	if len(failures) > 0 {
+		return fmt.Errorf("%s\n  • report written to %s; latest.json was not moved", strings.Join(failures, "\n"), outPath)
+	}
+	switch {
+	case len(rpt.Settings.Incomplete) > 0:
+		printWarn(cmd.OutOrStdout(), "latest.json not moved: "+strings.Join(rpt.Settings.Incomplete, "; "))
+	case f.output != "":
+	default:
 		if err := updateLatestPointer(tr.LatestReportPath(), outPath); err != nil {
 			printWarn(cmd.OutOrStdout(), fmt.Sprintf("could not update latest.json pointer: %v", err))
 		}
 	}
-	printDone(cmd.OutOrStdout(), "Report written: "+outPath)
 	return nil
 }
 
-// loadJudgmentsMap reads a judgments YAML and flattens to a runner-friendly
-// map[queryID][docID]grade. Filters out unjudged entries (grade < 0).
-//
-// Missing-file semantics depend on explicit:
-//   - explicit=true (user passed --judgments) → error, so typos surface loud.
-//   - explicit=false (spec.defaults.judgments) → return nil, runner reports
-//     "no judgments" in the table. This lets validate/pool run on a fresh
-//     track that hasn't been judged yet.
-func loadJudgmentsMap(path string, explicit bool) (map[string]map[string]int, *meta.Meta, error) {
-	if path == "" {
-		return nil, nil, nil
+// specConformance is how closely a run followed the one its spec defines.
+type specConformance struct {
+	specOverridden      bool
+	judgmentsOverridden bool
+	latencyOnly         bool
+	ranEveryJob         bool
+	measuredAsSpecified bool
+}
+
+// deviations lists how the run departs from the one its spec defines.
+func (c specConformance) deviations() []string {
+	var deviations []string
+	if c.specOverridden {
+		deviations = append(deviations, "--spec replaced the track's spec.yaml")
 	}
+	if c.judgmentsOverridden {
+		deviations = append(deviations, "--judgments named other judgments than spec.defaults.judgments")
+	}
+	if c.latencyOnly {
+		deviations = append(deviations, "latency-only run, scored against no judgments")
+	}
+	if !c.ranEveryJob {
+		deviations = append(deviations, "--jobs left out some of the spec's jobs")
+	}
+	if !c.measuredAsSpecified {
+		deviations = append(deviations, "--warmup, --iterations or --k differ from spec.yaml")
+	}
+	return deviations
+}
+
+// measuredAsSpecified reports whether cfg measures with the spec's own warmup,
+// iterations and K, however they were spelled on the command line. The spec
+// loader fills all three, so the spec is compared as loaded.
+func measuredAsSpecified(cfg runner.Config, bs *spec.BenchSpec) bool {
+	return cfg.WarmupRuns == bs.Runs.Warmup &&
+		cfg.Runs == bs.Runs.Iterations &&
+		slices.Equal(cfg.KValues, bs.Metrics.KValues)
+}
+
+func declaredEngineParams(bs *spec.BenchSpec) map[string]map[string]any {
+	params := make(map[string]map[string]any)
+	for name, eng := range bs.Engines {
+		if len(eng.Params) > 0 {
+			params[name] = eng.Params
+		}
+	}
+	return params
+}
+
+// runJudgments is what a run scores against. A latency-only run has none.
+type runJudgments struct {
+	path     string
+	grades   map[string]map[string]int
+	meta     *meta.Meta
+	coverage judgmentCoverage
+	// dropped are the cells the pool was written without (--allow-partial).
+	dropped []meta.DroppedExecution
+	// pooledEngines are the engines whose results the pool holds.
+	pooledEngines []string
+}
+
+// loadRunJudgments resolves --judgments, else spec.defaults.judgments, and
+// refuses a run with neither unless it is latency-only, so an unscored report
+// never stands in for the track's results.
+func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJudgments, error) {
+	if f.latencyOnly {
+		if f.judgments != "" {
+			return nil, errors.New("--latency-only scores nothing, so --judgments would be ignored; pass one of them")
+		}
+		return &runJudgments{}, nil
+	}
+
+	explicit := f.judgments != ""
+	path := tr.JudgmentsPath(f.judgments)
+	if !explicit {
+		path = tr.DefaultJudgmentsPath(bs.Defaults.Judgments)
+	}
+	if path == "" {
+		return nil, errors.New("no judgments to score against: set spec.defaults.judgments or pass --judgments\n" +
+			"  • or pass --latency-only to measure latency without scoring")
+	}
+
+	grades, judgmentsMeta, err := loadJudgmentsMap(path, explicit)
+	if err != nil {
+		return nil, err
+	}
+	currentPool, err := pool.ReadPoolFile(tr.Pool)
+	if err != nil {
+		return nil, fmt.Errorf("read the track's pool to check what %s was graded against: %w", path, err)
+	}
+	if err := checkPoolBinding(judgmentsMeta.PoolRunID, currentPool); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return &runJudgments{
+		path:          path,
+		grades:        grades,
+		meta:          judgmentsMeta,
+		coverage:      poolCoverage(currentPool, grades),
+		dropped:       currentPool.Meta.DroppedExecutions,
+		pooledEngines: currentPool.Meta.Engines,
+	}, nil
+}
+
+// judgmentCoverage counts the pool's (query, doc) pairs and how many of them
+// the judgments leave without a grade, and names the queries the pool holds.
+type judgmentCoverage struct {
+	pooled        int
+	unjudged      int
+	pooledQueries map[string]bool
+}
+
+// poolCoverage checks the judgments against the pool itself rather than the
+// judge's own count, which an interrupted run leaves stale and which cannot
+// see queries the judge never reached.
+func poolCoverage(pf *pool.PoolFile, grades map[string]map[string]int) judgmentCoverage {
+	c := judgmentCoverage{pooledQueries: make(map[string]bool, len(pf.Queries))}
+	for _, entry := range pf.Queries {
+		c.pooledQueries[entry.QueryID] = true
+		for _, doc := range entry.Docs {
+			c.pooled++
+			if _, graded := grades[entry.QueryID][doc.DocID.String()]; !graded {
+				c.unjudged++
+			}
+		}
+	}
+	return c
+}
+
+// runFailures lists why a finished run cannot stand as the track's result.
+func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []string {
+	var failures []string
+	if cells := measuredDroppedCells(result, judgments.dropped); len(cells) > 0 {
+		failures = append(failures, fmt.Sprintf("the pool holds no documents for %d measured (query, engine) executions, so their hits score as non-relevant: %s; re-pool without --allow-partial",
+			len(cells), strings.Join(cells, ", ")))
+	}
+	if cells := erroredCells(result); len(cells) > 0 {
+		failures = append(failures, fmt.Sprintf("%d (query, engine) executions errored: %s", len(cells), strings.Join(cells, ", ")))
+	}
+	if judgments.meta != nil {
+		if engines := unpooledEngines(result, judgments); len(engines) > 0 {
+			failures = append(failures, fmt.Sprintf("engines %s were never pooled, so none of their results are judged; re-pool and re-judge the track",
+				strings.Join(engines, ", ")))
+		}
+	}
+	if missing := unpooledQueries(result, judgments.coverage.pooledQueries); len(missing) > 0 {
+		failures = append(failures, fmt.Sprintf("%d suite queries were never pooled, so none of their results are judged: %s; re-pool and re-judge the track",
+			len(missing), strings.Join(missing, ", ")))
+	}
+	if judgments.coverage.unjudged > 0 {
+		failures = append(failures, fmt.Sprintf("the judgments leave %d of %d pooled docs unjudged; finish judging (bench judge --resume)",
+			judgments.coverage.unjudged, judgments.coverage.pooled))
+	}
+	return failures
+}
+
+// unpooledEngines lists, sorted, the engines this run measured that the pool
+// neither holds results from nor records as dropped.
+func unpooledEngines(result *runner.BenchmarkResult, judgments *runJudgments) []string {
+	accounted := make(map[string]bool)
+	for _, name := range judgments.pooledEngines {
+		accounted[name] = true
+	}
+	for _, d := range judgments.dropped {
+		accounted[d.Engine] = true
+	}
+	missing := make(map[string]bool)
+	for _, jr := range result.Jobs {
+		for _, byEngine := range jr.Results {
+			for name := range byEngine {
+				if !accounted[name] {
+					missing[name] = true
+				}
+			}
+		}
+	}
+	return slices.Sorted(maps.Keys(missing))
+}
+
+// unpooledQueries lists the queries this run executed that have no pool entry.
+// A latency-only run has no pool to check against.
+func unpooledQueries(result *runner.BenchmarkResult, pooled map[string]bool) []string {
+	if pooled == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	var missing []string
+	for _, jr := range result.Jobs {
+		for _, queryID := range jr.QueryOrder {
+			if !pooled[queryID] && !seen[queryID] {
+				seen[queryID] = true
+				missing = append(missing, queryID)
+			}
+		}
+	}
+	return missing
+}
+
+// measuredDroppedCells lists the dropped pool cells this run executed.
+func measuredDroppedCells(result *runner.BenchmarkResult, dropped []meta.DroppedExecution) []string {
+	var cells []string
+	for _, d := range dropped {
+		for _, jr := range result.Jobs {
+			if _, ran := jr.Results[d.QueryID][d.Engine]; ran {
+				cells = append(cells, d.QueryID+"/"+d.Engine)
+				break
+			}
+		}
+	}
+	return cells
+}
+
+func erroredCells(result *runner.BenchmarkResult) []string {
+	var cells []string
+	for _, jr := range result.Jobs {
+		for _, queryID := range jr.QueryOrder {
+			for _, engineName := range jr.EngineNames {
+				if qr, ok := jr.Results[queryID][engineName]; ok && qr.Error != nil {
+					cells = append(cells, fmt.Sprintf("%s:%s/%s", jr.JobName, queryID, engineName))
+				}
+			}
+		}
+	}
+	return cells
+}
+
+// loadJudgmentsMap reads a judgments YAML and flattens to a runner-friendly
+// map[queryID][docID]grade. Filters out unjudged entries (grade < 0). A missing
+// file is an error; explicit says whether it came from --judgments or the
+// spec default, which only changes the advice.
+func loadJudgmentsMap(path string, explicit bool) (map[string]map[string]int, *meta.Meta, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if explicit {
 			return nil, nil, fmt.Errorf("--judgments file not found: %s\n"+
 				"  • check the strategy name (lexical, claude-cli, claude-api, manual)\n"+
-				"  • or pass an explicit path to an existing YAML", path)
+				"  • or pass an explicit path to an existing YAML\n"+
+				"  • or pass --latency-only to measure latency without scoring", path)
 		}
-		return nil, nil, nil
+		return nil, nil, fmt.Errorf("spec.defaults.judgments file not found: %s\n"+
+			"  • judge the track first (bench judge)\n"+
+			"  • or pass --latency-only to measure latency without scoring", path)
 	}
 	jf, err := judgment.ReadFile(path)
 	if err != nil {
@@ -252,7 +517,24 @@ func loadJudgmentsMap(path string, explicit bool) (map[string]map[string]int, *m
 	return out, &jf.Meta, nil
 }
 
-func collectCorpusInfo(ctx context.Context, w io.Writer, executors map[string]engine.Executor) report.CorpusInfo {
+// checkPoolBinding fails unless judgments graded against judgedPoolRunID
+// belong to the current pool. A regenerated pool holds docs the judgments never
+// saw, which would score as non-relevant.
+func checkPoolBinding(judgedPoolRunID string, current *pool.PoolFile) error {
+	if judgedPoolRunID == "" {
+		return errors.New("judgments carry no pool_run_id, so the pool they were graded against is unknown; re-judge the track (bench judge)")
+	}
+	if judgedPoolRunID != current.Meta.RunID {
+		return fmt.Errorf("judgments were graded against pool %s, but the current pool is %s; re-judge the track (bench judge)",
+			judgedPoolRunID, current.Meta.RunID)
+	}
+	return nil
+}
+
+// collectCorpusInfo counts each engine's corpus and fails when an engine
+// cannot be counted, is empty, or disagrees with the others, since their
+// metrics would then describe different collections.
+func collectCorpusInfo(ctx context.Context, executors map[string]engine.Executor) (report.CorpusInfo, error) {
 	counts := make(map[string]int64)
 	for name, exec := range executors {
 		counter, ok := exec.(engine.CorpusCounter)
@@ -261,33 +543,36 @@ func collectCorpusInfo(ctx context.Context, w io.Writer, executors map[string]en
 		}
 		n, err := counter.CorpusCount(ctx)
 		if err != nil {
-			printWarn(w, fmt.Sprintf("corpus count for %q failed: %v", name, err))
-			continue
+			return report.CorpusInfo{}, fmt.Errorf("count the corpus of engine %q: %w", name, err)
 		}
 		counts[name] = n
 	}
 	if len(counts) == 0 {
-		return report.CorpusInfo{}
+		return report.CorpusInfo{}, nil
 	}
 
-	info := report.CorpusInfo{PerEngine: counts}
+	var empty []string
+	for _, name := range slices.Sorted(maps.Keys(counts)) {
+		if counts[name] == 0 {
+			empty = append(empty, name)
+		}
+	}
+	if len(empty) > 0 {
+		return report.CorpusInfo{}, fmt.Errorf("engines %s index 0 documents; load the corpus before running", strings.Join(empty, ", "))
+	}
+
 	var first int64
-	same := true
+	seen := false
 	for _, n := range counts {
-		if first == 0 {
-			first = n
+		if !seen {
+			first, seen = n, true
 			continue
 		}
 		if n != first {
-			same = false
+			return report.CorpusInfo{}, fmt.Errorf("engines index different document counts %v, so their metrics are not comparable", counts)
 		}
 	}
-	if same {
-		info.DocCount = first
-	} else {
-		printWarn(w, fmt.Sprintf("engines index different document counts: %v — cross-engine metrics are not comparable", counts))
-	}
-	return info
+	return report.CorpusInfo{PerEngine: counts, DocCount: first}, nil
 }
 
 // indexDescribeTimeout bounds each engine's provenance read, so an engine that

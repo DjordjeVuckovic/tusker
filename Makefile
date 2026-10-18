@@ -85,7 +85,7 @@ build-schemagen:
 # Generate schemas from Go structs
 schema-gen: build-schemagen
 	@echo "Generating schemas..."
-	@./$(BIN_DIR)/schemagen -output=api/mapping-spec
+	@./$(BIN_DIR)/schemagen -output=api/mapping-spec -datapackage-output=api/datapackage-spec
 	@echo "Schemas generated in api/ directory"
 
 # Development commands

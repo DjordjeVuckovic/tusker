@@ -101,7 +101,8 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
 <details class="glossary">
   <summary>Metric Definitions</summary>
   <div class="glossary-body">
-    <div class="glossary-entry"><dt>NDCG@K</dt><dd>Normalized Discounted Cumulative Gain - measures ranking quality by rewarding relevant documents found at higher ranks. Score 0–1; 1 = perfect ranking.</dd></div>
+    <div class="glossary-entry"><dt>NDCG@K</dt><dd>Normalized Discounted Cumulative Gain with gain {{.NDCGGain}} - measures ranking quality by rewarding relevant documents found at higher ranks. Score 0–1; 1 = perfect ranking.</dd></div>
+    <div class="glossary-entry"><dt>NDCG@K (gain {{.LinearNDCGGain}})</dt><dd>trec_eval's ndcg_cut, for reproducing a run with trec_eval: gain rel, and every grade above 0 counts whatever the relevance threshold. A dash means the report predates it.</dd></div>
     <div class="glossary-entry"><dt>MAP</dt><dd>Mean Average Precision - average of precision values at every rank position where a relevant document appears, averaged across queries. Sensitive to recall.</dd></div>
     <div class="glossary-entry"><dt>MRR</dt><dd>Mean Reciprocal Rank - 1 ÷ rank of first relevant result, averaged across queries. Measures how quickly the first correct answer appears.</dd></div>
     <div class="glossary-entry"><dt>Bpref</dt><dd>Binary Preference - fraction of relevant documents ranked above non-relevant ones. More robust than MAP when judgments are incomplete.</dd></div>
@@ -120,7 +121,7 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
   <!-- NDCG@K chart -->
   {{if .NDCGChart}}
   <div class="section">
-    <div class="section-title">NDCG@K</div>
+    <div class="section-title">NDCG@K (gain {{$.NDCGGain}})</div>
     <div class="chart-wrap">
       {{.NDCGChart}}
       <div class="chart-legend">
@@ -149,16 +150,19 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
     <table class="sortable">
       <thead><tr>
         <th>Engine</th>
-        {{range .KValues}}<th>NDCG@{{.}}</th>{{end}}
-        <th>MAP</th><th>MRR</th><th>Bpref</th><th>Judged</th><th>Errors</th>
+        {{range .KValues}}<th>NDCG@{{.}} (gain {{$.NDCGGain}})</th>{{end}}
+        {{range .KValues}}<th>NDCG@{{.}} (gain {{$.LinearNDCGGain}})</th>{{end}}
+        <th>MAP</th><th>MRR</th><th>Bpref</th><th>Coverage@{{.CoverageK}}</th><th>Judged</th><th>Errors</th>
       </tr></thead>
       <tbody>
       {{range .Aggregated}}<tr>
         <td>{{.Engine}}</td>
         {{range .NDCG}}<td><span class="val-main">{{.Val}}</span>{{if .Stddev}}<span class="val-sd">±{{.Stddev}}</span>{{end}}</td>{{end}}
+        {{range .NDCGLinear}}<td class="val-main">{{.}}</td>{{end}}
         <td class="val-main">{{.MAP.Val}}</td>
         <td class="val-main">{{.MRR.Val}}</td>
         <td class="val-main">{{.Bpref.Val}}</td>
+        <td class="val-main">{{.Coverage}}</td>
         <td>{{.Judged}}</td>
         <td>{{.Errors}}</td>
       </tr>{{end}}
@@ -171,14 +175,14 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
     <div class="section-title">Latency Statistics</div>
     <table class="sortable">
       <thead><tr>
-        <th>Engine</th><th>Min</th><th>p50</th><th>p75</th><th>p90</th><th>p95</th><th>p99</th><th>Max</th><th>Mean</th><th>Stddev</th><th>Samples</th>
+        <th>Engine</th><th>Min</th><th>p50</th><th>p75</th><th>p90</th><th>p95</th><th>p99</th><th>Max</th><th>Mean</th><th>Stddev</th><th>Samples</th><th>Excluded</th>
       </tr></thead>
       <tbody>
       {{range .Latency}}<tr>
         <td>{{.Engine}}</td>
         <td>{{.Min}}</td><td>{{.P50}}</td><td>{{.P75}}</td><td>{{.P90}}</td>
         <td>{{.P95}}</td><td>{{.P99}}</td><td>{{.Max}}</td>
-        <td>{{.Mean}}</td><td>{{.Stddev}}</td><td>{{.Samples}}</td>
+        <td>{{.Mean}}</td><td>{{.Stddev}}</td><td>{{.Samples}}</td><td>{{.ExcludedQueries}}</td>
       </tr>{{end}}
       </tbody>
     </table>
@@ -187,13 +191,13 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
   <!-- Significance table -->
   {{if .Significance}}
   <div class="section">
-    <div class="section-title">Statistical Significance <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px">(Wilcoxon signed-rank, two-tailed &nbsp;·&nbsp; * p&lt;0.05 &nbsp; ** p&lt;0.01)</span></div>
+    <div class="section-title">Statistical Significance <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px">(Wilcoxon signed-rank, two-tailed, Holm-adjusted across engine pairs &nbsp;·&nbsp; * p&lt;0.05 &nbsp; ** p&lt;0.01)</span></div>
     <table>
-      <thead><tr><th>Engine A</th><th>Engine B</th><th>Metric</th><th>W</th><th>p-value</th><th>Sig</th></tr></thead>
+      <thead><tr><th>Engine A</th><th>Engine B</th><th>Metric</th><th>W</th><th>p-value</th><th>p (Holm)</th><th>Sig</th></tr></thead>
       <tbody>
       {{range .Significance}}<tr>
         <td>{{.EngineA}}</td><td>{{.EngineB}}</td><td>{{.Metric}}</td>
-        <td>{{.W}}</td><td>{{.P}}</td>
+        <td>{{.W}}</td><td>{{.P}}</td><td>{{.AdjustedP}}</td>
         <td>{{if .NS}}<span class="sig-ns">ns</span>{{else}}<span class="sig-sig">{{.Stars}}</span>{{end}}</td>
       </tr>{{end}}
       </tbody>
@@ -210,7 +214,7 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
     </div>
     <table class="sortable" id="{{.FilterID}}">
       <thead><tr>
-        <th>Query</th><th>Engine</th><th>NDCG@K</th><th>P@K</th><th>AP</th><th>RR</th><th>Bpref</th><th>Returned</th><th>Corpus</th><th>p50</th><th>p95</th><th>Status</th>
+        <th>Query</th><th>Engine</th><th>NDCG@K (gain {{$.NDCGGain}})</th><th>P@K</th><th>AP</th><th>RR</th><th>Bpref</th><th>Returned</th><th>Corpus</th><th>p50</th><th>p95</th><th>Status</th>
       </tr></thead>
       <tbody>
       {{range .PerQuery}}<tr>

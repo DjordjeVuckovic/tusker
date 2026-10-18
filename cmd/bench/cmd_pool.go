@@ -1,7 +1,9 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
@@ -15,10 +17,11 @@ import (
 )
 
 type poolFlags struct {
-	trackArg string
-	specPath string
-	output   string
-	depth    int
+	trackArg     string
+	specPath     string
+	output       string
+	depth        int
+	allowPartial bool
 }
 
 func newPoolCmd() *cobra.Command {
@@ -31,7 +34,12 @@ judged. Output goes to <track>/trec/pool.yaml by default; override
 with --output for ad-hoc files.
 
 The pool file carries a meta block (run_id, tool, engines, depth) so later
-artifacts can attest which pool they were derived from.`,
+artifacts can attest which pool they were derived from.
+
+Any (query, engine) execution that errors fails the pool, since its documents
+would be missing from it. --allow-partial writes the pool anyway, lists only
+the engines that answered in meta.engines and records the failed pairs in
+meta.dropped_executions.`,
 		Example: `  bench pool tracks/global-news-dataset/fts_quality
   bench pool tracks/global-news-dataset/fts_quality --depth 50
   bench pool --track tracks/global-news-dataset/fts_quality --output /tmp/adhoc-pool.yaml`,
@@ -44,6 +52,8 @@ artifacts can attest which pool they were derived from.`,
 	cmd.Flags().StringVar(&f.specPath, "spec", "", "Override spec.yaml path")
 	cmd.Flags().IntVar(&f.depth, "depth", 0, "Top-K per engine (0 = spec.defaults.pool_depth or 100)")
 	cmd.Flags().StringVar(&f.output, "output", "", "Override pool output path")
+	cmd.Flags().BoolVar(&f.allowPartial, "allow-partial", false,
+		"Write the pool even when some (query, engine) executions failed, recording them in meta.dropped_executions")
 	return cmd
 }
 
@@ -100,6 +110,10 @@ func poolTrack(cmd *cobra.Command, f poolFlags, tr *trackctx.Track) error {
 	if err != nil {
 		return fmt.Errorf("pool run: %w", err)
 	}
+	dropped := droppedExecutions(result)
+	if len(dropped) > 0 && !f.allowPartial {
+		return incompletePoolError(dropped)
+	}
 
 	descs, cats, err := collectQueryDescriptions(bs)
 	if err != nil {
@@ -111,6 +125,7 @@ func poolTrack(cmd *cobra.Command, f poolFlags, tr *trackctx.Track) error {
 	pf.Meta.SpecID = bs.ID
 	pf.Meta.PoolDepth = depth
 	pf.Meta.Engines = collectEngines(bs, result)
+	pf.Meta.DroppedExecutions = dropped
 
 	outPath := f.output
 	if outPath == "" {
@@ -211,12 +226,18 @@ func collectQueryDescriptions(bs *spec.BenchSpec) (descs, cats map[string]string
 	return descs, cats, nil
 }
 
-func collectEngines(bs *spec.BenchSpec, _ *runner.BenchmarkResult) []string {
+// collectEngines lists, in spec order, the engines that answered at least one
+// query, so an engine whose every execution failed is not claimed by the pool.
+func collectEngines(bs *spec.BenchSpec, result *runner.BenchmarkResult) []string {
+	answered := make(map[string]bool)
+	for cell := range answeredCells(result) {
+		answered[cell.engine] = true
+	}
 	seen := make(map[string]struct{})
 	var out []string
 	for _, job := range bs.Jobs {
 		for _, eng := range job.Engines {
-			if _, ok := seen[eng]; ok {
+			if _, ok := seen[eng]; ok || !answered[eng] {
 				continue
 			}
 			seen[eng] = struct{}{}
@@ -224,4 +245,61 @@ func collectEngines(bs *spec.BenchSpec, _ *runner.BenchmarkResult) []string {
 		}
 	}
 	return out
+}
+
+type poolCell struct {
+	queryID string
+	engine  string
+}
+
+func answeredCells(result *runner.BenchmarkResult) map[poolCell]bool {
+	answered := make(map[poolCell]bool)
+	for _, jr := range result.Jobs {
+		for queryID, byEngine := range jr.Results {
+			for engineName, qr := range byEngine {
+				if qr.Error == nil {
+					answered[poolCell{queryID: queryID, engine: engineName}] = true
+				}
+			}
+		}
+	}
+	return answered
+}
+
+// droppedExecutions lists the (query, engine) pairs no job got an answer for,
+// sorted by query then engine.
+func droppedExecutions(result *runner.BenchmarkResult) []meta.DroppedExecution {
+	answered := answeredCells(result)
+	failures := make(map[poolCell]string)
+	for _, jr := range result.Jobs {
+		for queryID, byEngine := range jr.Results {
+			for engineName, qr := range byEngine {
+				cell := poolCell{queryID: queryID, engine: engineName}
+				if qr.Error == nil || answered[cell] {
+					continue
+				}
+				if _, recorded := failures[cell]; !recorded {
+					failures[cell] = qr.Error.Error()
+				}
+			}
+		}
+	}
+	dropped := make([]meta.DroppedExecution, 0, len(failures))
+	for cell, msg := range failures {
+		dropped = append(dropped, meta.DroppedExecution{QueryID: cell.queryID, Engine: cell.engine, Error: msg})
+	}
+	slices.SortFunc(dropped, func(a, b meta.DroppedExecution) int {
+		return cmp.Or(cmp.Compare(a.QueryID, b.QueryID), cmp.Compare(a.Engine, b.Engine))
+	})
+	return dropped
+}
+
+func incompletePoolError(dropped []meta.DroppedExecution) error {
+	cells := make([]string, 0, len(dropped))
+	for _, d := range dropped {
+		cells = append(cells, fmt.Sprintf("%s/%s (%s)", d.QueryID, d.Engine, d.Error))
+	}
+	return fmt.Errorf("%d (query, engine) executions failed, so the pool would miss their documents: %s\n"+
+		"  • fix the engines and re-run, or pass --allow-partial to write the pool without them",
+		len(dropped), strings.Join(cells, "; "))
 }

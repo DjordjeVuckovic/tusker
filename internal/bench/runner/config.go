@@ -1,6 +1,10 @@
 package runner
 
-import "github.com/DjordjeVuckovic/tusker/internal/storage"
+import (
+	"fmt"
+
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+)
 
 var DefaultKValues = []int{3, 5, 10}
 
@@ -61,4 +65,14 @@ func DefaultConfig() Config {
 		QueryParallelism:   QueryParallelismSerial,
 		EngineParallelism:  DefaultEngineParallelism,
 	}
+}
+
+func (c Config) validate() error {
+	if c.Runs < 1 {
+		return fmt.Errorf("measured iterations must be at least 1, got %d", c.Runs)
+	}
+	if c.WarmupRuns < 0 {
+		return fmt.Errorf("warmup iterations must not be negative, got %d", c.WarmupRuns)
+	}
+	return nil
 }

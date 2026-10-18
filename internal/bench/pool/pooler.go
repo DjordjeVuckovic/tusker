@@ -32,7 +32,8 @@ func PoolResults(results map[string]*engine.Execution, depth int) []PooledDoc {
 	seen := make(map[uuid.UUID]*PooledDoc)
 	var order []uuid.UUID
 
-	for engineName, exec := range results {
+	for _, engineName := range slices.Sorted(maps.Keys(results)) {
+		exec := results[engineName]
 		if exec == nil {
 			continue
 		}

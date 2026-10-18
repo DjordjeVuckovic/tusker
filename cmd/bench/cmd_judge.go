@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/factory"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +27,8 @@ type judgeFlags struct {
 	concurrency    int
 	batchSize      int
 	resume         bool
+	allowUnjudged  bool
+	force          bool
 	apiKey         string
 	provider       string
 	model          string
@@ -34,7 +38,17 @@ type judgeFlags struct {
 	embeddingModel string
 }
 
-func newJudgeCmd() *cobra.Command {
+// articleReaderOpener opens the store bench judge reads pooled articles from.
+type articleReaderOpener func(cmd *cobra.Command, pgConn string) (storage.Reader, error)
+
+type judgeCommand struct {
+	flags      judgeFlags
+	openReader articleReaderOpener
+}
+
+func newJudgeCmd() *cobra.Command { return newJudgeCmdWithReader(openArticleReader) }
+
+func newJudgeCmdWithReader(openReader articleReaderOpener) *cobra.Command {
 	var f judgeFlags
 	cmd := &cobra.Command{
 		Use:   "judge [track]",
@@ -47,7 +61,9 @@ func newJudgeCmd() *cobra.Command {
                 Ollama (needs --pg + EMBEDDING_BASE_URL)
   hybrid      — BM25 + vector fusion (needs --pg + EMBEDDING_BASE_URL)
   llm         — LLM-as-judge, batched; pick the endpoint with --provider
-  manual      — writes grade:-1 placeholders for hand grading
+  manual      — writes grade:-1 placeholders for hand grading; re-running keeps
+                existing hand grades and adds placeholders for new pool docs
+                (--force starts over)
 
 The llm strategy is vendor-neutral: --provider names the endpoint
 (` + strings.Join(judgment.KnownProviders(), ", ") + `), and registering a new
@@ -64,14 +80,16 @@ Multiple strategies live side-by-side; switch which one bench run scores
 against via --judgments <name>.
 
 Resumable: re-run with the same --strategy and --resume to skip docs already
-graded. Atomic writes mean Ctrl-C is safe.`,
+graded. bm25 and hybrid grade relative to the whole pool, so they skip only
+queries that are fully graded and regrade the rest whole. Atomic writes mean
+Ctrl-C is safe.`,
 		Example: `  bench judge tracks/global-news-dataset/fts_quality --strategy lexical
   bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-cli
   bench judge tracks/global-news-dataset/fts_quality --strategy llm --provider claude-api --model sonnet --batch 20 --resume
   bench judge --pool /tmp/p.yaml --strategy lexical --output /tmp/a.yaml`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return executeJudge(cmd, f, args)
+			return judgeCommand{flags: f, openReader: openReader}.execute(cmd, args)
 		},
 	}
 	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
@@ -81,7 +99,9 @@ graded. Atomic writes mean Ctrl-C is safe.`,
 	cmd.Flags().StringVar(&f.pg, "pg", "", "Postgres connection (or set PG_CONNECTION_STRING)")
 	cmd.Flags().IntVar(&f.concurrency, "concurrency", 4, "Parallel Grade calls (per-doc strategies)")
 	cmd.Flags().IntVar(&f.batchSize, "batch", 0, "Override LLM batch size (0 = strategy default)")
-	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output")
+	cmd.Flags().BoolVar(&f.resume, "resume", false, "Skip docs already graded in --output; bm25 and hybrid skip only fully graded queries")
+	cmd.Flags().BoolVar(&f.allowUnjudged, "allow-unjudged", false, "Exit 0 even when some pooled docs end unjudged; a query with no usable terms still fails")
+	cmd.Flags().BoolVar(&f.force, "force", false, "Manual only: discard existing hand grades and rewrite the placeholders")
 	cmd.Flags().StringVar(&f.apiKey, "api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY)")
 	cmd.Flags().StringVar(&f.provider, "provider", string(judgment.DefaultProvider),
 		"LLM endpoint for --strategy llm: "+strings.Join(judgment.KnownProviders(), " | "))
@@ -94,16 +114,17 @@ graded. Atomic writes mean Ctrl-C is safe.`,
 	return cmd
 }
 
-func executeJudge(cmd *cobra.Command, f judgeFlags, args []string) error {
-	in := trackInputs(f.trackArg, args)
-	in.PoolPath = f.poolPath
-	in.OutputPath = f.output
+func (j judgeCommand) execute(cmd *cobra.Command, args []string) error {
+	in := trackInputs(j.flags.trackArg, args)
+	in.PoolPath = j.flags.poolPath
+	in.OutputPath = j.flags.output
 	return forEachTrack(cmd.Context(), cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
-		return judgeTrack(cmd, f, tr)
+		return j.judgeTrack(cmd, tr)
 	})
 }
 
-func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
+func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
+	f := j.flags
 	poolPath := f.poolPath
 	if poolPath == "" {
 		poolPath = tr.Pool
@@ -117,6 +138,9 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 	if err != nil {
 		return err
 	}
+	if f.force && kind != judgment.StrategyManual {
+		return fmt.Errorf("--force applies only to --strategy manual; %s rewrites its file on every run without --resume", kind)
+	}
 	// Heuristic judges file under their strategy; llm judges file under their
 	// provider, so two vendors can grade the same track side by side.
 	outPath := f.output
@@ -124,14 +148,24 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 		outPath = tr.JudgmentsPath(judgment.JudgmentSetName(kind, provider))
 	}
 
-	// Stub-equivalent shortcut: manual strategy doesn't need PG or any
-	// network. Just emit grade:-1 placeholders so a human can edit.
+	// Manual grades nothing, so it needs no article reader.
 	if kind == judgment.StrategyManual {
-		jf := buildManualJudgments(pf)
+		var existing *judgment.File
+		if !f.force {
+			if existing, err = judgment.ReadFileIfExists(outPath); err != nil {
+				return fmt.Errorf("read existing manual judgments: %w", err)
+			}
+			if existing != nil && existing.Judge().Strategy != string(judgment.StrategyManual) {
+				return fmt.Errorf("%s was graded by %q, not by hand: merging would relabel its grades as manual; pass --force to replace it",
+					outPath, existing.Judge())
+			}
+		}
+		jf := buildManualJudgments(pf, existing)
 		judge := judgment.NewManualStrategy().Describe()
 		jf.Meta = meta.New("judge")
 		jf.Meta.Judge = &judge
 		jf.Meta.PoolRef = poolPath
+		jf.Meta.PoolRunID = pf.Meta.RunID
 		if err := judgment.WriteFile(jf, outPath); err != nil {
 			return fmt.Errorf("write judgments: %w", err)
 		}
@@ -161,16 +195,23 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 		return err
 	}
 
-	reader, err := openArticleReader(cmd, f.pg)
+	reader, err := j.openReader(cmd, f.pg)
 	if err != nil {
 		return err
 	}
 
+	// Every flush carries this meta, so a file left by an interrupted run names
+	// its run and grader.
 	judge := strat.Describe()
-	writer := judgment.NewIncrementalWriter(outPath, judge)
+	runMeta := meta.New("judge")
+	runMeta.Judge = &judge
+	runMeta.PoolRef = poolPath
+	runMeta.PoolRunID = pf.Meta.RunID
+	runMeta.RelevanceScale = []int{0, 1, 2, 3}
+	writer := judgment.NewIncrementalWriter(outPath, runMeta)
 	var prior *judgment.File
 	if f.resume {
-		prior, err = writer.LoadPrior()
+		prior, err = writer.LoadPrior(pf)
 		if err != nil {
 			return fmt.Errorf("load prior judgments: %w", err)
 		}
@@ -178,10 +219,12 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 			if err := checkResumeCompat(prior, strat); err != nil {
 				return err
 			}
+			if err := checkPoolBinding(prior.Meta.PoolRunID, pf); err != nil {
+				return fmt.Errorf("--resume: %w\n  • re-run without --resume to grade the current pool from scratch", err)
+			}
 			printWarn(cmd.OutOrStdout(), fmt.Sprintf("Resume: loaded %d prior queries from %s", len(prior.Queries), outPath))
 		}
 	}
-
 	jrunner := judgment.NewRunner(judgment.RunnerConfig{
 		Strategy:    strat,
 		Reader:      reader,
@@ -214,27 +257,25 @@ func judgeTrack(cmd *cobra.Command, f judgeFlags, tr *trackctx.Track) error {
 		},
 	})
 
-	if _, err := jrunner.Run(cmd.Context(), pf); err != nil {
-		return fmt.Errorf("judge run: %w", err)
+	final, runErr := jrunner.Run(cmd.Context(), pf)
+	var noTerms *judgment.NoQueryTermsError
+	if runErr != nil && !errors.As(runErr, &noTerms) {
+		return fmt.Errorf("judge run: %w", runErr)
 	}
 
-	// Final write with completed meta block. The judge descriptor captures what
-	// the strategy actually resolved to — including the model, which is empty on
-	// the flag whenever the user relied on the default — and the prompt version,
-	// so rubric drift is detectable on resume.
-	final := writer.Snapshot()
-	final.Meta = meta.New("judge")
-	final.Meta.Judge = &judge
-	final.Meta.PoolRef = poolPath
-	final.Meta.RelevanceScale = []int{0, 1, 2, 3}
-	final.Meta.GradedCount = countGraded(final)
+	// Run returns only the queries still in the pool, so a query dropped since
+	// the last run is not carried over.
+	final.Meta = runMeta
 	if err := judgment.WriteFile(final, outPath); err != nil {
 		return fmt.Errorf("finalise judgments: %w", err)
 	}
 
 	printDone(cmd.OutOrStdout(), fmt.Sprintf("Judgments written: %s  (judge=%s  queries=%d  run_id=%s)",
 		outPath, judge, len(final.Queries), final.Meta.RunID))
-	return nil
+	if runErr != nil {
+		return fmt.Errorf("judge run: %w", runErr)
+	}
+	return requireJudged(final, f.allowUnjudged)
 }
 
 // resolveJudge turns --strategy/--provider into the pair the strategy factory
@@ -263,8 +304,8 @@ func resolveJudge(f judgeFlags) (judgment.StrategyKind, judgment.Provider, error
 
 // checkResumeCompat verifies that a prior judgments file is safe to resume with
 // the given strategy. Any difference in the judge block — strategy, provider,
-// model or prompt version — means the two runs disagree on who is grading, and
-// appending would corrupt the set.
+// model, prompt version or rubric version — means the two runs disagree on who
+// is grading, and appending would corrupt the set.
 func checkResumeCompat(prior *judgment.File, strat judgment.Strategy) error {
 	was, now := prior.Judge(), strat.Describe()
 	if (was == meta.Judge{}) || was.Equal(now) {
@@ -273,7 +314,18 @@ func checkResumeCompat(prior *judgment.File, strat judgment.Strategy) error {
 	return fmt.Errorf(
 		"--resume judge mismatch: existing file was graded by %q, this run uses %q\n"+
 			"  • re-run without --resume to re-grade cleanly under the new judge",
-		was, now)
+		judgeWithVersions(was), judgeWithVersions(now))
+}
+
+func judgeWithVersions(j meta.Judge) string {
+	s := j.String()
+	if j.PromptVersion != "" {
+		s += " prompt " + j.PromptVersion
+	}
+	if j.RubricVersion != "" {
+		s += " rubric " + j.RubricVersion
+	}
+	return s
 }
 
 // buildVectorStore constructs the engine-agnostic vector store for the
@@ -324,30 +376,46 @@ func openArticleReader(cmd *cobra.Command, pgConn string) (storage.Reader, error
 	return reader, nil
 }
 
-func buildManualJudgments(pf *pool.PoolFile) *judgment.File {
-	jf := &judgment.File{
-		Queries: make([]judgment.Entry, 0, len(pf.Queries)),
+// buildManualJudgments writes a -1 placeholder for every pooled doc that has no
+// hand grade yet. Everything in existing survives, including docs that have
+// since left the pool, so re-running never erases a grade.
+func buildManualJudgments(pf *pool.PoolFile, existing *judgment.File) *judgment.File {
+	jf := &judgment.File{}
+	if existing != nil {
+		jf.Queries = existing.Queries
+	}
+	entryIndex := make(map[string]int, len(jf.Queries))
+	for i, qe := range jf.Queries {
+		entryIndex[qe.QueryID] = i
 	}
 	for _, entry := range pf.Queries {
-		docs := make([]judgment.GradedDoc, 0, len(entry.Docs))
-		for _, d := range entry.Docs {
-			docs = append(docs, judgment.GradedDoc{DocID: d.DocID, Grade: judgment.GradeUnjudged})
+		i, ok := entryIndex[entry.QueryID]
+		if !ok {
+			i = len(jf.Queries)
+			entryIndex[entry.QueryID] = i
+			jf.Queries = append(jf.Queries, judgment.Entry{QueryID: entry.QueryID})
 		}
-		jf.Queries = append(jf.Queries, judgment.Entry{QueryID: entry.QueryID, Docs: docs})
+		known := make(map[uuid.UUID]bool, len(jf.Queries[i].Docs))
+		for _, d := range jf.Queries[i].Docs {
+			known[d.DocID] = true
+		}
+		for _, d := range entry.Docs {
+			if !known[d.DocID] {
+				jf.Queries[i].Docs = append(jf.Queries[i].Docs, judgment.GradedDoc{DocID: d.DocID, Grade: judgment.GradeUnjudged})
+			}
+		}
 	}
 	return jf
 }
 
-func countGraded(jf *judgment.File) int {
-	n := 0
-	for _, qe := range jf.Queries {
-		for _, d := range qe.Docs {
-			if d.Grade >= 0 {
-				n++
-			}
-		}
+// requireJudged fails when a pooled doc has no grade: bench run would score it
+// as non-relevant against whichever engine retrieved it.
+func requireJudged(jf *judgment.File, allowUnjudged bool) error {
+	_, unjudged := jf.GradeCounts()
+	if unjudged == 0 || allowUnjudged {
+		return nil
 	}
-	return n
+	return fmt.Errorf("%d pooled docs are unjudged: re-run with --resume to retry them, or pass --allow-unjudged to keep the file as is", unjudged)
 }
 
 func formatHistogram(h map[int]int) string {

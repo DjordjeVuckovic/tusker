@@ -1,74 +1,139 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
+# dependencies = [
+#   "torch>=2.4",
+#   "transformers==4.51.3",
+#   "numpy>=1.26",
+#   "pyarrow>=16",
+# ]
 # ///
-"""Project a canonical JSONL down to the fields the embedder reads, gzipped.
+"""Project a canonical package to the columns embed_corpus.py reads, for the cloud upload.
 
-  uv run scripts/slim_corpus.py <corpus.jsonl> [--full-content]
+  uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
 
-embed_corpus.py reads only id, title and description. The article body is most
-of the bytes, so dropping it shrinks a cloud upload by an order of magnitude.
-The .gz output is read directly by embed_corpus.py.
-
---full-content keeps the body, and has to be matched by --full-content on the
-embedding side.
-
-Ids are random UUIDs assigned at preprocess time, not hashes, so they cannot be
-regenerated from the upstream dataset. They have to travel with the text or
-nothing will match articles.id on load.
+Writes <out>/<version>/ as plain parquet: Kaggle decompresses .gz uploads, breaking the hash.
 """
 
 import argparse
-import gzip
-import json
+import itertools
 import sys
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
-FIELDS = ("id", "title", "description")
+import pyarrow as pa
+import pyarrow.parquet as pq
+from embed_corpus import (
+    DATAPACKAGE_PROFILE,
+    DEFAULT_VERSION,
+    SLIM_DESCRIPTOR,
+    PackageError,
+    SourcePackage,
+    describe_parquet_resource,
+    iter_jsonl_records,
+    iter_parquet_records,
+    open_package,
+    publish_version,
+    read_descriptor,
+    version_name,
+    write_descriptor,
+)
+
+SLIM_SCHEMA = pa.schema(
+    [(field, pa.string()) for field in ("id", "title", "description")]
+)
+BATCH_ROWS = 8192
+
+
+def iter_slim_batches(source: SourcePackage) -> Iterator[pa.Table]:
+    records = (
+        iter_parquet_records(source.resource)
+        if source.resource_format == "parquet"
+        else iter_jsonl_records(source.resource)
+    )
+    while batch := list(itertools.islice(records, BATCH_ROWS)):
+        columns = {
+            field: [record.get(field) or "" for record in batch]
+            for field in SLIM_SCHEMA.names
+        }
+        yield pa.Table.from_pydict(columns, schema=SLIM_SCHEMA)
+
+
+def write_slim_package(
+    source: SourcePackage, carried: dict[str, Any], directory: Path, *, version: str
+) -> None:
+    resource_path = directory / "articles.parquet"
+    with pq.ParquetWriter(resource_path, SLIM_SCHEMA, compression="zstd") as writer:
+        for table in iter_slim_batches(source):
+            writer.write_table(table)
+
+    resource = describe_parquet_resource(resource_path, name="articles")
+    descriptor: dict[str, Any] = {
+        "$schema": DATAPACKAGE_PROFILE,
+        "name": f"{source.canonical.name}-slim",
+        "version": version,
+        "producedBy": {"tool": "slim_corpus.py"},
+        **carried,
+        "canonical": source.canonical.to_descriptor(),
+        "resources": [resource],
+    }
+    write_descriptor(directory, descriptor, name=SLIM_DESCRIPTOR)
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("input", type=Path, help="canonical JSONL")
-    p.add_argument("-o", "--out", type=Path, help="default: <input>-slim.jsonl.gz")
-    p.add_argument("--full-content", action="store_true", help="also keep the article body")
-    p.add_argument("--limit", type=int, help="stop after N documents")
-    return p.parse_args()
+    # A stale flag such as --out must not match --output-root.
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
+    )
+    parser.add_argument("package", type=Path, help="canonical datapackage.json")
+    parser.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help="parent directory; the package lands in <out>/<version>/",
+    )
+    parser.add_argument(
+        "--version",
+        type=version_name,
+        default=DEFAULT_VERSION,
+        help="name of the package's folder under --out",
+    )
+    return parser.parse_args()
+
+
+def run(args: argparse.Namespace) -> None:
+    source = open_package(args.package)
+    descriptor = read_descriptor(args.package)
+    carried = {
+        key: descriptor[key]
+        for key in ("articleSchema", "language")
+        if key in descriptor
+    }
+
+    package_dir = args.out / args.version
+    publish_version(
+        package_dir,
+        lambda directory: write_slim_package(
+            source, carried, directory, version=args.version
+        ),
+        descriptor_name=SLIM_DESCRIPTOR,
+    )
+
+    before = source.resource.stat().st_size
+    after = (package_dir / "articles.parquet").stat().st_size
+    print(
+        f"{package_dir}: {before / 1e6:.1f} MB -> {after / 1e6:.1f} MB  ({before / after:.1f}x smaller)"
+    )
 
 
 def main() -> None:
-    args = parse_args()
-    if not args.input.is_file():
-        sys.exit(f"no such file: {args.input}")
-
-    stem = args.input.name.removesuffix(".gz").removesuffix(".jsonl")
-    out_path = args.out or args.input.parent / f"{stem}-slim.jsonl.gz"
-
-    written = 0
-    with gzip.open(out_path, "wt", encoding="utf-8", compresslevel=6) as out:
-        with open(args.input, encoding="utf-8") as fh:
-            for lineno, line in enumerate(fh, 1):
-                if not line.strip():
-                    continue
-                if args.limit is not None and written >= args.limit:
-                    break
-
-                record = json.loads(line)
-                if "id" not in record:
-                    sys.exit(f"{args.input}:{lineno} has no 'id' field")
-
-                slim = {f: record.get(f) or "" for f in FIELDS}
-                if args.full_content:
-                    slim["content"] = record.get("full_content") or record.get("content") or ""
-
-                out.write(json.dumps(slim, ensure_ascii=False))
-                out.write("\n")
-                written += 1
-
-    before = args.input.stat().st_size
-    after = out_path.stat().st_size
-    print(f"{written:,} docs -> {out_path}")
-    print(f"{before / 1e6:.1f} MB -> {after / 1e6:.1f} MB  ({before / after:.1f}x smaller)")
+    try:
+        run(parse_args())
+    except PackageError as error:
+        sys.exit(f"slim_corpus: {error}")
 
 
 if __name__ == "__main__":

@@ -232,6 +232,46 @@ func TestJudgmentsPath_StrategyVsExplicitPath(t *testing.T) {
 	})
 }
 
+func TestDefaultJudgmentsPath_RelativePathIsFromTheTrack(t *testing.T) {
+	dir := t.TempDir()
+	track := filepath.Join(dir, "tracks", "demo")
+	makeTrack(t, track)
+	tr, err := Resolve(Inputs{TrackArg: track})
+	require.NoError(t, err)
+	canon := canonical(t, track)
+
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"relative path", "trec/annotations.hand.yaml", filepath.Join(canon, "trec", "annotations.hand.yaml")},
+		{"absolute path", "/srv/grades/a.yaml", "/srv/grades/a.yaml"},
+		{"bare name", "hand", filepath.Join(canon, "trec", "annotations.hand.yaml")},
+		{"empty", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tr.DefaultJudgmentsPath(tt.value))
+		})
+	}
+}
+
+// Suites resolve from the spec file's folder, so a judgments path in the same
+// spec does too, even when --spec names a spec outside the track.
+func TestDefaultJudgmentsPath_RelativePathIsFromTheSpecFolder(t *testing.T) {
+	dir := t.TempDir()
+	track := filepath.Join(dir, "tracks", "demo")
+	makeTrack(t, track)
+	elsewhere := filepath.Join(dir, "specs", "variant.yaml")
+
+	tr, err := Resolve(Inputs{TrackArg: track, SpecPath: elsewhere})
+	require.NoError(t, err)
+
+	assert.Equal(t, filepath.Join(dir, "specs", "trec", "annotations.hand.yaml"),
+		tr.DefaultJudgmentsPath("trec/annotations.hand.yaml"))
+}
+
 func TestQrelsPath_StrategySuffix(t *testing.T) {
 	dir := t.TempDir()
 	track := filepath.Join(dir, "tracks", "demo")
@@ -241,6 +281,29 @@ func TestQrelsPath_StrategySuffix(t *testing.T) {
 	assert.Equal(t,
 		filepath.Join(canon, "trec", "qrels.claude-api.tsv"),
 		tr.QrelsPath("claude-api"))
+}
+
+func TestQrelsPath_AnnotationsPathMapsToQrelsBesideIt(t *testing.T) {
+	dir := t.TempDir()
+	track := filepath.Join(dir, "tracks", "demo")
+	makeTrack(t, track)
+	tr, err := Resolve(Inputs{TrackArg: track})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"annotations yaml", "trec/annotations.claude-cli.yaml", "trec/qrels.claude-cli.tsv"},
+		{"any yml", "/tmp/grades/hand.yml", "/tmp/grades/qrels.hand.tsv"},
+		{"tsv path used verbatim", "/tmp/out/q.tsv", "/tmp/out/q.tsv"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tr.QrelsPath(tt.value))
+		})
+	}
 }
 
 func TestReportPath_UsesRunID(t *testing.T) {

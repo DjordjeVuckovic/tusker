@@ -15,6 +15,8 @@ const (
 	hybridVectorWeight = 0.5
 )
 
+const hybridRubricVersion = "v1"
+
 // HybridStrategy fuses the BM25 lexical signal (pool-normalised) with vector
 // cosine similarity (semantic signal), mirroring hybrid retrieval. The combined
 // score is a weighted sum mapped to a grade 0-3. It judges the hybrid track on
@@ -49,16 +51,17 @@ func (s HybridStrategy) Describe() meta.Judge {
 	if s.vector != nil && s.vector.model != "" {
 		model = s.vector.model
 	}
-	return meta.Judge{Strategy: string(StrategyHybrid), Model: "bm25+" + model}
+	return meta.Judge{Strategy: string(StrategyHybrid), Model: "bm25+" + model, RubricVersion: hybridRubricVersion}
 }
 
-func (HybridStrategy) PreferredBatchSize() int { return poolBatchSize }
-
-func (s HybridStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
+func (s HybridStrategy) GradePool(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
 	if len(docs) == 0 {
 		return nil, nil
 	}
-	bm25Norms := s.bm25.normScores(q, docs)
+	bm25Norms, err := s.bm25.normScores(q, docs)
+	if err != nil {
+		return nil, err
+	}
 	qVec, vecs, err := s.vector.vectors(ctx, q, docs)
 	if err != nil {
 		return nil, fmt.Errorf("hybrid vector component: %w", err)
@@ -80,15 +83,4 @@ func (s HybridStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []G
 		out = append(out, GradedDoc{DocID: d.ID, Grade: gradeFromNorm(combined)})
 	}
 	return out, nil
-}
-
-func (s HybridStrategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc) (int, error) {
-	res, err := s.GradeBatch(ctx, q, []GradingDoc{doc})
-	if err != nil {
-		return GradeUnjudged, err
-	}
-	if len(res) == 0 {
-		return GradeUnjudged, nil
-	}
-	return res[0].Grade, nil
 }

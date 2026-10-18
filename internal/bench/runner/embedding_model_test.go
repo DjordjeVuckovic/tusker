@@ -97,7 +97,7 @@ func TestRunAllRejectsMismatchedEmbeddingModel(t *testing.T) {
 			Engines: []string{"pgvector-cosine"},
 		}},
 	}
-	r := New(Config{VectorStore: fixedModelStore{model: "qwen3-embedding:0.6b"}})
+	r := New(Config{Runs: DefaultRuns, VectorStore: fixedModelStore{model: "qwen3-embedding:0.6b"}})
 
 	result, err := r.RunAll(context.Background(), bs, nil)
 
