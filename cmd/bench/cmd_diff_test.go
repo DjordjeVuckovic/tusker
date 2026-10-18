@@ -139,9 +139,13 @@ func TestExecuteDiff_DefaultsToLatestAndThePreviousFullyScoredRun(t *testing.T) 
 		r.Jobs[0].Aggregated[0].ErrorCount = 1
 		r.Jobs[0].PerQuery[0].Error = "timeout"
 	}
+	incomplete := func(r *report.Report) {
+		r.Settings.Incomplete = []string{"--jobs selected a subset of the spec's jobs"}
+	}
 	writeTrackReport(t, reports, "2026-01-01T00-00-01-run-aaaaaa", nil)
 	writeTrackReport(t, reports, "2026-01-01T00-00-02-run-bbbbbb", latencyOnly)
 	writeTrackReport(t, reports, "2026-01-01T00-00-03-run-cccccc", errored)
+	writeTrackReport(t, reports, "2026-01-01T00-00-03-run-ffffff", incomplete)
 	writeTrackReport(t, reports, "2026-01-01T00-00-04-run-dddddd", nil)
 	writeTrackReport(t, reports, "2026-01-01T00-00-05-run-eeeeee", errored)
 	require.NoError(t, updateLatestPointer(filepath.Join(reports, "latest.json"),
