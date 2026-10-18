@@ -881,6 +881,7 @@ def run(args: argparse.Namespace) -> Path:
             "$schema": DATAPACKAGE_PROFILE,
             "name": f"{source.canonical.name}-embeddings",
             "version": args.version,
+            "producedBy": {"tool": "embed_corpus.py"},
         }
         if source.language:
             descriptor["language"] = source.language

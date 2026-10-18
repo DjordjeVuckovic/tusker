@@ -162,3 +162,13 @@ def test_refuses_to_reslim_other_bytes_into_an_existing_version(tmp_path):
     assert "v1" in result.stderr
     assert before in result.stderr
     assert sha256_of(slim_package(slim) / "articles.parquet") == before
+
+
+def test_the_slim_descriptor_names_the_producing_tool(tmp_path):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    slim = tmp_path / "payload"
+
+    run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
+
+    descriptor = json.loads((slim_package(slim) / "slim.datapackage.json").read_text())
+    assert descriptor["producedBy"] == {"tool": "slim_corpus.py"}

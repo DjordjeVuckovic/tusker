@@ -81,6 +81,7 @@ def write_slim_package(
         "$schema": DATAPACKAGE_PROFILE,
         "name": f"{source.canonical.name}-slim",
         "version": version,
+        "producedBy": {"tool": "slim_corpus.py"},
         **carried,
         "canonical": source.canonical.to_descriptor(),
         "resources": [resource],

@@ -639,3 +639,15 @@ def test_keeps_the_rejected_package_and_names_it_when_a_version_conflicts(
     ]
     ids, _ = read_embeddings(kept / "datapackage.json")
     assert ids == [ROWS[0]["id"], ROWS[1]["id"]]
+
+
+def test_descriptor_names_the_producing_tool_and_nothing_else(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
+
+    assert json.loads(only_package(tmp_path / "out").read_text())["producedBy"] == {
+        "tool": "embed_corpus.py"
+    }

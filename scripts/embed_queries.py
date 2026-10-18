@@ -237,6 +237,7 @@ def run(args: argparse.Namespace) -> Path:
     descriptor: dict[str, Any] = {
         "$schema": embed_corpus.DATAPACKAGE_PROFILE,
         "name": f"{suite.id}-query-vectors",
+        "producedBy": {"tool": "embed_queries.py"},
         "embedding": embedding,
         "suite": {"id": suite.id},
     }
