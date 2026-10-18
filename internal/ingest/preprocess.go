@@ -2,14 +2,10 @@ package ingest
 
 import (
 	"bufio"
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -22,63 +18,42 @@ import (
 	"github.com/google/uuid"
 )
 
-// canonicalVersionPrefix starts every canonical package version.
-const canonicalVersionPrefix = "article-v2"
-
 // PreprocessOptions names the raw package to map, the mapping that maps it and
-// the folder that receives canonical/<version>.
+// the folder that receives canonical/<version>. An empty Version publishes
+// datapackage.DefaultVersion.
 type PreprocessOptions struct {
-	Raw *datapackage.Opened
-	// Mapping holds the mapping file's bytes; MappingPath is recorded in the
-	// descriptor and must be relative.
-	Mapping     []byte
-	MappingPath string
-	OutputRoot  string
-	ProducedBy  datapackage.ProducedBy
-}
-
-// Preprocessed is the canonical package as its descriptor records it, and the
-// folder that holds it.
-type Preprocessed struct {
-	Package datapackage.Package
-	Dir     string
+	Raw        *datapackage.Opened
+	Mapping    *datamapping.DataMapper
+	OutputRoot string
+	Version    string
+	ProducedBy datapackage.ProducedBy
 }
 
 // Preprocess maps every record of the raw package, in the raw descriptor's
-// resource order, onto an article and writes the canonical package to
-// OutputRoot/<version>.
-func Preprocess(ctx context.Context, opts PreprocessOptions) (Preprocessed, error) {
-	if filepath.IsAbs(opts.MappingPath) {
-		return Preprocessed{}, fmt.Errorf("mapping path %s must be relative, since it is recorded in a committed descriptor", opts.MappingPath)
-	}
-	mapping, err := reader.NewYAMLConfigLoader(bytes.NewReader(opts.Mapping)).Load(true)
+// resource order, onto an article and publishes the canonical package to
+// OutputRoot/<version>. When that version is already there, it is kept.
+func Preprocess(ctx context.Context, opts PreprocessOptions) (datapackage.Published, error) {
+	mapper, err := reader.NewArticleMapper(opts.Mapping)
 	if err != nil {
-		return Preprocessed{}, fmt.Errorf("load mapping %s: %w", opts.MappingPath, err)
+		return datapackage.Published{}, fmt.Errorf("build article mapper: %w", err)
 	}
-	mapper, err := reader.NewArticleMapper(mapping)
+	format, err := opts.Mapping.Output.ResolvedFormat()
 	if err != nil {
-		return Preprocessed{}, fmt.Errorf("mapping %s: %w", opts.MappingPath, err)
+		return datapackage.Published{}, err
 	}
-	format, err := mapping.Output.ResolvedFormat()
+	lang, err := opts.Mapping.Constants.ResolvedLanguage()
 	if err != nil {
-		return Preprocessed{}, err
-	}
-	lang, err := mapping.Constants.ResolvedLanguage()
-	if err != nil {
-		return Preprocessed{}, err
+		return datapackage.Published{}, err
 	}
 
 	raw := opts.Raw.Package
-	mappingHash := sha256Hash(opts.Mapping)
 	pkg := datapackage.Package{
 		Name:          canonicalName(raw.Name),
-		Version:       canonicalVersion(mappingHash, raw),
 		ArticleSchema: datapackage.ArticleSchema,
 		Language:      lang,
-		Mapping:       &datapackage.FileRef{Path: filepath.ToSlash(opts.MappingPath), Hash: mappingHash},
-		IDStrategy:    idStrategyOf(mapping),
+		IDStrategy:    idStrategyOf(opts.Mapping),
 		ProducedBy:    &opts.ProducedBy,
-		Raw:           rawRefOf(raw),
+		Raw:           &datapackage.RawRef{Name: raw.Name, Version: raw.Version},
 		Sources:       httpsSources(raw.Sources),
 		Resources: []datapackage.Resource{{
 			Name:   datapackage.ArticlesResource,
@@ -93,87 +68,39 @@ func Preprocess(ctx context.Context, opts PreprocessOptions) (Preprocessed, erro
 		seen:   map[uuid.UUID]struct{}{},
 		report: datapackage.Report{Dropped: map[string]int64{}},
 	}
-	return builder.writePackage(ctx, opts.OutputRoot, pkg)
+	return builder.publish(ctx, opts.OutputRoot, opts.Version, pkg)
 }
 
-// writePackage builds the package in a temporary folder beside its version
-// folder and renames it into place only once it is complete, so a failed or
-// cancelled run leaves nothing behind. A version folder that already exists is
-// never touched: matching content makes the run a no-op, and anything else is
-// a *datapackage.DescriptorConflictError.
-func (b *canonicalBuilder) writePackage(ctx context.Context, outputRoot string, pkg datapackage.Package) (_ Preprocessed, err error) {
+// publish builds the package in a staging folder beside its version folder,
+// which datapackage.Publish moves into place only once it is complete, so a
+// failed or cancelled run leaves nothing behind.
+func (b *canonicalBuilder) publish(ctx context.Context, outputRoot, version string, pkg datapackage.Package) (_ datapackage.Published, err error) {
 	if err := os.MkdirAll(outputRoot, 0o755); err != nil {
-		return Preprocessed{}, fmt.Errorf("create canonical output folder: %w", err)
+		return datapackage.Published{}, fmt.Errorf("create canonical output folder: %w", err)
 	}
-	tmp, err := os.MkdirTemp(outputRoot, "."+pkg.Version+"-*")
+	staging, err := os.MkdirTemp(outputRoot, ".staging-*")
 	if err != nil {
-		return Preprocessed{}, fmt.Errorf("create temporary package folder: %w", err)
+		return datapackage.Published{}, fmt.Errorf("create staging package folder: %w", err)
 	}
 	defer func() {
-		if tmp == "" {
-			return
-		}
-		if removeErr := os.RemoveAll(tmp); removeErr != nil && err == nil {
-			err = fmt.Errorf("remove temporary package folder: %w", removeErr)
+		if removeErr := os.RemoveAll(staging); removeErr != nil && err == nil {
+			err = fmt.Errorf("remove staging package folder: %w", removeErr)
 		}
 	}()
 
-	if err := b.writeArticlesFile(ctx, filepath.Join(tmp, pkg.Resources[0].Path), datamapping.OutputFormat(pkg.Resources[0].Format)); err != nil {
-		return Preprocessed{}, err
+	if err := b.writeArticlesFile(ctx, filepath.Join(staging, pkg.Resources[0].Path), datamapping.OutputFormat(pkg.Resources[0].Format)); err != nil {
+		return datapackage.Published{}, err
 	}
 	pkg.Report = &b.report
-
-	dir := filepath.Join(outputRoot, pkg.Version)
-	exists, err := copyExistingDescriptor(dir, tmp)
+	// MkdirTemp creates the folder 0700, and Publish renames this very folder.
+	if err := os.Chmod(staging, 0o755); err != nil {
+		return datapackage.Published{}, fmt.Errorf("open up staging package folder: %w", err)
+	}
+	published, err := datapackage.Publish(ctx, pkg, datapackage.PublishOptions{StagingDir: staging, ParentDir: outputRoot, Version: version})
 	if err != nil {
-		return Preprocessed{}, err
+		return datapackage.Published{}, fmt.Errorf("publish canonical package into %s: %w", outputRoot, err)
 	}
-	written, err := datapackage.Write(ctx, tmp, pkg)
-	if err != nil {
-		return Preprocessed{}, fmt.Errorf("canonical package %s: %w", dir, err)
-	}
-	if exists {
-		return Preprocessed{Package: written, Dir: dir}, nil
-	}
-	if err := os.Chmod(tmp, 0o755); err != nil {
-		return Preprocessed{}, fmt.Errorf("open up temporary package folder: %w", err)
-	}
-	if err := os.Rename(tmp, dir); err != nil {
-		return Preprocessed{}, fmt.Errorf("move canonical package into %s: %w", dir, err)
-	}
-	tmp = ""
-	return Preprocessed{Package: written, Dir: dir}, nil
-}
-
-// copyExistingDescriptor puts the descriptor already at dir into tmp, so
-// datapackage.Write compares the new resources against it rather than
-// replacing it.
-func copyExistingDescriptor(dir, tmp string) (bool, error) {
-	existing, err := os.ReadFile(filepath.Join(dir, datapackage.DescriptorName))
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("read existing descriptor: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(tmp, datapackage.DescriptorName), existing, 0o644); err != nil {
-		return false, fmt.Errorf("stage existing descriptor: %w", err)
-	}
-	return true, nil
-}
-
-func sha256Hash(content []byte) string {
-	sum := sha256.Sum256(content)
-	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
-func canonicalVersion(mappingHash string, raw datapackage.Package) string {
-	inputs := make([]string, 0, 2+len(raw.Resources))
-	inputs = append(inputs, datapackage.ArticleSchema, mappingHash)
-	for _, r := range raw.Resources {
-		inputs = append(inputs, r.Hash)
-	}
-	return datapackage.Version(canonicalVersionPrefix, inputs...)
+	return published, nil
 }
 
 func canonicalName(rawName string) string {
@@ -192,14 +119,6 @@ func idStrategyOf(mapping *datamapping.DataMapper) *datapackage.IDStrategy {
 		Source:    urlSource,
 		Namespace: document.ArticleIDNamespace.String(),
 	}
-}
-
-func rawRefOf(raw datapackage.Package) *datapackage.RawRef {
-	ref := &datapackage.RawRef{Name: raw.Name, Version: raw.Version}
-	for _, r := range raw.Resources {
-		ref.Resources = append(ref.Resources, datapackage.ResourceRef{Name: r.Name, Hash: r.Hash})
-	}
-	return ref
 }
 
 // httpsSources keeps the human provenance a canonical descriptor can carry:

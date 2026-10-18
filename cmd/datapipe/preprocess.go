@@ -7,8 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
-	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,6 +15,8 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/cli"
 	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
 	"github.com/DjordjeVuckovic/tusker/internal/ingest"
+	"github.com/DjordjeVuckovic/tusker/internal/ingest/reader"
+	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
 	"github.com/DjordjeVuckovic/tusker/pkg/config/env"
 	"github.com/spf13/cobra"
 )
@@ -27,7 +27,10 @@ type preprocessConfig struct {
 	// OutputPath is the folder that receives <version>/, e.g. datasets/<ds>/canonical.
 	OutputPath  string
 	MappingPath string
-	Packages    datapackage.Options
+	// Version names the canonical package folder; a rerun into it must yield
+	// the same articles bytes.
+	Version  string
+	Packages datapackage.Options
 }
 
 func newPreprocessCmd() *cobra.Command {
@@ -52,6 +55,7 @@ func newPreprocessCmd() *cobra.Command {
 	f.StringVar(&cfg.InputPath, "input", "", "Raw data package: a datapackage.json or its folder, https:// or s3://")
 	f.StringVar(&cfg.OutputPath, "output", "", "Folder that receives the canonical package as <version>/, e.g. datasets/<ds>/canonical")
 	f.StringVar(&cfg.MappingPath, "mapping", "", "Path to the YAML field-mapping config")
+	f.StringVar(&cfg.Version, "version", datapackage.DefaultVersion, "Canonical package version, the folder name under --output")
 	return cmd
 }
 
@@ -79,9 +83,9 @@ func applyPreprocessEnvDefaults(cfg *preprocessConfig) {
 func runPreprocess(ctx context.Context, out io.Writer, cfg preprocessConfig) error {
 	start := time.Now()
 
-	mapping, err := os.ReadFile(cfg.MappingPath)
+	mapping, err := loadPreprocessMapping(cfg.MappingPath)
 	if err != nil {
-		return fmt.Errorf("read mapping config: %w", err)
+		return err
 	}
 	raw, err := datapackage.OpenWith(ctx, cfg.InputPath, cfg.Packages)
 	if err != nil {
@@ -93,15 +97,20 @@ func runPreprocess(ctx context.Context, out io.Writer, cfg preprocessConfig) err
 		cli.IntField("resources", len(raw.Package.Resources)),
 		cli.Field{Label: "mapping", Value: cfg.MappingPath},
 		cli.Field{Label: "output", Value: cfg.OutputPath},
+		cli.Field{Label: "version", Value: cfg.Version},
 	)
 
 	result, err := ingest.Preprocess(ctx, ingest.PreprocessOptions{
-		Raw:         raw,
-		Mapping:     mapping,
-		MappingPath: recordedMappingPath(cfg.MappingPath),
-		OutputRoot:  cfg.OutputPath,
-		ProducedBy:  preprocessProducer(),
+		Raw:        raw,
+		Mapping:    mapping,
+		OutputRoot: cfg.OutputPath,
+		Version:    cfg.Version,
+		ProducedBy: datapackage.ProducedBy{Tool: "datapipe preprocess"},
 	})
+	var conflict *datapackage.VersionConflictError
+	if errors.As(err, &conflict) {
+		return fmt.Errorf("canonical version %s already holds other articles; publish this run under a new --version: %w", conflict.Version, err)
+	}
 	if err != nil {
 		return err
 	}
@@ -110,37 +119,20 @@ func runPreprocess(ctx context.Context, out io.Writer, cfg preprocessConfig) err
 	return nil
 }
 
-// recordedMappingPath is the mapping path a committed descriptor can carry:
-// relative to the working directory, or the bare file name when the mapping
-// lives outside it.
-func recordedMappingPath(path string) string {
-	if !filepath.IsAbs(path) {
-		return filepath.Clean(path)
+func loadPreprocessMapping(path string) (*datamapping.DataMapper, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open mapping config: %w", err)
 	}
-	if wd, err := os.Getwd(); err == nil {
-		if rel, err := filepath.Rel(wd, path); err == nil && !strings.HasPrefix(rel, "..") {
-			return rel
-		}
+	defer f.Close()
+	mapping, err := reader.NewYAMLConfigLoader(f).Load(true)
+	if err != nil {
+		return nil, fmt.Errorf("load mapping %s: %w", path, err)
 	}
-	return filepath.Base(path)
+	return mapping, nil
 }
 
-func preprocessProducer() datapackage.ProducedBy {
-	producer := datapackage.ProducedBy{Tool: "datapipe preprocess"}
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return producer
-	}
-	producer.Version = info.Main.Version
-	for _, setting := range info.Settings {
-		if setting.Key == "vcs.revision" {
-			producer.Commit = setting.Value
-		}
-	}
-	return producer
-}
-
-func renderSummary(w io.Writer, result ingest.Preprocessed, elapsed time.Duration) {
+func renderSummary(w io.Writer, result datapackage.Published, elapsed time.Duration) {
 	report := result.Package.Report
 	var dropped int64
 	for _, n := range report.Dropped {
@@ -158,6 +150,9 @@ func renderSummary(w io.Writer, result ingest.Preprocessed, elapsed time.Duratio
 	)
 	if dropped > 0 {
 		cli.Warn(w, fmt.Sprintf("%d dropped: %s", dropped, dropBreakdown(report.Dropped)))
+	}
+	if result.Existing {
+		cli.Done(w, "version "+result.Package.Version+" was already published; kept it and discarded this run's copy")
 	}
 }
 

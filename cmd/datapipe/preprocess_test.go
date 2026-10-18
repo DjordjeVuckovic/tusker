@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -22,6 +23,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -144,9 +146,9 @@ func newPreprocessRun(t *testing.T, mapping string, files ...rawFile) preprocess
 	return run
 }
 
-func (r preprocessRun) execute(ctx context.Context) error {
+func (r preprocessRun) execute(ctx context.Context, flags ...string) error {
 	cmd := newPreprocessCmd()
-	cmd.SetArgs([]string{"--input", r.rawDir, "--mapping", r.mappingPath, "--output", r.outputRoot})
+	cmd.SetArgs(append([]string{"--input", r.rawDir, "--mapping", r.mappingPath, "--output", r.outputRoot}, flags...))
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 	return cmd.ExecuteContext(ctx)
@@ -288,30 +290,95 @@ func TestPreprocess_WritesACanonicalPackageInSourceOrder(t *testing.T) {
 	assert.Equal(t, "datapipe preprocess", pkg.ProducedBy.Tool)
 }
 
-func TestPreprocess_DescriptorAloneRecomputesItsVersion(t *testing.T) {
-	run := newPreprocessRun(t, ccNewsLikeMapping,
-		csvFile("b.csv", "title,text,url\nOne,Body,https://example.com/1\n"),
-		csvFile("a.csv", "title,text,url\nTwo,Body,https://example.com/2\n"),
-	)
-
-	require.NoError(t, run.execute(t.Context()))
-
-	pkg, _ := readArticles(t, run.packageDir(t))
-	rawB, rawA := sha256Of(t, filepath.Join(run.rawDir, "b.csv")), sha256Of(t, filepath.Join(run.rawDir, "a.csv"))
-	assert.Equal(t, &datapackage.RawRef{
-		Name:      "test-news-raw",
-		Version:   rawVersion,
-		Resources: []datapackage.ResourceRef{{Name: "b.csv", Hash: rawB}, {Name: "a.csv", Hash: rawA}},
-	}, pkg.Raw)
-	assert.Equal(t, sha256Of(t, run.mappingPath), pkg.Mapping.Hash)
-	assert.Equal(t, filepath.Base(run.packageDir(t)), pkg.Version)
-
-	inputs := []string{pkg.ArticleSchema, pkg.Mapping.Hash}
-	for _, r := range pkg.Raw.Resources {
-		inputs = append(inputs, r.Hash)
+func TestPreprocess_PublishesUnderTheNamedVersion(t *testing.T) {
+	tests := []struct {
+		name        string
+		flags       []string
+		wantVersion string
+	}{
+		{name: "default", wantVersion: "v1"},
+		{name: "named", flags: []string{"--version", "v2"}, wantVersion: "v2"},
 	}
-	assert.Equal(t, pkg.Version, datapackage.Version("article-v2", inputs...))
-	assert.Equal(t, datapackage.Version("article-v2", "article/v2", sha256Of(t, run.mappingPath), rawB, rawA), pkg.Version)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			run := newPreprocessRun(t, ccNewsLikeMapping, csvFile("part.csv", "title,text,url\nOne,Body,https://example.com/1\n"))
+
+			require.NoError(t, run.execute(t.Context(), tt.flags...))
+
+			dir := run.packageDir(t)
+			pkg, _ := readArticles(t, dir)
+			assert.Equal(t, tt.wantVersion, filepath.Base(dir))
+			assert.Equal(t, tt.wantVersion, pkg.Version)
+			assert.Equal(t, &datapackage.RawRef{Name: "test-news-raw", Version: rawVersion}, pkg.Raw)
+		})
+	}
+}
+
+func TestPreprocess_RefusesAChangedMappingRerunIntoTheSameVersion(t *testing.T) {
+	run := newPreprocessRun(t, ccNewsLikeMapping, csvFile("part.csv", "title,text,url\nOne,Body,https://example.com/1\n"))
+	require.NoError(t, run.execute(t.Context()))
+	dir := run.packageDir(t)
+	resourcePath := filepath.Join(dir, "articles.parquet")
+	firstHash := sha256Of(t, resourcePath)
+	before, err := os.Stat(resourcePath)
+	require.NoError(t, err)
+	freeze(t, dir)
+	require.NoError(t, os.WriteFile(run.mappingPath, []byte(strings.Replace(ccNewsLikeMapping, "target: Content}", "target: Metadata.Extra.body}", 1)), 0o644))
+
+	err = run.execute(t.Context())
+
+	var conflict *datapackage.VersionConflictError
+	require.ErrorAs(t, err, &conflict)
+	assert.Equal(t, "v1", conflict.Version)
+	assert.Equal(t, dir, run.packageDir(t))
+	after, err := os.Stat(resourcePath)
+	require.NoError(t, err)
+	assert.True(t, os.SameFile(before, after), "the resource file was replaced")
+	assert.Equal(t, firstHash, sha256Of(t, resourcePath))
+}
+
+// descriptorSchemaPath is the committed descriptor schema every producer's
+// descriptors must pass.
+var descriptorSchemaPath = filepath.Join("..", "..", "api", "datapackage-spec", "datapackage-v1.json")
+
+func validateAgainstDescriptorSchema(t *testing.T, descriptorPath string) error {
+	t.Helper()
+	decode := func(path string) any {
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(content))
+		require.NoError(t, err)
+		return doc
+	}
+	compiler := jsonschema.NewCompiler()
+	require.NoError(t, compiler.AddResource("datapackage-v1.json", decode(descriptorSchemaPath)))
+	schema, err := compiler.Compile("datapackage-v1.json")
+	require.NoError(t, err)
+	return schema.Validate(decode(descriptorPath))
+}
+
+func TestPreprocess_WritesADescriptorTheCommittedSchemaAccepts(t *testing.T) {
+	tests := []struct {
+		name       string
+		format     string
+		rawVersion string
+	}{
+		{name: "parquet", format: "parquet", rawVersion: rawVersion},
+		{name: "jsonl", format: "jsonl", rawVersion: rawVersion},
+		{name: "raw package without a version", format: "parquet"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			part := csvFile("part.csv", "title,text,url\nOne,Body,https://example.com/1\n")
+			run := newPreprocessRun(t, mappingWith(t, "format: parquet", "format: "+tt.format), part)
+			require.NoError(t, os.RemoveAll(run.rawDir))
+			writeRawPackage(t, run.rawDir, tt.rawVersion, part)
+
+			require.NoError(t, run.execute(t.Context()))
+
+			assert.NoError(t, validateAgainstDescriptorSchema(t, filepath.Join(run.packageDir(t), datapackage.DescriptorName)))
+		})
+	}
 }
 
 func TestPreprocess_CountsEveryDroppedRecordByReason(t *testing.T) {
@@ -481,31 +548,6 @@ func TestPreprocess_TwoRunsOverOneRawPackageWriteIdenticalBytes(t *testing.T) {
 	first, other := run.packageDir(t), second.packageDir(t)
 	assert.Equal(t, filepath.Base(first), filepath.Base(other))
 	assert.Equal(t, sha256Of(t, filepath.Join(first, "articles.parquet")), sha256Of(t, filepath.Join(other, "articles.parquet")))
-}
-
-func TestPreprocess_RefusesAVersionThatDescribesOtherContent(t *testing.T) {
-	run := newPreprocessRun(t, ccNewsLikeMapping,
-		csvFile("part.csv", "title,text,url\nOne,Body,https://example.com/1\n"),
-	)
-	require.NoError(t, run.execute(t.Context()))
-	dir := run.packageDir(t)
-	descriptorPath := filepath.Join(dir, datapackage.DescriptorName)
-	descriptor, err := os.ReadFile(descriptorPath)
-	require.NoError(t, err)
-	actualHash := sha256Of(t, filepath.Join(dir, "articles.parquet"))
-	tampered := strings.Replace(string(descriptor), actualHash, "sha256:"+strings.Repeat("0", 64), 1)
-	require.NotEqual(t, string(descriptor), tampered)
-	require.NoError(t, os.WriteFile(descriptorPath, []byte(tampered), 0o644))
-
-	err = run.execute(t.Context())
-
-	var conflict *datapackage.DescriptorConflictError
-	require.ErrorAs(t, err, &conflict)
-	assert.Equal(t, dir, run.packageDir(t), "a refused run leaves nothing behind")
-	kept, err := os.ReadFile(descriptorPath)
-	require.NoError(t, err)
-	assert.Equal(t, tampered, string(kept))
-	assert.Equal(t, actualHash, sha256Of(t, filepath.Join(dir, "articles.parquet")))
 }
 
 func TestPreprocess_CancelledRunLeavesNoPackage(t *testing.T) {
