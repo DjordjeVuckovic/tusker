@@ -23,7 +23,7 @@ func NewAPIExecutor(name, baseURL string) *APIExecutor {
 	return &APIExecutor{
 		name:    name,
 		baseURL: baseURL,
-		client:  &http.Client{Timeout: 30 * time.Second},
+		client:  &http.Client{},
 	}
 }
 
@@ -67,12 +67,12 @@ func (e *APIExecutor) Execute(ctx context.Context, search Request) (*Execution, 
 		return nil, fmt.Errorf("api request: %w", err)
 	}
 	defer resp.Body.Close()
-	latency := time.Since(start)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("api read response: %w", err)
 	}
+	latency := time.Since(start)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("api status %d: %s", resp.StatusCode, string(body))

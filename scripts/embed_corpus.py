@@ -8,31 +8,24 @@
 #   "pyarrow>=16",
 # ]
 # ///
-"""Embed a canonical article package into an embeddings package.
+"""Embed a canonical or slim package into embeddings/<tag-dir>/<version>/.
 
   uv run scripts/embed_corpus.py datasets/cc-news/canonical/<version>/datapackage.json
 
-Reads the package's single resource (parquet or jsonl, or the slim projection
-slim_corpus.py writes), verifies its bytes and hash, and writes
-embeddings/<tag-dir>/<version>/ under the dataset root: embeddings.parquet with
-one (id, embedding) row per canonical row in canonical order, and a
-datapackage.json that records the model, recipe and canonical resource it came
-from.
-
-Doubles as a Kaggle script kernel. Kernels run with no argv, so omitting the
-package argument reads the one slim.datapackage.json under /kaggle/input and
-writes to /kaggle/working.
+With no argument it runs as a Kaggle kernel: /kaggle/input in, /kaggle/working out.
 """
 
 import argparse
 import hashlib
 import itertools
 import json
+import re
 import shutil
 import sys
 import time
 import uuid
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
@@ -55,12 +48,14 @@ DATAPACKAGE_PROFILE = "https://datapackage.org/profiles/2.0/datapackage.json"
 PARQUET_MEDIATYPE = "application/vnd.apache.parquet"
 
 KAGGLE_INPUT = Path("/kaggle/input")
-# The kaggle CLI never uploads a file named datapackage.json, so the slim
-# package that travels to Kaggle names its descriptor differently.
+# The kaggle CLI never uploads a file named datapackage.json.
 SLIM_DESCRIPTOR = "slim.datapackage.json"
 KAGGLE_WORKING = Path("/kaggle/working")
 
 CHECKPOINT_MANIFEST = "manifest.json"
+
+DEFAULT_VERSION = "v1"
+VERSION_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 SWEEP_BATCH_SIZES = (64, 256, 512)
 SWEEP_DOCS = 2000
@@ -69,7 +64,7 @@ ResourceFormat = Literal["parquet", "jsonl"]
 
 
 class PackageError(Exception):
-    """A package, resource or run configuration that cannot be used as given."""
+    """An unusable package, resource or setting."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +83,7 @@ class CanonicalRef:
 
 @dataclass(frozen=True, slots=True)
 class SourcePackage:
-    """A canonical package, or a projection of one that names its canonical source."""
+    """A canonical package or a slim projection of one."""
 
     resource: Path
     resource_format: ResourceFormat
@@ -146,7 +141,7 @@ class EmbeddingSpec:
 
 @dataclass(frozen=True, slots=True)
 class Inference:
-    """How a run embedded: these change output bytes slightly but are not version inputs."""
+    """Settings that change the output bytes slightly."""
 
     batch_size: int
     dtype: str
@@ -162,20 +157,6 @@ def embedding_descriptor(spec: EmbeddingSpec, inference: Inference) -> dict[str,
     if inference.limit is not None:
         block["limit"] = inference.limit
     return block
-
-
-def version(prefix: str, *inputs: str) -> str:
-    """Derive a package version from its inputs, as `<prefix>-<8 hex of sha256>`.
-
-    Each input is hashed as its 8-byte big-endian UTF-8 length followed by the bytes,
-    so ("ab", "c") and ("a", "bc") give different versions.
-    """
-    digest = hashlib.sha256()
-    for value in inputs:
-        encoded = value.encode("utf-8")
-        digest.update(len(encoded).to_bytes(8, "big"))
-        digest.update(encoded)
-    return f"{prefix}-{digest.hexdigest()[:8]}"
 
 
 def sha256_hash(path: Path) -> str:
@@ -223,7 +204,7 @@ def single_resource(
 
 
 def open_package(descriptor_path: Path) -> SourcePackage:
-    """Read a package descriptor and verify its single resource by size and hash."""
+    """Read a descriptor and verify its one resource by size and hash."""
     descriptor = read_descriptor(descriptor_path)
     resource = single_resource(descriptor_path, descriptor)
     resource_format = resource.get("format")
@@ -284,13 +265,12 @@ def verify_resource(path: Path, resource: dict[str, Any]) -> None:
 
 
 def lead_text(title: str | None, description: str | None) -> str:
-    """Build the lead-v1 document text: the stripped, non-empty title and description."""
+    """The lead-v1 recipe."""
     parts = (part.strip() for part in (title or "", description or ""))
     return " ".join(part for part in parts if part)
 
 
 def iter_lead_rows(source: SourcePackage, limit: int | None) -> Iterator[LeadRow]:
-    """Stream (id, lead text) per row in resource order without holding the corpus in memory."""
     records = (
         iter_parquet_records(source.resource)
         if source.resource_format == "parquet"
@@ -332,7 +312,7 @@ def canonical_id(value: object, row_number: int) -> str:
         parsed = uuid.UUID(value)
     except ValueError as error:
         raise PackageError(f"row {row_number} id {value!r} is not a uuid") from error
-    # Loaders compare ids byte for byte, so a rewritten id would pair with nothing.
+    # Loaders compare ids byte for byte.
     if str(parsed) != value:
         raise PackageError(
             f"row {row_number} id {value!r} is not canonical lowercase uuid text"
@@ -341,10 +321,7 @@ def canonical_id(value: object, row_number: int) -> str:
 
 
 def scan_corpus(source: SourcePackage, limit: int | None) -> int:
-    """Count the rows to embed, refusing any row whose lead text is empty.
-
-    Loaders pair vectors with articles by position, so a row cannot be skipped.
-    """
+    """Count rows, refusing empty leads: loaders pair vectors with articles by position."""
     rows = 0
     empty_ids: list[str] = []
     for row in iter_lead_rows(source, limit):
@@ -363,10 +340,7 @@ def scan_corpus(source: SourcePackage, limit: int | None) -> int:
 def iter_shards(
     source: SourcePackage, *, shard_size: int, limit: int | None, skip: set[int]
 ) -> Iterator[Shard]:
-    """Cut the corpus into fixed shards in resource order, skipping finished ones.
-
-    Shard N always covers the same rows, which is what makes resume exact.
-    """
+    """Shard N always covers the same rows, which keeps resume exact."""
     ids: list[str] = []
     texts: list[str] = []
     index = 0
@@ -384,7 +358,7 @@ def iter_shards(
 
 
 def pick_device(requested: str) -> torch.device:
-    """Resolve `auto` to CUDA or CPU; Apple's MPS only when asked for by name."""
+    """`auto` never picks MPS."""
     if requested != "auto":
         return torch.device(requested)
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -416,7 +390,7 @@ def load_encoder(*, hf_model: str, revision: str, device: torch.device) -> Encod
 def last_token_pool(
     hidden_states: torch.Tensor, attention_mask: torch.Tensor
 ) -> torch.Tensor:
-    """Pool the last real token, whichever side the tokenizer pads on."""
+    """Pool the last real token under either padding side."""
     left_padding = attention_mask[:, -1].sum() == attention_mask.shape[0]
     if left_padding:
         return hidden_states[:, -1]
@@ -429,11 +403,10 @@ def last_token_pool(
 def encode(
     encoder: Encoder, texts: list[str], *, batch_size: int, max_tokens: int, dim: int
 ) -> np.ndarray:
-    """Embed texts, sliced to `dim` and L2-normalised, one row per text in input order."""
+    """Embed texts, sliced to `dim` and L2-normalised, in input order."""
     vectors = np.empty((len(texts), dim), dtype=np.float32)
 
-    # Batches pad to their longest member, so grouping similar lengths cuts wasted
-    # compute. Writing by index undoes the sort.
+    # Length-sorted batches pad less; writing by index restores input order.
     order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
     for start in range(0, len(order), batch_size):
         batch = order[start : start + batch_size]
@@ -451,7 +424,7 @@ def encode(
 
 
 def non_finite_ids(ids: list[str], vectors: np.ndarray) -> list[str]:
-    """Return the ids whose vector holds a NaN or inf, which fp16 overflow produces silently."""
+    """Ids whose vector holds NaN or inf, which fp16 overflow produces silently."""
     broken_rows = np.flatnonzero(~np.isfinite(vectors).all(axis=1))
     return [ids[row] for row in broken_rows]
 
@@ -459,11 +432,7 @@ def non_finite_ids(ids: list[str], vectors: np.ndarray) -> list[str]:
 def sweep_batch_size(
     encoder: Encoder, texts: list[str], *, max_tokens: int, dim: int
 ) -> int:
-    """Time a slice at each candidate size and return the fastest.
-
-    The default suits Apple Silicon and is usually wrong for a discrete GPU, which
-    is where this runs without argv to correct it.
-    """
+    """Return the fastest candidate batch size on a timed slice."""
     best, best_rate = SWEEP_BATCH_SIZES[0], 0.0
     for size in SWEEP_BATCH_SIZES:
         started = time.monotonic()
@@ -489,18 +458,14 @@ def shard_path(checkpoint_dir: Path, index: int) -> Path:
 def save_shard(checkpoint_dir: Path, shard: Shard, vectors: np.ndarray) -> None:
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     temporary = shard_path(checkpoint_dir, shard.index).with_suffix(".npz.tmp")
-    # Uncompressed: float32 vectors barely compress, and this write blocks every shard.
+    # Uncompressed: float32 vectors barely compress.
     with open(temporary, "wb") as file:
         np.savez(file, ids=np.array(shard.ids), embeddings=vectors)
     temporary.rename(shard_path(checkpoint_dir, shard.index))
 
 
 def claim_checkpoints(checkpoint_dir: Path, key: dict[str, Any]) -> None:
-    """Bind a checkpoint dir to one run's settings, refusing shards written under others.
-
-    The key holds every setting that changes a shard's bytes, so resuming can never
-    splice vectors from two configurations, or a --limit trial, into one package.
-    """
+    """Bind a checkpoint dir to one run's settings, refusing shards from any other."""
     manifest = checkpoint_dir / CHECKPOINT_MANIFEST
     if manifest.exists():
         recorded = read_descriptor(manifest)
@@ -517,7 +482,6 @@ def claim_checkpoints(checkpoint_dir: Path, key: dict[str, Any]) -> None:
             raise PackageError(
                 f"{checkpoint_dir} holds checkpoints from other settings ({details}); "
                 "use another --checkpoint-dir or delete it"
-                + inference_hint(recorded, key)
             )
         return
     if finished_shards(checkpoint_dir):
@@ -530,6 +494,12 @@ def claim_checkpoints(checkpoint_dir: Path, key: dict[str, Any]) -> None:
         json.dumps(key, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     temporary.rename(manifest)
+
+
+def settings_digest(run_key: dict[str, Any]) -> str:
+    """Batch size and dtype stay out, so a resumed auto-batch run finds its shards."""
+    encoded = json.dumps(run_key, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:8]
 
 
 def recorded_batch_size(checkpoint_dir: Path) -> int | None:
@@ -560,7 +530,7 @@ EMBEDDINGS_SCHEMA = pa.schema(
 
 
 def merge_shards(checkpoint_dir: Path, *, shard_count: int, out_path: Path) -> None:
-    """Stream every shard into one Parquet file, one row group per shard."""
+    """One row group per shard."""
     missing = sorted(set(range(shard_count)) - set(finished_shards(checkpoint_dir)))
     if missing:
         raise PackageError(f"{checkpoint_dir} is missing shards {missing}")
@@ -576,149 +546,85 @@ def merge_shards(checkpoint_dir: Path, *, shard_count: int, out_path: Path) -> N
             writer.write_table(table)
 
 
-def publish_package(
+def publish_version(
     final_dir: Path,
     build: Callable[[Path], None],
     *,
     descriptor_name: str = "datapackage.json",
+    keep_rejected: bool = False,
 ) -> None:
-    """Build a package in a sibling temp dir and rename it into place, so no reader sees half of one.
-
-    When the version already exists, the built package has to match it by each
-    resource's name, hash and bytes: a match keeps the existing package, a
-    difference is refused as non-determinism.
-    """
-    temporary = final_dir.with_name(f".{final_dir.name}.tmp")
-    shutil.rmtree(temporary, ignore_errors=True)
-    temporary.mkdir(parents=True)
-    try:
-        build(temporary)
-        if final_dir.exists():
-            settle_existing_package(
-                final_dir, temporary, descriptor_name=descriptor_name
-            )
-            shutil.rmtree(temporary)
+    """Rename a staged package to its version; an existing version must hold the same hash."""
+    final_dir.parent.mkdir(parents=True, exist_ok=True)
+    with staged(final_dir.with_name(f".{final_dir.name}.staging")) as staging:
+        build(staging)
+        if not final_dir.exists():
+            staging.rename(final_dir)
             return
-        temporary.rename(final_dir)
-    except BaseException:
-        shutil.rmtree(temporary, ignore_errors=True)
-        raise
-
-
-def settle_existing_package(
-    final_dir: Path, built_dir: Path, *, descriptor_name: str
-) -> None:
-    existing = verify_existing_package(final_dir, descriptor_name=descriptor_name)
-    built = read_descriptor(built_dir / descriptor_name)
-    refuse_other_version(final_dir, existing=existing, version=built.get("version"))
-    differences = resource_differences(existing, built)
-    if differences:
-        raise PackageError(
-            f"{final_dir} already holds version {built.get('version')} with other bytes "
-            f"({'; '.join(differences)}): the same version has to reproduce the same bytes"
-            + inference_hint(
-                existing.get("embedding") or {}, built.get("embedding") or {}
+        existing = resource_hash(final_dir / descriptor_name)
+        produced = resource_hash(staging / descriptor_name)
+        if existing == produced:
+            return
+        message = (
+            f"version {final_dir.name} at {final_dir} holds resource hash {existing}, "
+            f"this run produced {produced}; nothing was replaced, pass another --version"
+        )
+        if keep_rejected:
+            rejected = final_dir.with_name(
+                f".{final_dir.name}.rejected-{produced.removeprefix('sha256:')[:8]}"
             )
-        )
-
-
-def refuse_other_version(
-    final_dir: Path, *, existing: dict[str, Any], version: object
-) -> None:
-    if existing.get("version") != version:
-        raise PackageError(
-            f"{final_dir} holds version {existing.get('version')!r}, this run writes "
-            f"{version!r}; remove it to regenerate"
-        )
-
-
-def resource_differences(existing: dict[str, Any], built: dict[str, Any]) -> list[str]:
-    """Name every resource whose name, hash or bytes differ; other descriptor fields are ignored."""
-    existing_resources = {
-        resource["name"]: resource for resource in existing.get("resources") or []
-    }
-    built_resources = {
-        resource["name"]: resource for resource in built.get("resources") or []
-    }
-    differences = [
-        f"resource {name} is only in the {'existing' if name in existing_resources else 'new'} package"
-        for name in sorted(existing_resources.keys() ^ built_resources.keys())
-    ]
-    for name in sorted(existing_resources.keys() & built_resources.keys()):
-        for field in ("hash", "bytes"):
-            before, after = (
-                existing_resources[name].get(field),
-                built_resources[name].get(field),
+            shutil.rmtree(rejected, ignore_errors=True)
+            staging.rename(rejected)
+            message += (
+                f". The new package is kept at {rejected}; move it to a new version "
+                "folder and set its descriptor's version to match"
             )
-            if before != after:
-                differences.append(f"{name} {field} {before} -> {after}")
-    return differences
+        raise PackageError(message)
 
 
-def inference_hint(before: dict[str, Any], after: dict[str, Any]) -> str:
-    """Explain a difference that batch size or dtype, which are not version inputs, can cause."""
-    changed = [
-        field
-        for field in ("batchSize", "dtype")
-        if before.get(field) != after.get(field)
-    ]
-    if not changed:
-        return ""
-    verb = "changes" if len(changed) == 1 else "change"
-    return (
-        f". {' and '.join(changed)} {verb} the bytes but not the version: the existing "
-        f"run used batchSize {before.get('batchSize')} and dtype {before.get('dtype')}, "
-        f"this one {after.get('batchSize')} and {after.get('dtype')}; rerun with "
-        f"--batch-size {before.get('batchSize')} on a device that infers in "
-        f"{before.get('dtype')} to reproduce it"
-    )
+def resource_hash(descriptor_path: Path) -> str:
+    return single_resource(descriptor_path, read_descriptor(descriptor_path))["hash"]
 
 
-def verify_existing_package(
-    final_dir: Path, *, descriptor_name: str = "datapackage.json"
-) -> dict[str, Any]:
-    """Return a finished package's descriptor once its resources still verify on disk."""
-    descriptor_path = final_dir / descriptor_name
-    descriptor = read_descriptor(descriptor_path)
-    for resource in descriptor.get("resources") or []:
-        verify_resource(
-            resolve_resource_path(descriptor_path, resource.get("path")), resource
-        )
-    return descriptor
+def publish_replacing(final_dir: Path, build: Callable[[Path], None]) -> None:
+    """Swap a staged package in at a fixed location."""
+    final_dir.parent.mkdir(parents=True, exist_ok=True)
+    with staged(final_dir.with_name(f".{final_dir.name}.staging")) as staging:
+        build(staging)
+        retired = final_dir.with_name(f".{final_dir.name}.old")
+        shutil.rmtree(retired, ignore_errors=True)
+        if final_dir.exists():
+            final_dir.rename(retired)
+        staging.rename(final_dir)
+        shutil.rmtree(retired, ignore_errors=True)
 
 
-def existing_package_matches(
-    final_dir: Path, *, version: str, embedding: dict[str, Any]
-) -> bool:
-    """Report whether a finished package already holds this version under these exact settings.
-
-    The same inputs and settings reproduce the same bytes, so such a rerun is a
-    verified no-op without embedding again. Other settings at the same version are
-    embedded and compared when the package is published.
-    """
-    if not final_dir.exists():
-        return False
-    existing = verify_existing_package(final_dir)
-    refuse_other_version(final_dir, existing=existing, version=version)
-    return existing.get("embedding") == embedding
-
-
-def existing_batch_size(final_dir: Path) -> int | None:
-    if not final_dir.exists():
-        return None
-    return (read_descriptor(final_dir / "datapackage.json").get("embedding") or {}).get(
-        "batchSize"
-    )
+@contextmanager
+def staged(staging: Path) -> Iterator[Path]:
+    """Remove the staging dir on any exit."""
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True)
+    try:
+        yield staging
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
 
 
 def dataset_root_of(descriptor_path: Path) -> Path:
-    """Return datasets/<ds> for a package at datasets/<ds>/canonical/<version>/datapackage.json."""
+    """datasets/<ds> for datasets/<ds>/canonical/<version>/datapackage.json."""
     version_dir = descriptor_path.resolve().parent
     if version_dir.parent.name != "canonical":
         raise PackageError(
             f"{descriptor_path} is not under <dataset>/canonical/<version>/; pass --output-root"
         )
     return version_dir.parent.parent
+
+
+def version_name(text: str) -> str:
+    if not VERSION_PATTERN.fullmatch(text):
+        raise argparse.ArgumentTypeError(
+            f"{text!r} is not a version name: letters, digits, '.', '_' or '-', not starting with '.'"
+        )
+    return text
 
 
 def positive_int(text: str) -> int:
@@ -732,7 +638,7 @@ def positive_int(text: str) -> int:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    # No abbreviations: a stale flag such as --out must not quietly become --output-root.
+    # A stale flag such as --out must not match --output-root.
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -748,7 +654,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output-root", type=Path, help="dataset root to write embeddings/ under"
     )
     parser.add_argument(
-        "--checkpoint-dir", type=Path, help="default: a dir beside the output package"
+        "--checkpoint-dir",
+        type=Path,
+        help="default: embeddings/<tag-dir>/.checkpoints-<settings>",
     )
     parser.add_argument(
         "--model",
@@ -772,7 +680,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=512,
         help="input tokens per document; the rest is cut",
     )
-    # 64 measured fastest on Apple Silicon, where wide batches thrash unified memory.
+    # 64 measured fastest on Apple Silicon.
     parser.add_argument(
         "--batch-size",
         type=positive_int,
@@ -791,9 +699,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="documents per checkpoint; the resume unit",
     )
     parser.add_argument(
+        "--version",
+        type=version_name,
+        default=DEFAULT_VERSION,
+        help="name of the package's folder under embeddings/<tag-dir>/",
+    )
+    parser.add_argument(
         "--limit",
         type=positive_int,
-        help="embed only the first N rows, as a trial package named <version>-limit-N",
+        help="embed only the first N rows, marked by embedding.limit; give it its own --version",
     )
     parser.add_argument(
         "--device",
@@ -810,7 +724,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def resolve_model_identity(args: argparse.Namespace) -> tuple[str, str]:
-    """Return (revision, model name), defaulting both only for the pinned Qwen model."""
+    """Default the revision and name only for the pinned Qwen model."""
     if args.model == QWEN_HF_MODEL:
         return args.revision or QWEN_REVISION, args.model_name or QWEN_MODEL_NAME
     if not args.revision or not args.model_name:
@@ -844,7 +758,7 @@ def kaggle_package() -> Path:
 
 
 def apply_kaggle_defaults(args: argparse.Namespace) -> Path:
-    """Fill in what a kernel cannot pass on the command line, and return the package."""
+    """Fill in what a kernel can't pass on the command line."""
     args.output_root = args.output_root or KAGGLE_WORKING
     args.checkpoint_dir = args.checkpoint_dir or KAGGLE_WORKING / "checkpoints"
     # Kernel disk has to hold the shards and the Parquet at once.
@@ -870,62 +784,41 @@ def run(args: argparse.Namespace) -> Path:
         dim=resolve_dim(args.dim, encoder.native_dim),
         max_tokens=args.max_tokens,
     )
-    package_version = version(
-        f"{spec.recipe}-{spec.dim}",
-        source.canonical.resource_hash,
-        spec.revision,
-        spec.recipe,
-        str(spec.dim),
-        str(spec.max_tokens),
-    )
-    # A trial holds a prefix of the corpus, so it must never sit where the full
-    # package of the same inputs belongs.
-    if args.limit is not None:
-        package_version = f"{package_version}-limit-{args.limit}"
-    final_dir = (
-        output_root / "embeddings" / spec.tag.replace(":", "-") / package_version
-    )
-    checkpoint_dir = args.checkpoint_dir or final_dir.with_name(
-        f".checkpoints-{package_version}"
+    tag_dir = output_root / "embeddings" / spec.tag.replace(":", "-")
+    final_dir = tag_dir / args.version
+    if final_dir.exists():
+        print(
+            f"warning: {final_dir} already exists; the run is published only if it "
+            "reproduces that package's bytes",
+            file=sys.stderr,
+        )
+    run_key = {
+        "resourceHash": source.resource_hash,
+        "canonicalResourceHash": source.canonical.resource_hash,
+        "shardSize": args.shard_size,
+        "limit": args.limit,
+        **spec.to_descriptor(),
+    }
+    checkpoint_dir = (
+        args.checkpoint_dir or tag_dir / f".checkpoints-{settings_digest(run_key)}"
     )
     batch_size = args.batch_size
     if args.auto_batch_size:
-        # A resumed or repeated run reuses the batch size already on disk, so it
-        # reproduces those bytes instead of whatever the timing sweep picks today.
-        batch_size = (
-            recorded_batch_size(checkpoint_dir)
-            or existing_batch_size(final_dir)
-            or sweep_batch_size(
-                encoder,
-                next(
-                    iter_shards(
-                        source, shard_size=SWEEP_DOCS, limit=SWEEP_DOCS, skip=set()
-                    )
-                ).texts,
-                max_tokens=spec.max_tokens,
-                dim=spec.dim,
-            )
+        # Reuse the recorded batch size so a resume reproduces its shards' bytes.
+        batch_size = recorded_batch_size(checkpoint_dir) or sweep_batch_size(
+            encoder,
+            next(
+                iter_shards(source, shard_size=SWEEP_DOCS, limit=SWEEP_DOCS, skip=set())
+            ).texts,
+            max_tokens=spec.max_tokens,
+            dim=spec.dim,
         )
         print(f"using --batch-size {batch_size}\n")
     inference = Inference(
         batch_size=batch_size, dtype=dtype_name(device), limit=args.limit
     )
-    if existing_package_matches(
-        final_dir,
-        version=package_version,
-        embedding=embedding_descriptor(spec, inference),
-    ):
-        print(f"{final_dir} is already complete")
-        return final_dir
     claim_checkpoints(
-        checkpoint_dir,
-        {
-            "resourceHash": source.resource_hash,
-            "canonicalResourceHash": source.canonical.resource_hash,
-            "shardSize": args.shard_size,
-            "limit": args.limit,
-            **embedding_descriptor(spec, inference),
-        },
+        checkpoint_dir, {**run_key, **embedding_descriptor(spec, inference)}
     )
 
     shard_count = -(-total_rows // args.shard_size)
@@ -945,22 +838,21 @@ def run(args: argparse.Namespace) -> Path:
     def build(directory: Path) -> None:
         resource_path = directory / "embeddings.parquet"
         merge_shards(checkpoint_dir, shard_count=shard_count, out_path=resource_path)
+        resource = describe_parquet_resource(resource_path, name="embeddings")
         descriptor: dict[str, Any] = {
             "$schema": DATAPACKAGE_PROFILE,
             "name": f"{source.canonical.name}-embeddings",
-            "version": package_version,
+            "version": args.version,
+            "producedBy": {"tool": "embed_corpus.py"},
         }
         if source.language:
             descriptor["language"] = source.language
         descriptor["embedding"] = embedding_descriptor(spec, inference)
         descriptor["canonical"] = source.canonical.to_descriptor()
-        descriptor["resources"] = [
-            describe_parquet_resource(resource_path, name="embeddings")
-        ]
+        descriptor["resources"] = [resource]
         write_descriptor(directory, descriptor)
 
-    final_dir.parent.mkdir(parents=True, exist_ok=True)
-    publish_package(final_dir, build)
+    publish_version(final_dir, build, keep_rejected=True)
     print(f"wrote {final_dir}")
 
     if args.clean_checkpoints:
@@ -979,7 +871,6 @@ class EmbedPlan:
 
 
 def embed_shards(source: SourcePackage, encoder: Encoder, plan: EmbedPlan) -> None:
-    """Embed and checkpoint every shard not already on disk."""
     done = set(finished_shards(plan.checkpoint_dir))
     print(f"input    : {source.resource}")
     print(f"device   : {encoder.device.type}")

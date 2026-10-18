@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tusker.sh/datapackage-v1",
+  "title": "Data package descriptor",
+  "type": "object",
+  "required": [
+    "$schema",
+    "name",
+    "resources"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "articleSchema": {
+      "type": "string"
+    },
+    "canonical": {
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "resourceHash"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "resourceHash": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "embedding": {
+      "type": "object",
+      "required": [
+        "model",
+        "hfModel",
+        "revision",
+        "tag",
+        "dim",
+        "recipe",
+        "pooling",
+        "normalized",
+        "maxTokens",
+        "batchSize",
+        "dtype"
+      ],
+      "properties": {
+        "batchSize": {
+          "type": "integer"
+        },
+        "dim": {
+          "type": "integer"
+        },
+        "dtype": {
+          "type": "string"
+        },
+        "hfModel": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "maxTokens": {
+          "type": "integer"
+        },
+        "model": {
+          "type": "string"
+        },
+        "normalized": {
+          "type": "boolean"
+        },
+        "pooling": {
+          "type": "string"
+        },
+        "recipe": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "idStrategy": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "language": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "producedBy": {
+      "type": "object",
+      "required": [
+        "tool"
+      ],
+      "properties": {
+        "tool": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "report": {
+      "type": "object",
+      "required": [
+        "read",
+        "written",
+        "deduped"
+      ],
+      "properties": {
+        "deduped": {
+          "type": "integer"
+        },
+        "dropped": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "read": {
+          "type": "integer"
+        },
+        "written": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "path",
+          "format",
+          "bytes",
+          "hash"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer"
+          },
+          "format": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "mediatype": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "suite": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

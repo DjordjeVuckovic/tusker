@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/dialect"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
@@ -78,8 +79,10 @@ queries:
 }
 
 type recordingValidator struct {
-	query string
-	args  []any
+	query       string
+	args        []any
+	deadline    time.Time
+	hasDeadline bool
 }
 
 func (v *recordingValidator) Execute(context.Context, engine.Request) (*engine.Execution, error) {
@@ -88,8 +91,9 @@ func (v *recordingValidator) Execute(context.Context, engine.Request) (*engine.E
 func (v *recordingValidator) Name() string { return "recording" }
 func (v *recordingValidator) Close() error { return nil }
 
-func (v *recordingValidator) Validate(_ context.Context, req engine.Request) error {
+func (v *recordingValidator) Validate(ctx context.Context, req engine.Request) error {
 	v.query, v.args = req.Query, req.Args
+	v.deadline, v.hasDeadline = ctx.Deadline()
 	return nil
 }
 
@@ -166,4 +170,36 @@ queries:
 	assert.ErrorContains(t, err, "q-election")
 	assert.ErrorContains(t, err, "terms")
 	assert.False(t, validated, "no pair may be validated once a binding is known to be broken")
+}
+
+// Validate is bounded by the spec's query timeout, the deadline a run gives
+// every execution, rather than by a default of the engine client's own.
+func TestValidateOne_ValidatesUnderTheSpecQueryTimeout(t *testing.T) {
+	const queryTimeout = 2 * time.Hour
+	loaded, err := suite.Parse([]byte(`schema_version: 1
+id: validate_deadline
+queries:
+  - id: q1
+    engines:
+      pg: { query: "SELECT id FROM articles" }
+`))
+	require.NoError(t, err)
+	validator := &recordingValidator{}
+
+	before := time.Now()
+	row := validateOne(context.Background(), validateInput{
+		query:        loaded.Suite.Queries[0],
+		engineName:   "pg",
+		binding:      spec.QueryBinding{QuerySource: "pg"},
+		loaded:       loaded,
+		executor:     validator,
+		dialect:      dialect.Positional{},
+		queryTimeout: queryTimeout,
+	})
+	after := time.Now()
+
+	require.Equal(t, "OK", row.status, row.detail)
+	require.True(t, validator.hasDeadline, "validation ran without a deadline")
+	assert.False(t, validator.deadline.Before(before.Add(queryTimeout)), "deadline is shorter than the spec's query timeout")
+	assert.False(t, validator.deadline.After(after.Add(queryTimeout)), "deadline is longer than the spec's query timeout")
 }

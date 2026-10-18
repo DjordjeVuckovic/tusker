@@ -104,3 +104,45 @@ func TestHybridSearcher_SearchHybrid_RanksBothSignalsFirst(t *testing.T) {
 		t.Errorf("MaxScore = %f, want > 0", res.MaxScore)
 	}
 }
+
+func TestHybridSearcher_SearchHybrid_OnlySeesTheQueryModel(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Docker (testcontainers ES)")
+	}
+	ctx := context.Background()
+
+	queryVec := vec(EmbeddingDims, 0.9)
+	indexer, embIndexer, searcher := newHybridTestEnv(t, queryVec)
+
+	// Titles share no term with the query, so only the kNN leg can return them.
+	sameModel := uuid.New()
+	otherModel := uuid.New()
+	for _, id := range []uuid.UUID{sameModel, otherModel} {
+		if _, err := indexer.Save(ctx, document.Article{ID: id, Title: id.String(), Language: "english"}); err != nil {
+			t.Fatalf("index article: %v", err)
+		}
+	}
+	refresh(t, embIndexer)
+
+	batch := []*embedding.Vec{
+		{ID: sameModel, Model: embedding.DefaultModel, Embedding: queryVec},
+		{ID: otherModel, Model: "other-model", Embedding: queryVec},
+	}
+	if _, err := embIndexer.SaveBulk(ctx, batch); err != nil {
+		t.Fatalf("SaveBulk: %v", err)
+	}
+	refresh(t, embIndexer)
+
+	res, err := searcher.SearchHybrid(ctx, dquery.NewHybrid("climate change"), &dquery.BaseOptions{Size: 10})
+	if err != nil {
+		t.Fatalf("SearchHybrid: %v", err)
+	}
+
+	got := make([]uuid.UUID, 0, len(res.Hits))
+	for _, hit := range res.Hits {
+		got = append(got, hit.Article.ID)
+	}
+	if len(got) != 1 || got[0] != sameModel {
+		t.Errorf("hits = %v, want only %s: a vector from another model must not be ranked", got, sameModel)
+	}
+}

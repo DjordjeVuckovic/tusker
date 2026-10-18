@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/version"
 	"gopkg.in/yaml.v3"
 )
@@ -14,9 +15,11 @@ import (
 // WriteFile writes a JudgmentFile atomically: marshals to a tmp file in the
 // same directory, fsyncs, then renames. Prevents readers from seeing a
 // half-written YAML if the process is killed mid-write. Stamps schema_version
-// every write so reloads always see a current artifact.
+// and the grade counts on every write so reloads always see a current artifact.
 func WriteFile(jf *File, path string) error {
 	jf.SchemaVersion = version.SchemaVersion
+	graded, unjudged := jf.GradeCounts()
+	jf.Meta.GradedCount, jf.Meta.UnjudgedCount = &graded, &unjudged
 	data, err := yaml.Marshal(jf)
 	if err != nil {
 		return fmt.Errorf("marshal judgment file: %w", err)
@@ -87,28 +90,29 @@ func writeAtomic(path string, data []byte) error {
 
 // IncrementalWriter persists a JudgmentFile after every query so the user can
 // resume after a crash, Ctrl-C, or rate-limit interrupt. Pass Append on the
-// Runner's Sink and call Flush at the end to write the final file.
+// Runner's Sink.
 type IncrementalWriter struct {
 	Path    string
+	stamp   meta.Meta
 	current File
 }
 
-// NewIncrementalWriter seeds the file with the judge block up front, so a run
-// interrupted mid-grade still leaves an artifact that names its grader — which
-// is what the resume guard reads back.
-func NewIncrementalWriter(path string, judge meta.Judge) *IncrementalWriter {
+// NewIncrementalWriter writes stamp as the meta block of every flush, so a run
+// interrupted mid-grade still leaves an artifact that names its grader and
+// whatever else the caller set, which is what the resume guard reads back.
+func NewIncrementalWriter(path string, stamp meta.Meta) *IncrementalWriter {
 	return &IncrementalWriter{
-		Path: path,
-		current: File{
-			Meta:    meta.Meta{Judge: &judge},
-			Queries: []Entry{},
-		},
+		Path:    path,
+		stamp:   stamp,
+		current: File{Queries: []Entry{}},
 	}
 }
 
-// LoadPrior reads the existing output file (if any) into the writer's state.
-// Returns the prior JudgmentFile so the caller can pass it as Runner.Existing.
-func (w *IncrementalWriter) LoadPrior() (*File, error) {
+// LoadPrior reads the existing output file (if any) and seeds the writer with
+// its queries that are still in pf. Returns the whole prior JudgmentFile so the
+// caller can pass it as Runner.Existing. The prior file's meta is not carried
+// over; later flushes write the stamp.
+func (w *IncrementalWriter) LoadPrior(pf *pool.PoolFile) (*File, error) {
 	jf, err := ReadFileIfExists(w.Path)
 	if err != nil {
 		return nil, err
@@ -116,12 +120,16 @@ func (w *IncrementalWriter) LoadPrior() (*File, error) {
 	if jf == nil {
 		return nil, nil
 	}
-	// Keep this run's judge block: the caller validates compatibility against
-	// the prior file separately, and intermediate flushes should describe the
-	// grader currently running.
-	judge := w.current.Meta.Judge
-	w.current = *jf
-	w.current.Meta.Judge = judge
+	pooled := make(map[string]bool, len(pf.Queries))
+	for _, entry := range pf.Queries {
+		pooled[entry.QueryID] = true
+	}
+	w.current = File{Queries: []Entry{}}
+	for _, qe := range jf.Queries {
+		if pooled[qe.QueryID] {
+			w.current.Queries = append(w.current.Queries, qe)
+		}
+	}
 	return jf, nil
 }
 
@@ -137,13 +145,7 @@ func (w *IncrementalWriter) Append(_ QueryProgress, entry Entry) error {
 	return w.flush()
 }
 
-// Flush writes the current state to disk. Append already flushes; call this
-// only if you mutated current directly.
-func (w *IncrementalWriter) Flush() error { return w.flush() }
-
-// Snapshot returns the in-memory JudgmentFile (read-only).
-func (w *IncrementalWriter) Snapshot() *File { return &w.current }
-
 func (w *IncrementalWriter) flush() error {
+	w.current.Meta = w.stamp
 	return WriteFile(&w.current, w.Path)
 }

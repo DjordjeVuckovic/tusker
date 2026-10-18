@@ -33,7 +33,8 @@ type Meta struct {
 	Judge          *Judge `yaml:"judge,omitempty" json:"judge,omitempty"`
 	PoolRef        string `yaml:"pool_ref,omitempty" json:"pool_ref,omitempty"`
 	PoolRunID      string `yaml:"pool_run_id,omitempty" json:"pool_run_id,omitempty"`
-	GradedCount    int    `yaml:"graded_count,omitempty" json:"graded_count,omitempty"`
+	GradedCount    *int   `yaml:"graded_count,omitempty" json:"graded_count,omitempty"`
+	UnjudgedCount  *int   `yaml:"unjudged_count,omitempty" json:"unjudged_count,omitempty"`
 	RelevanceScale []int  `yaml:"relevance_scale,omitempty" json:"relevance_scale,omitempty"`
 
 	// Legacy flat judgment fields, retained read-only so annotations written
@@ -66,6 +67,8 @@ type Judge struct {
 	Provider      string `yaml:"provider,omitempty" json:"provider,omitempty"`
 	Model         string `yaml:"model,omitempty" json:"model,omitempty"`
 	PromptVersion string `yaml:"prompt_version,omitempty" json:"prompt_version,omitempty"`
+	// RubricVersion names the grading rules of a heuristic judge, which has no prompt.
+	RubricVersion string `yaml:"rubric_version,omitempty" json:"rubric_version,omitempty"`
 }
 
 // Equal reports whether two judges would produce comparable grades. Used by the

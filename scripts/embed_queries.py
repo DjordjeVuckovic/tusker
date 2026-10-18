@@ -9,24 +9,14 @@
 #   "pyyaml>=6",
 # ]
 # ///
-"""Embed a bench track's queries into a query-vectors package.
+"""Embed a track's suite queries into trec/query-vectors/ beside the suite.
 
   uv run scripts/embed_queries.py tracks/<dataset>/<paradigm>/suite.yaml
 
-Writes trec/query-vectors/ beside the suite: query-vectors.parquet with one
-(query_id, text, embedding) row per suite query in suite order, and a
-datapackage.json recording the model tag, the query recipe and the suite's
-sha256. `text` is the query's description exactly as the bench runner passes it
-to QueryVector; the model input wraps it with the query-instruct-v1 recipe.
-
-Uses embed_corpus.py's model loading, pooling and normalisation, so queries and
-documents go through one runtime. As a Kaggle script kernel (no argv) it reads
-the one suite.yaml under /kaggle/input, imports the embed_corpus.py shipped in
-the same dataset, and writes /kaggle/working/query-vectors/.
+With no argument it runs as a Kaggle kernel, importing the embed_corpus.py in its input.
 """
 
 import argparse
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,7 +32,7 @@ KAGGLE_WORKING = Path("/kaggle/working")
 try:
     import embed_corpus
 except ModuleNotFoundError:
-    # A kernel pushes a single code file; embed_corpus.py travels in the input dataset.
+    # A kernel pushes one code file; embed_corpus.py rides in the input dataset.
     sys.path.extend(
         sorted({str(path.parent) for path in KAGGLE_INPUT.glob("**/embed_corpus.py")})
     )
@@ -50,31 +40,9 @@ except ModuleNotFoundError:
 
 
 QUERY_RECIPE = "query-instruct-v1"
-# One query per forward pass: no padding, so a query's vector never depends on
-# which other queries share the suite.
+# One query per pass, so no vector depends on padding to its neighbours.
 QUERY_BATCH_SIZE = 1
 QUERY_TASK = "Given a web search, retrieve all relevant news documents"
-
-# unicode.IsSpace, which Go's strings.TrimSpace strips. Python's str.strip also
-# strips \x1c-\x1f, so a query edged by those would embed differently per side.
-GO_WHITESPACE = "".join(
-    map(
-        chr,
-        [
-            *range(0x09, 0x0E),
-            0x20,
-            0x85,
-            0xA0,
-            0x1680,
-            *range(0x2000, 0x200B),
-            0x2028,
-            0x2029,
-            0x202F,
-            0x205F,
-            0x3000,
-        ],
-    )
-)
 
 QUERY_VECTORS_SCHEMA = pa.schema(
     [
@@ -94,32 +62,18 @@ class SuiteQuery:
 @dataclass(frozen=True, slots=True)
 class Suite:
     id: str
-    hash: str
     queries: list[SuiteQuery]
 
 
 def instruct_input(text: str) -> str:
-    """Wrap a query in the query-instruct-v1 recipe, byte for byte as Go's wrapWithInstruct."""
+    """The query-instruct-v1 recipe."""
     return f"Instruct: {QUERY_TASK}\nQuery:{text.strip()}"
 
 
-class SuiteLoader(yaml.BaseLoader):
-    """Resolve plain null scalars only, as yaml.v3 does before filling a Go string with ""."""
-
-
-SuiteLoader.add_implicit_resolver(
-    "tag:yaml.org,2002:null", re.compile(r"^(?:~|null|Null|NULL|)$"), [*"~nN", ""]
-)
-SuiteLoader.add_constructor("tag:yaml.org,2002:null", lambda loader, node: None)
-
-
 def load_suite(path: Path) -> Suite:
-    """Read a suite's query ids and descriptions as raw strings, the way yaml.v3 fills Go strings.
-
-    Only plain nulls resolve, so `yes` or `2024` stay the text the runner sees.
-    """
+    """BaseLoader keeps `yes` or `2024` as the text the runner sees."""
     try:
-        document = yaml.load(path.read_text(encoding="utf-8"), Loader=SuiteLoader)
+        document = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     except (OSError, yaml.YAMLError) as error:
         raise embed_corpus.PackageError(f"read suite {path}: {error}") from error
     if not isinstance(document, dict):
@@ -140,19 +94,13 @@ def load_suite(path: Path) -> Suite:
     duplicates = sorted({query_id for query_id in ids if ids.count(query_id) > 1})
     if duplicates:
         raise embed_corpus.PackageError(f"{path} repeats query ids {duplicates}")
-    return Suite(
-        id=document.get("id", ""), hash=embed_corpus.sha256_hash(path), queries=queries
-    )
+    return Suite(id=document.get("id", ""), queries=queries)
 
 
 def check_query(query: SuiteQuery) -> None:
     if not query.id or not query.text.strip():
         raise embed_corpus.PackageError(
             f"query {query.id!r} needs an id and a non-empty description"
-        )
-    if query.text.strip() != query.text.strip(GO_WHITESPACE):
-        raise embed_corpus.PackageError(
-            f"query {query.id!r} starts or ends with a character Go and Python trim differently"
         )
 
 
@@ -161,14 +109,14 @@ def write_query_vectors(
 ) -> None:
     resource_path = directory / "query-vectors.parquet"
     pq.write_table(rows, resource_path, compression="zstd")
-    descriptor["resources"] = [
-        embed_corpus.describe_parquet_resource(resource_path, name="query-vectors")
-    ]
-    embed_corpus.write_descriptor(directory, descriptor)
+    resource = embed_corpus.describe_parquet_resource(
+        resource_path, name="query-vectors"
+    )
+    embed_corpus.write_descriptor(directory, {**descriptor, "resources": [resource]})
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    # No abbreviations: a stale flag such as --out must not quietly become --output-root.
+    # A stale flag such as --out must not match --output-root.
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -246,26 +194,12 @@ def run(args: argparse.Namespace) -> Path:
         dim=embed_corpus.resolve_dim(args.dim, encoder.native_dim),
         max_tokens=args.max_tokens,
     )
-    package_version = embed_corpus.version(
-        f"{spec.recipe}-{spec.dim}",
-        suite.hash,
-        spec.revision,
-        spec.recipe,
-        str(spec.dim),
-        str(spec.max_tokens),
-    )
     embedding = embed_corpus.embedding_descriptor(
         spec,
         embed_corpus.Inference(
             batch_size=QUERY_BATCH_SIZE, dtype=embed_corpus.dtype_name(device)
         ),
     )
-    if embed_corpus.existing_package_matches(
-        out, version=package_version, embedding=embedding
-    ):
-        print(f"{out} is already complete")
-        return out
-
     vectors = embed_corpus.encode(
         encoder,
         [instruct_input(query.text) for query in suite.queries],
@@ -289,12 +223,11 @@ def run(args: argparse.Namespace) -> Path:
     descriptor: dict[str, Any] = {
         "$schema": embed_corpus.DATAPACKAGE_PROFILE,
         "name": f"{suite.id}-query-vectors",
-        "version": package_version,
+        "producedBy": {"tool": "embed_queries.py"},
         "embedding": embedding,
-        "suite": {"id": suite.id, "hash": suite.hash},
+        "suite": {"id": suite.id},
     }
-    out.parent.mkdir(parents=True, exist_ok=True)
-    embed_corpus.publish_package(
+    embed_corpus.publish_replacing(
         out, lambda directory: write_query_vectors(directory, rows, descriptor)
     )
     print(f"wrote {len(suite.queries)} query vectors to {out}")

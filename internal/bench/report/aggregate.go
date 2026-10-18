@@ -51,7 +51,7 @@ func Generate(br *runner.BenchmarkResult, opts *GenerateOptions) *Report {
 	}
 
 	for _, jr := range br.Jobs {
-		r.Jobs = append(r.Jobs, generateJobReport(jr, br.Config.KValues))
+		r.Jobs = append(r.Jobs, generateJobReport(newJobScope(jr, br.Config)))
 	}
 
 	return r
@@ -74,7 +74,74 @@ func connectionEndpoint(conn string) string {
 	return strings.Join(kept, " ")
 }
 
-func generateJobReport(jr *runner.JobResult, kValues []int) JobReport {
+// jobScope is what every aggregate of one job is computed against. Quality
+// metrics average over the judged queries, scoring a failed or missing
+// (query, engine) cell as 0, as trec_eval -c does.
+type jobScope struct {
+	job     *runner.JobResult
+	kValues []int
+	judged  map[string]bool
+	// grades[queryID][docID] is empty for suite-embedded judgments, which
+	// never reach the runner config.
+	grades map[string]map[string]int
+}
+
+func newJobScope(jr *runner.JobResult, cfg runner.Config) jobScope {
+	judged := make(map[string]bool, len(jr.QueryOrder))
+	for _, qID := range jr.QueryOrder {
+		if len(cfg.Judgments[qID]) > 0 {
+			judged[qID] = true
+			continue
+		}
+		// Suite-embedded grades never reach cfg.Judgments; a scored cell is
+		// the only trace of them.
+		for _, qr := range jr.Results[qID] {
+			if qr.Scores.Judged {
+				judged[qID] = true
+			}
+		}
+	}
+	return jobScope{job: jr, kValues: cfg.KValues, judged: judged, grades: cfg.Judgments}
+}
+
+// scoresOf returns zero scores for a cell that failed or was never run.
+func (s jobScope) scoresOf(qID, engName string) metrics.ScoreSet {
+	qr, ok := s.job.Results[qID][engName]
+	if !ok || qr.Error != nil {
+		return metrics.ScoreSet{}
+	}
+	return qr.Scores
+}
+
+func (s jobScope) answeredByEveryEngine(qID string) bool {
+	for _, engName := range s.job.EngineNames {
+		qr, ok := s.job.Results[qID][engName]
+		if !ok || qr.Error != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// gradedInTopK counts the cell's retrieved docs within the largest K, and how
+// many of them carry a grade. A query graded only in the suite file counts
+// nothing, since its grades are not visible here.
+func (s jobScope) gradedInTopK(qID, engName string) (graded, retrieved int) {
+	qr, ok := s.job.Results[qID][engName]
+	if !ok || qr.Error != nil || len(s.grades[qID]) == 0 {
+		return 0, 0
+	}
+	top := qr.RankedDocIDs[:min(largestK(s.kValues), len(qr.RankedDocIDs))]
+	for _, docID := range top {
+		if _, ok := s.grades[qID][docID.String()]; ok {
+			graded++
+		}
+	}
+	return graded, len(top)
+}
+
+func generateJobReport(scope jobScope) JobReport {
+	jr := scope.job
 	report := JobReport{JobName: jr.JobName}
 
 	for _, qID := range jr.QueryOrder {
@@ -91,6 +158,7 @@ func generateJobReport(jr *runner.JobResult, kValues []int) JobReport {
 				EngineName:    qr.EngineName,
 				Judged:        qr.Scores.Judged,
 				NDCG:          qr.Scores.NDCG,
+				NDCGLinear:    qr.Scores.NDCGLinear,
 				Precision:     qr.Scores.Precision,
 				Recall:        qr.Scores.Recall,
 				F1:            qr.Scores.F1,
@@ -100,22 +168,25 @@ func generateJobReport(jr *runner.JobResult, kValues []int) JobReport {
 				ReturnedCount: qr.ReturnedCount,
 				CorpusMatches: qr.CorpusMatches,
 				Latency:       fromRunnerLatencyStats(qr.Latency),
+				Ranking:       rankDerivedScores(qr.RankedDocIDs),
 			}
 			if qr.Error != nil {
 				entry.Error = qr.Error.Error()
+				entry.Judged = scope.judged[qID]
 			}
 			report.PerQuery = append(report.PerQuery, entry)
 		}
 	}
 
-	report.Aggregated = aggregate(jr, kValues, jr.QueryOrder)
-	report.ByCategory = aggregateByCategory(jr, kValues)
-	report.Significance = computeSignificance(jr, kValues)
+	report.Aggregated = aggregate(scope, jr.QueryOrder)
+	report.ByCategory = aggregateByCategory(scope)
+	report.Significance = computeSignificance(scope)
 	return report
 }
 
 // Categories keep the order they first appear in the suite.
-func aggregateByCategory(jr *runner.JobResult, kValues []int) []CategoryReport {
+func aggregateByCategory(scope jobScope) []CategoryReport {
+	jr := scope.job
 	var order []string
 	members := make(map[string][]string)
 
@@ -138,7 +209,7 @@ func aggregateByCategory(jr *runner.JobResult, kValues []int) []CategoryReport {
 		reports = append(reports, CategoryReport{
 			Category:   cat,
 			QueryCount: len(members[cat]),
-			Aggregated: aggregate(jr, kValues, members[cat]),
+			Aggregated: aggregate(scope, members[cat]),
 		})
 	}
 	return reports
@@ -153,54 +224,66 @@ func categoryOf(jr *runner.JobResult, qID string) string {
 	return ""
 }
 
-func aggregate(jr *runner.JobResult, kValues []int, queryIDs []string) []AggregatedEntry {
-	entries := make([]AggregatedEntry, 0, len(jr.EngineNames))
+func aggregate(scope jobScope, queryIDs []string) []AggregatedEntry {
+	kValues := scope.kValues
+	entries := make([]AggregatedEntry, 0, len(scope.job.EngineNames))
 
-	for _, engName := range jr.EngineNames {
+	for _, engName := range scope.job.EngineNames {
 		agg := AggregatedEntry{
 			EngineName: engName,
 			NDCG:       make(map[int]float64, len(kValues)),
 			NDCGStddev: make(map[int]float64, len(kValues)),
+			NDCGLinear: make(map[int]float64, len(kValues)),
 			Precision:  make(map[int]float64, len(kValues)),
 			Recall:     make(map[int]float64, len(kValues)),
 			F1:         make(map[int]float64, len(kValues)),
+			QueryCount: len(queryIDs),
 		}
 
-		// Collect per-query NDCG samples for stddev computation.
 		ndcgSamples := make(map[int][]float64, len(kValues))
 		var allStats []runner.LatencyStats
+		var gradedTopK, retrievedTopK int
 
 		for _, qID := range queryIDs {
-			qr, ok := jr.Results[qID][engName]
-			if !ok {
-				continue
-			}
-			agg.QueryCount++
-
-			if qr.Error != nil {
+			qr, ok := scope.job.Results[qID][engName]
+			if !ok || qr.Error != nil {
 				agg.ErrorCount++
+			}
+
+			if scope.answeredByEveryEngine(qID) {
+				allStats = append(allStats, qr.Latency)
+			} else {
+				agg.LatencyExcludedQueries++
+			}
+
+			if !scope.judged[qID] {
 				continue
 			}
 
-			allStats = append(allStats, qr.Latency)
+			graded, retrieved := scope.gradedInTopK(qID, engName)
+			gradedTopK += graded
+			retrievedTopK += retrieved
 
-			if !qr.Scores.Judged {
-				continue
-			}
-
+			scores := scope.scoresOf(qID, engName)
 			agg.JudgedCount++
-			agg.MAP += qr.Scores.AP
-			agg.MRR += qr.Scores.RR
-			agg.MBpref += qr.Scores.Bpref
+			agg.MAP += scores.AP
+			agg.MRR += scores.RR
+			agg.MBpref += scores.Bpref
 
 			for _, k := range kValues {
-				v := qr.Scores.NDCG[k]
+				v := scores.NDCG[k]
 				agg.NDCG[k] += v
 				ndcgSamples[k] = append(ndcgSamples[k], v)
-				agg.Precision[k] += qr.Scores.Precision[k]
-				agg.Recall[k] += qr.Scores.Recall[k]
-				agg.F1[k] += qr.Scores.F1[k]
+				agg.NDCGLinear[k] += scores.NDCGLinear[k]
+				agg.Precision[k] += scores.Precision[k]
+				agg.Recall[k] += scores.Recall[k]
+				agg.F1[k] += scores.F1[k]
 			}
+		}
+
+		if retrievedTopK > 0 {
+			coverage := float64(gradedTopK) / float64(retrievedTopK)
+			agg.JudgedCoverage = &coverage
 		}
 
 		if len(allStats) > 0 {
@@ -214,6 +297,7 @@ func aggregate(jr *runner.JobResult, kValues []int, queryIDs []string) []Aggrega
 			agg.MBpref /= n
 			for _, k := range kValues {
 				agg.NDCG[k] /= n
+				agg.NDCGLinear[k] /= n
 				agg.Precision[k] /= n
 				agg.Recall[k] /= n
 				agg.F1[k] /= n
@@ -230,9 +314,10 @@ func aggregate(jr *runner.JobResult, kValues []int, queryIDs []string) []Aggrega
 }
 
 // computeSignificance runs pairwise Wilcoxon signed-rank tests for every
-// engine pair in the job, for NDCG@K (all K values), MAP, and MRR.
-// Only judged queries where both engines have scores are included.
-func computeSignificance(jr *runner.JobResult, kValues []int) []PairwiseSignificance {
+// engine pair in the job, for NDCG@K (all K values), MAP, and MRR, over the
+// job's judged queries.
+func computeSignificance(scope jobScope) []PairwiseSignificance {
+	jr, kValues := scope.job, scope.kValues
 	engNames := jr.EngineNames
 	var results []PairwiseSignificance
 
@@ -246,18 +331,17 @@ func computeSignificance(jr *runner.JobResult, kValues []int) []PairwiseSignific
 			ndcgB := make(map[int][]float64, len(kValues))
 
 			for _, qID := range jr.QueryOrder {
-				qrA, okA := jr.Results[qID][engA]
-				qrB, okB := jr.Results[qID][engB]
-				if !okA || !okB || !qrA.Scores.Judged || !qrB.Scores.Judged {
+				if !scope.judged[qID] {
 					continue
 				}
-				mapA = append(mapA, qrA.Scores.AP)
-				mapB = append(mapB, qrB.Scores.AP)
-				mrrA = append(mrrA, qrA.Scores.RR)
-				mrrB = append(mrrB, qrB.Scores.RR)
+				scoresA, scoresB := scope.scoresOf(qID, engA), scope.scoresOf(qID, engB)
+				mapA = append(mapA, scoresA.AP)
+				mapB = append(mapB, scoresB.AP)
+				mrrA = append(mrrA, scoresA.RR)
+				mrrB = append(mrrB, scoresB.RR)
 				for _, k := range kValues {
-					ndcgA[k] = append(ndcgA[k], qrA.Scores.NDCG[k])
-					ndcgB[k] = append(ndcgB[k], qrB.Scores.NDCG[k])
+					ndcgA[k] = append(ndcgA[k], scoresA.NDCG[k])
+					ndcgB[k] = append(ndcgB[k], scoresB.NDCG[k])
 				}
 			}
 
@@ -266,25 +350,45 @@ func computeSignificance(jr *runner.JobResult, kValues []int) []PairwiseSignific
 					results = append(results, PairwiseSignificance{
 						EngineA: engA, EngineB: engB,
 						Metric: fmt.Sprintf("NDCG@%d", k),
-						W:      res.W, P: res.P, Stars: res.Stars,
+						W:      res.W, P: res.P,
 					})
 				}
 			}
 			if res := metrics.Wilcoxon(mapA, mapB); res != nil {
 				results = append(results, PairwiseSignificance{
 					EngineA: engA, EngineB: engB, Metric: "MAP",
-					W: res.W, P: res.P, Stars: res.Stars,
+					W: res.W, P: res.P,
 				})
 			}
 			if res := metrics.Wilcoxon(mrrA, mrrB); res != nil {
 				results = append(results, PairwiseSignificance{
 					EngineA: engA, EngineB: engB, Metric: "MRR",
-					W: res.W, P: res.P, Stars: res.Stars,
+					W: res.W, P: res.P,
 				})
 			}
 		}
 	}
+	adjustAcrossEnginePairs(results)
 	return results
+}
+
+// adjustAcrossEnginePairs applies the Holm correction to each metric's family
+// of engine-pair tests and marks significance from the adjusted p.
+func adjustAcrossEnginePairs(results []PairwiseSignificance) {
+	byMetric := make(map[string][]int)
+	for i, r := range results {
+		byMetric[r.Metric] = append(byMetric[r.Metric], i)
+	}
+	for _, members := range byMetric {
+		raw := make([]float64, len(members))
+		for i, idx := range members {
+			raw[i] = results[idx].P
+		}
+		for i, adjusted := range metrics.Holm(raw) {
+			results[members[i]].AdjustedP = &adjusted
+			results[members[i]].Stars = metrics.SignificanceStars(adjusted)
+		}
+	}
 }
 
 func sampleStddev(vals []float64) float64 {

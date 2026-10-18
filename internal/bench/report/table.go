@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/fatih/color"
@@ -55,12 +56,25 @@ func writeScoringHeader(w io.Writer, r *Report) {
 }
 
 func hasAnyJudgments(jr *JobReport) bool {
+	for _, agg := range jr.Aggregated {
+		if agg.JudgedCount > 0 {
+			return true
+		}
+	}
 	for _, e := range jr.PerQuery {
 		if e.Judged {
 			return true
 		}
 	}
 	return false
+}
+
+// fmtRecorded renders a metric older reports never recorded as "—", not 0.
+func fmtRecorded(v *float64) string {
+	if v == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%.4f", *v)
 }
 
 // WriteMarkdown renders the report as GitHub-Flavored Markdown suitable for
@@ -109,23 +123,29 @@ func writeMDMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry
 	fmt.Fprintf(w, "### %s\n\n", title)
 
 	t := newMDTable()
-	hdr := make(table.Row, 0, 1+2*len(kValues)+5)
+	hdr := make(table.Row, 0, 1+3*len(kValues)+5)
 	hdr = append(hdr, "Engine")
 	for _, k := range kValues {
-		hdr = append(hdr, fmt.Sprintf("NDCG@%d", k))
+		hdr = append(hdr, ndcgHeader(k, NDCGGain))
+	}
+	for _, k := range kValues {
+		hdr = append(hdr, ndcgHeader(k, LinearNDCGGain))
 	}
 	for _, k := range kValues {
 		hdr = append(hdr, fmt.Sprintf("P@%d", k))
 	}
-	hdr = append(hdr, "MAP", "MRR", "Bpref", "Judged", "Errors")
+	hdr = append(hdr, "MAP", "MRR", "Bpref", fmt.Sprintf("Coverage@%d", largestK(kValues)), "Judged", "Errors")
 	t.AppendHeader(hdr)
 
-	numMetricCols := len(kValues)*2 + 3
+	numMetricCols := len(kValues)*3 + 4
 	for _, agg := range aggregated {
 		row := table.Row{agg.EngineName}
 		if agg.JudgedCount > 0 {
 			for _, k := range kValues {
 				row = append(row, fmt.Sprintf("%.4f", agg.NDCG[k]))
+			}
+			for _, k := range kValues {
+				row = append(row, fmtLinearNDCG(agg.NDCGLinear, k))
 			}
 			for _, k := range kValues {
 				row = append(row, fmt.Sprintf("%.4f", agg.Precision[k]))
@@ -134,6 +154,7 @@ func writeMDMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry
 				fmt.Sprintf("%.4f", agg.MAP),
 				fmt.Sprintf("%.4f", agg.MRR),
 				fmt.Sprintf("%.4f", agg.MBpref),
+				fmtRecorded(agg.JudgedCoverage),
 			)
 		} else {
 			for i := 0; i < numMetricCols; i++ {
@@ -155,7 +176,7 @@ func writeMDLatencyTable(w io.Writer, jr *JobReport) {
 
 	t := newMDTable()
 	t.AppendHeader(table.Row{
-		"Engine", "Min", "p50", "p75", "p90", "p95", "p99", "Max", "Mean", "Stddev", "Samples",
+		"Engine", "Min", "p50", "p75", "p90", "p95", "p99", "Max", "Mean", "Stddev", "Samples", "Excluded",
 	})
 	for _, agg := range jr.Aggregated {
 		s := agg.Latency
@@ -171,6 +192,7 @@ func writeMDLatencyTable(w io.Writer, jr *JobReport) {
 			fmtDuration(s.Mean),
 			fmtDuration(s.Stddev),
 			s.SampleCount,
+			agg.LatencyExcludedQueries,
 		})
 	}
 	fmt.Fprintln(w, t.RenderMarkdown())
@@ -181,10 +203,10 @@ func writeMDSignificanceTable(w io.Writer, jr *JobReport) {
 	if len(jr.Significance) == 0 {
 		return
 	}
-	fmt.Fprintf(w, "### Statistical Significance (Wilcoxon signed-rank, two-tailed)\n\n")
+	fmt.Fprintf(w, "### Statistical Significance (Wilcoxon signed-rank, two-tailed, Holm-adjusted across engine pairs)\n\n")
 
 	t := newMDTable()
-	t.AppendHeader(table.Row{"Engine A", "Engine B", "Metric", "W", "p-value", "Sig"})
+	t.AppendHeader(table.Row{"Engine A", "Engine B", "Metric", "W", "p-value", "p (Holm)", "Sig"})
 	for _, s := range jr.Significance {
 		sig := "ns"
 		if s.Stars != "" {
@@ -194,6 +216,7 @@ func writeMDSignificanceTable(w io.Writer, jr *JobReport) {
 			s.EngineA, s.EngineB, s.Metric,
 			fmt.Sprintf("%.1f", s.W),
 			fmt.Sprintf("%.4f", s.P),
+			fmtRecorded(s.AdjustedP),
 			sig,
 		})
 	}
@@ -234,19 +257,22 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 
 	t := newTable(w)
 
-	hdr := make(table.Row, 0, 1+2*len(kValues)+5)
+	hdr := make(table.Row, 0, 1+3*len(kValues)+5)
 	hdr = append(hdr, "Engine")
 	for _, k := range kValues {
-		hdr = append(hdr, fmt.Sprintf("NDCG@%d", k))
+		hdr = append(hdr, ndcgHeader(k, NDCGGain))
+	}
+	for _, k := range kValues {
+		hdr = append(hdr, ndcgHeader(k, LinearNDCGGain))
 	}
 	for _, k := range kValues {
 		hdr = append(hdr, fmt.Sprintf("P@%d", k))
 	}
-	hdr = append(hdr, "MAP", "MRR", "Bpref", "Judged", "Errors")
+	hdr = append(hdr, "MAP", "MRR", "Bpref", fmt.Sprintf("Coverage@%d", largestK(kValues)), "Judged", "Errors")
 	t.AppendHeader(hdr)
 
 	// Right-align all metric columns (2 … N-2); keep Judged/Errors default.
-	numMetricCols := len(kValues)*2 + 3
+	numMetricCols := len(kValues)*3 + 4
 	var rcols []int
 	for i := 2; i <= 1+numMetricCols; i++ {
 		rcols = append(rcols, i)
@@ -255,10 +281,12 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 
 	// Find per-column best values for highlighting.
 	bestNDCG := make(map[int]float64, len(kValues))
+	bestLinearNDCG := make(map[int]float64, len(kValues))
 	bestP := make(map[int]float64, len(kValues))
 	bestMAP, bestMRR, bestBpref := math.Inf(-1), math.Inf(-1), math.Inf(-1)
 	for _, k := range kValues {
 		bestNDCG[k] = math.Inf(-1)
+		bestLinearNDCG[k] = math.Inf(-1)
 		bestP[k] = math.Inf(-1)
 	}
 	for _, agg := range aggregated {
@@ -268,6 +296,9 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 		for _, k := range kValues {
 			if v := agg.NDCG[k]; v > bestNDCG[k] {
 				bestNDCG[k] = v
+			}
+			if v, ok := agg.NDCGLinear[k]; ok && v > bestLinearNDCG[k] {
+				bestLinearNDCG[k] = v
 			}
 			if v := agg.Precision[k]; v > bestP[k] {
 				bestP[k] = v
@@ -291,12 +322,16 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 				row = append(row, fmtBest(agg.NDCG[k], bestNDCG[k]))
 			}
 			for _, k := range kValues {
+				row = append(row, fmtBestLinearNDCG(agg.NDCGLinear, k, bestLinearNDCG[k]))
+			}
+			for _, k := range kValues {
 				row = append(row, fmtBest(agg.Precision[k], bestP[k]))
 			}
 			row = append(row,
 				fmtBest(agg.MAP, bestMAP),
 				fmtBest(agg.MRR, bestMRR),
 				fmtBest(agg.MBpref, bestBpref),
+				fmtRecorded(agg.JudgedCoverage),
 			)
 		} else {
 			for i := 0; i < numMetricCols; i++ {
@@ -337,9 +372,9 @@ func writeLatencyTable(w io.Writer, jr *JobReport) {
 
 	t := newTable(w)
 	t.AppendHeader(table.Row{
-		"Engine", "Min", "p50", "p75", "p90", "p95", "p99", "Max", "Mean", "Stddev", "Samples",
+		"Engine", "Min", "p50", "p75", "p90", "p95", "p99", "Max", "Mean", "Stddev", "Samples", "Excluded",
 	})
-	t.SetColumnConfigs(rightCols(2, 3, 4, 5, 6, 7, 8, 9, 10, 11))
+	t.SetColumnConfigs(rightCols(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12))
 
 	for _, agg := range jr.Aggregated {
 		s := agg.Latency
@@ -360,6 +395,7 @@ func writeLatencyTable(w io.Writer, jr *JobReport) {
 			fmtDuration(s.Mean),
 			fmtDuration(s.Stddev),
 			s.SampleCount,
+			agg.LatencyExcludedQueries,
 		})
 	}
 
@@ -372,17 +408,18 @@ func writeSignificanceTable(w io.Writer, jr *JobReport) {
 		return
 	}
 	fmt.Fprintf(w, "%s\n\n",
-		tBold.Sprint("Statistical Significance (Wilcoxon signed-rank, two-tailed · * p<0.05 · ** p<0.01)"))
+		tBold.Sprint("Statistical Significance (Wilcoxon signed-rank, two-tailed, Holm-adjusted across engine pairs · * p<0.05 · ** p<0.01)"))
 
 	t := newTable(w)
-	t.AppendHeader(table.Row{"Engine A", "Engine B", "Metric", "W", "p-value", "Sig"})
-	t.SetColumnConfigs(rightCols(4, 5))
+	t.AppendHeader(table.Row{"Engine A", "Engine B", "Metric", "W", "p-value", "p (Holm)", "Sig"})
+	t.SetColumnConfigs(rightCols(4, 5, 6))
 
 	for _, s := range jr.Significance {
 		t.AppendRow(table.Row{
 			s.EngineA, s.EngineB, s.Metric,
 			fmt.Sprintf("%.1f", s.W),
 			fmt.Sprintf("%.4f", s.P),
+			fmtRecorded(s.AdjustedP),
 			colorSig(s.Stars),
 		})
 	}
@@ -410,7 +447,7 @@ func writePerQueryTable(w io.Writer, jr *JobReport, kValues []int) {
 	t := newTable(w)
 	t.AppendHeader(table.Row{
 		"Query", "Engine",
-		fmt.Sprintf("NDCG@%d", k), fmt.Sprintf("P@%d", k),
+		ndcgHeader(k, NDCGGain), fmt.Sprintf("P@%d", k),
 		"AP", "RR", "Bpref",
 		"Ret", "Corpus", "p50", "p95", "Status",
 	})
@@ -450,6 +487,41 @@ func fmtCorpusMatches(v *int64) string {
 		return tDim.Sprint("—")
 	}
 	return fmt.Sprintf("%d", *v)
+}
+
+// Every NDCG header names its gain, because the two can order engines
+// differently. NDCGGain is the bench's own; LinearNDCGGain is trec_eval's
+// ndcg_cut, which ignores the relevance threshold.
+const (
+	NDCGGain       = "2^rel-1"
+	LinearNDCGGain = "rel"
+)
+
+func ndcgHeader(k int, gain string) string {
+	return fmt.Sprintf("NDCG@%d (gain %s)", k, gain)
+}
+
+// fmtLinearNDCG shows a dash for reports written before linear NDCG was
+// recorded, which would otherwise read as 0.
+func fmtLinearNDCG(scores map[int]float64, k int) string {
+	if scores == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%.4f", scores[k])
+}
+
+func fmtBestLinearNDCG(scores map[int]float64, k int, best float64) string {
+	if scores == nil {
+		return tDim.Sprint("—")
+	}
+	return fmtBest(scores[k], best)
+}
+
+func largestK(kValues []int) int {
+	if len(kValues) == 0 {
+		return 0
+	}
+	return slices.Max(kValues)
 }
 
 func primaryK(kValues []int) int {

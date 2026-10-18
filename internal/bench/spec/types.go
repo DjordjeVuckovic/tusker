@@ -1,5 +1,7 @@
 package spec
 
+import "time"
+
 type BenchSpec struct {
 	SchemaVersion int               `yaml:"schema_version"`
 	ID            string            `yaml:"id"`
@@ -129,7 +131,14 @@ type MetricsConfig struct {
 	RelevanceThreshold int   `yaml:"relevance_threshold"`
 }
 
+// DefaultQueryTimeout bounds one execution of one query when the spec sets no
+// query_timeout.
+const DefaultQueryTimeout = 30 * time.Second
+
 type RunsConfig struct {
 	Warmup     int `yaml:"warmup"`
 	Iterations int `yaml:"iterations"`
+	// QueryTimeout is the deadline of every single execution, warmup or
+	// measured, on every engine type.
+	QueryTimeout time.Duration `yaml:"query_timeout"`
 }

@@ -83,13 +83,15 @@ func findGitRoot(start string) string {
 // ─── view model ─────────────────────────────────────────────────────────────
 
 type htmlReport struct {
-	Title     string
-	RunID     string
-	Tool      string
-	Generated string
-	SpecID    string
-	Sources   *htmlSources
-	Jobs      []htmlJob
+	NDCGGain       string
+	LinearNDCGGain string
+	Title          string
+	RunID          string
+	Tool           string
+	Generated      string
+	SpecID         string
+	Sources        *htmlSources
+	Jobs           []htmlJob
 }
 
 type htmlSources struct {
@@ -111,17 +113,20 @@ type htmlJob struct {
 	LatencyChart template.HTML
 	EngineLegend []htmlLegendItem
 	KValues      []int
+	CoverageK    int
 	FilterID     string // unique ID for per-query filter input
 }
 
 type htmlAggRow struct {
-	Engine string
-	NDCG   []htmlCell
-	MAP    htmlCell
-	MRR    htmlCell
-	Bpref  htmlCell
-	Judged string
-	Errors string
+	Engine     string
+	NDCG       []htmlCell
+	NDCGLinear []string
+	MAP        htmlCell
+	MRR        htmlCell
+	Bpref      htmlCell
+	Coverage   string
+	Judged     string
+	Errors     string
 }
 
 type htmlCell struct {
@@ -133,11 +138,12 @@ type htmlLatRow struct {
 	Engine                                          string
 	Min, P50, P75, P90, P95, P99, Max, Mean, Stddev string
 	Samples                                         int
+	ExcludedQueries                                 int
 }
 
 type htmlSigRow struct {
 	EngineA, EngineB, Metric string
-	W, P                     string
+	W, P, AdjustedP          string
 	Stars                    string
 	NS                       bool
 }
@@ -164,11 +170,13 @@ func buildViewModel(r *Report) htmlReport {
 		title = "Benchmark Report"
 	}
 	vm := htmlReport{
-		Title:     title,
-		RunID:     r.Provenance.RunID,
-		Tool:      r.Provenance.Tool,
-		Generated: r.Provenance.GeneratedAt.Format("2006-01-02 15:04:05 UTC"),
-		SpecID:    r.Provenance.SpecID,
+		NDCGGain:       NDCGGain,
+		LinearNDCGGain: LinearNDCGGain,
+		Title:          title,
+		RunID:          r.Provenance.RunID,
+		Tool:           r.Provenance.Tool,
+		Generated:      r.Provenance.GeneratedAt.Format("2006-01-02 15:04:05 UTC"),
+		SpecID:         r.Provenance.SpecID,
 	}
 	if s := r.Provenance.Sources; s != nil {
 		vm.Sources = &htmlSources{
@@ -183,9 +191,10 @@ func buildViewModel(r *Report) htmlReport {
 
 	for ji, jr := range r.Jobs {
 		job := htmlJob{
-			Name:     jr.JobName,
-			KValues:  kVals,
-			FilterID: fmt.Sprintf("pq-filter-%d", ji),
+			Name:      jr.JobName,
+			KValues:   kVals,
+			CoverageK: largestK(kVals),
+			FilterID:  fmt.Sprintf("pq-filter-%d", ji),
 		}
 
 		for i, agg := range jr.Aggregated {
@@ -200,9 +209,13 @@ func buildViewModel(r *Report) htmlReport {
 				}
 				row.NDCG = append(row.NDCG, c)
 			}
+			for _, k := range kVals {
+				row.NDCGLinear = append(row.NDCGLinear, fmtLinearNDCG(agg.NDCGLinear, k))
+			}
 			row.MAP = htmlCell{Val: fmt.Sprintf("%.4f", agg.MAP)}
 			row.MRR = htmlCell{Val: fmt.Sprintf("%.4f", agg.MRR)}
 			row.Bpref = htmlCell{Val: fmt.Sprintf("%.4f", agg.MBpref)}
+			row.Coverage = fmtRecorded(agg.JudgedCoverage)
 			row.Judged = fmt.Sprintf("%d/%d", agg.JudgedCount, agg.QueryCount)
 			row.Errors = fmt.Sprintf("%d/%d", agg.ErrorCount, agg.QueryCount)
 			job.Aggregated = append(job.Aggregated, row)
@@ -211,24 +224,25 @@ func buildViewModel(r *Report) htmlReport {
 		for _, agg := range jr.Aggregated {
 			s := agg.Latency
 			job.Latency = append(job.Latency, htmlLatRow{
-				Engine:  agg.EngineName,
-				Min:     fmtDuration(s.Min),
-				P50:     fmtDuration(s.P50()),
-				P75:     fmtDuration(s.P75()),
-				P90:     fmtDuration(s.P90()),
-				P95:     fmtDuration(s.P95()),
-				P99:     fmtDuration(s.P99()),
-				Max:     fmtDuration(s.Max),
-				Mean:    fmtDuration(s.Mean),
-				Stddev:  fmtDuration(s.Stddev),
-				Samples: s.SampleCount,
+				Engine:          agg.EngineName,
+				Min:             fmtDuration(s.Min),
+				P50:             fmtDuration(s.P50()),
+				P75:             fmtDuration(s.P75()),
+				P90:             fmtDuration(s.P90()),
+				P95:             fmtDuration(s.P95()),
+				P99:             fmtDuration(s.P99()),
+				Max:             fmtDuration(s.Max),
+				Mean:            fmtDuration(s.Mean),
+				Stddev:          fmtDuration(s.Stddev),
+				Samples:         s.SampleCount,
+				ExcludedQueries: agg.LatencyExcludedQueries,
 			})
 		}
 
 		for _, sig := range jr.Significance {
 			job.Significance = append(job.Significance, htmlSigRow{
 				EngineA: sig.EngineA, EngineB: sig.EngineB, Metric: sig.Metric,
-				W: fmt.Sprintf("%.1f", sig.W), P: fmt.Sprintf("%.4f", sig.P),
+				W: fmt.Sprintf("%.1f", sig.W), P: fmt.Sprintf("%.4f", sig.P), AdjustedP: fmtRecorded(sig.AdjustedP),
 				Stars: sig.Stars, NS: sig.Stars == "",
 			})
 		}

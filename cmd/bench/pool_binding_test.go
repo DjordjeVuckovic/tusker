@@ -51,56 +51,6 @@ func TestCheckPoolBinding(t *testing.T) {
 	}
 }
 
-// An interrupted judge run leaves only what the incremental writer flushed, so
-// the binding has to be in those flushes for --resume to accept the file.
-func TestBindToPool_InterruptedRunResumesAgainstTheSamePool(t *testing.T) {
-	outPath := filepath.Join(t.TempDir(), "annotations.lexical.yaml")
-	judge := meta.Judge{Strategy: "lexical"}
-	pf := poolWithRunID("2026-10-17T10-00-00-pool-aaaaaa")
-
-	first := judgment.NewIncrementalWriter(outPath, judge)
-	require.NoError(t, bindToPool(first, nil, pf))
-	entry := judgment.Entry{QueryID: "q1", Docs: []judgment.GradedDoc{{DocID: pf.Queries[0].Docs[0].DocID, Grade: 2}}}
-	require.NoError(t, first.Append(judgment.QueryProgress{}, entry))
-
-	flushed, err := judgment.ReadFile(outPath)
-	require.NoError(t, err)
-	assert.Equal(t, pf.Meta.RunID, flushed.Meta.PoolRunID)
-
-	resumed := judgment.NewIncrementalWriter(outPath, judge)
-	prior, err := resumed.LoadPrior()
-	require.NoError(t, err)
-	assert.NoError(t, bindToPool(resumed, prior, pf))
-}
-
-func TestBindToPool_ResumeRefusesAnotherPool(t *testing.T) {
-	outPath := filepath.Join(t.TempDir(), "annotations.lexical.yaml")
-	judge := meta.Judge{Strategy: "lexical"}
-
-	first := judgment.NewIncrementalWriter(outPath, judge)
-	require.NoError(t, bindToPool(first, nil, poolWithRunID("2026-10-01T10-00-00-pool-old000")))
-	require.NoError(t, first.Flush())
-
-	resumed := judgment.NewIncrementalWriter(outPath, judge)
-	prior, err := resumed.LoadPrior()
-	require.NoError(t, err)
-	err = bindToPool(resumed, prior, poolWithRunID("2026-10-17T10-00-00-pool-new000"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "2026-10-01T10-00-00-pool-old000")
-}
-
-func TestBindToPool_ResumeRefusesAnUnboundFile(t *testing.T) {
-	outPath := filepath.Join(t.TempDir(), "annotations.lexical.yaml")
-	require.NoError(t, judgment.WriteFile(&judgment.File{Meta: meta.New("judge")}, outPath))
-
-	resumed := judgment.NewIncrementalWriter(outPath, meta.Judge{Strategy: "lexical"})
-	prior, err := resumed.LoadPrior()
-	require.NoError(t, err)
-	err = bindToPool(resumed, prior, poolWithRunID("2026-10-17T10-00-00-pool-aaaaaa"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "re-judge")
-}
-
 func TestRun_RefusesJudgmentsGradedAgainstAnotherPool(t *testing.T) {
 	doc := uuid.New()
 	cluster := fakeCluster(t, map[string]*fakeIndex{
@@ -145,34 +95,64 @@ func (a poolArticles) GetByIDs(_ context.Context, ids []uuid.UUID) ([]document.A
 	return out, nil
 }
 
-func TestJudgeGrading_RecordsThePoolItWasMadeFrom(t *testing.T) {
-	tr := newLineageTrack(t, "http://unused.invalid")
+// gradingPool is a two-query pool bm25 can grade, with the articles it reads.
+func gradingPool(t *testing.T, tr lineageTrack, runID string) poolArticles {
+	t.Helper()
 	climate, election := uuid.New(), uuid.New()
 	pf := &pool.PoolFile{
-		Meta: meta.Meta{RunID: "2026-10-17T10-00-00-pool-aaaaaa", Engines: []string{"a"}},
-		Queries: []pool.PoolEntry{{
-			QueryID:   "q1",
-			QueryDesc: "climate policy",
-			Docs: []pool.PooledDoc{
-				{DocID: climate, Sources: []string{"a"}},
-				{DocID: election, Sources: []string{"a"}},
-			},
-		}},
+		Meta: meta.Meta{RunID: runID, Engines: []string{"a"}},
+		Queries: []pool.PoolEntry{
+			{QueryID: "q1", QueryDesc: "climate policy", Docs: []pool.PooledDoc{{DocID: climate, Sources: []string{"a"}}}},
+			{QueryID: "q2", QueryDesc: "election results", Docs: []pool.PooledDoc{{DocID: election, Sources: []string{"a"}}}},
+		},
 	}
 	require.NoError(t, pool.WritePoolFile(pf, tr.poolPath()))
-	articles := poolArticles{
+	return poolArticles{
 		climate:  {ID: climate, Title: "Climate policy talks resume", Content: "Negotiators met on climate policy."},
 		election: {ID: election, Title: "Election results", Content: "Votes were counted overnight."},
 	}
-	previous := articleReader
-	articleReader = func(*cobra.Command, string) (storage.Reader, error) { return articles, nil }
-	t.Cleanup(func() { articleReader = previous })
-	outPath := filepath.Join(tr.dir, "trec", "annotations.bm25.yaml")
+}
 
-	_, err := execute(t, newJudgeCmd(), tr.dir, "--strategy", "bm25", "--output", outPath)
-	require.NoError(t, err)
+func judgeWith(t *testing.T, tr lineageTrack, articles storage.Reader, args ...string) error {
+	t.Helper()
+	cmd := newJudgeCmdWithReader(func(*cobra.Command, string) (storage.Reader, error) { return articles, nil })
+	_, err := execute(t, cmd, append([]string{tr.dir, "--strategy", "bm25", "--output", tr.judgments}, args...)...)
+	return err
+}
 
-	jf, err := judgment.ReadFile(outPath)
+func TestJudgeGrading_RecordsThePoolItWasMadeFrom(t *testing.T) {
+	tr := newLineageTrack(t, "http://unused.invalid")
+	articles := gradingPool(t, tr, "2026-10-17T10-00-00-pool-aaaaaa")
+
+	require.NoError(t, judgeWith(t, tr, articles))
+
+	jf, err := judgment.ReadFile(tr.judgments)
 	require.NoError(t, err)
-	assert.Equal(t, pf.Meta.RunID, jf.Meta.PoolRunID)
+	assert.Equal(t, "2026-10-17T10-00-00-pool-aaaaaa", jf.Meta.PoolRunID)
+}
+
+func TestJudge_ResumeRefusesAnotherPool(t *testing.T) {
+	tr := newLineageTrack(t, "http://unused.invalid")
+	require.NoError(t, judgeWith(t, tr, gradingPool(t, tr, "2026-10-01T10-00-00-pool-old000")))
+	regenerated := gradingPool(t, tr, "2026-10-17T10-00-00-pool-new000")
+
+	err := judgeWith(t, tr, regenerated, "--resume")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "2026-10-01T10-00-00-pool-old000")
+}
+
+func TestJudge_ResumeRefusesAnUnboundFile(t *testing.T) {
+	tr := newLineageTrack(t, "http://unused.invalid")
+	articles := gradingPool(t, tr, "2026-10-17T10-00-00-pool-aaaaaa")
+	require.NoError(t, judgeWith(t, tr, articles))
+	unbound, err := judgment.ReadFile(tr.judgments)
+	require.NoError(t, err)
+	unbound.Meta.PoolRunID = ""
+	require.NoError(t, judgment.WriteFile(unbound, tr.judgments))
+
+	err = judgeWith(t, tr, articles, "--resume")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "re-judge")
 }

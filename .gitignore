@@ -33,16 +33,28 @@ go.work.sum
 
 **/testdata
 
-# Dataset payloads (raw + canonical); fetched or generated, never committed
+# Dataset payloads (raw, canonical, embeddings); fetched or generated, never committed
 datasets/**/*.csv
 datasets/**/*.json
 datasets/**/*.jsonl
 datasets/**/*.parquet
 datasets/**/*.npz
 datasets/**/*.gz
+datasets/*/raw/**
+datasets/*/canonical/**
+datasets/*/embeddings/**
 
 # Kaggle kernel config is per corpus and is committed, unlike the payloads above.
 !datasets/**/kernel-metadata.json
+
+# Package descriptors and load records are provenance and are committed. The
+# directory rules let git descend to them, since a file under an ignored
+# directory cannot be re-included.
+!datasets/*/raw/**/
+!datasets/*/canonical/**/
+!datasets/*/embeddings/**/
+!datasets/**/datapackage.json
+!datasets/*/loads/*/*.json
 
 __pycache__/
 .ruff_cache/

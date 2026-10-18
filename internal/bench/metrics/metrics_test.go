@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -374,6 +375,66 @@ func TestReciprocalRank(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := ReciprocalRank(tt.ranked, tt.judgments, tt.threshold)
 			assert.InDelta(t, tt.want, got, 1e-9)
+		})
+	}
+}
+
+func TestBinaryPreference(t *testing.T) {
+	ids := newIDs(6)
+	rel1, rel2, rel3, nonrel1, nonrel2, unjudged := ids[0], ids[1], ids[2], ids[3], ids[4], ids[5]
+
+	// Expected values are trec_eval 10.0 bpref on the same qrels and ranking.
+	tests := []struct {
+		name      string
+		ranked    []uuid.UUID
+		judgments map[uuid.UUID]int
+		want      float64
+	}{
+		{
+			name:      "fewer judged non-relevant than relevant",
+			ranked:    []uuid.UUID{nonrel1, rel1, rel2, rel3},
+			judgments: map[uuid.UUID]int{rel1: 1, rel2: 1, rel3: 1, nonrel1: 0},
+			want:      0.0,
+		},
+		{
+			name:      "three relevant, two non-relevant",
+			ranked:    []uuid.UUID{nonrel1, rel1, rel2, nonrel2, rel3},
+			judgments: map[uuid.UUID]int{rel1: 1, rel2: 1, rel3: 1, nonrel1: 0, nonrel2: 0},
+			want:      1.0 / 3.0,
+		},
+		{
+			name:      "relevant doc never retrieved",
+			ranked:    []uuid.UUID{nonrel1, rel1, nonrel2},
+			judgments: map[uuid.UUID]int{rel1: 1, rel2: 1, nonrel1: 0, nonrel2: 0},
+			want:      0.25,
+		},
+		{
+			name:      "no judged non-relevant docs",
+			ranked:    []uuid.UUID{unjudged, rel1, rel2},
+			judgments: map[uuid.UUID]int{rel1: 1, rel2: 1},
+			want:      1.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := BinaryPreference(tt.ranked, tt.judgments, 1)
+			assert.InDelta(t, tt.want, got, 1e-9)
+		})
+	}
+}
+
+func TestLinearNDCGAtK(t *testing.T) {
+	ids := newIDs(7)
+	highly, highlyMissed, relevant, marginal, marginalMissed, nonrel, unjudged := ids[0], ids[1], ids[2], ids[3], ids[4], ids[5], ids[6]
+	judgments := map[uuid.UUID]int{highly: 3, highlyMissed: 3, relevant: 2, marginal: 1, marginalMissed: 1, nonrel: 0}
+	ranked := []uuid.UUID{marginal, unjudged, highly, nonrel, relevant}
+
+	// Expected values are trec_eval 10.0 ndcg_cut on the same qrels and
+	// ranking, which prints the same at -l 1 and -l 2.
+	for k, want := range map[int]float64{1: 0.3333, 3: 0.4242, 5: 0.4879} {
+		t.Run(fmt.Sprintf("ndcg_cut.%d", k), func(t *testing.T) {
+			assert.InDelta(t, want, LinearNDCGAtK(ranked, judgments, k), 5e-5)
 		})
 	}
 }

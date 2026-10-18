@@ -33,7 +33,7 @@ func TestVectorStrategy_WidthMismatchStopsTheRunAndWritesNothing(t *testing.T) {
 
 	store := widthMismatchStore(t, ids, 1024, 768)
 	outPath := filepath.Join(t.TempDir(), "trec", "annotations.vector.yaml")
-	writer := NewIncrementalWriter(outPath, meta.Judge{Strategy: string(StrategyVector)})
+	writer := NewIncrementalWriter(outPath, meta.Meta{Judge: &meta.Judge{Strategy: string(StrategyVector)}})
 
 	r := NewRunner(RunnerConfig{
 		Strategy: NewVectorStrategyWithStore(store, "qwen3-embedding:0.6b"),

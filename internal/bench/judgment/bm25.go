@@ -10,14 +10,9 @@ import (
 )
 
 const (
-	bm25K1 = 1.5
-	bm25B  = 0.75
-
-	// poolBatchSize makes the runner hand a query's whole candidate pool to
-	// GradeBatch in one call, so BM25 statistics (idf, avgdl) are computed over
-	// the full pool rather than an arbitrary chunk of it. Per-query pools are
-	// pool_depth × engines deduped (≈50-150), comfortably under this.
-	poolBatchSize = 512
+	bm25K1            = 1.5
+	bm25B             = 0.75
+	bm25RubricVersion = "v1"
 )
 
 // BM25Strategy grades candidates with Okapi BM25 computed over the per-query
@@ -36,13 +31,14 @@ func NewBM25Strategy() *BM25Strategy { return &BM25Strategy{} }
 func (BM25Strategy) Name() string { return string(StrategyBM25) }
 
 func (BM25Strategy) Describe() meta.Judge {
-	return meta.Judge{Strategy: string(StrategyBM25)}
+	return meta.Judge{Strategy: string(StrategyBM25), RubricVersion: bm25RubricVersion}
 }
 
-func (BM25Strategy) PreferredBatchSize() int { return poolBatchSize }
-
-func (s BM25Strategy) GradeBatch(_ context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
-	norms := s.normScores(q, docs)
+func (s BM25Strategy) GradePool(_ context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
+	norms, err := s.normScores(q, docs)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]GradedDoc, len(docs))
 	for i, d := range docs {
 		out[i] = GradedDoc{DocID: d.ID, Grade: gradeFromNorm(norms[i])}
@@ -50,20 +46,16 @@ func (s BM25Strategy) GradeBatch(_ context.Context, q GradingQuery, docs []Gradi
 	return out, nil
 }
 
-// Grade is a per-doc fallback (the runner only reaches it if GradeBatch fails,
-// which the no-network BM25 path does not). Without the pool there is no idf or
-// avgdl to compute, so it degrades to the lexical coverage baseline.
-func (BM25Strategy) Grade(ctx context.Context, q GradingQuery, doc GradingDoc) (int, error) {
-	return LexicalStrategy{}.Grade(ctx, q, doc)
-}
-
 // normScores returns each doc's BM25 score normalised to [0,1] against the
 // top-scoring candidate in the pool. Shared with HybridStrategy.
-func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) []float64 {
+func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) ([]float64, error) {
+	terms, err := queryTerms(q)
+	if err != nil {
+		return nil, err
+	}
 	norms := make([]float64, len(docs))
-	terms := tokenizeSlice(q.Description)
-	if len(terms) == 0 || len(docs) == 0 {
-		return norms
+	if len(docs) == 0 {
+		return norms, nil
 	}
 
 	counts := make([]map[string]int, len(docs))
@@ -112,7 +104,7 @@ func (BM25Strategy) normScores(q GradingQuery, docs []GradingDoc) []float64 {
 			norms[i] = scores[i] / maxScore
 		}
 	}
-	return norms
+	return norms, nil
 }
 
 // gradeFromNorm maps a [0,1] relevance score to a grade. Shared by BM25 and the

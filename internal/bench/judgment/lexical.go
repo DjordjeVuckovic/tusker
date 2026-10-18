@@ -14,18 +14,20 @@ import (
 // document's title, description, and content.
 type LexicalStrategy struct{}
 
+const lexicalRubricVersion = "v1"
+
 func NewLexicalStrategy() *LexicalStrategy { return &LexicalStrategy{} }
 
 func (LexicalStrategy) Name() string { return string(StrategyLexical) }
 
 func (LexicalStrategy) Describe() meta.Judge {
-	return meta.Judge{Strategy: string(StrategyLexical)}
+	return meta.Judge{Strategy: string(StrategyLexical), RubricVersion: lexicalRubricVersion}
 }
 
 func (LexicalStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) (int, error) {
-	terms := tokenize(q.Description)
-	if len(terms) == 0 {
-		return 0, fmt.Errorf("lexical strategy: query %q has no usable description (regenerate the pool or set --strategy manual)", q.ID)
+	terms, err := queryTerms(q)
+	if err != nil {
+		return GradeUnjudged, err
 	}
 
 	titleTokens := tokenSet(doc.Title)
@@ -33,7 +35,7 @@ func (LexicalStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) 
 	contentTokens := tokenSet(doc.Content)
 
 	titleHits, otherHits := 0, 0
-	for t := range terms {
+	for _, t := range terms {
 		if titleTokens[t] {
 			titleHits++
 			continue
@@ -57,6 +59,25 @@ func (LexicalStrategy) Grade(_ context.Context, q GradingQuery, doc GradingDoc) 
 	default:
 		return GradeNotRelev, nil
 	}
+}
+
+// NoQueryTermsError reports a query with no gradable terms. It is a property of
+// the query, so every document fails the same way and no retry can fix it.
+type NoQueryTermsError struct {
+	QueryID string
+}
+
+func (e *NoQueryTermsError) Error() string {
+	return fmt.Sprintf("query %q has no usable description (regenerate the pool or set --strategy manual)", e.QueryID)
+}
+
+// queryTerms returns the query's distinct gradable terms, sorted.
+func queryTerms(q GradingQuery) ([]string, error) {
+	terms := tokenizeSlice(q.Description)
+	if len(terms) == 0 {
+		return nil, &NoQueryTermsError{QueryID: q.ID}
+	}
+	return terms, nil
 }
 
 var (
