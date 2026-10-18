@@ -576,11 +576,6 @@ def merge_shards(checkpoint_dir: Path, *, shard_count: int, out_path: Path) -> N
             writer.write_table(table)
 
 
-def content_version(resource: dict[str, Any]) -> str:
-    """Version a package by its resource: the first 8 hex chars of the resource's sha256."""
-    return resource["hash"].removeprefix("sha256:")[:8]
-
-
 def publish_version(
     final_dir: Path,
     build: Callable[[Path], None],
@@ -626,7 +621,7 @@ def resource_hash(descriptor_path: Path) -> str:
     return single_resource(descriptor_path, read_descriptor(descriptor_path))["hash"]
 
 
-def publish_replacing(final_dir: Path, build: Callable[[Path], str]) -> None:
+def publish_replacing(final_dir: Path, build: Callable[[Path], None]) -> None:
     """Build a package in a staging dir and swap it in at a fixed location."""
     final_dir.parent.mkdir(parents=True, exist_ok=True)
     with staged(final_dir.with_name(f".{final_dir.name}.staging")) as staging:

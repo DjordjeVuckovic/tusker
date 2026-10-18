@@ -120,17 +120,13 @@ def check_query(query: SuiteQuery) -> None:
 
 def write_query_vectors(
     directory: Path, rows: pa.Table, descriptor: dict[str, Any]
-) -> str:
+) -> None:
     resource_path = directory / "query-vectors.parquet"
     pq.write_table(rows, resource_path, compression="zstd")
     resource = embed_corpus.describe_parquet_resource(
         resource_path, name="query-vectors"
     )
-    version = embed_corpus.content_version(resource)
-    embed_corpus.write_descriptor(
-        directory, {**descriptor, "version": version, "resources": [resource]}
-    )
-    return version
+    embed_corpus.write_descriptor(directory, {**descriptor, "resources": [resource]})
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

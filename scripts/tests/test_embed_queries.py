@@ -7,7 +7,6 @@ from conftest import (
     article,
     model_args,
     run_script,
-    sha256_of,
     write_canonical_package,
 )
 
@@ -147,16 +146,12 @@ def test_refuses_to_publish_non_finite_query_vectors(tmp_path, overflowing_tiny_
     assert not query_vectors(tmp_path / "track").exists()
 
 
-def test_query_vectors_are_versioned_by_their_own_bytes(tmp_path, tiny_model_args):
+def test_query_vectors_carry_no_version(tmp_path, tiny_model_args):
     suite = write_suite(tmp_path / "track")
 
     run_script("embed_queries.py", suite, *tiny_model_args)
 
-    descriptor = query_vectors(tmp_path / "track")
-    resource_digest = sha256_of(
-        descriptor.parent / "query-vectors.parquet"
-    ).removeprefix("sha256:")
-    assert json.loads(descriptor.read_text())["version"] == resource_digest[:8]
+    assert "version" not in json.loads(query_vectors(tmp_path / "track").read_text())
 
 
 def test_refuses_a_query_with_an_empty_description(tmp_path, tiny_model_args):
