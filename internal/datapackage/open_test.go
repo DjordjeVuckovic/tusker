@@ -168,8 +168,8 @@ func TestOpenRejectsADescriptorItCannotTrust(t *testing.T) {
 		"escaping path":   `{"name": "p", "resources": [{"name": "x", "path": "../secret.txt", "format": "txt", "bytes": 1, "hash": "sha256:` + zeros64 + `"}]}`,
 		"absolute path":   `{"name": "p", "resources": [{"name": "x", "path": "/etc/passwd", "format": "txt", "bytes": 1, "hash": "sha256:` + zeros64 + `"}]}`,
 		"md5 hash":        `{"name": "p", "resources": [{"name": "x", "path": "x.txt", "format": "txt", "bytes": 1, "hash": "md5:d41d8cd98f00b204e9800998ecf8427e"}]}`,
+		"negative bytes":  `{"name": "p", "resources": [{"name": "x", "path": "x.txt", "format": "txt", "bytes": -1, "hash": "sha256:` + zeros64 + `"}]}`,
 		"short hash":      `{"name": "p", "resources": [{"name": "x", "path": "x.txt", "format": "txt", "bytes": 1, "hash": "sha256:abc"}]}`,
-		"missing bytes":   `{"name": "p", "resources": [{"name": "x", "path": "x.txt", "format": "txt", "hash": "sha256:` + zeros64 + `"}]}`,
 		"no resources":    `{"name": "p", "resources": []}`,
 		"not json":        `{"name": "p", "resources": [{` + valid + `}]`,
 		"duplicate name":  `{"name": "p", "resources": [{` + valid + `}, {` + valid + `}]}`,
@@ -206,5 +206,43 @@ func TestOpenAcceptsADescriptorWithoutAPackageName(t *testing.T) {
 	}
 	if got, err := readResource(context.Background(), opened, "hello"); err != nil || string(got) != "hello\n" {
 		t.Errorf("hello = %q, %v", got, err)
+	}
+}
+
+func TestResourceFailsWhenADescriptorClaimsZeroBytesWrongly(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		check   func(t *testing.T, err error)
+	}{
+		{"non-empty file", "hello\n", func(t *testing.T, err error) {
+			var mismatch *datapackage.ByteCountMismatchError
+			if !errors.As(err, &mismatch) {
+				t.Errorf("err = %v, want ByteCountMismatchError", err)
+			}
+		}},
+		{"empty file with a wrong hash", "", func(t *testing.T, err error) {
+			var mismatch *datapackage.HashMismatchError
+			if !errors.As(err, &mismatch) {
+				t.Errorf("err = %v, want HashMismatchError", err)
+			}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "x.txt", tt.content)
+			writeFile(t, dir, datapackage.DescriptorName, `{"name": "p", "resources": [{"name": "x", "path": "x.txt", "format": "txt", "bytes": 0, "hash": "sha256:`+zeros64+`"}]}`)
+			opened, err := datapackage.Open(context.Background(), dir)
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+
+			got, err := readResource(context.Background(), opened, "x")
+			if got != nil {
+				t.Errorf("a mismatched resource yielded %q", got)
+			}
+			tt.check(t, err)
+		})
 	}
 }

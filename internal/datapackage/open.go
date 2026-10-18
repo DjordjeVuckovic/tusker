@@ -90,14 +90,11 @@ func validateDigest(r Resource) error {
 	if decoded, err := hex.DecodeString(hexDigest); err != nil || len(decoded) != 32 || strings.ToLower(hexDigest) != hexDigest {
 		return fmt.Errorf("hash %q is not 64 lowercase hex chars", r.Hash)
 	}
-	if r.Bytes < 0 || (r.Bytes == 0 && r.Hash != emptyHash) {
-		return fmt.Errorf("bytes %d does not fit hash %s", r.Bytes, r.Hash)
+	if r.Bytes < 0 {
+		return fmt.Errorf("bytes %d is negative", r.Bytes)
 	}
 	return nil
 }
-
-// emptyHash is the sha256 of zero bytes.
-const emptyHash = hashPrefix + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 // Resource returns the named resource once its bytes and hash match; Close removes a remote download.
 func (o *Opened) Resource(ctx context.Context, name string) (*ResourceFile, error) {
