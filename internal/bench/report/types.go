@@ -6,6 +6,7 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/runner"
+	"github.com/google/uuid"
 )
 
 // Report is the root artifact produced by bench run. It has exactly two
@@ -83,14 +84,17 @@ type CategoryReport struct {
 
 // PairwiseSignificance is the result of a Wilcoxon signed-rank test comparing
 // two engines on one metric across all judged queries in this job. Populated by
-// Generate() when ≥4 non-tied paired observations are available.
+// Generate() when ≥4 non-zero paired differences are available.
 type PairwiseSignificance struct {
 	EngineA string  // reference engine (listed first in spec jobs[].engines)
 	EngineB string  // comparison engine
 	Metric  string  // e.g. "NDCG@10", "MAP", "MRR"
 	W       float64 // Wilcoxon W statistic
-	P       float64 // two-tailed p-value
-	Stars   string  // "**" p<0.01 | "*" p<0.05 | "" not significant
+	P       float64 // two-tailed p-value, unadjusted
+	// AdjustedP is Holm-corrected across the job's engine pairs on this
+	// metric; nil in reports written before the correction.
+	AdjustedP *float64
+	Stars     string // from AdjustedP: "**" p<0.01 | "*" p<0.05 | "" not significant
 }
 
 type ReportConfig struct {
@@ -105,6 +109,7 @@ type Entry struct {
 	EngineName    string
 	Judged        bool
 	NDCG          map[int]float64
+	NDCGLinear    map[int]float64 `json:",omitempty"`
 	Precision     map[int]float64
 	Recall        map[int]float64
 	F1            map[int]float64
@@ -115,22 +120,47 @@ type Entry struct {
 	CorpusMatches *int64
 	Latency       LatencyStats
 	Error         string
+	// Ranking is what the engine returned, best first; nil in reports written
+	// before rankings were recorded.
+	Ranking []RankedDoc `json:",omitempty"`
+}
+
+// RankedDoc is one retrieved document. Engines report no scores today, so
+// Score is derived from rank: it strictly decreases down the list, which is
+// all trec_eval reads from it.
+type RankedDoc struct {
+	DocID uuid.UUID `json:"doc_id"`
+	Score float64   `json:"score"`
 }
 
 type AggregatedEntry struct {
-	EngineName  string
-	NDCG        map[int]float64
-	NDCGStddev  map[int]float64 // sample stddev of per-query NDCG — measures consistency
-	Precision   map[int]float64
-	Recall      map[int]float64
-	F1          map[int]float64
-	MAP         float64
-	MRR         float64
-	MBpref      float64
-	Latency     LatencyStats
-	QueryCount  int
+	EngineName string
+	NDCG       map[int]float64
+	NDCGStddev map[int]float64 // sample stddev of per-query NDCG — measures consistency
+	// NDCGLinear is nil in reports written before it was recorded.
+	NDCGLinear map[int]float64 `json:",omitempty"`
+	Precision  map[int]float64
+	Recall     map[int]float64
+	F1         map[int]float64
+	MAP        float64
+	MRR        float64
+	MBpref     float64
+	// Latency covers only the queries every engine in the job answered;
+	// LatencyExcludedQueries counts the rest.
+	Latency                LatencyStats
+	LatencyExcludedQueries int
+	QueryCount             int
+	// JudgedCount is the size of the job's judged query set, the denominator
+	// of every quality mean. A query this engine failed or had no block for
+	// scores 0.
 	JudgedCount int
-	ErrorCount  int
+	// ErrorCount includes queries this engine had no block for.
+	ErrorCount int
+	// JudgedCoverage is the share of retrieved docs within the largest K, over
+	// the judged queries, that carry a grade. Ungraded docs score as
+	// non-relevant, so a low value means the metrics above undercount. nil when
+	// nothing was retrieved or the report predates it.
+	JudgedCoverage *float64
 }
 
 type LatencyStats struct {

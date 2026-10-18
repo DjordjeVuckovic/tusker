@@ -1,10 +1,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -29,9 +33,10 @@ func newDiffCmd() *cobra.Command {
 		Long: `Loads two report JSON files and shows per-engine metric deltas and the
 per-query NDCG regressions sorted by magnitude.
 
-Without --a/--b, picks the two most-recent reports in <track>/reports/.
-With --a and --b, accepts run IDs (e.g. 2026-05-26T23-39-05-run-7e0750) or
-direct paths to report.json files.`,
+Without --b, B is the report latest.json points at. Without --a, A is the
+newest earlier report that has judged metrics and no failed queries, or the
+newest earlier report, with a warning, when none has. --a and --b accept run IDs
+(e.g. 2026-05-26T23-39-05-run-7e0750) or direct paths to report.json files.`,
 		Example: `  bench diff tracks/global-news-dataset/fts_quality                               # latest two runs
   bench diff tracks/global-news-dataset/fts_quality --b 2026-05-26T23-39-05-run-7e0750
   bench diff --a /tmp/before.json --b /tmp/after.json`,
@@ -57,68 +62,138 @@ func executeDiff(w io.Writer, f diffFlags, args []string) error {
 		}
 	}
 
-	pathA, err := resolveReportPath(tr, f.pathA, 1 /*second-latest*/)
-	if err != nil {
-		return fmt.Errorf("resolve before report: %w", err)
-	}
-	pathB, err := resolveReportPath(tr, f.pathB, 0 /*latest*/)
+	rptB, err := afterReport(tr, f.pathB)
 	if err != nil {
 		return fmt.Errorf("resolve after report: %w", err)
 	}
-	if pathA == pathB {
-		return fmt.Errorf("both runs resolve to the same file: %s", pathA)
-	}
-
-	rptA, err := report.ReadJSON(pathA)
+	rptA, err := beforeReport(tr, f.pathA, rptB)
 	if err != nil {
-		return fmt.Errorf("read before report: %w", err)
+		return fmt.Errorf("resolve before report: %w", err)
 	}
-	rptB, err := report.ReadJSON(pathB)
-	if err != nil {
-		return fmt.Errorf("read after report: %w", err)
+	if rptA.Provenance.RunID == rptB.Provenance.RunID {
+		return fmt.Errorf("both runs resolve to the same report: %s", rptA.Provenance.RunID)
 	}
 
 	printDiff(w, rptA, rptB)
 	return nil
 }
 
-// resolveReportPath turns a user flag (run ID or path) into an absolute path.
-// When empty, it picks the Nth most-recent report from the track's reports dir.
-func resolveReportPath(tr *trackctx.Track, flag string, nth int) (string, error) {
+// afterReport defaults to the report latest.json points at, or the newest
+// fully scored report when there is no pointer.
+func afterReport(tr *trackctx.Track, flag string) (*report.Report, error) {
 	if flag != "" {
-		if looksLikePath(flag) {
-			return flag, nil
-		}
-		// Treat as run ID → <reports>/<runID>.json
-		if tr == nil {
-			return "", fmt.Errorf("run ID %q given but no track resolved", flag)
-		}
-		return tr.ReportPath(flag), nil
+		return readExplicitReport(tr, flag)
 	}
 	if tr == nil {
-		return "", fmt.Errorf("no path or run ID given and no track available")
+		return nil, fmt.Errorf("no path or run ID given and no track available")
 	}
-	return nthLatestReport(filepath.Dir(tr.LatestReportPath()), nth)
+	rpt, err := report.ReadLatestReport(tr.LatestReportPath())
+	if errors.Is(err, fs.ErrNotExist) {
+		return previousScoredReport(baselineSearch{ReportsDir: reportsDir(tr)})
+	}
+	return rpt, err
 }
 
-// nthLatestReport returns the nth most-recent report JSON in dir (0 = latest).
-func nthLatestReport(dir string, nth int) (string, error) {
+// beforeReport defaults to the newest fully scored report older than after.
+func beforeReport(tr *trackctx.Track, flag string, after *report.Report) (*report.Report, error) {
+	if flag != "" {
+		return readExplicitReport(tr, flag)
+	}
+	if tr == nil {
+		return nil, fmt.Errorf("no path or run ID given and no track available")
+	}
+	return previousScoredReport(baselineSearch{ReportsDir: reportsDir(tr), BeforeRunID: after.Provenance.RunID})
+}
+
+func reportsDir(tr *trackctx.Track) string {
+	return filepath.Dir(tr.LatestReportPath())
+}
+
+// readExplicitReport reads a report named by a run ID or a path.
+func readExplicitReport(tr *trackctx.Track, flag string) (*report.Report, error) {
+	path := flag
+	if !looksLikePath(flag) {
+		if tr == nil {
+			return nil, fmt.Errorf("run ID %q given but no track resolved", flag)
+		}
+		path = tr.ReportPath(flag)
+	}
+	return report.ReadJSON(path)
+}
+
+// baselineSearch scopes the hunt for a report to diff against.
+type baselineSearch struct {
+	ReportsDir string
+	// BeforeRunID limits the search to older reports; empty searches them all.
+	BeforeRunID string
+}
+
+// previousScoredReport returns the newest report in scope that is fully
+// scored, falling back to the newest readable one when none is.
+func previousScoredReport(search baselineSearch) (*report.Report, error) {
+	dir := search.ReportsDir
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return "", fmt.Errorf("read reports dir %s: %w", dir, err)
+		return nil, fmt.Errorf("read reports dir %s: %w", dir, err)
 	}
-	var reports []string
+	var names []string
 	for _, e := range entries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") && e.Name() != "latest.json" {
-			reports = append(reports, filepath.Join(dir, e.Name()))
+			names = append(names, e.Name())
 		}
 	}
-	if len(reports) < nth+1 {
-		return "", fmt.Errorf("need at least %d report(s) in %s, found %d", nth+1, dir, len(reports))
+	// Run IDs are timestamped, so lexicographic order is chronological.
+	sort.Sort(sort.Reverse(sort.StringSlice(names)))
+	var newestReadable *report.Report
+	for _, name := range names {
+		if search.BeforeRunID != "" && strings.TrimSuffix(name, ".json") >= search.BeforeRunID {
+			continue
+		}
+		rpt, err := report.ReadJSON(filepath.Join(dir, name))
+		if err != nil {
+			slog.Warn("skipping unreadable report in baseline search", "report", name, "error", err)
+			continue
+		}
+		if fullyScored(rpt) {
+			return rpt, nil
+		}
+		if newestReadable == nil {
+			newestReadable = rpt
+		}
 	}
-	// Sort by name descending — names are timestamped so lexicographic = chronological.
-	sort.Slice(reports, func(i, j int) bool { return reports[i] > reports[j] })
-	return reports[nth], nil
+	if newestReadable == nil {
+		return nil, fmt.Errorf("no earlier readable report in %s", dir)
+	}
+	slog.Warn("no earlier report has judged metrics and no failed queries; diffing against the newest one",
+		"report", newestReadable.Provenance.RunID)
+	return newestReadable, nil
+}
+
+// fullyScored reports whether every job carries quality metrics and no
+// (query, engine) cell failed. A latency-only or partial run is not a
+// baseline: its deltas would measure the failures, not the engines.
+func fullyScored(r *report.Report) bool {
+	if len(r.Jobs) == 0 {
+		return false
+	}
+	for _, job := range r.Jobs {
+		judged := false
+		for _, agg := range job.Aggregated {
+			if agg.ErrorCount > 0 {
+				return false
+			}
+			judged = judged || agg.JudgedCount > 0
+		}
+		for _, e := range job.PerQuery {
+			if e.Error != "" {
+				return false
+			}
+		}
+		if !judged {
+			return false
+		}
+	}
+	return true
 }
 
 // ─── diff rendering ───────────────────────────────────────────────────────────
@@ -129,6 +204,7 @@ func printDiff(w io.Writer, a, b *report.Report) {
 	fmt.Fprintf(w, "  %s %s\n\n", cDim.Sprint("B (after): "), cBold.Sprint(b.Provenance.RunID))
 
 	printProvenanceDiff(w, report.DiffProvenance(a, b))
+	printScoringWarnings(w, a, b)
 
 	// Find common jobs by name.
 	jobsA := indexJobs(a)
@@ -137,11 +213,10 @@ func printDiff(w io.Writer, a, b *report.Report) {
 	names := unionKeys(jobsA, jobsB)
 	sort.Strings(names)
 
-	kVals := a.Config.KValues
-	if len(kVals) == 0 {
-		kVals = b.Config.KValues
+	ndcgK, haveSharedK := largestSharedK(a.Config.KValues, b.Config.KValues)
+	if !haveSharedK {
+		fmt.Fprintf(w, "%s\n\n", cDim.Sprint("No K value in both runs: NDCG deltas skipped."))
 	}
-	primaryKVal := primaryKFromSlice(kVals)
 
 	for _, name := range names {
 		jA, okA := jobsA[name]
@@ -156,8 +231,10 @@ func printDiff(w io.Writer, a, b *report.Report) {
 		}
 
 		fmt.Fprintf(w, "%s\n\n", cBold.Sprintf("--- Job: %s ---", name))
-		printAggregateDiff(w, jA, jB, kVals)
-		printQueryDiff(w, jA, jB, primaryKVal)
+		printAggregateDiff(w, jA, jB, ndcgK)
+		if haveSharedK {
+			printQueryDiff(w, jA, jB, ndcgK)
+		}
 		fmt.Fprintln(w)
 	}
 }
@@ -185,16 +262,20 @@ func orAbsent(value string) string {
 	return value
 }
 
-func printAggregateDiff(w io.Writer, jA, jB *report.JobReport, kVals []int) {
+// printAggregateDiff shows NDCG at ndcgK, or not at all when ndcgK is 0.
+func printAggregateDiff(w io.Writer, jA, jB *report.JobReport, ndcgK int) {
 	aggA := indexAgg(jA)
 	aggB := indexAgg(jB)
 	engines := unionKeys(aggA, aggB)
 	sort.Strings(engines)
 
-	primaryKVal := primaryKFromSlice(kVals)
+	ndcgHeader := "NDCG  A→B"
+	if ndcgK > 0 {
+		ndcgHeader = fmt.Sprintf("NDCG@%d (gain %s)  A→B", ndcgK, report.NDCGGain)
+	}
 
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "Engine\tNDCG@K  A→B\tMAP  A→B\tMRR  A→B\tp50  A→B")
+	fmt.Fprintf(tw, "Engine\t%s\tMAP  A→B\tMRR  A→B\tp50  A→B\n", ndcgHeader)
 	fmt.Fprintln(tw, "---\t---\t---\t---\t---")
 
 	for _, eng := range engines {
@@ -204,14 +285,17 @@ func printAggregateDiff(w io.Writer, jA, jB *report.JobReport, kVals []int) {
 			fmt.Fprintf(tw, "%s\t(only in one run)\n", eng)
 			continue
 		}
-		ndcgA, ndcgB := eA.NDCG[primaryKVal], eB.NDCG[primaryKVal]
+		ndcg := "—"
+		if ndcgK > 0 {
+			ndcg = fmtDelta("%.4f", eA.NDCG[ndcgK], eB.NDCG[ndcgK], true)
+		}
 		mapA, mapB := eA.MAP, eB.MAP
 		mrrA, mrrB := eA.MRR, eB.MRR
 		latA, latB := eA.Latency.P50(), eB.Latency.P50()
 
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 			eng,
-			fmtDelta("%.4f", ndcgA, ndcgB, true),
+			ndcg,
 			fmtDelta("%.4f", mapA, mapB, true),
 			fmtDelta("%.4f", mrrA, mrrB, true),
 			fmtDurationDelta(latA, latB), // last column — safe to color
@@ -234,15 +318,20 @@ func printQueryDiff(w io.Writer, jA, jB *report.JobReport, k int) {
 	var deltas []delta
 	for key, eA := range perA {
 		eB, ok := perB[key]
-		if !ok || !eA.Judged || !eB.Judged {
+		if !ok {
 			continue
 		}
-		d := eB.NDCG[k] - eA.NDCG[k]
+		ndcgA, scoredA := scoredNDCG(eA, k)
+		ndcgB, scoredB := scoredNDCG(eB, k)
+		if !scoredA || !scoredB {
+			continue
+		}
+		d := ndcgB - ndcgA
 		if d == 0 {
 			continue
 		}
 		parts := strings.SplitN(key, "\x00", 2)
-		deltas = append(deltas, delta{parts[0], parts[1], eA.NDCG[k], eB.NDCG[k], d})
+		deltas = append(deltas, delta{parts[0], parts[1], ndcgA, ndcgB, d})
 	}
 	if len(deltas) == 0 {
 		return
@@ -250,7 +339,7 @@ func printQueryDiff(w io.Writer, jA, jB *report.JobReport, k int) {
 	// Sort: biggest regression first, then biggest improvement.
 	sort.Slice(deltas, func(i, j int) bool { return deltas[i].diff < deltas[j].diff })
 
-	fmt.Fprintf(w, "%s\n\n", cBold.Sprintf("Per-Query NDCG@%d Deltas (largest regression first):", k))
+	fmt.Fprintf(w, "%s\n\n", cBold.Sprintf("Per-Query NDCG@%d (gain %s) Deltas (largest regression first):", k, report.NDCGGain))
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(tw, "Query\tEngine\tA\tB\tΔ")
 	fmt.Fprintln(tw, "---\t---\t---\t---\t---")
@@ -266,6 +355,15 @@ func printQueryDiff(w io.Writer, jA, jB *report.JobReport, k int) {
 			d.query, d.engine, d.a, d.b, delta)
 	}
 	tw.Flush()
+}
+
+// scoredNDCG is the NDCG@k a cell contributes to its engine's mean: a failed
+// judged cell scores 0, as in the aggregates. Unjudged cells are not scored.
+func scoredNDCG(e report.Entry, k int) (float64, bool) {
+	if e.Error != "" {
+		return 0, e.Judged
+	}
+	return e.NDCG[k], e.Judged
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -352,11 +450,69 @@ func fmtDurationDelta(a, b time.Duration) string {
 	return cFail.Sprint(s)
 }
 
-func primaryKFromSlice(kVals []int) int {
-	if len(kVals) == 0 {
-		return 10
+// largestSharedK is the largest cutoff both runs computed. A K only one run
+// has would read as a score of 0 on the other side.
+func largestSharedK(a, b []int) (int, bool) {
+	shared := 0
+	for _, k := range a {
+		if slices.Contains(b, k) && k > shared {
+			shared = k
+		}
 	}
-	return kVals[len(kVals)-1]
+	return shared, shared > 0
+}
+
+// printScoringWarnings flags runs whose metrics were computed against different
+// grades, where a delta measures the judging as much as the engine.
+func printScoringWarnings(w io.Writer, a, b *report.Report) {
+	var differences []string
+	if judgeOf(a) != judgeOf(b) {
+		differences = append(differences, fmt.Sprintf("judge: %s → %s", judgeOf(a), judgeOf(b)))
+	}
+	if a.Config.RelevanceThreshold != b.Config.RelevanceThreshold {
+		differences = append(differences, fmt.Sprintf("relevance threshold: grade>=%d → grade>=%d",
+			a.Config.RelevanceThreshold, b.Config.RelevanceThreshold))
+	}
+	if judgmentsOf(a) != judgmentsOf(b) {
+		differences = append(differences, fmt.Sprintf("judgments: %s → %s", judgmentsOf(a), judgmentsOf(b)))
+	}
+	if len(differences) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "%s the runs were scored differently, so metric deltas are not engine changes alone:\n", cWarn.Sprint("WARNING:"))
+	for _, d := range differences {
+		fmt.Fprintf(w, "  %s\n", d)
+	}
+	fmt.Fprintln(w)
+}
+
+const scoringNotRecorded = "not recorded"
+
+func judgeOf(r *report.Report) string {
+	judge := r.Provenance.Judge
+	if judge == nil {
+		return scoringNotRecorded
+	}
+	if judge.PromptVersion == "" {
+		return judge.String()
+	}
+	return judge.String() + " prompt " + judge.PromptVersion
+}
+
+// judgmentsOf names the judgments file relative to the track, so the same
+// file in a moved track or another worktree compares equal. Reports record no
+// digest of the file, so one regraded in place still compares equal.
+func judgmentsOf(r *report.Report) string {
+	sources := r.Provenance.Sources
+	if sources == nil || sources.Judgments == "" {
+		return scoringNotRecorded
+	}
+	if sources.Spec != "" {
+		if rel, err := filepath.Rel(filepath.Dir(sources.Spec), sources.Judgments); err == nil {
+			return rel
+		}
+	}
+	return filepath.Clean(sources.Judgments)
 }
 
 func durStr(d time.Duration) string {

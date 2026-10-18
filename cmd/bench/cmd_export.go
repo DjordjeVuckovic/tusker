@@ -33,14 +33,17 @@ func newExportCmd() *cobra.Command {
                      significance table, and provenance block — suitable for thesis
                      appendices or sharing without tooling.
   --format markdown  GitHub-Flavored Markdown tables for thesis writing and PRs
+  --format run       TREC run files (qid Q0 docid rank score tag), one per job and
+                     engine, written to --output or reports/<run_id>.run/
 
 qrels/tsv picks the judgments file in this order: --judgments PATH > --strategy NAME >
-defaults to lexical. html and markdown read the track's latest report.`,
+defaults to lexical. html, markdown and run read the track's latest report.`,
 		Example: `  bench export tracks/global-news-dataset/fts_quality --format qrels
   bench export tracks/global-news-dataset/fts_quality --format qrels --strategy claude-api
   bench export tracks/global-news-dataset/fts_quality --format html
   bench export tracks/global-news-dataset/fts_quality --format markdown
   bench export tracks/global-news-dataset/fts_quality --format markdown --output /tmp/results.md
+  bench export tracks/global-news-dataset/fts_quality --format run
   bench export --judgments /tmp/ad-hoc.yaml --format qrels --output /tmp/q.tsv`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -48,7 +51,7 @@ defaults to lexical. html and markdown read the track's latest report.`,
 		},
 	}
 	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
-	cmd.Flags().StringVar(&f.format, "format", "qrels", "Export format: qrels (TREC TSV), html, or markdown")
+	cmd.Flags().StringVar(&f.format, "format", "qrels", "Export format: qrels (TREC TSV), html, markdown, or run (TREC run files)")
 	cmd.Flags().StringVar(&f.strategy, "strategy", string(judgment.StrategyLexical), "Judgment strategy for TSV export")
 	cmd.Flags().StringVar(&f.judgmentsPath, "judgments", "", "Override annotations YAML path (TSV only)")
 	cmd.Flags().StringVar(&f.output, "output", "", "Override output path")
@@ -63,8 +66,10 @@ func executeExport(cmd *cobra.Command, f exportFlags, args []string) error {
 		return exportHTML(cmd, f, args)
 	case "markdown", "md":
 		return exportMarkdown(cmd, f, args)
+	case "run":
+		return exportRun(cmd, f, args)
 	default:
-		return fmt.Errorf("unknown format %q (choose qrels, html, or markdown)", f.format)
+		return fmt.Errorf("unknown format %q (choose qrels, html, markdown, or run)", f.format)
 	}
 }
 
@@ -153,5 +158,37 @@ func exportHTML(cmd *cobra.Command, f exportFlags, args []string) error {
 		return fmt.Errorf("write HTML report: %w", err)
 	}
 	printDone(cmd.OutOrStdout(), "HTML report written: "+outPath)
+	return nil
+}
+
+// exportRun writes the latest report's rankings as TREC run files, one per job
+// and engine, into --output or reports/<run_id>.run/.
+func exportRun(cmd *cobra.Command, f exportFlags, args []string) error {
+	tr, err := trackctx.Resolve(trackInputs(f.trackArg, args))
+	if err != nil {
+		return err
+	}
+
+	rpt, err := report.ReadLatestReport(tr.LatestReportPath())
+	if err != nil {
+		return fmt.Errorf("read latest report: %w", err)
+	}
+
+	outDir := f.output
+	if outDir == "" {
+		runID := rpt.Provenance.RunID
+		if runID == "" {
+			runID = "report"
+		}
+		outDir = filepath.Join(filepath.Dir(tr.LatestReportPath()), runID+".run")
+	}
+
+	paths, err := report.WriteTRECRuns(rpt, outDir)
+	if err != nil {
+		return fmt.Errorf("write TREC runs: %w", err)
+	}
+	for _, path := range paths {
+		printDone(cmd.OutOrStdout(), "TREC run written: "+path)
+	}
 	return nil
 }

@@ -361,6 +361,7 @@ Provenance is metadata, so a failed read never fails the run: it prints a warnin
 | `qrels` (or `tsv`)   | `trec/qrels.<S>.tsv`    | TREC qrels TSV for `trec_eval`, R, pytrec_eval                                       |
 | `html`               | `reports/<run_id>.html` | Self-contained HTML with sortable tables, SVG charts, significance table, provenance |
 | `markdown` (or `md`) | `reports/<run_id>.md`   | GitHub-Flavored Markdown tables for thesis writing and PRs                           |
+| `run`                | `reports/<run_id>.run/` | TREC run files, one per job and engine (`<job>.<engine>.run`), for `trec_eval`        |
 
 Examples:
 ```bash
@@ -377,7 +378,7 @@ Prints a one-glance dashboard showing which artifacts exist, when they were last
 
 ### `bench diff [<name>]`
 
-Loads the two most-recent reports and shows the index provenance fields that changed between them, then per-engine metric deltas (NDCG, MAP, MRR, latency) and per-query NDCG regressions sorted by magnitude. Pass `--a` / `--b` to compare specific run IDs.
+Compares the report `latest.json` points at with the newest earlier report that has judged metrics and no failed queries. When no earlier report qualifies, it warns and falls back to the newest earlier one. It warns when the judge, relevance threshold or judgments file differ, lists the index provenance fields that changed, then shows per-engine metric deltas (NDCG, MAP, MRR, latency) and per-query NDCG regressions sorted by magnitude. NDCG is compared at the largest K both runs computed. Pass `--a` / `--b` to compare specific run IDs.
 
 ### `bench show <subcommand> [<name>|path]`
 
@@ -404,21 +405,34 @@ bench clean tracks/global-news-dataset/fts_quality --dry-run  # show what would 
 
 ## Metrics
 
-All metrics are computed per-query then averaged across judged queries:
+Metrics are computed per query, then averaged over the job's judged query set: every query with grades. A query an engine failed, or had no block for, scores 0 for that engine, as `trec_eval -c` does, so every engine in a job shares one denominator. Unjudged retrieved docs count as non-relevant.
 
-| Metric   | Description                                                    |
-|----------|----------------------------------------------------------------|
-| `NDCG@k` | Normalized Discounted Cumulative Gain — primary quality signal |
-| `P@k`    | Precision at k                                                 |
-| `R@k`    | Recall at k                                                    |
-| `F1@k`   | Harmonic mean of P@k and R@k                                   |
-| `MAP`    | Mean Average Precision                                         |
-| `MRR`    | Mean Reciprocal Rank                                           |
-| `Bpref`  | Binary preference — robust to incomplete judgments             |
+| Metric   | Description                                                                                  |
+|----------|----------------------------------------------------------------------------------------------|
+| `NDCG@k` | Normalized Discounted Cumulative Gain, gain `2^rel-1`, over grades at or above `relevance_threshold` |
+| `NDCG@k (gain rel)` | trec_eval's `ndcg_cut`: gain `rel`, every grade above 0, whatever `relevance_threshold` is |
+| `P@k`    | Precision at k                                                                               |
+| `R@k`    | Recall at k                                                                                  |
+| `F1@k`   | Harmonic mean of P@k and R@k                                                                 |
+| `MAP`    | Mean Average Precision                                                                       |
+| `MRR`    | Mean Reciprocal Rank                                                                         |
+| `Bpref`  | Binary preference, each relevant doc scoring `1 - min(nonrel above, R) / min(R, N)` as in trec_eval |
 
-Statistical significance is computed pairwise (Wilcoxon signed-rank, two-tailed) for NDCG@K, MAP, and MRR. Requires ≥4 non-tied paired observations; `*` = p<0.05, `**` = p<0.01.
+`Coverage@K` is the share of each engine's retrieved docs within the largest K, over the judged queries, that carry a grade. A low value means the pool missed what the engine returns and its scores undercount.
 
-Latency: per-engine min/p50/p75/p90/p95/p99/max/mean/stddev across all queries.
+Significance is a two-tailed Wilcoxon signed-rank test per engine pair for NDCG@K, MAP and MRR over the judged query set. Differences are rounded to 1e-12 before zeros are dropped and ranks assigned. The p-value is exact for up to 50 untied pairs, otherwise the normal approximation with tie and continuity correction. They match `scipy.stats.wilcoxon(d, method="exact")` and `scipy.stats.wilcoxon(d, method="approx", correction=True)` respectively, on the rounded differences `d`; a plain `wilcoxon(d)` goes exact even with ties and skips the correction, so it differs. It needs ≥4 non-zero differences. p-values are Holm-adjusted across the job's engine pairs on each metric; reports keep the raw `P` next to `AdjustedP`, and `*` (p<0.05) / `**` (p<0.01) mark the adjusted value.
+
+Latency (min/p50/p75/p90/p95/p99/max/mean/stddev) covers only the queries every engine in the job answered; `LatencyExcludedQueries` counts the rest.
+
+Each report records every (query, engine) ranking, so `trec_eval` can reproduce its MAP, P@k and linear-gain NDCG:
+
+```bash
+bench export <track> --format qrels --strategy <S>
+bench export <track> --format run
+trec_eval -c -l <relevance_threshold> -m map -m P.5,10 -m ndcg_cut.5,10 trec/qrels.<S>.tsv reports/<run_id>.run/<job>.<engine>.run
+```
+
+The qrels must hold exactly the job's queries: `-c` averages over every qrels topic, so a topic the job never ran counts as a zero. Filter the qrels to the suite's query ids before running `trec_eval`. Engines return no scores, so run-file scores are derived from rank. `ndcg_cut` matches the `gain rel` column and ignores `-l`; the `2^rel-1` NDCG has no stock trec_eval measure.
 
 ## Artifacts
 
