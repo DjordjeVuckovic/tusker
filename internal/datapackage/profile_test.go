@@ -89,7 +89,7 @@ func fullPackage() datapackage.Package {
 		ArticleSchema: datapackage.ArticleSchema,
 		Language:      "eng",
 		IDStrategy:    &datapackage.IDStrategy{Kind: "uuidv5", Source: "url", Namespace: "6ba7b811-9dad-11d1-80b4-00c04fd430c8"},
-		ProducedBy:    &datapackage.ProducedBy{Tool: "datapipe preprocess", Version: "v0.1.0", Commit: "c4ecbe3"},
+		ProducedBy:    &datapackage.ProducedBy{Tool: "datapipe preprocess"},
 		Report: &datapackage.Report{
 			Read: 10, Written: 7, Deduped: 1,
 			Dropped: map[string]int64{"invalid_url": 2},
@@ -129,8 +129,6 @@ func TestWrittenDescriptorUsesContractPropertyNames(t *testing.T) {
 		"language":                   "eng",
 		"idStrategy/kind":            "uuidv5",
 		"producedBy/tool":            "datapipe preprocess",
-		"producedBy/version":         "v0.1.0",
-		"producedBy/commit":          "c4ecbe3",
 		"report/read":                10.0,
 		"report/written":             7.0,
 		"report/dropped/invalid_url": 2.0,

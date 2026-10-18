@@ -120,13 +120,7 @@
         "tool"
       ],
       "properties": {
-        "commit": {
-          "type": "string"
-        },
         "tool": {
-          "type": "string"
-        },
-        "version": {
           "type": "string"
         }
       },

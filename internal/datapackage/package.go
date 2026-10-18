@@ -64,9 +64,7 @@ type IDStrategy struct {
 }
 
 type ProducedBy struct {
-	Tool    string `json:"tool"`
-	Version string `json:"version,omitempty"`
-	Commit  string `json:"commit,omitempty"`
+	Tool string `json:"tool"`
 }
 
 // Report counts rows through the producing stage. Dropped is keyed by reason.

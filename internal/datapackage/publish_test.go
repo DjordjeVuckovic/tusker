@@ -12,7 +12,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
 )
 
-func stagedArticles(t *testing.T, root, content, commit string) (staging string, pkg datapackage.Package) {
+func stagedArticles(t *testing.T, root, content, tool string) (staging string, pkg datapackage.Package) {
 	t.Helper()
 	staging, err := os.MkdirTemp(root, "staging-")
 	if err != nil {
@@ -21,7 +21,7 @@ func stagedArticles(t *testing.T, root, content, commit string) (staging string,
 	writeFile(t, staging, "articles.jsonl", content)
 	return staging, datapackage.Package{
 		Name:       "cc-news-canonical",
-		ProducedBy: &datapackage.ProducedBy{Tool: "datapipe preprocess", Commit: commit},
+		ProducedBy: &datapackage.ProducedBy{Tool: tool},
 		Resources:  []datapackage.Resource{{Name: datapackage.ArticlesResource, Path: "articles.jsonl", Format: "jsonl"}},
 	}
 }
@@ -36,7 +36,7 @@ func absent(t *testing.T, path string) {
 func TestPublishMovesTheStagedPackageToTheVersionOfItsBytes(t *testing.T) {
 	root := t.TempDir()
 	parent := filepath.Join(root, "canonical")
-	staging, pkg := stagedArticles(t, root, "hello\n", "c4ecbe3")
+	staging, pkg := stagedArticles(t, root, "hello\n", "datapipe preprocess")
 
 	published, err := datapackage.Publish(context.Background(), pkg, datapackage.PublishOptions{StagingDir: staging, ParentDir: parent})
 	if err != nil {
@@ -60,7 +60,7 @@ func TestPublishGivesDifferentBytesTheirOwnFolder(t *testing.T) {
 	root := t.TempDir()
 	parent := filepath.Join(root, "canonical")
 	for content, version := range map[string]string{"hello\n": "5891b5b5", "hello, again\n": "aeac3c79"} {
-		staging, pkg := stagedArticles(t, root, content, "c4ecbe3")
+		staging, pkg := stagedArticles(t, root, content, "datapipe preprocess")
 		published, err := datapackage.Publish(context.Background(), pkg, datapackage.PublishOptions{StagingDir: staging, ParentDir: parent})
 		if err != nil {
 			t.Fatalf("Publish(%q): %v", content, err)
@@ -75,7 +75,7 @@ func TestPublishKeepsAPackageAlreadyPublished(t *testing.T) {
 	root := t.TempDir()
 	parent := filepath.Join(root, "canonical")
 	ctx := context.Background()
-	first, pkg := stagedArticles(t, root, "hello\n", "c4ecbe3")
+	first, pkg := stagedArticles(t, root, "hello\n", "datapipe preprocess")
 	published, err := datapackage.Publish(ctx, pkg, datapackage.PublishOptions{StagingDir: first, ParentDir: parent})
 	if err != nil {
 		t.Fatalf("first Publish: %v", err)
@@ -85,14 +85,14 @@ func TestPublishKeepsAPackageAlreadyPublished(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	second, rerun := stagedArticles(t, root, "hello\n", "4be80e0")
+	second, rerun := stagedArticles(t, root, "hello\n", "datapipe preprocess, rerun")
 	again, err := datapackage.Publish(ctx, rerun, datapackage.PublishOptions{StagingDir: second, ParentDir: parent})
 	if err != nil {
 		t.Fatalf("second Publish: %v", err)
 	}
 
-	if !again.Existing || again.Dir != published.Dir || again.Package.ProducedBy.Commit != "c4ecbe3" {
-		t.Errorf("rerun = %s existing %v commit %q, want the existing %s from c4ecbe3", again.Dir, again.Existing, again.Package.ProducedBy.Commit, published.Dir)
+	if !again.Existing || again.Dir != published.Dir || again.Package.ProducedBy.Tool != "datapipe preprocess" {
+		t.Errorf("rerun = %s existing %v tool %q, want the existing %s from datapipe preprocess", again.Dir, again.Existing, again.Package.ProducedBy.Tool, published.Dir)
 	}
 	absent(t, second)
 	after, err := os.ReadFile(filepath.Join(published.Dir, datapackage.DescriptorName))
@@ -118,7 +118,7 @@ func TestPublishRefusesWhatItCannotPublish(t *testing.T) {
 	}
 	for name, setup := range tests {
 		t.Run(name, func(t *testing.T) {
-			staging, pkg := stagedArticles(t, t.TempDir(), "hello\n", "c4ecbe3")
+			staging, pkg := stagedArticles(t, t.TempDir(), "hello\n", "datapipe preprocess")
 			opts := setup(staging, &pkg)
 
 			if _, err := datapackage.Publish(context.Background(), pkg, opts); err == nil {
@@ -135,7 +135,7 @@ func TestPublishRefusesWhatItCannotPublish(t *testing.T) {
 func TestPublishStopsOnCancelWithoutPublishing(t *testing.T) {
 	root := t.TempDir()
 	parent := filepath.Join(root, "canonical")
-	staging, pkg := stagedArticles(t, root, "hello\n", "c4ecbe3")
+	staging, pkg := stagedArticles(t, root, "hello\n", "datapipe preprocess")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -150,9 +150,9 @@ func TestPublishStopsOnCancelWithoutPublishing(t *testing.T) {
 // already published there.
 func TestPublishRefusesAParentInsideTheStagingFolder(t *testing.T) {
 	ctx := context.Background()
-	staging, pkg := stagedArticles(t, t.TempDir(), "hello\n", "c4ecbe3")
+	staging, pkg := stagedArticles(t, t.TempDir(), "hello\n", "datapipe preprocess")
 	parent := filepath.Join(staging, "canonical")
-	earlier, earlierPkg := stagedArticles(t, t.TempDir(), "hello\n", "c4ecbe3")
+	earlier, earlierPkg := stagedArticles(t, t.TempDir(), "hello\n", "datapipe preprocess")
 	published, err := datapackage.Publish(ctx, earlierPkg, datapackage.PublishOptions{StagingDir: earlier, ParentDir: parent})
 	if err != nil {
 		t.Fatalf("earlier Publish: %v", err)

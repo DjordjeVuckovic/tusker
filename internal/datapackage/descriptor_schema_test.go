@@ -38,7 +38,7 @@ func embeddingsPackage() datapackage.Package {
 	return datapackage.Package{
 		Name:       "cc-news-embeddings",
 		Version:    "938b2254",
-		ProducedBy: &datapackage.ProducedBy{Tool: "scripts/embed_corpus.py", Version: "1", Commit: "c4ecbe3"},
+		ProducedBy: &datapackage.ProducedBy{Tool: "scripts/embed_corpus.py"},
 		Embedding: &datapackage.Embedding{
 			Model: "qwen3-embedding:0.6b", HuggingFaceModel: "Qwen/Qwen3-Embedding-0.6B", Revision: "abc123",
 			Tag: "qwen3-embedding:0.6b@1024", Dim: 1024, Recipe: "lead-v1", Pooling: "last_token",
@@ -64,7 +64,7 @@ func representativePackages() map[string]datapackage.Package {
 			ArticleSchema: datapackage.ArticleSchema,
 			Language:      "eng",
 			IDStrategy:    &datapackage.IDStrategy{Kind: "uuidv5", Source: "url", Namespace: "6ba7b811-9dad-11d1-80b4-00c04fd430c8"},
-			ProducedBy:    &datapackage.ProducedBy{Tool: "datapipe preprocess", Commit: "c4ecbe3"},
+			ProducedBy:    &datapackage.ProducedBy{Tool: "datapipe preprocess"},
 			Report:        &datapackage.Report{Read: 10, Written: 7, Deduped: 1, Dropped: map[string]int64{"invalid_url": 2}},
 			Sources:       []datapackage.Source{{Title: "Hugging Face vblagoje/cc_news", Path: "https://huggingface.co/datasets/vblagoje/cc_news", Version: "81eb2ce"}},
 			Resources:     []datapackage.Resource{{Name: datapackage.ArticlesResource, Path: "articles.parquet", Format: "parquet"}},
@@ -170,6 +170,9 @@ func TestDescriptorSchemaRejectsKeysTheContractDoesNotList(t *testing.T) {
 		}},
 		{"retired mapping hash", "mapping", func(doc map[string]any) {
 			doc["mapping"] = map[string]any{"path": "mapping.yaml", "hash": "sha256:" + zeros64}
+		}},
+		{"retired producedBy commit", "commit", func(doc map[string]any) {
+			doc["producedBy"] = map[string]any{"tool": "scripts/embed_corpus.py", "commit": "c4ecbe3"}
 		}},
 		{"retired suite hash", "hash", func(doc map[string]any) {
 			doc["suite"] = map[string]any{"id": "cc-news-fts", "hash": "sha256:" + zeros64}
