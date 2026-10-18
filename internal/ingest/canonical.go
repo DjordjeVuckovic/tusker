@@ -15,7 +15,6 @@ type CanonicalWriter interface {
 	Close() error
 }
 
-// JsonlCanonicalWriter writes one document.Article JSON object per line.
 type JsonlCanonicalWriter struct {
 	enc *json.Encoder
 }
@@ -39,9 +38,7 @@ func (j *JsonlCanonicalWriter) Close() error {
 	return nil
 }
 
-// parquetArticle is the flat parquet shape of document.Article. Columns carry
-// the article's JSON keys, so one direct mapper reads both formats, and
-// metadata is a JSON string column.
+// parquetArticle columns use the JSON keys, so one direct mapper reads both formats.
 type parquetArticle struct {
 	ID              string `parquet:"id"`
 	URL             string `parquet:"url"`

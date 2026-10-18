@@ -11,8 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// ArticleColumns is the article projection every query selects and the indexer
-// writes, in the order scanArticle expects.
+// ArticleColumns must stay in scanArticle's scan order.
 var ArticleColumns = []string{
 	"id", "url", "title", "description", "content", "published_at",
 	"language", "publisher_domain", "metadata",
@@ -30,8 +29,7 @@ func ArticleColumnList(alias string) string {
 	return strings.Join(qualified, ", ")
 }
 
-// scanArticle reads one row projected by ArticleColumns. Trailing targets, such
-// as a score or a window count, are scanned after the article columns.
+// scanArticle scans trailing targets after the article columns.
 func scanArticle(rows pgx.Rows, trailing ...any) (document.Article, error) {
 	var article document.Article
 	var publishedAt *time.Time
@@ -63,7 +61,6 @@ func scanArticle(rows pgx.Rows, trailing ...any) (document.Article, error) {
 	return article, nil
 }
 
-// ScanArticle reads one row projected by ArticleColumns into a DTO.
 func ScanArticle(rows pgx.Rows, trailing ...any) (*dto.Article, error) {
 	article, err := scanArticle(rows, trailing...)
 	if err != nil {

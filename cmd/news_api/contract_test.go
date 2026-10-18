@@ -71,7 +71,6 @@ func articlesWhere(field func(document.Article) string, text string) []uuid.UUID
 	return ids
 }
 
-// contractText is the text of every field a search may match.
 func contractText(a document.Article) string {
 	return strings.Join([]string{a.Title, a.Description, a.Content}, " ")
 }

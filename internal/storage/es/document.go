@@ -15,8 +15,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// ArticleDocument is an article as Elasticsearch stores it. The embedding
-// fields are written separately, by the embedder.
+// ArticleDocument omits the embedding fields, which the embedder writes.
 type ArticleDocument struct {
 	ID              string            `json:"id"`
 	URL             string            `json:"url"`
@@ -59,7 +58,6 @@ func (d ArticleDocument) toArticle() (document.Article, error) {
 	return article, nil
 }
 
-// decodeArticle reads a hit's _source into the API shape.
 func decodeArticle(source json.RawMessage) (dto.Article, error) {
 	var doc ArticleDocument
 	if err := json.Unmarshal(source, &doc); err != nil {
@@ -129,8 +127,7 @@ func (b *IndexBuilder) buildMapping() types.TypeMapping {
 	}
 }
 
-// storedOnlyObject keeps an object in _source without indexing or mapping any
-// of its fields, so a new metadata key never grows the mapping.
+// storedOnlyObject is unmapped, so a new metadata key never grows the mapping.
 func storedOnlyObject() *types.ObjectProperty {
 	p := types.NewObjectProperty()
 	enabled := false

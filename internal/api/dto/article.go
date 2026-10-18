@@ -55,8 +55,6 @@ func NewArticle(a document.Article) Article {
 	}
 }
 
-// optionalTime maps the zero time to an absent value on the wire, so the API
-// never reports a year-1 date.
 func optionalTime(t time.Time) *time.Time {
 	if t.IsZero() {
 		return nil

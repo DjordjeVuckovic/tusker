@@ -1,5 +1,4 @@
-// Package language names the analysis language of a corpus and the text
-// analysis each engine runs for it.
+// Package language maps a corpus language to each engine's text analysis.
 package language
 
 import "fmt"
@@ -9,7 +8,6 @@ type Code string
 
 const English Code = "eng"
 
-// Analysis names the text analysis each engine applies to one language.
 type Analysis struct {
 	PostgresConfig        string
 	ParadeTokenizer       string

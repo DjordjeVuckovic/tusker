@@ -116,8 +116,7 @@ func decodeJSONLine(line []byte) (map[string]string, error) {
 			slog.Info("skipping null value")
 			// skip null values
 		case map[string]any, []any:
-			// Nested values stay JSON, so a canonical metadata object survives
-			// the trip through a flat record.
+			// Nested values stay JSON so canonical metadata survives a flat record.
 			nested, err := json.Marshal(s)
 			if err != nil {
 				return nil, fmt.Errorf("failed to re-encode %q: %w", k, err)

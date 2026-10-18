@@ -8,8 +8,6 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 )
 
-// partialFields cannot match content apart from the other fields and has no
-// typo tolerance; Elasticsearch honours every parameter.
 var (
 	partialFields = Capabilities{
 		Engine:          "partial",

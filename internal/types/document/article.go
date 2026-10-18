@@ -7,9 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Article is one canonical news article. A field gets its own column on every
-// engine only when an engine filters, sorts or ranks on it; everything else
-// lives in Metadata.
+// Article holds only fields an engine filters, sorts or ranks on; the rest go in Metadata.
 type Article struct {
 	ID              uuid.UUID     `json:"id"`
 	URL             string        `json:"url"`
@@ -24,7 +22,7 @@ type Article struct {
 
 // Metadata is stored and returned, never searched.
 type Metadata struct {
-	// ExternalID is the source dataset's id for the row, kept to trace it back.
+	// ExternalID is the source dataset's own id.
 	ExternalID    string         `json:"externalId,omitempty"`
 	PublisherName string         `json:"publisherName,omitempty"`
 	Authors       []string       `json:"authors,omitempty"`

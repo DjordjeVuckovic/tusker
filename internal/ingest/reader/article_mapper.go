@@ -138,8 +138,7 @@ func isBlank(converted any) bool {
 	}
 }
 
-// ArticleDirectMapper reads records that are already canonical: the JSON keys
-// of document.Article, with metadata as a JSON object.
+// ArticleDirectMapper reads records already in canonical form.
 type ArticleDirectMapper struct{}
 
 func NewArticleDirectMapper() *ArticleDirectMapper {
