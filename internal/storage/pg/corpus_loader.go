@@ -93,6 +93,9 @@ func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts st
 	if err != nil {
 		return storage.LoadRecord{}, err
 	}
+	if len(ids) == 0 {
+		return storage.LoadRecord{}, errors.New("corpus has no articles")
+	}
 	record.Articles = int64(len(ids))
 
 	if c.Vectors != nil {

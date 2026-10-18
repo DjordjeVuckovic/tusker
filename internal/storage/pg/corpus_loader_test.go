@@ -180,6 +180,27 @@ func TestCorpusLoader(t *testing.T) {
 				}
 			})
 
+			t.Run("refuses an empty corpus and leaves the database loadable", func(t *testing.T) {
+				db := newDatabase(t, server.ConnString)
+
+				_, err := load(t, db, engine, corpusOf([]document.Article{}, nil), storage.LoadOptions{BatchSize: 500})
+
+				require.ErrorContains(t, err, "corpus has no articles")
+				var recorded bool
+				query(t, db, func(conn *pgx.Conn) error {
+					return conn.QueryRow(context.Background(), "SELECT EXISTS (SELECT 1 FROM corpus_load)").Scan(&recorded)
+				})
+				assert.False(t, recorded, "the refused load was recorded in corpus_load")
+				present := indexDefinitions(t, db)
+				for _, name := range declaredIndexes[engine] {
+					assert.NotContains(t, present, name)
+				}
+
+				articles, vectors := fixture(10)
+				_, err = load(t, db, engine, corpusOf(articles, vectors), storage.LoadOptions{BatchSize: 500})
+				require.NoError(t, err)
+			})
+
 			t.Run("refuses vectors out of step with the articles and writes nothing", func(t *testing.T) {
 				db := newDatabase(t, server.ConnString)
 				articles, vectors := fixture(corpusSize)
