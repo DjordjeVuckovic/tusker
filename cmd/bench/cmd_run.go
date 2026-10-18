@@ -210,11 +210,13 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	if judgments.meta != nil {
 		rpt.Provenance.Judge = judgments.meta.Judge
 		rpt.Provenance.GradedCount = judgments.meta.GradedCount
+		rpt.Provenance.UnjudgedCount = &judgments.coverage.unjudged
 		rpt.Provenance.PoolRef = judgments.meta.PoolRef
 	}
 	rpt.Settings = report.RunSettings{
 		Warmup:       runCfg.WarmupRuns,
 		Iterations:   runCfg.Runs,
+		QueryTimeout: bs.Runs.QueryTimeout,
 		JobFilter:    jobFilter,
 		LatencyOnly:  f.latencyOnly,
 		EngineParams: declaredEngineParams(bs),

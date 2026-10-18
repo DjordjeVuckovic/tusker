@@ -343,7 +343,7 @@ Judgments resolution order:
 2. `spec.defaults.judgments` (per-track default; a relative path starts at the spec file's folder, like the spec's suite paths)
 3. None → the run fails before measuring anything
 
-A judgments file that does not exist fails the run the same way, as do judgments whose `pool_run_id` is not the current pool's `run_id`. `--latency-only` measures latency without judgments; its report is marked `settings.latency_only` and never becomes `latest.json`.
+A judgments file that does not exist fails the run the same way, as do judgments whose `pool_run_id` is not the current pool's `run_id`. `--latency-only` measures latency without judgments; its report is marked `settings.latency_only` and never becomes `latest.json`. A report's `provenance.unjudged_count` is the number of pooled docs the run found ungraded, not the judge's own count.
 
 Flags:
 - `--jobs pg,es` — run only the named job(s) from the spec (useful during development)
@@ -359,7 +359,7 @@ Elapsed time is printed after the results table.
 
 Every engine is measured under the same rules, so a latency or a failure means the same thing whichever engine produced it.
 
-Each execution, warmup and measured alike, runs under one deadline: `runs.query_timeout` in the spec, 30 s when unset, for every engine type. The runner sets it and no engine client carries a timeout of its own, so a postgres query that runs past it fails the same way an elasticsearch one does. Storing the suite's search templates on an engine is bounded by the same deadline. `bench validate` checks each query under the same deadline. Elasticsearch calls made with no deadline, such as the corpus count, stop at the 30 s default.
+Each execution, warmup and measured alike, runs under one deadline: `runs.query_timeout` in the spec, 30 s when unset, for every engine type. The runner sets it and no engine client carries a timeout of its own, so a postgres query that runs past it fails the same way an elasticsearch one does. Each report records it as `settings.query_timeout`. Storing the suite's search templates on an engine is bounded by the same deadline. `bench validate` checks each query under the same deadline. Elasticsearch calls made with no deadline, such as the corpus count, stop at the 30 s default.
 
 ```yaml
 runs:

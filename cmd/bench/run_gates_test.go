@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -196,6 +197,7 @@ func TestRun_ReportRecordsItsSettings(t *testing.T) {
 	settings := reports[0].Settings
 	assert.Equal(t, 1, settings.Warmup, "spec warmup")
 	assert.Equal(t, 4, settings.Iterations)
+	assert.Equal(t, spec.DefaultQueryTimeout, settings.QueryTimeout, "the spec sets no query_timeout")
 	assert.Equal(t, []string{"a-only"}, settings.JobFilter)
 	assert.Equal(t, map[string]any{"boost": float64(2)}, settings.EngineParams["a"], "a declares boost: 2 in the spec")
 	assert.Equal(t, []int{1, 2}, reports[0].Config.KValues)
@@ -355,4 +357,19 @@ func copyFile(t *testing.T, from, to string) string {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(to, data, 0o644))
 	return to
+}
+
+// The judge's own count misses a doc pooled after it last wrote, so the report
+// records what the run itself found against the pool.
+func TestRun_ReportRecordsTheUnjudgedDocsItFound(t *testing.T) {
+	tr, relevant, other := judgedTrackDocs(t, nil)
+	tr.writePool(t, judgedPoolRunID, map[string][]uuid.UUID{"q1": {relevant, other, uuid.New()}, "q2": {relevant, other}})
+
+	_, err := execute(t, newRunCmd(), tr.dir)
+	require.Error(t, err)
+
+	reports := tr.reports(t)
+	require.Len(t, reports, 1)
+	require.NotNil(t, reports[0].Provenance.UnjudgedCount)
+	assert.Equal(t, 1, *reports[0].Provenance.UnjudgedCount)
 }

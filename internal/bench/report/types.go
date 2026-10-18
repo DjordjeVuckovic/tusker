@@ -196,6 +196,8 @@ func (s LatencyStats) P99() time.Duration { return s.Percentiles[99] }
 type RunSettings struct {
 	Warmup     int `json:"warmup"`
 	Iterations int `json:"iterations"`
+	// QueryTimeout is the deadline each execution ran under.
+	QueryTimeout time.Duration `json:"query_timeout"`
 	// JobFilter is the --jobs selection; empty when the run took every job.
 	JobFilter []string `json:"job_filter,omitempty"`
 	// LatencyOnly marks a run made without judgments: its quality metrics are
