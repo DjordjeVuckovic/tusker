@@ -33,10 +33,6 @@ type Metadata struct {
 	Extra         map[string]any `json:"extra,omitempty"`
 }
 
-func NewArticleID() uuid.UUID {
-	return uuid.New()
-}
-
 // ArticleIDNamespace seeds every derived article id. Changing it changes the id
 // of every article in every corpus built with a derived strategy.
 var ArticleIDNamespace = uuid.MustParse("697bf49f-ca14-4303-83eb-f9d05f7c7c42")
