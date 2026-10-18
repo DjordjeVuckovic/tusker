@@ -22,8 +22,7 @@ import (
 )
 
 const (
-	// refreshIntervalAfterLoad is declared rather than reset to null, so the
-	// interval a search sees is the one this build states, not a vendor default.
+	// Set explicitly, not reset to null, so it is never a vendor default.
 	refreshIntervalAfterLoad = "1s"
 	// taskWaitTimeout stays under DefaultResponseHeaderTimeout.
 	taskWaitTimeout     = "20s"
@@ -33,8 +32,7 @@ const (
 	loadMetaKey         = "load"
 )
 
-// CorpusLoader builds the article index from scratch in a single bulk pass, each
-// article written together with its vector.
+// CorpusLoader builds the article index in one bulk pass.
 type CorpusLoader struct {
 	client *Client
 }
@@ -43,8 +41,6 @@ func NewCorpusLoader(client *Client) *CorpusLoader {
 	return &CorpusLoader{client: client}
 }
 
-// IndexExistsError refuses a load into an index that already exists, since its
-// analyzer and mapping may predate this build. Delete the index to reload it.
 type IndexExistsError struct {
 	Index string
 }
@@ -53,15 +49,12 @@ func (e *IndexExistsError) Error() string {
 	return fmt.Sprintf("index %s already exists: delete it to reload the corpus", e.Index)
 }
 
-// DocumentFailure is one article Elasticsearch did not store, or that could not
-// be encoded for it.
 type DocumentFailure struct {
 	ID     uuid.UUID
 	Reason string
 }
 
-// DocumentsFailedError fails a load in which any article was not stored.
-// Failures holds the first few; Failed counts them all.
+// DocumentsFailedError keeps the first few failures; Failed counts them all.
 type DocumentsFailedError struct {
 	Index    string
 	Failed   int
@@ -84,10 +77,7 @@ func (e *DocumentsFailedError) add(id uuid.UUID, reason string) {
 	}
 }
 
-// LoadCorpus creates the index and fails if it exists, bulk-writes every
-// article with its vector, refreshes, force-merges to one segment and stores
-// the returned record under the index's _meta.load. Any failure deletes the
-// index it created, so a failed load leaves nothing behind.
+// LoadCorpus fails if the index exists, and deletes the index it created on any failure.
 func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts storage.LoadOptions) (record storage.LoadRecord, err error) {
 	index := l.client.indexName
 	if index == "" {
@@ -197,7 +187,6 @@ func (l *CorpusLoader) createIndex(ctx context.Context, lang language.Code) erro
 	return nil
 }
 
-// deleteIndex runs even when ctx is cancelled, since it cleans up after one.
 func (l *CorpusLoader) deleteIndex(ctx context.Context) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
@@ -207,8 +196,6 @@ func (l *CorpusLoader) deleteIndex(ctx context.Context) error {
 	return nil
 }
 
-// refresh restores the refresh interval the load turned off, then checks that
-// search sees exactly the documents the bulk responses reported as stored.
 func (l *CorpusLoader) refresh(ctx context.Context, stored int64) error {
 	index := l.client.indexName
 	restored := types.IndexSettings{RefreshInterval: refreshIntervalAfterLoad}
@@ -228,8 +215,7 @@ func (l *CorpusLoader) refresh(ctx context.Context, stored int64) error {
 	return nil
 }
 
-// forceMerge leaves one segment, so kNN searches a single HNSW graph. The merge
-// runs as a task, since on a full corpus it outlasts any one response timeout.
+// forceMerge leaves one segment so kNN searches a single HNSW graph.
 func (l *CorpusLoader) forceMerge(ctx context.Context) error {
 	index := l.client.indexName
 	res, err := l.client.typed.Indices.Forcemerge().Index(index).
@@ -256,9 +242,7 @@ func (l *CorpusLoader) forceMerge(ctx context.Context) error {
 	return nil
 }
 
-// waitForTask waits in rounds of taskWaitTimeout, each answered before the
-// client's response timeout; Elasticsearch reports an unfinished round as a
-// timeout_exception.
+// Elasticsearch reports a task still running as timeout_exception.
 func (l *CorpusLoader) waitForTask(ctx context.Context, taskID string) error {
 	for {
 		res, err := l.client.typed.Tasks.Get(taskID).WaitForCompletion(true).Timeout(taskWaitTimeout).Do(ctx)
@@ -298,8 +282,7 @@ func (l *CorpusLoader) searchSegments(ctx context.Context) (int, error) {
 	return segments, nil
 }
 
-// declaredSettings reads back every knob the load declared, as the index
-// reports it, so the record shows what was built rather than what was asked.
+// declaredSettings reads the settings back from the index, not from the request.
 func (l *CorpusLoader) declaredSettings(ctx context.Context) (map[string]string, error) {
 	index := l.client.indexName
 	res, err := l.client.typed.Indices.GetSettings().Index(index).FlatSettings(true).Perform(ctx)
@@ -373,7 +356,6 @@ func (l *CorpusLoader) writeLoadRecord(ctx context.Context, record storage.LoadR
 	return nil
 }
 
-// loadedDocument is an article as the loader writes it, with its vector.
 type loadedDocument struct {
 	ArticleDocument
 	Embedding      []float32 `json:"embedding,omitempty"`
@@ -385,9 +367,7 @@ type writeCounts struct {
 	vectors  int64
 }
 
-// writeDocuments zips Articles with Vectors by position. A broken pairing is
-// an error at once; a document that cannot be encoded or is rejected counts as
-// a failure, and any failure fails the load once every article was tried.
+// writeDocuments tries every article before failing on the rejected ones.
 func (l *CorpusLoader) writeDocuments(ctx context.Context, c storage.Corpus, batchSize int) (writeCounts, error) {
 	vectors := vectorZip{modelTag: c.ModelTag}
 	if c.Vectors != nil {
@@ -453,9 +433,7 @@ func (l *CorpusLoader) writeDocuments(ctx context.Context, c storage.Corpus, bat
 	return counts, nil
 }
 
-// vectorZip pairs each article with the vector at its position. A trial
-// embeddings package covers only a prefix of the corpus, so the vectors may end
-// first, and the articles after them carry none.
+// vectorZip pairs by position; a trial package may cover only a prefix of the corpus.
 type vectorZip struct {
 	next     func() (embedding.Vec, error, bool)
 	modelTag string
@@ -506,8 +484,7 @@ type bulkBatch struct {
 	hasVectors []bool
 }
 
-// add uses the create action, so an id that appears twice in the corpus is a
-// rejected document instead of a silent overwrite.
+// The create action rejects a duplicate id instead of overwriting it.
 func (b *bulkBatch) add(id uuid.UUID, doc loadedDocument) error {
 	source, err := json.Marshal(doc)
 	if err != nil {
@@ -521,7 +498,6 @@ func (b *bulkBatch) add(id uuid.UUID, doc loadedDocument) error {
 	return nil
 }
 
-// sendBatch counts each document from its own item in the bulk response.
 func (l *CorpusLoader) sendBatch(ctx context.Context, batch *bulkBatch, counts *writeCounts, failures *DocumentsFailedError) error {
 	res, err := l.client.typed.Bulk().Index(l.client.indexName).Raw(&batch.body).Do(ctx)
 	if err != nil {

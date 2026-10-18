@@ -71,8 +71,7 @@ func decodeArticle(source json.RawMessage) (dto.Article, error) {
 	return dto.NewArticle(article), nil
 }
 
-// The searched text fields rank with BM25 at the parameters tiger's bm25 index
-// declares, rather than at whatever defaults the Elasticsearch version ships.
+// BM25 parameters match tiger's bm25 index.
 const (
 	textSimilarity = "article_bm25"
 	bm25K1         = 1.2
@@ -109,15 +108,7 @@ func newArticleDocument(article document.Article) ArticleDocument {
 	}
 }
 
-// buildSettings declares every index knob the benchmark compares on rather than
-// inheriting Elasticsearch's defaults: one shard, no replica on a single node,
-// and the result window.
-//
-// The analyzer mirrors PostgreSQL's english regconfig: stopwords are removed
-// before stemming, and the stemmer is Snowball, not the Porter stemmer behind
-// the built-in english analyzer, which reduces "news" to "new". The standard
-// tokenizer keeps "don't" whole where PostgreSQL's parser splits it at the
-// apostrophe, so apostrophes become spaces before tokenizing.
+// The analyzer mirrors PostgreSQL's english regconfig: Snowball stemming, split on apostrophes.
 func (b *IndexBuilder) buildSettings() types.IndexSettings {
 	shards, replicas, maxResultWindow := "1", "0", 10001
 	k1, lengthNormalization := types.Float64(bm25K1), types.Float64(bm25B)

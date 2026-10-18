@@ -400,7 +400,6 @@ func cmpDocuments(got, want storedDocument) string {
 	return ""
 }
 
-// fetchByID reads the articles' documents back with _mget, keyed by _id.
 func fetchByID(t *testing.T, address, index string, articles []document.Article) map[string]storedDocument {
 	t.Helper()
 	ids := make([]string, len(articles))
@@ -428,8 +427,6 @@ func fetchByID(t *testing.T, address, index string, articles []document.Article)
 	return stored
 }
 
-// recordingProxy forwards to Elasticsearch and keeps the _source of every
-// search hit that passes through it.
 func recordingProxy(t *testing.T, address string) (string, *[]map[string]any) {
 	t.Helper()
 	target, err := url.Parse(address)
@@ -441,7 +438,7 @@ func recordingProxy(t *testing.T, address string) (string, *[]map[string]any) {
 	forward := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		forward(req)
-		// Asked for gzip, Elasticsearch would answer a body this proxy cannot read.
+		// The proxy cannot read a gzipped body.
 		req.Header.Del("Accept-Encoding")
 	}
 	proxy.ModifyResponse = func(res *http.Response) error {
@@ -511,8 +508,7 @@ func testArticles(n int) []document.Article {
 	return articles
 }
 
-// vectorFor encodes the article's position in every component, so a vector
-// stored on the wrong document is told apart from its own.
+// vectorFor is unique per article, so a vector on the wrong document shows.
 func vectorFor(i int) []float32 {
 	v := make([]float32, EmbeddingDims)
 	for j := range v {
@@ -543,9 +539,7 @@ func corpusOf(articles []document.Article, vecs []embedding.Vec) storage.Corpus 
 	return c
 }
 
-// refreshingMidway refreshes the index halfway through the articles, after the
-// first half was sent, so the load has more than one segment to merge, as a
-// full corpus does once Elasticsearch flushes its indexing buffer.
+// refreshingMidway leaves a second segment, as a full corpus has, so force-merge has work.
 func refreshingMidway(t *testing.T, address, index string, articles []document.Article) iter.Seq2[document.Article, error] {
 	return func(yield func(document.Article, error) bool) {
 		for i, a := range articles {

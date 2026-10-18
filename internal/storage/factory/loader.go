@@ -9,14 +9,12 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
 )
 
-// LoaderConfig selects the engine a corpus is loaded into and how to reach it.
 type LoaderConfig struct {
 	Engine storage.Type
 	Es     *es.ClientConfig
 }
 
-// NewCorpusLoader returns the engine's loader and a func that releases its
-// connections.
+// NewCorpusLoader returns the loader and a func that closes its client.
 func NewCorpusLoader(_ context.Context, cfg LoaderConfig) (storage.CorpusLoader, func(), error) {
 	switch cfg.Engine {
 	case storage.ES:

@@ -1,8 +1,6 @@
 package es
 
-// PostgresEnglishStopwords is PostgreSQL 18's Snowball English stopword list
-// (tsearch_data/english.stop), in file order. The analyzer drops exactly these
-// words so Elasticsearch and the english regconfig index the same terms.
+// PostgresEnglishStopwords is PostgreSQL 18's tsearch_data/english.stop.
 var PostgresEnglishStopwords = []string{
 	"i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your",
 	"yours", "yourself", "yourselves", "he", "him", "his", "himself", "she", "her", "hers",
