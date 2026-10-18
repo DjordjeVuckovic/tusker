@@ -36,12 +36,8 @@ func createExecutors(ctx context.Context, bs *spec.BenchSpec) (map[string]engine
 	return engine.CreateFromSpec(ctx, bs.Engines)
 }
 
-// buildQueryVectorStore builds the vector store validate/pool/run use to
-// embed queries for vector/hybrid tracks. A track holding a query-vectors
-// package is served from it, with no live embedder; otherwise queries are
-// embedded through Ollama, borrowing a postgres engine's connection. Returns a
-// nil store when there is no package and EMBEDDING_BASE_URL is unset or the
-// spec has no postgres engine. The returned close func is always callable.
+// buildQueryVectorStore prefers the track's query-vectors package over live
+// Ollama embedding; the store is nil when neither is available.
 func buildQueryVectorStore(ctx context.Context, bs *spec.BenchSpec, tr *trackctx.Track) (storage.VectorStore, func(), error) {
 	noop := func() {}
 	packageDir := filepath.Join(tr.Root, "trec", "query-vectors")
@@ -70,8 +66,6 @@ func buildQueryVectorStore(ctx context.Context, bs *spec.BenchSpec, tr *trackctx
 	return store, noop, err
 }
 
-// openQueryVectors opens the track's query-vectors package against the one
-// suite its jobs run and the embedding_model its engines declare.
 func openQueryVectors(ctx context.Context, bs *spec.BenchSpec, packageDir string) (storage.VectorStore, func(), error) {
 	noop := func() {}
 	suitePath, err := jobSuite(bs)
@@ -100,8 +94,6 @@ func openQueryVectors(ctx context.Context, bs *spec.BenchSpec, packageDir string
 	return store, closePool, nil
 }
 
-// jobSuite is the suite every job runs. A query-vectors package is embedded
-// from one suite, so jobs running another could not be served from it.
 func jobSuite(bs *spec.BenchSpec) (string, error) {
 	var suitePath string
 	for _, job := range bs.Jobs {
@@ -143,9 +135,6 @@ func postgresConnection(bs *spec.BenchSpec) string {
 	return ""
 }
 
-// requireEmbedder fails when the track's kind needs query vectors but no store
-// was built, so a semantic/hybrid track fails once up front instead of once
-// per vector query.
 func requireEmbedder(bs *spec.BenchSpec, store storage.VectorStore) error {
 	if !bs.Kind.RequiresEmbedder() || store != nil {
 		return nil

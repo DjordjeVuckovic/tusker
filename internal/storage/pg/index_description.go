@@ -25,8 +25,7 @@ type IndexDescription struct {
 	// Settings holds the live value of every connection setting the pool
 	// applied, keyed by setting name.
 	Settings map[string]string `json:"settings,omitempty"`
-	// Load is the latest record in corpus_load; nil when the corpus was not
-	// loaded through it.
+	// Load is nil when corpus_load holds no record.
 	Load *storage.LoadRecord `json:"load,omitempty"`
 }
 
@@ -71,8 +70,7 @@ func DescribeIndexes(ctx context.Context, pool *ConnectionPool) (*IndexDescripti
 	return &description, nil
 }
 
-// readLatestLoad resolves corpus_load through the search path, like the
-// index tables; a schema older than the table has no record to read.
+// readLatestLoad returns nil on a schema older than corpus_load.
 func readLatestLoad(ctx context.Context, conn *pgx.Conn) (*storage.LoadRecord, error) {
 	var hasTable bool
 	if err := conn.QueryRow(ctx, "SELECT to_regclass('corpus_load') IS NOT NULL").Scan(&hasTable); err != nil {

@@ -20,9 +20,7 @@ type VectorStoreConfig struct {
 	// EmbeddingClient embeds query text (the document vectors come from the
 	// store).
 	EmbeddingClient embedding.Client
-	// Model is the name the embedding client is asked for, defaulting to the
-	// embedder default. Document vectors are filtered by the embedder's
-	// model@dim tag, so query and document vectors stay comparable.
+	// Model defaults to embedding.DefaultModel.
 	Model string
 }
 

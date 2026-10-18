@@ -13,8 +13,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// lengthClient embeds a text as {1, len(text)}, so a vector, even normalised,
-// can be traced back to the text it came from by the ratio of its components.
+// lengthClient embeds a text as {1, len(text)}.
 type lengthClient struct{}
 
 func (lengthClient) Generate(_ context.Context, req Request) (*Response, error) {
@@ -122,8 +121,7 @@ func TestEmbedDocs_SkipsArticlesWithNothingToEmbed(t *testing.T) {
 	}
 }
 
-// fakeOllama answers /api/embeddings with vector and records the model each
-// request named.
+// fakeOllama records the model each request names.
 func fakeOllama(t *testing.T, vector []float32) (*OllamaClient, *[]string) {
 	t.Helper()
 	var models []string

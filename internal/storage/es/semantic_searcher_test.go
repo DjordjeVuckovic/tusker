@@ -12,8 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// storedTag is how the rebuild tags stored vectors: the Ollama model name the
-// query embedder is configured with, plus the width.
 const storedTag = "qwen3-embedding:0.6b@1024"
 
 // staticEmbedder is an embedding.Client returning a fixed vector.

@@ -6,8 +6,7 @@ import (
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 )
 
-// The records are written in the corpus load record's JSON shape, the way
-// the Postgres loader stores them in corpus_load.
+// The records match what the Postgres loader stores in corpus_load.
 const (
 	olderLoadRecord = `{"engine": "pg-native", "engineVersion": "18.0",
 	  "startedAt": "2026-09-01T10:00:00Z", "finishedAt": "2026-09-01T10:30:00Z",

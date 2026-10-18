@@ -82,9 +82,7 @@ func main() {
 	}
 }
 
-// newQueryEmbedder embeds queries with the model and width the corpus was
-// loaded with (EMBEDDING_MODEL, EMBEDDING_DIM), since the searchers only
-// compare against stored vectors tagged model@dim.
+// newQueryEmbedder must use the model and width the corpus was loaded with.
 func newQueryEmbedder(client embedding.Client, cfg embedding.Config) *embedding.Embedder {
 	var opts []embedding.EmbedderOption
 	if cfg.Model != "" {

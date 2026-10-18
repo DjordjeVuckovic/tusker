@@ -36,8 +36,7 @@ type ObjectStoreConfig struct {
 type Config struct {
 	Enabled bool
 	Source  Source
-	// Model is the name Ollama is asked for; stored vectors are tagged
-	// Model@Dim.
+	// Model is the Ollama model name, without the @dim tag.
 	Model       string
 	Dim         int
 	BaseURL     string
@@ -59,8 +58,7 @@ func LoadConfigFromEnv() (*Config, error) {
 		return nil, errors.New("EMBEDDING_BASE_URL environment variable not set")
 	}
 
-	// The old name meant an optional truncation; reading past it would quietly
-	// store vectors at DefaultDim instead.
+	// Ignoring the old name would quietly store vectors at DefaultDim.
 	if _, set := os.LookupEnv("EMBEDDING_MAX_LENGTH"); set {
 		return nil, errors.New("EMBEDDING_MAX_LENGTH is renamed EMBEDDING_DIM")
 	}
@@ -79,9 +77,6 @@ func LoadConfigFromEnv() (*Config, error) {
 	}, nil
 }
 
-// parseDim reads the width vectors are sliced to. Zero or a negative width
-// would store empty vectors or panic mid-load, after the batch's articles are
-// already written.
 func parseDim(raw string) (int, error) {
 	if raw == "" {
 		return DefaultDim, nil

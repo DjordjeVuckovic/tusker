@@ -16,12 +16,9 @@ import (
 	"github.com/pgvector/pgvector-go"
 )
 
-// The fixture was written by pyarrow the way scripts/embed_queries.py writes
-// one: zstd parquet with query_id, text and embedding, two queries at width
-// 1024, q2 being the unit vector e0.
+// The fixture holds two queries at width 1024; q2 is the unit vector e0.
 const fixtureTag = "qwen3-embedding:0.6b@1024"
 
-// copyFixture copies the fixture track into a temp dir so a test can edit it.
 func copyFixture(t *testing.T) string {
 	t.Helper()
 	dst := t.TempDir()
@@ -95,7 +92,6 @@ func TestQueryVector_AnUnknownTextFailsNamingIt(t *testing.T) {
 	}
 }
 
-// editSuite rewrites the fixture suite's from to to, failing when from is absent.
 func editSuite(t *testing.T, track, from, to string) {
 	t.Helper()
 	suitePath := filepath.Join(track, "suite.yaml")

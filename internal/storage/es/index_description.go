@@ -25,8 +25,7 @@ type IndexDescription struct {
 	// Fields holds the text and dense_vector fields, multi-fields included,
 	// keyed by dotted path.
 	Fields map[string]FieldMapping `json:"fields,omitempty"`
-	// Load is the record the corpus load left under the mapping's _meta.load;
-	// nil when the index was not loaded that way.
+	// Load is nil when the corpus load left no record.
 	Load *storage.LoadRecord `json:"load,omitempty"`
 }
 
@@ -48,8 +47,7 @@ type VectorIndexOptions struct {
 	EfConstruction int    `json:"ef_construction,omitempty"`
 }
 
-// DescribeIndex reads the cluster version, and the analysis settings, text and
-// vector field mappings and load record of cfg.IndexName.
+// DescribeIndex records how cfg.IndexName was configured and loaded.
 func DescribeIndex(ctx context.Context, cfg ClientConfig) (*IndexDescription, error) {
 	client, err := newTypedClient(cfg)
 	if err != nil {

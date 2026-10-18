@@ -9,8 +9,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 )
 
-// loadRecord is written in the corpus load record's JSON shape, the way the
-// Elasticsearch loader stores it under the index mapping's _meta.load.
+// loadRecord matches what the Elasticsearch loader stores under _meta.load.
 const loadRecord = `{"engine": "elasticsearch", "engineVersion": "8.12.0",
   "startedAt": "2026-10-01T11:00:00Z", "finishedAt": "2026-10-01T11:20:00Z",
   "canonical": {"name": "cc-news", "version": "article-v2-601d5476", "resourceHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222"},

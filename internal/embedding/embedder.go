@@ -17,13 +17,10 @@ import (
 // Its vector would be the same for every such article and match any query alike.
 var ErrNothingToEmbed = errors.New("article has no title or description to embed")
 
-// DefaultDim is the width vectors are sliced to when none is configured,
-// Qwen3-Embedding-0.6B's native width.
+// DefaultDim is Qwen3-Embedding-0.6B's native width.
 const DefaultDim = 1024
 
-// Embedder embeds text through an Ollama-compatible Client. Ollama is asked
-// for the plain model; every vector comes back sliced to the configured width,
-// L2-normalised, and tagged model@dim.
+// Embedder slices every vector to its width, L2-normalises it, and tags it model@dim.
 type Embedder struct {
 	model string
 	dim   int
@@ -65,14 +62,11 @@ func WithDim(dim int) EmbedderOption {
 	}
 }
 
-// Model is the tag stored vectors carry and every vector filter matches:
-// the model name with the width, as qwen3-embedding:0.6b@1024.
+// Model returns the model@dim tag, e.g. qwen3-embedding:0.6b@1024.
 func (e *Embedder) Model() string {
 	return fmt.Sprintf("%s@%d", e.model, e.dim)
 }
 
-// fit slices a model output to the embedder's width and L2-normalises it, so
-// a vector tagged @dim always has dim components and unit length.
 func (e *Embedder) fit(raw []float32) ([]float32, error) {
 	if len(raw) < e.dim {
 		return nil, fmt.Errorf("model %s returned %d dimensions, want at least %d", e.model, len(raw), e.dim)

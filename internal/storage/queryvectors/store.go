@@ -1,5 +1,4 @@
-// Package queryvectors serves a bench track's precomputed query vectors from
-// its query-vectors data package, so a run needs no live query embedder.
+// Package queryvectors serves a bench track's precomputed query vectors.
 package queryvectors
 
 import (
@@ -15,20 +14,18 @@ import (
 	"github.com/parquet-go/parquet-go"
 )
 
-// Options locates a query-vectors package and what it must agree with.
 type Options struct {
 	// Package is the package directory or descriptor location.
 	Package string
-	// Suite is the suite.yaml the bench runs.
+	// Suite is the suite.yaml path.
 	Suite string
-	// Model is the embedding tag the spec declares as embedding_model.
+	// Model is the model@dim tag the package must carry.
 	Model string
 	// Postgres serves document vectors; nil leaves DocVectors refusing.
 	Postgres *pg.ConnectionPool
 }
 
-// Store is a storage.VectorStore whose query vectors come from a package and
-// whose document vectors come from Postgres, filtered by the package's tag.
+// Store serves query vectors from the package and document vectors from Postgres.
 type Store struct {
 	location string
 	tag      string
@@ -46,8 +43,7 @@ func (e *UnknownQueryError) Error() string {
 	return fmt.Sprintf("query-vectors package %s has no vector for query text %q", e.Package, e.Text)
 }
 
-// StaleQueryError reports a suite query the package holds no vector for, or
-// one it embedded from a text the suite no longer has.
+// StaleQueryError reports a suite query whose vector is missing or outdated.
 type StaleQueryError struct {
 	Package string
 	QueryID string
@@ -73,7 +69,7 @@ type row struct {
 	Embedding []float32 `parquet:"embedding,list"`
 }
 
-// Open reads and verifies the package and loads its vectors.
+// Open returns *StaleQueryError when the suite and package disagree.
 func Open(ctx context.Context, opts Options) (*Store, error) {
 	opened, err := datapackage.Open(ctx, opts.Package)
 	if err != nil {
@@ -103,8 +99,7 @@ func Open(ctx context.Context, opts Options) (*Store, error) {
 	return store, nil
 }
 
-// checkSuiteQueries compares each query's description, the text the runner
-// asks QueryVector for, with the text its row was embedded from.
+// checkSuiteQueries compares descriptions, the text the runner looks vectors up by.
 func checkSuiteQueries(location string, rows packageRows, suitePath string) error {
 	loaded, err := suite.LoadFromFile(suitePath)
 	if err != nil {

@@ -134,8 +134,6 @@ func DiffProvenance(before, after *Report) []ProvenanceChange {
 	return changes
 }
 
-// addLoadFields records which packages the corpus was loaded from, so two
-// runs over different loads never read as the same index.
 func addLoadFields(add func(name, value string), load *storage.LoadRecord) {
 	if load == nil {
 		return

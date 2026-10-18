@@ -4,8 +4,7 @@ import (
 	"context"
 )
 
-// DefaultModel is the Ollama model used when none is configured. Stored
-// vectors carry it with their width, as Embedder.Model reports.
+// DefaultModel is the Ollama model used when none is configured.
 const DefaultModel = "qwen3-embedding:0.6b"
 
 type Request struct {
