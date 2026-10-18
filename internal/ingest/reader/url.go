@@ -18,6 +18,7 @@ func NormalizeURL(raw string) (string, bool) {
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return "", false
 	}
+	u.Host = strings.ToLower(u.Host)
 	return u.String(), true
 }
 

@@ -441,7 +441,7 @@ func TestPreprocess_DerivesEachIDFromTheNormalisedURL(t *testing.T) {
 func TestPreprocess_KeepsTheFirstOfRecordsSharingAURL(t *testing.T) {
 	run := newPreprocessRun(t, ccNewsLikeMapping,
 		csvFile("a.csv", "title,text,url\nFirst,Body,https://example.com/story\nOther,Body,https://example.com/other\n"),
-		csvFile("b.csv", "title,text,url\nRepeat,Body, https://example.com/story\nAgain,Body,https://example.com/other\n"),
+		csvFile("b.csv", "title,text,url\nRepeat,Body, https://Example.COM/story\nAgain,Body,https://example.com/other\n"),
 	)
 
 	require.NoError(t, run.execute(t.Context()))
@@ -455,11 +455,12 @@ func TestPreprocess_KeepsTheFirstOfRecordsSharingAURL(t *testing.T) {
 
 func TestPreprocess_DerivesThePublisherDomainFromTheURL(t *testing.T) {
 	tests := []struct {
-		url  string
-		want string
+		url    string
+		stored string
+		want   string
 	}{
 		{url: "https://uk.reuters.com/world/storm", want: "reuters.com"},
-		{url: "https://WWW.Reuters.com/markets", want: "reuters.com"},
+		{url: "https://WWW.Reuters.com/markets", stored: "https://www.reuters.com/markets", want: "reuters.com"},
 		{url: "https://news.bbc.co.uk/1", want: "bbc.co.uk"},
 		{url: "https://x.blogspot.com/post", want: "x.blogspot.com"},
 		{url: "http://192.168.0.7/feed", want: "192.168.0.7"},
@@ -477,7 +478,11 @@ func TestPreprocess_DerivesThePublisherDomainFromTheURL(t *testing.T) {
 	_, rows := readArticles(t, run.packageDir(t))
 	for _, tt := range tests {
 		t.Run(tt.url, func(t *testing.T) {
-			assert.Equal(t, tt.want, rows.byURL[tt.url].PublisherDomain)
+			stored := tt.url
+			if tt.stored != "" {
+				stored = tt.stored
+			}
+			assert.Equal(t, tt.want, rows.byURL[stored].PublisherDomain)
 		})
 	}
 }
