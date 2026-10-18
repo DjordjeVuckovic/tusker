@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -230,8 +231,53 @@ func (in *loadInputs) open(ctx context.Context, opts loadOptions) error {
 		if in.vectors, err = in.embeddings.Resource(ctx, datapackage.EmbeddingsResource); err != nil {
 			return fmt.Errorf("verify embeddings package %s: %w", in.embeddings.Package.Name, err)
 		}
+		if !opts.Trial {
+			return in.refusePartialVectors(ctx)
+		}
 	}
 	return nil
+}
+
+func (in *loadInputs) refusePartialVectors(ctx context.Context) error {
+	vectors, err := parquet.OpenFile(in.vectors, in.vectors.Size())
+	if err != nil {
+		return fmt.Errorf("read embeddings package %s: %w", in.embeddings.Package.Name, err)
+	}
+	articles, err := countArticles(ctx, in.articles, in.articlesFormat)
+	if err != nil {
+		return fmt.Errorf("count articles of canonical package %s: %w", in.canonical.Package.Name, err)
+	}
+	if vectors.NumRows() < articles {
+		return fmt.Errorf("embeddings package %s holds %d vectors for %d articles; pass --trial to load a partial package",
+			in.embeddings.Package.Name, vectors.NumRows(), articles)
+	}
+	return nil
+}
+
+// countArticles reads JSONL through a section, so the load still reads it from the start.
+func countArticles(ctx context.Context, file *datapackage.ResourceFile, format string) (int64, error) {
+	switch format {
+	case "parquet":
+		articles, err := parquet.OpenFile(file, file.Size())
+		if err != nil {
+			return 0, err
+		}
+		return articles.NumRows(), nil
+	case "jsonl":
+		scanner := bufio.NewScanner(io.NewSectionReader(file, 0, file.Size()))
+		scanner.Buffer(make([]byte, reader.BufferSize), reader.BufferSize)
+		var n int64
+		for scanner.Scan() {
+			if err := ctx.Err(); err != nil {
+				return 0, err
+			}
+			if len(scanner.Bytes()) > 0 {
+				n++
+			}
+		}
+		return n, scanner.Err()
+	}
+	return 0, fmt.Errorf("canonical resource format %q: want parquet or jsonl", format)
 }
 
 func describedResource(pkg datapackage.Package, name string) (datapackage.Resource, error) {

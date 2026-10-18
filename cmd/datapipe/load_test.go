@@ -122,6 +122,24 @@ func TestLoad(t *testing.T) {
 				assert.Equal(t, int64(limit), written[0].Vectors)
 			})
 
+			t.Run("refuses embeddings for only some articles before touching the database", func(t *testing.T) {
+				for _, format := range []string{"parquet", "jsonl"} {
+					t.Run(format, func(t *testing.T) {
+						db := newLoadDatabase(t, server.ConnString)
+						root := t.TempDir()
+						articles := loadFixtureArticles(20)
+						canonical := writeCanonicalPackageAs(t, root, articles, format)
+						short := writeEmbeddingsPackage(t, root, canonical, articles[:5], nil)
+
+						err := execDatapipe(t, db, "load", "--engine", string(engine),
+							"--canonical", canonical.location, "--embeddings", short.location)
+
+						require.ErrorContains(t, err, "5 vectors for 20 articles")
+						assert.False(t, loadedTableExists(t, db, "articles"))
+					})
+				}
+			})
+
 			t.Run("skip-index loads the rows without indexes or a record", func(t *testing.T) {
 				db := newLoadDatabase(t, server.ConnString)
 				root := t.TempDir()
@@ -164,6 +182,17 @@ func TestLoad_RefusesBeforeReachingAnEngine(t *testing.T) {
 		err := execDatapipe(t, "", "load", "--engine", "es", "--canonical", canonical.location, "--embeddings", trial.location)
 
 		require.ErrorContains(t, err, "--trial")
+	})
+
+	t.Run("embeddings for only some articles, on every engine", func(t *testing.T) {
+		root := t.TempDir()
+		articles := loadFixtureArticles(20)
+		canonical := writeCanonicalPackage(t, root, articles)
+		short := writeEmbeddingsPackage(t, root, canonical, articles[:5], nil)
+
+		err := execDatapipe(t, "", "load", "--engine", "es", "--canonical", canonical.location, "--embeddings", short.location)
+
+		require.ErrorContains(t, err, "5 vectors for 20 articles")
 	})
 
 	t.Run("an engine without a loader", func(t *testing.T) {
