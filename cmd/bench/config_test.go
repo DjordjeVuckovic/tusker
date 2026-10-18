@@ -124,3 +124,47 @@ func TestBuildQueryVectorStore_OllamaStoreTagsTheConfiguredWidth(t *testing.T) {
 
 	require.NoError(t, runner.VerifyEmbeddingModel(bs.Engines, store))
 }
+
+func TestBuildQueryVectorStore_RefusesAPackageItCannotCheck(t *testing.T) {
+	t.Setenv("EMBEDDING_BASE_URL", "")
+	declaring := func(model string) spec.Engine {
+		return spec.Engine{Type: spec.EngineElasticsearch, Params: map[string]any{"embedding_model": model}}
+	}
+	tests := []struct {
+		name    string
+		spec    func(track string) *spec.BenchSpec
+		wantErr string
+	}{
+		{
+			name: "jobs run two suites",
+			spec: func(track string) *spec.BenchSpec {
+				return &spec.BenchSpec{
+					Engines: map[string]spec.Engine{"es": declaring(queryVectorsFixtureTag)},
+					Jobs:    []spec.Job{{Suite: filepath.Join(track, "suite.yaml")}, {Suite: filepath.Join(track, "other.yaml")}},
+				}
+			},
+			wantErr: "other.yaml",
+		},
+		{
+			name: "engines declare different models",
+			spec: func(track string) *spec.BenchSpec {
+				return &spec.BenchSpec{
+					Engines: map[string]spec.Engine{"a": declaring(queryVectorsFixtureTag), "b": declaring("qwen3-embedding:0.6b@768")},
+					Jobs:    []spec.Job{{Suite: filepath.Join(track, "suite.yaml")}},
+				}
+			},
+			wantErr: "@768",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			track := copyQueryVectorsTrack(t)
+
+			store, closeStore, err := buildQueryVectorStore(context.Background(), tt.spec(track), &trackctx.Track{Root: track})
+			t.Cleanup(closeStore)
+
+			require.ErrorContains(t, err, tt.wantErr)
+			assert.Nil(t, store)
+		})
+	}
+}
