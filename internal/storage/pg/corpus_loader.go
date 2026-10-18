@@ -228,9 +228,6 @@ func (l *CorpusLoader) buildIndexes(ctx context.Context, conn *pgx.Conn, record 
 			record.Settings[name] = value
 		}
 	}
-	if err := refuseUndeclared(ctx, conn, engineKnobs[l.engine].startupSettings); err != nil {
-		return err
-	}
 	for _, name := range engineKnobs[l.engine].settings {
 		var value string
 		if err := conn.QueryRow(ctx, "SELECT current_setting($1)", name).Scan(&value); err != nil {

@@ -43,18 +43,18 @@ var declaredIndexes = map[storage.Engine][]string{
 
 var declaredSettings = map[storage.Engine]map[string]string{
 	storage.PostgresNative: {
-		"maintenance_work_mem":             "1GB",
+		"maintenance_work_mem":             "4GB",
 		"max_parallel_maintenance_workers": "4",
 	},
 	storage.ParadeDB: {
-		"maintenance_work_mem":                     "1GB",
+		"maintenance_work_mem":                     "4GB",
 		"max_parallel_maintenance_workers":         "4",
 		"idx_articles_search.target_segment_count": "1",
 		"idx_articles_search.mutable_segment_rows": "1000",
 		"idx_articles_search.segments":             "1",
 	},
 	storage.Tiger: {
-		"maintenance_work_mem":                   "1GB",
+		"maintenance_work_mem":                   "4GB",
 		"max_parallel_maintenance_workers":       "4",
 		"pg_textsearch.memory_limit":             "2GB",
 		"pg_textsearch.segments_per_level":       "8",

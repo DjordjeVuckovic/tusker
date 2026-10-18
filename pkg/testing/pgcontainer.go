@@ -3,6 +3,7 @@ package testing
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -34,9 +35,13 @@ var engineImages = map[storage.Engine]string{
 	storage.Tiger:          "timescale/timescaledb-ha:pg18",
 }
 
+var indexBuildFlags = []string{"-c", "maintenance_work_mem=4GB", "-c", "max_parallel_maintenance_workers=4"}
+
 // engineServerFlags mirrors the server-start settings in docker-compose.yml.
 var engineServerFlags = map[storage.Engine][]string{
-	storage.Tiger: {"-c", "pg_textsearch.memory_limit=2GB"},
+	storage.PostgresNative: indexBuildFlags,
+	storage.ParadeDB:       indexBuildFlags,
+	storage.Tiger:          append(slices.Clone(indexBuildFlags), "-c", "pg_textsearch.memory_limit=2GB"),
 }
 
 func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {

@@ -1,5 +1,3 @@
-SET maintenance_work_mem = '1GB';
-SET max_parallel_maintenance_workers = 4;
 SET pg_textsearch.segments_per_level = 8;
 SET pg_textsearch.memtable_spill_threshold = 32000000;
 CREATE INDEX idx_articles_bm25 ON articles
