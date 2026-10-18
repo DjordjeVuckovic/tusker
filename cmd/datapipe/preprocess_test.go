@@ -57,8 +57,7 @@ func mappingWith(t *testing.T, old, replacement string) string {
 	return strings.Replace(ccNewsLikeMapping, old, replacement, 1)
 }
 
-// rawShardRow is a raw parquet shard in the shape the Hugging Face mirror
-// lands: published column names, every value a string.
+// rawShardRow is a raw shard as the Hugging Face mirror lands it.
 type rawShardRow struct {
 	Title       string `parquet:"title"`
 	Text        string `parquet:"text"`
@@ -83,8 +82,7 @@ func jsonlFile(name, content string) rawFile {
 	return rawFile{name: name, format: "jsonl", content: []byte(content)}
 }
 
-// parquetFile writes rows two to a row group, so a reader that walks row
-// groups out of order shows up as a reordered corpus.
+// Two rows per row group expose a reader that walks row groups out of order.
 func parquetFile(t *testing.T, name string, rows ...rawShardRow) rawFile {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
@@ -102,12 +100,9 @@ func parquetFile(t *testing.T, name string, rows ...rawShardRow) rawFile {
 
 const hubSource = "https://huggingface.co/datasets/example/news"
 
-// rawVersion is the top-level version the fetch scripts record: the Hugging
-// Face commit sha, or the Kaggle dataset version.
 const rawVersion = "0123abcd"
 
-// writeRawPackage lays out a raw package the way the fetch scripts do. An
-// empty version leaves the descriptor without one, as older fetches did.
+// writeRawPackage omits an empty version, as older fetches did.
 func writeRawPackage(t *testing.T, dir, version string, files ...rawFile) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(dir, 0o755))
@@ -154,7 +149,6 @@ func (r preprocessRun) execute(ctx context.Context, flags ...string) error {
 	return cmd.ExecuteContext(ctx)
 }
 
-// packageDir is the one version folder preprocess wrote under the output root.
 func (r preprocessRun) packageDir(t *testing.T) string {
 	t.Helper()
 	entries, err := os.ReadDir(r.outputRoot)
@@ -171,8 +165,7 @@ func sha256Of(t *testing.T, path string) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// canonicalParquetRow reads the canonical parquet columns by the names the
-// contract gives them, independently of the writer.
+// canonicalParquetRow reads the contract's column names, independently of the writer.
 type canonicalParquetRow struct {
 	ID              string `parquet:"id"`
 	URL             string `parquet:"url"`
@@ -190,8 +183,7 @@ type canonicalRows struct {
 	byURL map[string]document.Article
 }
 
-// readArticles opens the canonical package as a loader would, verifying the
-// resource hash, and decodes every row.
+// readArticles opens the package as a loader would, verifying the resource hash.
 func readArticles(t *testing.T, dir string) (datapackage.Package, canonicalRows) {
 	t.Helper()
 	ctx := context.Background()
@@ -337,8 +329,6 @@ func TestPreprocess_RefusesAChangedMappingRerunIntoTheSameVersion(t *testing.T) 
 	assert.Equal(t, firstHash, sha256Of(t, resourcePath))
 }
 
-// descriptorSchemaPath is the committed descriptor schema every producer's
-// descriptors must pass.
 var descriptorSchemaPath = filepath.Join("..", "..", "api", "datapackage-spec", "datapackage-v1.json")
 
 func validateAgainstDescriptorSchema(t *testing.T, descriptorPath string) error {
@@ -492,8 +482,6 @@ func TestPreprocess_DerivesThePublisherDomainFromTheURL(t *testing.T) {
 	}
 }
 
-// freeze makes a package folder and its files read-only, so any later write
-// into it fails instead of passing unnoticed.
 func freeze(t *testing.T, dir string) {
 	t.Helper()
 	entries, err := os.ReadDir(dir)

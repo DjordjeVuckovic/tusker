@@ -33,10 +33,10 @@ type DataMapper struct {
 	// IdStrategy decides how article ids are produced
 	IdStrategy IdStrategy `json:"idStrategy,omitempty" yaml:"idStrategy,omitempty" description:"How article ids are produced"`
 
-	// Constants holds values written on every article instead of read from a column
+	// Constants are written on every article
 	Constants Constants `json:"constants" yaml:"constants" schema:"required" description:"Values written on every article"`
 
-	// Output decides the format of the canonical package
+	// Output configures the canonical package
 	Output Output `json:"output" yaml:"output" schema:"required" description:"Canonical package output"`
 
 	// FieldMappings defines the field mapping rules
@@ -46,8 +46,7 @@ type DataMapper struct {
 // IdStrategyKind names the ways an article id can be produced.
 type IdStrategyKind string
 
-// IdStrategyUuidV5 derives the id from the normalised url, so the same input
-// always yields the same ids and every engine loads the same ones.
+// IdStrategyUuidV5 derives the id from the normalised url.
 const IdStrategyUuidV5 IdStrategyKind = "uuidv5"
 
 func ParseIdStrategyKind(v string) (IdStrategyKind, error) {
@@ -61,11 +60,11 @@ type IdStrategy struct {
 	// Kind is the id generation strategy
 	Kind string `json:"kind,omitempty" yaml:"kind,omitempty" schema:"enum=uuidv5,default=uuidv5" description:"Id generation strategy"`
 
-	// Source is the column mapped to URL, whose normalised value uuidv5 hashes
+	// Source must be the column mapped to URL
 	Source string `json:"source,omitempty" yaml:"source,omitempty" description:"Source column mapped to URL, hashed by uuidv5; defaults to that column"`
 }
 
-// ResolvedKind reports the strategy to apply, defaulting to uuidv5.
+// ResolvedKind defaults to uuidv5.
 func (s IdStrategy) ResolvedKind() (IdStrategyKind, error) {
 	if s.Kind == "" {
 		return IdStrategyUuidV5, nil
@@ -84,9 +83,8 @@ func (s IdStrategy) validate(urlSource string) error {
 	return nil
 }
 
-// Constants are written on every article of the corpus.
 type Constants struct {
-	// Language is the corpus language every article is analysed in
+	// Language is the ISO 639-3 corpus language
 	Language string `json:"Language" yaml:"Language" schema:"required,enum=eng" description:"ISO 639-3 corpus language written on every article"`
 }
 
@@ -101,7 +99,6 @@ func (c Constants) ResolvedLanguage() (language.Code, error) {
 	return lang, nil
 }
 
-// OutputFormat names the file format of a canonical package's articles.
 type OutputFormat string
 
 const (
@@ -121,7 +118,7 @@ func ParseOutputFormat(v string) (OutputFormat, error) {
 }
 
 type Output struct {
-	// Format is the file format of the canonical articles resource
+	// Format is the articles file format
 	Format string `json:"format" yaml:"format" schema:"required,enum=parquet|jsonl" description:"Canonical articles file format"`
 }
 
@@ -144,7 +141,7 @@ type Metadata struct {
 	Description string `json:"description,omitempty" yaml:"description,omitempty" schema:"maxLength=500" description:"Description of the mapping configuration"`
 }
 
-// SourceType names how a raw value is parsed before it reaches its target.
+// SourceType is how a raw value is parsed.
 type SourceType string
 
 const (
@@ -183,7 +180,7 @@ type FieldMapping struct {
 	Required bool `json:"required,omitempty" yaml:"required,omitempty" schema:"default=false" description:"Whether a record missing this value is dropped; Title and URL must set it"`
 }
 
-// ResolvedSourceType reports the source type, defaulting to string.
+// ResolvedSourceType defaults to string.
 func (fm FieldMapping) ResolvedSourceType() (SourceType, error) {
 	if fm.SourceType == "" {
 		return SourceString, nil
@@ -191,7 +188,6 @@ func (fm FieldMapping) ResolvedSourceType() (SourceType, error) {
 	return ParseSourceType(fm.SourceType)
 }
 
-// IsListTarget reports whether target holds many values split by a separator.
 func IsListTarget(target string) bool {
 	return targets[target].list
 }
@@ -269,8 +265,7 @@ func (fm FieldMapping) validate() error {
 
 const (
 	TargetURL = "URL"
-	// TargetTitle is required so every article yields a non-empty lead-v1
-	// embedding text.
+	// TargetTitle is required so every article has lead-v1 embedding text.
 	TargetTitle = "Title"
 )
 
@@ -285,7 +280,7 @@ var (
 	extraKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)
 )
 
-// targetSpec lists the source types a target accepts; nil accepts any.
+// targetSpec with nil sourceTypes accepts any source type.
 type targetSpec struct {
 	sourceTypes []SourceType
 	list        bool

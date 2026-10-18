@@ -125,8 +125,7 @@ func TestCSVReader_ReadParallel_MalformedRow(t *testing.T) {
 		validResults = append(validResults, res.Record)
 	}
 
-	// We expect one malformed line ("2,OnlyTitle") with missing columns
-	assert.Equal(t, 2, len(validResults))     // 2 valid rows
-	assert.Equal(t, 1, errorCount)            // 1 row caused an error
-	assert.Contains(t, validResults[0], "id") // sanity check
+	assert.Equal(t, 2, len(validResults))
+	assert.Equal(t, 1, errorCount)
+	assert.Contains(t, validResults[0], "id")
 }

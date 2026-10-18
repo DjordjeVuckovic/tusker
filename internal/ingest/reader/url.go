@@ -21,10 +21,7 @@ func NormalizeURL(raw string) (string, bool) {
 	return u.String(), true
 }
 
-// PublisherDomain returns the registrable domain of a normalised url's host
-// by the Public Suffix List, so uk.reuters.com becomes reuters.com while
-// x.blogspot.com, itself under a public suffix, stays whole. A host with no
-// registrable domain, such as an IP address, is returned as is.
+// PublisherDomain follows the Public Suffix List: uk.reuters.com becomes reuters.com.
 func PublisherDomain(normalizedURL string) string {
 	u, err := url.Parse(normalizedURL)
 	if err != nil {

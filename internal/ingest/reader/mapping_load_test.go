@@ -114,9 +114,7 @@ func TestLoadMapping_RejectsAnUnknownKeyByName(t *testing.T) {
 	}
 }
 
-// rejectedMappings are mappings both the Go loader and the published JSON
-// schema must refuse. crossField marks rules that span keys or array items,
-// which the schema generator cannot express; only Go enforces those.
+// crossField marks rules the JSON schema cannot express, so only Go rejects them.
 var rejectedMappings = []struct {
 	name       string
 	doc        string

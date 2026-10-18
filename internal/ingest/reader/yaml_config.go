@@ -18,8 +18,7 @@ func NewYAMLConfigLoader(reader io.Reader) *YAMLConfigLoader {
 	}
 }
 
-// Load decodes the mapping and fails on any key the schema does not define,
-// so a misspelt key cannot silently fall back to a default.
+// Load fails on any key the schema does not define.
 func (cl *YAMLConfigLoader) Load(validate bool) (*datamapping.DataMapper, error) {
 	decoder := yaml.NewDecoder(cl.reader)
 	decoder.KnownFields(true)

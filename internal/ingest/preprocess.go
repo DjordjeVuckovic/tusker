@@ -18,9 +18,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// PreprocessOptions names the raw package to map, the mapping that maps it and
-// the folder that receives canonical/<version>. An empty Version publishes
-// datapackage.DefaultVersion.
+// PreprocessOptions with an empty Version publishes datapackage.DefaultVersion.
 type PreprocessOptions struct {
 	Raw        *datapackage.Opened
 	Mapping    *datamapping.DataMapper
@@ -29,9 +27,7 @@ type PreprocessOptions struct {
 	ProducedBy datapackage.ProducedBy
 }
 
-// Preprocess maps every record of the raw package, in the raw descriptor's
-// resource order, onto an article and publishes the canonical package to
-// OutputRoot/<version>. When that version is already there, it is kept.
+// Preprocess publishes to OutputRoot/<version> and keeps a version already there.
 func Preprocess(ctx context.Context, opts PreprocessOptions) (datapackage.Published, error) {
 	mapper, err := reader.NewArticleMapper(opts.Mapping)
 	if err != nil {
@@ -71,9 +67,7 @@ func Preprocess(ctx context.Context, opts PreprocessOptions) (datapackage.Publis
 	return builder.publish(ctx, opts.OutputRoot, opts.Version, pkg)
 }
 
-// publish builds the package in a staging folder beside its version folder,
-// which datapackage.Publish moves into place only once it is complete, so a
-// failed or cancelled run leaves nothing behind.
+// publish stages the package so a failed or cancelled run leaves nothing behind.
 func (b *canonicalBuilder) publish(ctx context.Context, outputRoot, version string, pkg datapackage.Package) (_ datapackage.Published, err error) {
 	if err := os.MkdirAll(outputRoot, 0o755); err != nil {
 		return datapackage.Published{}, fmt.Errorf("create canonical output folder: %w", err)
@@ -121,7 +115,6 @@ func idStrategyOf(mapping *datamapping.DataMapper) *datapackage.IDStrategy {
 	}
 }
 
-// httpsSources keeps the human provenance a canonical descriptor can carry:
 // Data Package v2 forbids relative paths that leave the package folder.
 func httpsSources(sources []datapackage.Source) []datapackage.Source {
 	var kept []datapackage.Source
@@ -168,9 +161,7 @@ func newCanonicalWriter(w io.Writer, format datamapping.OutputFormat) CanonicalW
 	return NewParquetCanonicalWriter(w)
 }
 
-// canonicalBuilder maps the records of a raw package onto articles and counts
-// them into report. Of records that share an id, the first in source order is
-// kept.
+// canonicalBuilder keeps the first of the records that share an id.
 type canonicalBuilder struct {
 	raw    *datapackage.Opened
 	mapper reader.Mapper

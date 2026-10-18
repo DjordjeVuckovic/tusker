@@ -65,7 +65,6 @@ func (p *ParquetReader) Read() ([]map[string]string, error) {
 	return records, nil
 }
 
-// errStopRecords ends a row group walk once the consumer stops iterating.
 var errStopRecords = errors.New("stop reading records")
 
 func (p *ParquetReader) Records() iter.Seq2[map[string]string, error] {

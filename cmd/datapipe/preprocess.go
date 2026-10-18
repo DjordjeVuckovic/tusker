@@ -22,13 +22,10 @@ import (
 )
 
 type preprocessConfig struct {
-	// InputPath locates the raw package descriptor: a local path, https:// or s3://.
-	InputPath string
-	// OutputPath is the folder that receives <version>/, e.g. datasets/<ds>/canonical.
+	InputPath   string
 	OutputPath  string
 	MappingPath string
-	// Version names the canonical package folder; a rerun into it must yield
-	// the same articles bytes.
+	// A rerun into an existing Version must yield the same articles bytes.
 	Version  string
 	Packages datapackage.Options
 }
@@ -63,8 +60,6 @@ var preprocessMappingExtensions = map[FileExt]struct{}{
 	ExtYAML: {},
 }
 
-// applyPreprocessEnvDefaults fills unset flags from INPUT_PATH, OUTPUT_PATH and
-// MAPPING_CONFIG_PATH.
 func applyPreprocessEnvDefaults(cfg *preprocessConfig) {
 	if err := env.LoadDotEnv(os.Getenv("ENV"), "cmd/datapipe/preprocess.env"); err != nil {
 		slog.Info("Skipping .env environment variables...", "error", err)
@@ -156,8 +151,6 @@ func renderSummary(w io.Writer, result datapackage.Published, elapsed time.Durat
 	}
 }
 
-// dropBreakdown renders drop reasons in a stable order, since map iteration
-// is random.
 func dropBreakdown(drops map[string]int64) string {
 	reasons := make([]string, 0, len(drops))
 	for reason := range drops {

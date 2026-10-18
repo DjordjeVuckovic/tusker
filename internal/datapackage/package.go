@@ -95,7 +95,7 @@ type Ref struct {
 	ResourceHash string `json:"resourceHash"`
 }
 
-// RawRef names the raw package and its source version.
+// RawRef names the raw package a canonical package was built from.
 type RawRef struct {
 	Name    string `json:"name"`
 	Version string `json:"version,omitempty"`

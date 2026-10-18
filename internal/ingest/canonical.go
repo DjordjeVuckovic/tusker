@@ -72,8 +72,7 @@ func toParquetArticle(ar document.Article) (parquetArticle, error) {
 	return row, nil
 }
 
-// canonicalRowGroupRows bounds the rows the writer buffers in memory before it
-// flushes a row group. A fixed size also keeps the file bytes deterministic.
+// A fixed row group size keeps the parquet bytes deterministic.
 const canonicalRowGroupRows = 10_000
 
 type ParquetCanonicalWriter struct {

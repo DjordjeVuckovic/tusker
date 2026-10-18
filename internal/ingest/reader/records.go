@@ -5,14 +5,12 @@ import (
 	"iter"
 )
 
-// RecordReader yields raw records one at a time in source order. A
-// *MalformedRecordError is yielded for a record that cannot be decoded and
-// reading continues; any other error ends the sequence.
+// RecordReader yields records in source order; it keeps going past a
+// *MalformedRecordError, and any other error ends it.
 type RecordReader interface {
 	Records() iter.Seq2[map[string]string, error]
 }
 
-// MalformedRecordError reports one source record that could not be decoded.
 type MalformedRecordError struct {
 	Line int64
 	Err  error

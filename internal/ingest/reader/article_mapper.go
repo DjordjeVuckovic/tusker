@@ -32,8 +32,7 @@ func NewArticleMapper(cfg *datamapping.DataMapper) (*ArticleMapper, error) {
 	return &ArticleMapper{cfg: cfg, language: lang}, nil
 }
 
-// Map returns the article a record maps to, or a *MappingDropError when a
-// required value is missing or invalid.
+// Map returns a *MappingDropError when a required value is missing or invalid.
 func (m *ArticleMapper) Map(record map[string]string) (document.Article, error) {
 	article := document.Article{Language: m.language}
 	val := reflect.ValueOf(&article).Elem()
@@ -98,8 +97,7 @@ func (m *ArticleMapper) convert(raw string, fm datamapping.FieldMapping) (any, e
 	return convertValueToType(raw, string(sourceType), m.cfg.DateFormat)
 }
 
-// splitList keeps the trimmed, non-empty parts of raw. Without a separator the
-// whole value is one element.
+// splitList without a separator keeps raw as one element.
 func splitList(raw, separator string) []string {
 	parts := []string{raw}
 	if separator != "" {
