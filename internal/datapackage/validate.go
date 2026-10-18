@@ -8,8 +8,6 @@ import (
 	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
 )
 
-// validate checks what every package needs before its resources can be
-// trusted. Write also requires a name, which the v2 profile leaves optional.
 func (p Package) validate() error {
 	if p.IDStrategy != nil {
 		if _, err := datamapping.ParseIdStrategyKind(string(p.IDStrategy.Kind)); err != nil {
@@ -41,9 +39,7 @@ func (p Package) validate() error {
 	return nil
 }
 
-// validateResourcePath accepts only slash-separated paths that stay under the
-// descriptor's directory, so a fetched descriptor can never point a reader at
-// an arbitrary local file or another host.
+// validateResourcePath keeps a descriptor from pointing outside its folder.
 func validateResourcePath(p string) error {
 	switch {
 	case p == "":

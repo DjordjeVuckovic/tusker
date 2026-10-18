@@ -36,7 +36,7 @@ SHARD_ONE_HASH = "sha256:f3d5fbb3cceeb15f0b2ba518e95591dd2172e7851eeaa4ae9250adf
 
 @dataclass
 class FakeHub:
-    """Serves one dataset revision: the files are only reachable by commit sha."""
+    """One dataset revision whose files are reachable only by commit sha."""
 
     files: dict[str, bytes] = field(
         default_factory=lambda: {
@@ -64,7 +64,7 @@ class FakeHub:
         return entries
 
     def respond(self, path: str) -> tuple[int, bytes, dict[str, str]]:
-        """Answer like the Hub API, splitting the tree listing over two pages."""
+        """Answer like the Hub API, with the tree listing over two pages."""
         tree = f"/api/datasets/{REPO}/tree/{COMMIT}/plain_text?recursive=true"
         if path == f"/api/datasets/{REPO}/revision/main":
             return 200, json.dumps({"sha": COMMIT}).encode(), {}
@@ -98,7 +98,7 @@ class Server:
 
 
 def serve(respond: Responder) -> Iterator[Server]:
-    """Run respond behind a local HTTP server, recording each Authorization header."""
+    """Serve respond locally, recording each Authorization header."""
     authorizations: list[str | None] = []
 
     class Handler(BaseHTTPRequestHandler):

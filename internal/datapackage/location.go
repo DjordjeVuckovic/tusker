@@ -10,10 +10,7 @@ import (
 	"strings"
 )
 
-// S3Config reaches an S3-compatible store such as R2. With an Endpoint set,
-// requests use path-style addressing, which local S3 emulators need and R2
-// accepts. AccessKey and SecretKey are both set or both empty; empty means
-// unsigned requests.
+// S3Config configures an S3-compatible object store.
 type S3Config struct {
 	Endpoint  string
 	Region    string
@@ -51,9 +48,7 @@ func (opts Options) storeFor(location string) (store, string, error) {
 	}
 }
 
-// splitDescriptor separates a remote slash path into its directory and
-// descriptor file name. Like a local directory, a path not ending in ".json"
-// names a folder whose descriptor is datapackage.json.
+// splitDescriptor reads a path not ending in .json as a folder holding datapackage.json.
 func splitDescriptor(p string) (dir, name string) {
 	if !strings.HasSuffix(p, ".json") {
 		if dir = strings.TrimSuffix(p, "/"); dir != "" {

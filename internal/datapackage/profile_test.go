@@ -24,8 +24,6 @@ func (r ecmaRegexp) MatchString(s string) bool {
 
 func (r ecmaRegexp) String() string { return r.re.String() }
 
-// compileSchema compiles the JSON schema file at path under the resource id
-// its references resolve against.
 func compileSchema(t *testing.T, path, id string) *jsonschema.Schema {
 	t.Helper()
 	raw, err := os.ReadFile(path)
@@ -110,8 +108,7 @@ func fullPackage() datapackage.Package {
 
 const zeros64 = "0000000000000000000000000000000000000000000000000000000000000000"
 
-// The Python producers write the same descriptor without this package, so the
-// property names are checked against the contract's spelling, not the structs.
+// Python producers don't use this package, so names are checked against the contract.
 func TestWrittenDescriptorUsesContractPropertyNames(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "articles.parquet", "not really parquet")

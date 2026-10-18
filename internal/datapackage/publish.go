@@ -10,29 +10,23 @@ import (
 	"strings"
 )
 
-// DefaultVersion names a package published without a version.
 const DefaultVersion = "v1"
 
-// PublishOptions locates a package being published. StagingDir holds the
-// package's resource file and must sit on the same filesystem as ParentDir,
-// since publishing renames it. Version names the folder the package lands in;
-// empty means DefaultVersion.
+// PublishOptions locates a package being published; StagingDir and ParentDir must share a filesystem.
 type PublishOptions struct {
 	StagingDir string
 	ParentDir  string
-	Version    string
+	Version    string // empty means DefaultVersion
 }
 
-// Published is a package in its version folder. Existing reports that the
-// version already held the same bytes, so the staged copy was discarded.
+// Published is a package in its version folder; Existing means it was already there.
 type Published struct {
 	Dir      string
 	Package  Package
 	Existing bool
 }
 
-// VersionConflictError reports a Publish into a version already published
-// with other bytes. Nothing is replaced.
+// VersionConflictError reports a version already published with other bytes.
 type VersionConflictError struct {
 	Dir           string
 	Version       string
@@ -45,12 +39,8 @@ func (e *VersionConflictError) Error() string {
 		e.Version, e.Dir, e.PublishedHash, e.StagedHash)
 }
 
-// Publish writes the descriptor of a single-resource package (canonical or
-// embeddings) in StagingDir and renames StagingDir to
-// ParentDir/<version>. When that version is already published, Publish
-// removes StagingDir and returns the published package if its resource has
-// the same hash, or a *VersionConflictError if not. Raw and query-vectors
-// packages live in fixed folders and use Write instead.
+// Publish moves a staged canonical or embeddings package to ParentDir/<version>.
+// An existing version with the same resource hash is kept; any other is a *VersionConflictError.
 func Publish(ctx context.Context, pkg Package, opts PublishOptions) (Published, error) {
 	if opts.Version == "" {
 		opts.Version = DefaultVersion
@@ -121,13 +111,11 @@ func openPublished(ctx context.Context, dir string) (Published, bool, error) {
 	return Published{Dir: dir, Package: opened.Package, Existing: true}, true, nil
 }
 
-// keepPublished discards the staged copy and returns the published package,
-// unless the two resources differ.
 func keepPublished(staging string, existing Published, staged Package) (Published, error) {
 	if err := os.RemoveAll(staging); err != nil {
 		return Published{}, fmt.Errorf("remove staging %s: %w", staging, err)
 	}
-	// Open has validated that the published package lists at least one resource.
+	// Open guarantees at least one resource.
 	publishedHash := existing.Package.Resources[0].Hash
 	if len(existing.Package.Resources) != 1 || publishedHash != staged.Resources[0].Hash {
 		return Published{}, &VersionConflictError{

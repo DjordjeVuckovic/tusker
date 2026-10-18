@@ -82,8 +82,7 @@ func TestATrialLimitRoundTripsAndIsAbsentOtherwise(t *testing.T) {
 	}
 }
 
-// The embeddings producer writes descriptors in Python, so this one is spelled
-// out from the contract rather than written by Write.
+// Python writes these descriptors, so this one is spelled out by hand.
 func TestOpenDecodesAnEmbeddingsDescriptorFromThePythonProducer(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "embeddings.parquet", "hello\n")

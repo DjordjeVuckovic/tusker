@@ -16,8 +16,6 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
 )
 
-// descriptorSchemaPath is the contract's generated descriptor schema, which
-// the Python producers validate against too.
 var descriptorSchemaPath = filepath.Join("..", "..", "api", "datapackage-spec", "datapackage-v1.json")
 
 func compileDescriptorSchema(t *testing.T) *jsonschema.Schema {
@@ -86,7 +84,6 @@ func representativePackages() map[string]datapackage.Package {
 	}
 }
 
-// writeDescriptor writes pkg with placeholder content for each resource.
 func writeDescriptor(t *testing.T, pkg datapackage.Package) []byte {
 	t.Helper()
 	dir := t.TempDir()
@@ -128,8 +125,7 @@ func edit(t *testing.T, descriptor []byte, change func(doc map[string]any)) []by
 	return edited
 }
 
-// rejectedAsUnknown reports whether err refuses the named property for not
-// being listed, as opposed to some other violation.
+// rejectedAsUnknown reports whether err refuses property as unlisted, not for another reason.
 func rejectedAsUnknown(err error, property string) bool {
 	var validation *jsonschema.ValidationError
 	if !errors.As(err, &validation) {

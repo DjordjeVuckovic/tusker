@@ -10,19 +10,11 @@
   uv run scripts/fetch_kaggle_dataset.py global_news --version 3
   uv run scripts/fetch_kaggle_dataset.py rmisra/news-category-dataset --force
 
-Kaggle serves whatever files the owner uploaded, so there is nothing to project
-or slice. That is why this is separate from fetch_hf_dataset.py, whose sizes,
---mode and --format flags mean nothing against a zip of CSVs.
+Kaggle serves whatever the owner uploaded, so there is nothing to slice;
+--force clears raw/ first.
 
-kagglehub downloads one dataset version into its cache, and the files are
-copied from there into raw/ next to raw/datapackage.json, which records the
-handle, the version and each file's sha256. A file already in raw/ with the
-same hash is kept, and one that differs is refused unless --force, which
-clears raw/ and nothing else.
-
-Credentials: anything kagglehub reads (KAGGLE_USERNAME and KAGGLE_KEY,
-KAGGLE_API_TOKEN, ~/.kaggle/kaggle.json), or the ~/.kaggle/credentials.json
-that `kaggle auth login` writes.
+Credentials: whatever kagglehub reads, or the ~/.kaggle/credentials.json that
+`kaggle auth login` writes.
 """
 
 from __future__ import annotations
@@ -120,13 +112,12 @@ def check_credentials() -> None:
     login = KaggleCredentials.load(KaggleClient())
     if login is None:
         raise SystemExit(CREDENTIALS_HELP)
-    # kagglehub never reads credentials.json, so pass its access token the way
-    # kagglehub reads one. An expired token is refreshed and saved back first.
+    # kagglehub ignores credentials.json; get_access_token refreshes an expired one.
     os.environ["KAGGLE_API_TOKEN"] = login.get_access_token()
 
 
 def version_of(landed: Path) -> str:
-    """kagglehub caches a dataset under .../versions/<n>, the version it resolved."""
+    """kagglehub caches a dataset under .../versions/<n>."""
     match = re.search(r"/versions/(\d+)$", landed.as_posix())
     if not match:
         raise SystemExit(f"cannot tell which version kagglehub fetched into {landed}")
@@ -162,11 +153,7 @@ def recorded_version(raw: Path) -> str | None:
 
 
 def check_resource_path(relative: str) -> None:
-    """Refuse a path internal/datapackage would reject, or a descriptor of its own.
-
-    An uploaded datapackage.json, at any depth, would read as this fetch's
-    provenance and be committed by the datasets/ ignore rules.
-    """
+    """Refuse a path internal/datapackage rejects, or an uploaded datapackage.json."""
     if relative[0] in "./~" or ":" in relative or "\\" in relative:
         raise SystemExit(
             f"{relative}: a data package path cannot start with '.', '/' or '~' or hold ':' or"

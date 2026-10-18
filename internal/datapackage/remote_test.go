@@ -24,9 +24,7 @@ import (
 
 const s3MockImage = "adobe/s3mock:5.2.3@sha256:ab01a6946750f451ca215a47e91030695b260e4003b8a5a6201d25029b8fca92"
 
-// servePackage writes the full package under root/pkg and serves root over
-// TLS, so resource paths must resolve against the descriptor's directory
-// rather than the server root.
+// servePackage serves root over TLS with the package in root/pkg, not at the server root.
 func servePackage(t *testing.T) (root string, written datapackage.Package, srv *httptest.Server) {
 	t.Helper()
 	root = t.TempDir()
@@ -93,8 +91,7 @@ func TestOpenRefusesPlainHTTP(t *testing.T) {
 	}
 }
 
-// startS3Mock serves S3 from Adobe S3Mock, which accepts any credentials, so
-// these tests cover addressing and errors, not request signing.
+// S3Mock accepts any credentials, so these tests don't cover signing.
 func startS3Mock(t *testing.T) *s3.Client {
 	t.Helper()
 	if testing.Short() {
@@ -264,8 +261,7 @@ func TestOpenOverHTTPSServesANestedResource(t *testing.T) {
 	}
 }
 
-// recordingS3 serves root over path-style S3 URLs and records each request's
-// Authorization header.
+// recordingS3 records each request's Authorization header.
 func recordingS3(t *testing.T, root string) (endpoint string, authorizations func() []string) {
 	t.Helper()
 	var (
@@ -287,8 +283,7 @@ func recordingS3(t *testing.T, root string) (endpoint string, authorizations fun
 	}
 }
 
-// ambientAWS sets credentials and a profile that must never reach a request:
-// the profile does not exist, so loading shared config would fail.
+// ambientAWS sets AWS credentials and a missing profile that must never be read.
 func ambientAWS(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "AWSENVKEY")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "AWSENVSECRET")

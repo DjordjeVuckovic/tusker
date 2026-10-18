@@ -186,8 +186,7 @@ func TestPublishStopsOnCancelWithoutPublishing(t *testing.T) {
 	absent(t, filepath.Join(parent, "v1"))
 }
 
-// Discarding a staging folder that contains the parent would delete what is
-// already published there.
+// Discarding such a staging folder would delete the package published inside it.
 func TestPublishRefusesAParentInsideTheStagingFolder(t *testing.T) {
 	ctx := context.Background()
 	staging, pkg := stagedArticles(t, t.TempDir(), "hello\n", "datapipe preprocess")

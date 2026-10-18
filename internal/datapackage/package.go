@@ -1,27 +1,22 @@
-// Package datapackage writes and opens Frictionless Data Package v2
-// descriptors whose resources are verified by sha256 and byte count on every
-// read.
+// Package datapackage reads and writes Frictionless Data Package v2 descriptors.
 package datapackage
 
 import "github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
 
 const (
-	// Profile is the Data Package v2 profile every written descriptor declares.
 	Profile        = "https://datapackage.org/profiles/2.0/datapackage.json"
 	DescriptorName = "datapackage.json"
 	ArticleSchema  = "article/v2"
 )
 
-// Resource names the canonical, embeddings and query-vectors packages use for
-// their data file.
+// Resource names fixed by the contract.
 const (
 	ArticlesResource     = "articles"
 	EmbeddingsResource   = "embeddings"
 	QueryVectorsResource = "query-vectors"
 )
 
-// Package is the descriptor: the Data Package v2 subset in use plus the
-// custom properties shared by the canonical, embeddings and raw packages.
+// Package is a data package descriptor.
 type Package struct {
 	Schema        string      `json:"$schema"`
 	Name          string      `json:"name"`
@@ -38,8 +33,7 @@ type Package struct {
 	Resources     []Resource  `json:"resources" schema:"required,minItems=1"`
 }
 
-// Resource is one file of the package. Path is relative to the descriptor;
-// Hash is "sha256:<hex>".
+// Resource is one file of a package; Path is relative to the descriptor.
 type Resource struct {
 	Name      string `json:"name"`
 	Path      string `json:"path"`
@@ -55,8 +49,7 @@ type Source struct {
 	Version string `json:"version,omitempty"`
 }
 
-// IDStrategy records how article ids were minted. Kind is the mapping's
-// closed set, so an unknown kind fails Write and Open.
+// IDStrategy records how article ids were minted.
 type IDStrategy struct {
 	Kind      datamapping.IdStrategyKind `json:"kind"`
 	Source    string                     `json:"source,omitempty"`
@@ -67,7 +60,7 @@ type ProducedBy struct {
 	Tool string `json:"tool"`
 }
 
-// Report counts rows through the producing stage. Dropped is keyed by reason.
+// Report counts rows through the producing stage; Dropped is keyed by reason.
 type Report struct {
 	Read    int64            `json:"read"`
 	Written int64            `json:"written"`
@@ -75,10 +68,7 @@ type Report struct {
 	Deduped int64            `json:"deduped"`
 }
 
-// Embedding describes how the vectors of an embeddings package were made.
-// MaxTokens caps the model input; Dim is the output width. BatchSize and DType
-// shift output bytes slightly but are not version inputs. Limit is set only on
-// a --limit trial, which loaders refuse unless asked to load one.
+// Embedding describes how vectors were made; Limit is set only on a --limit trial.
 type Embedding struct {
 	Model            string `json:"model"`
 	HuggingFaceModel string `json:"hfModel"`
@@ -94,14 +84,14 @@ type Embedding struct {
 	Limit            *int   `json:"limit,omitempty"`
 }
 
-// Ref names another package and pins the hash of the resource it was built from.
+// Ref names the canonical package an embeddings package was built from.
 type Ref struct {
 	Name         string `json:"name"`
 	Version      string `json:"version"`
 	ResourceHash string `json:"resourceHash"`
 }
 
-// Suite names the bench suite a query-vectors package was embedded from.
+// Suite names the bench suite query vectors were embedded from.
 type Suite struct {
 	ID string `json:"id"`
 }

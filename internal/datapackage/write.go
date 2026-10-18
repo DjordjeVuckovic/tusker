@@ -12,9 +12,7 @@ import (
 	"path/filepath"
 )
 
-// Write hashes every resource under dir and writes the descriptor to
-// dir/datapackage.json atomically, replacing any descriptor already there, and
-// returns the descriptor as written.
+// Write hashes the resources in dir and atomically writes dir/datapackage.json.
 func Write(ctx context.Context, dir string, pkg Package) (Package, error) {
 	if pkg.Name == "" {
 		return Package{}, errors.New("package has no name")
@@ -39,8 +37,7 @@ func Write(ctx context.Context, dir string, pkg Package) (Package, error) {
 		return Package{}, fmt.Errorf("encode descriptor: %w", err)
 	}
 	descriptor = append(descriptor, '\n')
-	// Decoding the bytes, not returning pkg, makes the result equal what Open
-	// reads back: omitempty turns empty maps and slices into nil.
+	// Decoded so the result matches what Open reads: omitempty drops empty collections.
 	var written Package
 	if err := json.Unmarshal(descriptor, &written); err != nil {
 		return Package{}, fmt.Errorf("decode written descriptor: %w", err)
@@ -87,7 +84,7 @@ func writeAtomic(path string, content []byte) error {
 		tmp.Close()
 		return fmt.Errorf("sync %s: %w", tmp.Name(), err)
 	}
-	// CreateTemp makes the file 0600; descriptors are committed and published.
+	// CreateTemp makes 0600 files.
 	if err := tmp.Chmod(0o644); err != nil {
 		tmp.Close()
 		return fmt.Errorf("chmod %s: %w", tmp.Name(), err)
@@ -101,7 +98,6 @@ func writeAtomic(path string, content []byte) error {
 	return nil
 }
 
-// contextReader lets a long copy stop between reads once ctx is done.
 type contextReader struct {
 	ctx context.Context
 	r   io.Reader

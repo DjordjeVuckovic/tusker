@@ -12,22 +12,18 @@ import (
 	"strings"
 )
 
-// maxDescriptorBytes bounds what Open reads, so a wrong location such as a
-// data file cannot be pulled into memory whole.
+// maxDescriptorBytes keeps a wrong location, such as a data file, out of memory.
 const maxDescriptorBytes = 16 << 20
 
-// Options configures OpenWith. The zero value uses http.DefaultClient and
-// sends unsigned S3 requests.
+// Options configures OpenWith.
 type Options struct {
 	HTTPClient *http.Client
 	S3         S3Config
-	// TempDir holds remote resources while they are verified; empty means
-	// os.TempDir.
+	// TempDir holds remote downloads; empty means os.TempDir.
 	TempDir string
 }
 
-// Opened is a descriptor read from its location, ready to serve its
-// resources.
+// Opened is a descriptor read from its location.
 type Opened struct {
 	Package  Package
 	Location string
@@ -35,19 +31,17 @@ type Opened struct {
 	tempDir  string
 }
 
-// store reads files relative to the descriptor's directory.
 type store interface {
 	open(ctx context.Context, rel string) (io.ReadCloser, error)
 	location(rel string) string
 }
 
-// Open reads the descriptor at location: a local file or directory,
-// https://…, or s3://bucket/key with credentials from the DATASET_S3_* env.
+// Open reads the descriptor at a local path, https:// or s3:// location, with S3 settings from DATASET_S3_*.
 func Open(ctx context.Context, location string) (*Opened, error) {
 	return OpenWith(ctx, location, Options{S3: S3ConfigFromEnv()})
 }
 
-// OpenWith is Open with explicit options; it reads no environment.
+// OpenWith is Open without reading the environment.
 func OpenWith(ctx context.Context, location string, opts Options) (*Opened, error) {
 	st, descriptorName, err := opts.storeFor(location)
 	if err != nil {
@@ -102,12 +96,10 @@ func validateDigest(r Resource) error {
 	return nil
 }
 
-// emptyHash is the sha256 of zero bytes, the only hash a 0-byte resource has.
+// emptyHash is the sha256 of zero bytes.
 const emptyHash = hashPrefix + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
-// Resource returns the named resource once its whole content has matched the
-// descriptor's bytes and hash. A remote resource is downloaded to a temporary
-// file first, which Close removes.
+// Resource returns the named resource once its bytes and hash match; Close removes a remote download.
 func (o *Opened) Resource(ctx context.Context, name string) (*ResourceFile, error) {
 	r, ok := o.lookup(name)
 	if !ok {
@@ -165,8 +157,6 @@ func (o *Opened) download(ctx context.Context, r Resource, body io.Reader) (*Res
 	return &ResourceFile{file: tmp, size: r.Bytes, temporary: true}, nil
 }
 
-// verify copies src to dst while hashing it and fails unless src holds exactly
-// the declared bytes with the declared hash.
 func verify(ctx context.Context, r Resource, src io.Reader, dst io.Writer) error {
 	h := sha256.New()
 	n, err := io.Copy(io.MultiWriter(dst, h), contextReader{ctx: ctx, r: io.LimitReader(src, r.Bytes+1)})
@@ -182,8 +172,7 @@ func verify(ctx context.Context, r Resource, src io.Reader, dst io.Writer) error
 	return nil
 }
 
-// ResourceFile is a verified resource. It serves both sequential reads and
-// the random access Parquet readers need.
+// ResourceFile is a verified resource, readable at offsets for Parquet.
 type ResourceFile struct {
 	file      *os.File
 	size      int64
@@ -196,7 +185,7 @@ func (f *ResourceFile) ReadAt(p []byte, off int64) (int, error) { return f.file.
 
 func (f *ResourceFile) Size() int64 { return f.size }
 
-// Close releases the file and removes it if it was a temporary download.
+// Close also removes a temporary download.
 func (f *ResourceFile) Close() error {
 	err := f.file.Close()
 	if f.temporary {

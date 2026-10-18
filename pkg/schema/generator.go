@@ -41,8 +41,7 @@ type JSONSchema struct {
 	If          *JSONSchema            `json:"if,omitempty"`
 	Then        *JSONSchema            `json:"then,omitempty"`
 	Else        *JSONSchema            `json:"else,omitempty"`
-	// AdditionalProperties is false to close an object, or the schema of a
-	// map's values.
+	// AdditionalProperties is false or a map's value schema.
 	AdditionalProperties any `json:"additionalProperties,omitempty"`
 }
 
@@ -63,11 +62,9 @@ type GeneratorConfig struct {
 	UseDefinitions      bool
 	BaseURI             string
 	SkipSchemaReference bool
-	// ClosedObjects sets additionalProperties: false on every struct, so an
-	// unknown or misspelled key fails validation.
+	// ClosedObjects sets additionalProperties: false on every struct.
 	ClosedObjects bool
-	// RequireUnlessOmitted marks every field whose json tag lacks omitempty or
-	// omitzero as required, on top of the schema:"required" tag.
+	// RequireUnlessOmitted requires every field without omitempty or omitzero.
 	RequireUnlessOmitted bool
 }
 
@@ -132,7 +129,6 @@ func (g *Generator) GenerateSchema(t reflect.Type) (*JSONSchema, error) {
 }
 
 func (g *Generator) generateSchemaForType(t reflect.Type, isRoot bool) (*JSONSchema, error) {
-	// Handle pointers
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
@@ -143,7 +139,6 @@ func (g *Generator) generateSchemaForType(t reflect.Type, isRoot bool) (*JSONSch
 
 	schema := &JSONSchema{}
 
-	// Only add schema reference to root elements unless configured otherwise
 	if isRoot && !g.config.SkipSchemaReference {
 		schema.Schema = schemaRef
 	}
@@ -168,7 +163,6 @@ func (g *Generator) generateSchemaForType(t reflect.Type, isRoot bool) (*JSONSch
 	case reflect.Bool:
 		schema.Type = "boolean"
 	case reflect.Interface:
-		// For interface{} types, allow any type
 		return &JSONSchema{}, nil
 	default:
 		return nil, fmt.Errorf("unsupported type: %s", t.Kind())
@@ -189,12 +183,10 @@ func (g *Generator) generateStructSchema(t reflect.Type, isRoot bool) (*JSONSche
 	if isRoot {
 		schema.Schema = schemaRef
 
-		// Extract schema metadata from type comments
 		if comment := g.getTypeComment(t); comment != "" {
 			schema.Description = comment
 		}
 
-		// Parse schema annotations from type comments
 		g.parseSchemaAnnotations(t, schema)
 	}
 
@@ -207,7 +199,6 @@ func (g *Generator) generateStructSchema(t reflect.Type, isRoot bool) (*JSONSche
 			return nil, err
 		}
 
-		// Skip unexported fields
 		if !field.IsExported() {
 			continue
 		}
@@ -229,7 +220,6 @@ func (g *Generator) generateStructSchema(t reflect.Type, isRoot bool) (*JSONSche
 
 		schema.Properties[fieldName] = fieldSchema
 
-		// Check if field is required
 		if g.isFieldRequired(field) {
 			required = append(required, fieldName)
 		}
@@ -274,12 +264,10 @@ func (g *Generator) generateFieldSchema(field reflect.StructField) (*JSONSchema,
 		return nil, err
 	}
 
-	// Add description from field comment
 	if desc := field.Tag.Get("description"); desc != "" {
 		fieldSchema.Description = desc
 	}
 
-	// Parse schema tag
 	if schemaTag := field.Tag.Get("schema"); schemaTag != "" {
 		if err := g.parseSchemaTag(schemaTag, fieldSchema); err != nil {
 			return nil, fmt.Errorf("invalid schema tag for field %s: %w", field.Name, err)
@@ -295,7 +283,6 @@ func (g *Generator) parseSchemaTag(tag string, schema *JSONSchema) error {
 		part = strings.TrimSpace(part)
 
 		if part == "required" {
-			// Required is handled at the struct level
 			continue
 		}
 
@@ -400,7 +387,6 @@ func (g *Generator) parseSchemaTag(tag string, schema *JSONSchema) error {
 		}
 	}
 
-	// Validate constraints
 	if err := g.validateSchemaConstraints(schema); err != nil && g.config.StrictValidation {
 		return err
 	}
@@ -460,14 +446,11 @@ func (g *Generator) getFieldName(field reflect.StructField) string {
 	return strings.ToLower(field.Name[:1]) + field.Name[1:]
 }
 
-// followsEncodingJSON reports whether the schema must match what
-// encoding/json writes exactly, rather than describe it loosely.
 func (g *Generator) followsEncodingJSON() bool {
 	return g.config.ClosedObjects || g.config.RequireUnlessOmitted
 }
 
-// checkEncodableField refuses, in the strict modes, a field whose JSON a
-// generated schema would describe wrongly.
+// checkEncodableField refuses fields a strict schema would describe wrongly.
 func (g *Generator) checkEncodableField(field reflect.StructField) error {
 	if field.Anonymous && jsonName(field) == "" && g.config.ClosedObjects {
 		return fmt.Errorf("field %s is embedded, and encoding/json flattens its keys into the parent", field.Name)
@@ -517,15 +500,10 @@ func (g *Generator) isFieldRequired(field reflect.StructField) bool {
 }
 
 func (g *Generator) getTypeComment(t reflect.Type) string {
-	// This would typically come from parsing the source file
-	// For now, return empty string
 	return ""
 }
 
 func (g *Generator) parseSchemaAnnotations(t reflect.Type, schema *JSONSchema) {
-	// Parse annotations like +schema:root=true, +schema:group=tusker.sh
-	// In a real implementation, this would parse the source file comments
-	// For now, we'll set some defaults
 	schema.Title = t.Name()
 	schema.ID = fmt.Sprintf("https://schemas.tusker.sh/%s", strings.ToLower(t.Name()))
 }

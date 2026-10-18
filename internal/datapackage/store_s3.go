@@ -35,10 +35,7 @@ func newS3Store(u *url.URL, cfg S3Config) (s3Store, string, error) {
 	return s3Store{client: client, bucket: u.Host, prefix: prefix}, name, nil
 }
 
-// newS3Client builds the client from cfg alone. Ambient AWS config is never
-// read, so a profile or AWS_* variable cannot sign a request meant for the
-// dataset store. Without keys, requests go unsigned, which serves public
-// buckets only.
+// newS3Client never reads ambient AWS config; without keys, requests go unsigned.
 func newS3Client(cfg S3Config) (*s3.Client, error) {
 	var provider aws.CredentialsProvider = aws.AnonymousCredentials{}
 	switch {
@@ -60,8 +57,7 @@ func newS3Client(cfg S3Config) (*s3.Client, error) {
 	return s3.New(opts), nil
 }
 
-// defaultRegion is "auto" for a custom endpoint, as R2 expects, and AWS's
-// us-east-1 otherwise.
+// defaultRegion is "auto" for R2-style endpoints and us-east-1 for AWS.
 func defaultRegion(endpoint string) string {
 	if endpoint != "" {
 		return "auto"

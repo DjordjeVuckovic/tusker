@@ -31,7 +31,7 @@ NOTES_HASH = "sha256:444e0fffbd825e9610ff5b199485707a0c895339ae80c15cc8a8aee41b1
 
 @pytest.fixture
 def cache(tmp_path: Path) -> Path:
-    """kagglehub's cache layout for acme/news version 3, marked complete."""
+    """kagglehub's cache for acme/news version 3, marked complete."""
     root = tmp_path / "kagglehub"
     version = root / "datasets" / "acme" / "news" / "versions" / "3"
     (version / "docs").mkdir(parents=True)
@@ -51,7 +51,7 @@ def fetch(
     home: Path | None = None,
     credentials: dict[str, str] = ENV_CREDENTIALS,
 ) -> subprocess.CompletedProcess[str]:
-    """Run the CLI with only the given credentials: HOME is a fixture, never ~."""
+    """Run the CLI with only these credentials and a fixture HOME."""
     inherited = {
         name: value
         for name, value in os.environ.items()

@@ -13,9 +13,7 @@ import (
 
 const dataPackageSchemaFile = "datapackage-v1.json"
 
-// dataPackageSchema describes the descriptor closed to every property the
-// contract does not list, so a misspelled key fails validation instead of
-// decoding as a zero value.
+// dataPackageSchema is closed so a misspelled key fails validation.
 func dataPackageSchema() ([]byte, error) {
 	generator := schema.NewGeneratorWithConfig(schema.GeneratorConfig{
 		StrictValidation:     true,

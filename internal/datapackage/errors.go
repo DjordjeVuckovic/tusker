@@ -5,8 +5,7 @@ import (
 	"io/fs"
 )
 
-// HashMismatchError reports a resource whose content no longer hashes to the
-// descriptor's hash.
+// HashMismatchError reports a resource whose content no longer matches its hash.
 type HashMismatchError struct {
 	Resource string
 	Want     string
@@ -17,9 +16,7 @@ func (e *HashMismatchError) Error() string {
 	return fmt.Sprintf("resource %s: hash %s, descriptor declares %s", e.Resource, e.Got, e.Want)
 }
 
-// ByteCountMismatchError reports a resource whose length differs from the
-// descriptor's bytes. A longer resource is read only to Want+1, so Got is then
-// a lower bound.
+// ByteCountMismatchError reports a resource of the wrong length; a longer one is read only to Want+1.
 type ByteCountMismatchError struct {
 	Resource string
 	Want     int64
@@ -43,9 +40,7 @@ func (e *ResourceNotFoundError) Error() string {
 	return fmt.Sprintf("package %s has no resource %q", e.Package, e.Name)
 }
 
-// NotFoundError reports a descriptor or resource file absent at its location,
-// whether a local path, an HTTP 404 or a missing S3 key. It matches
-// fs.ErrNotExist.
+// NotFoundError reports a missing descriptor or resource file. It matches fs.ErrNotExist.
 type NotFoundError struct {
 	Location string
 }

@@ -15,12 +15,8 @@
 Sizes default to the whole corpus, and a count above it writes the whole corpus
 instead of failing. csv is the only format datapipe preprocess reads today.
 
---mirror copies the shards of one Hub commit into datasets/<dir>/raw/ and
-writes raw/datapackage.json, recording that commit and each shard's sha256.
-Every shard is checked against the Hub's LFS sha256 before it is kept. A
-shard already in raw/ with the right hash is reused, and one that differs is
-refused unless --force, which clears raw/ and nothing else. HF_ENDPOINT points
-at a mirror of the Hub. Slicing then reads the shards from disk: 482 s to
+--mirror copies one Hub commit's shards into raw/, checked against the Hub's
+sha256; --force clears raw/ first. Slicing then reads them from disk: 482 s to
 1.4 s for a cc_news sample.
 
 --mode sample seeds a reservoir sample, head takes the first N rows. Both
@@ -192,7 +188,7 @@ def hub_request(url: str) -> urllib.request.Request:
 
 
 def hub_json(url: str) -> tuple[object, str | None]:
-    """Return the decoded body and the next page's url, if the Hub paginates."""
+    """Return the decoded body and the next page's url, if any."""
     try:
         with urllib.request.urlopen(hub_request(url)) as response:
             next_page = re.search(r'<([^>]+)>;\s*rel="next"', response.headers.get("Link") or "")
@@ -275,7 +271,6 @@ def download_verified(url: str, partial: Path, hub_file: HubFile) -> str:
 
 
 def place(ds: Dataset, commit: str, hub_file: HubFile, target: Path) -> tuple[str, bool]:
-    """Return the shard's sha256 and whether it was downloaded."""
     if target.exists() and hub_file.sha256:
         if sha256_of(target) != hub_file.sha256:
             raise refuse(target, f"differs from {ds.repo}@{commit}")
