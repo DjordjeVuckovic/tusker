@@ -157,6 +157,9 @@ var rejectedMappings = []struct {
 	{name: "a mapped article id", doc: withMappings(validMapping, "  - {source: uid, target: ID}\n"), wantInErr: `"ID"`},
 	{name: "an external id read as a number", doc: withMappings(validMapping, "  - {source: uid, sourceType: int, target: Metadata.ExternalID}\n"), wantInErr: "int", crossField: true},
 	{name: "the retired targetType", doc: replaced(validMapping, "    target: Title\n", "    target: Title\n    targetType: string\n"), wantInErr: "targetType"},
+	{name: "a 101-character Cyrillic name", doc: replaced(validMapping, "name: Test", "name: "+strings.Repeat("ж", 101)), wantInErr: "metadata.name"},
+	{name: "a 501-character Cyrillic description", doc: replaced(validMapping, "name: Test", "name: Test\n  description: "+strings.Repeat("ж", 501)), wantInErr: "metadata.description"},
+	{name: "a 101-character Cyrillic source", doc: replaced(validMapping, "source: title", "source: "+strings.Repeat("ж", 101)), wantInErr: "source"},
 }
 
 func TestLoadMapping_RejectsAnInvalidMappingPrecisely(t *testing.T) {
@@ -196,9 +199,22 @@ func validateAgainstSchema(t *testing.T, schema *jsonschema.Schema, doc string) 
 func TestMappingSchema_AgreesWithTheLoader(t *testing.T) {
 	schema := compileMappingSchema(t)
 
-	t.Run("accepts a valid mapping", func(t *testing.T) {
-		require.NoError(t, validateAgainstSchema(t, schema, validMapping))
-	})
+	accepted := []struct {
+		name string
+		doc  string
+	}{
+		{name: "a valid mapping", doc: validMapping},
+		{name: "a 100-character Cyrillic name", doc: replaced(validMapping, "name: Test", "name: "+strings.Repeat("ж", 100))},
+		{name: "a 500-character Cyrillic description", doc: replaced(validMapping, "name: Test", "name: Test\n  description: "+strings.Repeat("ж", 500))},
+		{name: "a 100-character Cyrillic source", doc: replaced(validMapping, "source: title", "source: "+strings.Repeat("ж", 100))},
+	}
+	for _, tt := range accepted {
+		t.Run("accepts "+tt.name, func(t *testing.T) {
+			_, err := loadMapping(tt.doc)
+			require.NoError(t, err)
+			require.NoError(t, validateAgainstSchema(t, schema, tt.doc))
+		})
+	}
 	for _, tt := range rejectedMappings {
 		if tt.crossField {
 			continue

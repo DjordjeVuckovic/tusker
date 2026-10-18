@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 )
@@ -199,10 +200,10 @@ func (dm *DataMapper) Validate() error {
 	if dm.Version != "v1" {
 		return fmt.Errorf("version %q, want %q", dm.Version, "v1")
 	}
-	if n := len(dm.Metadata.Name); n == 0 || n > 100 {
+	if n := utf8.RuneCountInString(dm.Metadata.Name); n == 0 || n > 100 {
 		return fmt.Errorf("metadata.name must be 1 to 100 characters, got %d", n)
 	}
-	if n := len(dm.Metadata.Description); n > 500 {
+	if n := utf8.RuneCountInString(dm.Metadata.Description); n > 500 {
 		return fmt.Errorf("metadata.description must be at most 500 characters, got %d", n)
 	}
 	if len(dm.Dataset) > 50 || !datasetPattern.MatchString(dm.Dataset) {
@@ -243,7 +244,7 @@ func (dm *DataMapper) Validate() error {
 }
 
 func (fm FieldMapping) validate() error {
-	if n := len(fm.Source); n == 0 || n > 100 {
+	if n := utf8.RuneCountInString(fm.Source); n == 0 || n > 100 {
 		return fmt.Errorf("source must be 1 to 100 characters, got %d", n)
 	}
 	sourceType, err := fm.ResolvedSourceType()
