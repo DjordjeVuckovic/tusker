@@ -45,3 +45,13 @@ func TestNewStrategy_UnknownName(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown strategy")
 }
+
+// Heuristic judges have no prompt, so the rubric version is what tells two
+// grade sets under the same strategy apart.
+func TestHeuristicStrategies_NameTheirRubric(t *testing.T) {
+	for _, kind := range []StrategyKind{StrategyLexical, StrategyBM25, StrategyVector, StrategyHybrid} {
+		s, err := NewStrategy(kind, StrategyOptions{VectorStore: fakeVectorStore{}})
+		require.NoError(t, err)
+		assert.NotEmpty(t, s.Describe().RubricVersion, "strategy %q", kind)
+	}
+}

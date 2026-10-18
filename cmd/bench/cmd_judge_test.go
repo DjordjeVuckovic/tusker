@@ -2,10 +2,19 @@ package main
 
 import (
 	"context"
+	"io"
+	"os"
+	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/google/uuid"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -109,4 +118,342 @@ func TestCheckResumeCompat_LegacyFileRefusesResume(t *testing.T) {
 	err := checkResumeCompat(prior, strat)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "judge mismatch")
+}
+
+func judgmentsWithGrades(grades ...int) *judgment.File {
+	docs := make([]judgment.GradedDoc, len(grades))
+	for i, g := range grades {
+		docs[i] = judgment.GradedDoc{DocID: uuid.New(), Grade: g}
+	}
+	return &judgment.File{
+		Meta:    meta.Meta{Judge: &meta.Judge{Strategy: string(judgment.StrategyBM25)}},
+		Queries: []judgment.Entry{{QueryID: "q1", Docs: docs}},
+	}
+}
+
+func TestRequireJudged(t *testing.T) {
+	cases := []struct {
+		name          string
+		grades        []int
+		allowUnjudged bool
+		wantErr       bool
+	}{
+		{name: "every doc graded", grades: []int{0, 3}},
+		{name: "an unjudged doc fails", grades: []int{2, judgment.GradeUnjudged}, wantErr: true},
+		{name: "an unjudged doc is allowed on request", grades: []int{2, judgment.GradeUnjudged}, allowUnjudged: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := requireJudged(judgmentsWithGrades(tc.grades...), tc.allowUnjudged)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// A heuristic file written under another rubric must not be extended: its
+// grades and this run's would follow different rules under one judge block.
+func TestCheckResumeCompat_RubricVersionMismatch(t *testing.T) {
+	prior := fileWith(meta.Judge{Strategy: string(judgment.StrategyBM25)})
+
+	err := checkResumeCompat(prior, judgment.NewBM25Strategy())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "judge mismatch")
+}
+
+func TestBuildManualJudgments_KeepsHandGradesAndAddsNewPoolDocs(t *testing.T) {
+	graded, placeholder, newInPool, leftThePool, newQueryDoc := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	pf := &pool.PoolFile{Queries: []pool.PoolEntry{
+		{QueryID: "q1", Docs: []pool.PooledDoc{{DocID: graded}, {DocID: placeholder}, {DocID: newInPool}}},
+		{QueryID: "q2", Docs: []pool.PooledDoc{{DocID: newQueryDoc}}},
+	}}
+	existing := &judgment.File{Queries: []judgment.Entry{{QueryID: "q1", Docs: []judgment.GradedDoc{
+		{DocID: graded, Grade: judgment.GradeRelevant},
+		{DocID: placeholder, Grade: judgment.GradeUnjudged},
+		{DocID: leftThePool, Grade: judgment.GradeNotRelev},
+	}}}}
+
+	got := buildManualJudgments(pf, existing)
+
+	want := map[string]map[uuid.UUID]int{
+		"q1": {
+			graded:      judgment.GradeRelevant,
+			placeholder: judgment.GradeUnjudged,
+			newInPool:   judgment.GradeUnjudged,
+			leftThePool: judgment.GradeNotRelev,
+		},
+		"q2": {newQueryDoc: judgment.GradeUnjudged},
+	}
+	assert.Equal(t, want, gradesByQuery(got))
+}
+
+func TestBuildManualJudgments_WithoutExistingFileWritesPlaceholders(t *testing.T) {
+	doc := uuid.New()
+	pf := &pool.PoolFile{Queries: []pool.PoolEntry{{QueryID: "q1", Docs: []pool.PooledDoc{{DocID: doc}}}}}
+
+	got := buildManualJudgments(pf, nil)
+
+	assert.Equal(t, map[string]map[uuid.UUID]int{"q1": {doc: judgment.GradeUnjudged}}, gradesByQuery(got))
+}
+
+func gradesByQuery(jf *judgment.File) map[string]map[uuid.UUID]int {
+	out := map[string]map[uuid.UUID]int{}
+	for _, qe := range jf.Queries {
+		out[qe.QueryID] = map[uuid.UUID]int{}
+		for _, d := range qe.Docs {
+			out[qe.QueryID][d.DocID] = d.Grade
+		}
+	}
+	return out
+}
+
+type articleStore map[uuid.UUID]document.Article
+
+func (s articleStore) GetByIDs(_ context.Context, ids []uuid.UUID) ([]document.Article, error) {
+	out := make([]document.Article, 0, len(ids))
+	for _, id := range ids {
+		if a, ok := s[id]; ok {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+// judgeFixture is a track on disk whose pool holds one query, plus the store
+// its pooled articles are read from.
+type judgeFixture struct {
+	track    string
+	articles articleStore
+	pool     *pool.PoolFile
+}
+
+func newJudgeFixture(t *testing.T, queryDesc string, titles ...string) *judgeFixture {
+	t.Helper()
+	track := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(track, "trec"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(track, "spec.yaml"), []byte("schema_version: 1\nid: judge\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(track, "suite.yaml"), []byte("schema_version: 1\nid: judge\n"), 0o644))
+
+	fx := &judgeFixture{track: track, articles: articleStore{}}
+	entry := pool.PoolEntry{QueryID: "q1", QueryDesc: queryDesc}
+	for _, title := range titles {
+		id := uuid.New()
+		fx.articles[id] = document.Article{ID: id, Title: title}
+		entry.Docs = append(entry.Docs, pool.PooledDoc{DocID: id})
+	}
+	fx.pool = &pool.PoolFile{Meta: meta.New("pool"), Queries: []pool.PoolEntry{entry}}
+	fx.writePool(t)
+	return fx
+}
+
+func (fx *judgeFixture) writePool(t *testing.T) {
+	t.Helper()
+	require.NoError(t, pool.WritePoolFile(fx.pool, filepath.Join(fx.track, "trec", "pool.yaml")))
+}
+
+func (fx *judgeFixture) judge(t *testing.T, args ...string) error {
+	t.Helper()
+	cmd := newJudgeCmdWithReader(func(*cobra.Command, string) (storage.Reader, error) {
+		return fx.articles, nil
+	})
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs(append([]string{fx.track}, args...))
+	return cmd.ExecuteContext(context.Background())
+}
+
+func (fx *judgeFixture) writePriorBM25(t *testing.T, runID string, queries ...judgment.Entry) {
+	t.Helper()
+	judge := judgment.NewBM25Strategy().Describe()
+	require.NoError(t, judgment.WriteFile(&judgment.File{
+		Meta:    meta.Meta{RunID: runID, Judge: &judge},
+		Queries: queries,
+	}, filepath.Join(fx.track, "trec", "annotations.bm25.yaml")))
+}
+
+func (fx *judgeFixture) annotations(t *testing.T, set string) *judgment.File {
+	t.Helper()
+	jf, err := judgment.ReadFile(filepath.Join(fx.track, "trec", "annotations."+set+".yaml"))
+	require.NoError(t, err)
+	return jf
+}
+
+func TestJudge_UnjudgedDocFailsAfterWritingTheFile(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit", "climate report")
+	for id := range fx.articles {
+		delete(fx.articles, id)
+		break
+	}
+
+	err := fx.judge(t, "--strategy", "bm25")
+
+	require.Error(t, err)
+	jf := fx.annotations(t, "bm25")
+	require.NotNil(t, jf.Meta.UnjudgedCount)
+	assert.Equal(t, 1, *jf.Meta.UnjudgedCount)
+}
+
+func TestJudge_AllowUnjudgedExitsZero(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit", "climate report")
+	for id := range fx.articles {
+		delete(fx.articles, id)
+		break
+	}
+
+	assert.NoError(t, fx.judge(t, "--strategy", "bm25", "--allow-unjudged"))
+}
+
+func TestJudge_FullyGradedPoolExitsZero(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit", "climate report")
+
+	require.NoError(t, fx.judge(t, "--strategy", "bm25"))
+
+	jf := fx.annotations(t, "bm25")
+	require.NotNil(t, jf.Meta.UnjudgedCount)
+	assert.Zero(t, *jf.Meta.UnjudgedCount)
+}
+
+func TestJudge_QueryWithoutTermsFailsAfterWritingTheFile(t *testing.T) {
+	fx := newJudgeFixture(t, "the news", "climate change summit")
+	fx.writePriorBM25(t, "prior-run", judgment.Entry{QueryID: "q-gone"})
+
+	err := fx.judge(t, "--strategy", "bm25", "--allow-unjudged", "--resume")
+
+	var noTerms *judgment.NoQueryTermsError
+	require.ErrorAs(t, err, &noTerms)
+	assert.Equal(t, "q1", noTerms.QueryID)
+	got := gradesByQuery(fx.annotations(t, "bm25"))
+	assert.Equal(t, judgment.GradeUnjudged, got["q1"][fx.pool.Queries[0].Docs[0].DocID])
+	assert.NotContains(t, got, "q-gone")
+}
+
+// A resumed file is this run's artifact and must not keep the prior run's
+// provenance.
+func TestJudge_ResumedFileCarriesTheNewRunID(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	fx.writePriorBM25(t, "prior-run", judgment.Entry{QueryID: "q1"})
+
+	require.NoError(t, fx.judge(t, "--strategy", "bm25", "--resume"))
+
+	runID := fx.annotations(t, "bm25").Meta.RunID
+	assert.NotEmpty(t, runID)
+	assert.NotEqual(t, "prior-run", runID)
+}
+
+func TestJudge_ManualRerunKeepsHandGrades(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	require.NoError(t, fx.judge(t, "--strategy", "manual"))
+	handGraded := fx.annotations(t, "manual")
+	handGraded.Queries[0].Docs[0].Grade = judgment.GradeHighly
+	require.NoError(t, judgment.WriteFile(handGraded, filepath.Join(fx.track, "trec", "annotations.manual.yaml")))
+	newDoc := uuid.New()
+	fx.pool.Queries[0].Docs = append(fx.pool.Queries[0].Docs, pool.PooledDoc{DocID: newDoc})
+	fx.writePool(t)
+
+	require.NoError(t, fx.judge(t, "--strategy", "manual"))
+
+	got := gradesByQuery(fx.annotations(t, "manual"))["q1"]
+	assert.Equal(t, judgment.GradeHighly, got[handGraded.Queries[0].Docs[0].DocID])
+	assert.Equal(t, judgment.GradeUnjudged, got[newDoc])
+}
+
+func TestJudge_ManualForceDiscardsHandGrades(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	require.NoError(t, fx.judge(t, "--strategy", "manual"))
+	handGraded := fx.annotations(t, "manual")
+	handGraded.Queries[0].Docs[0].Grade = judgment.GradeHighly
+	require.NoError(t, judgment.WriteFile(handGraded, filepath.Join(fx.track, "trec", "annotations.manual.yaml")))
+
+	require.NoError(t, fx.judge(t, "--strategy", "manual", "--force"))
+
+	assert.Equal(t, judgment.GradeUnjudged, fx.annotations(t, "manual").Queries[0].Docs[0].Grade)
+}
+
+// A query dropped from the pool since the last run is no longer judged, so its
+// leftover placeholders must not fail the resumed run.
+func TestJudge_ResumeDropsQueriesThatLeftThePool(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	judge := judgment.NewBM25Strategy().Describe()
+	require.NoError(t, judgment.WriteFile(&judgment.File{
+		Meta:    meta.Meta{Judge: &judge},
+		Queries: []judgment.Entry{{QueryID: "q-gone", Docs: []judgment.GradedDoc{{DocID: uuid.New(), Grade: judgment.GradeUnjudged}}}},
+	}, filepath.Join(fx.track, "trec", "annotations.bm25.yaml")))
+
+	require.NoError(t, fx.judge(t, "--strategy", "bm25", "--resume"))
+
+	assert.NotContains(t, gradesByQuery(fx.annotations(t, "bm25")), "q-gone")
+}
+
+// Merging into another judge's file would relabel its grades as hand grades.
+func TestJudge_ManualRefusesAnotherJudgesFile(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	require.NoError(t, fx.judge(t, "--strategy", "bm25"))
+	bm25Path := filepath.Join(fx.track, "trec", "annotations.bm25.yaml")
+
+	err := fx.judge(t, "--strategy", "manual", "--output", bm25Path)
+
+	require.Error(t, err)
+	assert.Equal(t, string(judgment.StrategyBM25), fx.annotations(t, "bm25").Judge().Strategy)
+}
+
+func TestJudge_ManualForceReplacesAnotherJudgesFile(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	require.NoError(t, fx.judge(t, "--strategy", "bm25"))
+	bm25Path := filepath.Join(fx.track, "trec", "annotations.bm25.yaml")
+
+	require.NoError(t, fx.judge(t, "--strategy", "manual", "--output", bm25Path, "--force"))
+
+	assert.Equal(t, string(judgment.StrategyManual), fx.annotations(t, "bm25").Judge().Strategy)
+}
+
+// interruptingStore cancels the run when the article interruptAt is fetched.
+type interruptingStore struct {
+	articleStore
+	interruptAt uuid.UUID
+	interrupt   context.CancelFunc
+}
+
+func (s *interruptingStore) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]document.Article, error) {
+	if slices.Contains(ids, s.interruptAt) {
+		s.interrupt()
+	}
+	return s.articleStore.GetByIDs(ctx, ids)
+}
+
+// An interrupted run leaves only its intermediate flush, which must carry the
+// run's provenance and counts like a finished file.
+func TestJudge_InterruptedRunLeavesAnIdentifiedFile(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+	q2Doc := uuid.New()
+	fx.articles[q2Doc] = document.Article{ID: q2Doc, Title: "climate report"}
+	fx.pool.Queries = append(fx.pool.Queries, pool.PoolEntry{QueryID: "q2", QueryDesc: "climate", Docs: []pool.PooledDoc{{DocID: q2Doc}}})
+	fx.writePool(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	store := &interruptingStore{articleStore: fx.articles, interruptAt: q2Doc, interrupt: cancel}
+
+	cmd := newJudgeCmdWithReader(func(*cobra.Command, string) (storage.Reader, error) { return store, nil })
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs([]string{fx.track, "--strategy", "bm25"})
+	require.ErrorIs(t, cmd.ExecuteContext(ctx), context.Canceled)
+
+	jf := fx.annotations(t, "bm25")
+	assert.NotEmpty(t, jf.Meta.RunID)
+	assert.NotNil(t, jf.Meta.UnjudgedCount)
+	assert.Contains(t, gradesByQuery(jf), "q1")
+}
+
+func TestJudge_ForceOutsideManualIsRejected(t *testing.T) {
+	fx := newJudgeFixture(t, "climate change", "climate change summit")
+
+	err := fx.judge(t, "--strategy", "bm25", "--force")
+
+	require.Error(t, err)
+	assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations.bm25.yaml"))
 }

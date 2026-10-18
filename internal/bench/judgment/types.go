@@ -36,6 +36,19 @@ func (f *File) Judge() meta.Judge {
 	return *f.Meta.Judge
 }
 
+func (f *File) GradeCounts() (graded, unjudged int) {
+	for _, qe := range f.Queries {
+		for _, d := range qe.Docs {
+			if d.Grade >= 0 {
+				graded++
+			} else {
+				unjudged++
+			}
+		}
+	}
+	return graded, unjudged
+}
+
 type Entry struct {
 	QueryID string      `yaml:"query_id"`
 	Docs    []GradedDoc `yaml:"docs"`

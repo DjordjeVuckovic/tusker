@@ -42,10 +42,15 @@ func (VectorStrategy) Name() string { return string(StrategyVector) }
 // Describe records the embedding model that produced the cosine scores, so a
 // vector-graded qrel set names the model it depends on.
 func (s VectorStrategy) Describe() meta.Judge {
-	return meta.Judge{Strategy: string(StrategyVector), Model: s.model}
+	return meta.Judge{Strategy: string(StrategyVector), Model: s.model, RubricVersion: vectorRubricVersion}
 }
 
-func (VectorStrategy) PreferredBatchSize() int { return poolBatchSize }
+const vectorRubricVersion = "v1"
+
+// vectorFetchBatchSize fetches a typical query pool's vectors in one store round-trip.
+const vectorFetchBatchSize = 512
+
+func (VectorStrategy) PreferredBatchSize() int { return vectorFetchBatchSize }
 
 func (s VectorStrategy) GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error) {
 	if len(docs) == 0 {

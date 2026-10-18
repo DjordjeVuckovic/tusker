@@ -25,14 +25,20 @@ type GradingDoc struct {
 	Content     string
 }
 
-// Strategy grades one (query, doc) pair at a time. Implementations must be
-// safe for concurrent calls — the runner dispatches multiple goroutines.
+// Strategy names a grader. It grades through one of DocStrategy,
+// BatchStrategy or PoolStrategy.
 //
 // Describe is mandatory: every artifact must attest who graded it, so a
 // strategy that cannot describe itself has no business writing qrels.
 type Strategy interface {
 	Name() string
 	Describe() meta.Judge
+}
+
+// DocStrategy grades one (query, doc) pair at a time. Implementations must be
+// safe for concurrent calls — the runner dispatches multiple goroutines.
+type DocStrategy interface {
+	Strategy
 	Grade(ctx context.Context, q GradingQuery, doc GradingDoc) (int, error)
 }
 
@@ -49,9 +55,18 @@ type Strategy interface {
 // entries, return what was parsed and let the runner re-dispatch the missing
 // docs through Grade() as a fallback.
 type BatchStrategy interface {
-	Strategy
+	DocStrategy
 	PreferredBatchSize() int
 	GradeBatch(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error)
+}
+
+// PoolStrategy is an optional capability for strategies whose grades are
+// relative to the rest of the pool. The runner hands GradePool every doc in the
+// query's pool in one call, including docs a prior run already graded, so a
+// grade does not depend on batching or resume.
+type PoolStrategy interface {
+	Strategy
+	GradePool(ctx context.Context, q GradingQuery, docs []GradingDoc) ([]GradedDoc, error)
 }
 
 type StrategyKind string

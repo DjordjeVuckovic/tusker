@@ -265,3 +265,45 @@ func TestRunner_NilStrategyErrors(t *testing.T) {
 	_, err := r.Run(context.Background(), &pool.PoolFile{})
 	assert.ErrorContains(t, err, "strategy is nil")
 }
+
+// A query with no usable terms fails the run, but only after every other query
+// is graded, so the file still lands and names what is missing.
+func TestRunner_QueryWithoutTermsFailsTheRunAfterGradingTheRest(t *testing.T) {
+	for _, strategy := range []Strategy{NewLexicalStrategy(), NewBM25Strategy()} {
+		t.Run(strategy.Name(), func(t *testing.T) {
+			pf, articles := buildPool(t, 3)
+			pf.Queries[0].QueryDesc = "the news"
+			usable := pool.PoolEntry{QueryID: "q2", QueryDesc: "title"}
+			for id := range articles {
+				usable.Docs = append(usable.Docs, pool.PooledDoc{DocID: id})
+			}
+			pf.Queries = append(pf.Queries, usable)
+
+			sunk := map[string]bool{}
+			r := NewRunner(RunnerConfig{
+				Strategy: strategy,
+				Reader:   &stubStorageReader{articles: articles},
+				Sink: func(_ QueryProgress, e Entry) error {
+					sunk[e.QueryID] = true
+					return nil
+				},
+			})
+			jf, err := r.Run(context.Background(), pf)
+
+			var noTerms *NoQueryTermsError
+			require.ErrorAs(t, err, &noTerms)
+			assert.Equal(t, "q1", noTerms.QueryID)
+			require.NotNil(t, jf)
+			grades := map[string][]int{}
+			for _, qe := range jf.Queries {
+				for _, d := range qe.Docs {
+					grades[qe.QueryID] = append(grades[qe.QueryID], d.Grade)
+				}
+			}
+			assert.Equal(t, []int{GradeUnjudged, GradeUnjudged, GradeUnjudged}, grades["q1"])
+			assert.NotContains(t, grades["q2"], GradeUnjudged)
+			assert.Len(t, grades["q2"], 3)
+			assert.True(t, sunk["q1"] && sunk["q2"], "both queries reach the sink")
+		})
+	}
+}
