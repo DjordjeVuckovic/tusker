@@ -123,8 +123,8 @@ func TestHybridSearcher_SearchHybrid_OnlySeesTheQueryModel(t *testing.T) {
 	refresh(t, embIndexer)
 
 	batch := []*embedding.Vec{
-		{ID: sameModel, Model: embedding.DefaultModel, Embedding: queryVec},
-		{ID: otherModel, Model: "other-model", Embedding: queryVec},
+		{ID: sameModel, Model: storedTag, Embedding: queryVec},
+		{ID: otherModel, Model: embedding.DefaultModel, Embedding: queryVec},
 	}
 	if _, err := embIndexer.SaveBulk(ctx, batch); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
