@@ -8,19 +8,11 @@
 #   "pyarrow>=16",
 # ]
 # ///
-"""Project a canonical package down to the columns embed_corpus.py reads.
+"""Project a canonical package to the columns embed_corpus.py reads, for the cloud upload.
 
   uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
 
-Writes a package of its own to --out: articles.parquet holding id, title and
-description in canonical row order, and a slim.datapackage.json whose `canonical`
-property names the canonical package it came from. embed_corpus.py reads that
-property, so embedding the projection yields the same package version and bytes
-as embedding the canonical package. The article body is most of the bytes, so
-this is what goes to the Kaggle dataset.
-
-The output is plain parquet next to its descriptor: Kaggle decompresses .gz
-uploads, which would break the recorded hash.
+Writes <out>/<version>/ as plain parquet: Kaggle decompresses .gz uploads, breaking the hash.
 """
 
 import argparse
@@ -34,6 +26,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from embed_corpus import (
     DATAPACKAGE_PROFILE,
+    DEFAULT_VERSION,
     SLIM_DESCRIPTOR,
     PackageError,
     SourcePackage,
@@ -41,8 +34,9 @@ from embed_corpus import (
     iter_jsonl_records,
     iter_parquet_records,
     open_package,
-    publish_package,
+    publish_version,
     read_descriptor,
+    version_name,
     write_descriptor,
 )
 
@@ -67,26 +61,28 @@ def iter_slim_batches(source: SourcePackage) -> Iterator[pa.Table]:
 
 
 def write_slim_package(
-    source: SourcePackage, carried: dict[str, Any], directory: Path
+    source: SourcePackage, carried: dict[str, Any], directory: Path, *, version: str
 ) -> None:
     resource_path = directory / "articles.parquet"
     with pq.ParquetWriter(resource_path, SLIM_SCHEMA, compression="zstd") as writer:
         for table in iter_slim_batches(source):
             writer.write_table(table)
 
+    resource = describe_parquet_resource(resource_path, name="articles")
     descriptor: dict[str, Any] = {
         "$schema": DATAPACKAGE_PROFILE,
         "name": f"{source.canonical.name}-slim",
-        "version": source.canonical.version,
+        "version": version,
+        "producedBy": {"tool": "slim_corpus.py"},
         **carried,
         "canonical": source.canonical.to_descriptor(),
-        "resources": [describe_parquet_resource(resource_path, name="articles")],
+        "resources": [resource],
     }
     write_descriptor(directory, descriptor, name=SLIM_DESCRIPTOR)
 
 
 def parse_args() -> argparse.Namespace:
-    # No abbreviations: a stale flag such as --out must not quietly become --output-root.
+    # A stale flag such as --out must not match --output-root.
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -94,7 +90,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("package", type=Path, help="canonical datapackage.json")
     parser.add_argument(
-        "--out", type=Path, required=True, help="new directory for the slim package"
+        "--out",
+        type=Path,
+        required=True,
+        help="parent directory; the package lands in <out>/<version>/",
+    )
+    parser.add_argument(
+        "--version",
+        type=version_name,
+        default=DEFAULT_VERSION,
+        help="name of the package's folder under --out",
     )
     return parser.parse_args()
 
@@ -108,17 +113,19 @@ def run(args: argparse.Namespace) -> None:
         if key in descriptor
     }
 
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    publish_package(
-        args.out,
-        lambda directory: write_slim_package(source, carried, directory),
+    package_dir = args.out / args.version
+    publish_version(
+        package_dir,
+        lambda directory: write_slim_package(
+            source, carried, directory, version=args.version
+        ),
         descriptor_name=SLIM_DESCRIPTOR,
     )
 
     before = source.resource.stat().st_size
-    after = (args.out / "articles.parquet").stat().st_size
+    after = (package_dir / "articles.parquet").stat().st_size
     print(
-        f"{args.out}: {before / 1e6:.1f} MB -> {after / 1e6:.1f} MB  ({before / after:.1f}x smaller)"
+        f"{package_dir}: {before / 1e6:.1f} MB -> {after / 1e6:.1f} MB  ({before / after:.1f}x smaller)"
     )
 
 

@@ -166,41 +166,58 @@ def test_resource_is_described_by_its_real_size_and_hash(tmp_path, tiny_model_ar
     assert resource["hash"] == sha256_of(written)
 
 
-def test_version_hashes_the_carried_canonical_resource_hash_revision_recipe_dim_and_max_tokens(
-    tmp_path, tiny_model
+def test_a_package_lands_in_version_v1_by_default(tmp_path, tiny_model_args):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
+
+    descriptor_path = only_package(tmp_path / "out")
+    assert descriptor_path.parent.name == "v1"
+    assert json.loads(descriptor_path.read_text())["version"] == "v1"
+
+
+def test_a_package_lands_in_the_version_it_is_given(tmp_path, tiny_model_args):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, "--version", "v2")
+
+    descriptor_path = only_package(tmp_path / "out")
+    assert descriptor_path.parent.name == "v2"
+    assert json.loads(descriptor_path.read_text())["version"] == "v2"
+
+
+def test_refuses_other_bytes_under_an_existing_version_and_leaves_it_untouched(
+    tmp_path, tiny_model_args
 ):
-    projection = write_canonical_package(tmp_path / "slim", ROWS)
-    descriptor = json.loads(projection.descriptor.read_text())
-    descriptor["canonical"] = {
-        "name": "cc-news",
-        "version": "article-v2-0badcafe",
-        "resourceHash": "sha256:" + "0" * 64,
-    }
-    projection.descriptor.write_text(json.dumps(descriptor))
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    embed(
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--clean-checkpoints"
+    )
+    resource = only_package(tmp_path / "out").parent / "embeddings.parquet"
+    before = sha256_of(resource)
 
     result = embed(
-        projection.descriptor,
-        tmp_path / "out",
-        "--model",
-        tiny_model,
-        "--revision",
-        "abc123",
-        "--model-name",
-        "tiny-qwen3",
-        "--max-tokens",
-        "512",
-        "--device",
-        "cpu",
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--limit", "2"
     )
 
-    assert result.returncode == 0, result.stderr
-    written = json.loads(
-        (
-            tmp_path
-            / "out/embeddings/tiny-qwen3@1024/lead-v1-1024-938b2254/datapackage.json"
-        ).read_text()
+    assert result.returncode != 0
+    assert "v1" in result.stderr
+    assert before in result.stderr
+    assert sha256_of(resource) == before
+
+
+@pytest.mark.parametrize("version", ["", "..", "a/b", ".hidden"])
+def test_refuses_a_version_that_is_not_a_plain_folder_name(
+    tmp_path, tiny_model_args, version
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    result = embed(
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--version", version
     )
-    assert written["version"] == "lead-v1-1024-938b2254"
+
+    assert result.returncode == 2
+    assert "--version" in result.stderr
 
 
 def test_the_same_inputs_produce_byte_identical_packages(tmp_path, tiny_model_args):
@@ -258,7 +275,6 @@ def test_tag_version_and_location_carry_the_chosen_dim(tmp_path, tiny_model_args
     descriptor = json.loads(descriptor_path.read_text())
     assert descriptor["embedding"]["dim"] == 64
     assert descriptor["embedding"]["tag"] == "qwen3-embedding:tiny@64"
-    assert descriptor["version"].startswith("lead-v1-64-")
     assert descriptor_path.parent.parent.name == "qwen3-embedding-tiny@64"
 
 
@@ -298,6 +314,14 @@ def package_dirs(output_root: Path) -> list[str]:
     )
 
 
+def trial_flags(output_root: Path) -> dict[Path, bool]:
+    """Each package mapped to whether `embedding.limit` marks it a trial."""
+    return {
+        path: "limit" in json.loads(path.read_text())["embedding"]
+        for path in output_root.glob("embeddings/*/*/datapackage.json")
+    }
+
+
 def test_a_limit_trial_embeds_the_first_rows_into_its_own_package(
     tmp_path, tiny_model_args
 ):
@@ -311,26 +335,29 @@ def test_a_limit_trial_embeds_the_first_rows_into_its_own_package(
     descriptor_path = only_package(tmp_path / "out")
     ids, _ = read_embeddings(descriptor_path)
     assert ids == [ROWS[0]["id"], ROWS[1]["id"]]
-    assert descriptor_path.parent.name.endswith("-limit-2")
-    assert (
-        json.loads(descriptor_path.read_text())["version"]
-        == descriptor_path.parent.name
-    )
 
 
 def test_a_full_run_after_a_limit_trial_writes_the_full_corpus(
     tmp_path, tiny_model_args
 ):
     canonical = write_canonical_package(tmp_path / "canonical", ROWS)
-    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, "--limit", "2")
+    embed(
+        canonical.descriptor,
+        tmp_path / "out",
+        *tiny_model_args,
+        "--limit",
+        "2",
+        "--version",
+        "v1-trial",
+    )
 
     result = embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
 
     assert result.returncode == 0, result.stderr
-    (full,) = [name for name in package_dirs(tmp_path / "out") if "limit" not in name]
-    ids, _ = read_embeddings(
-        next((tmp_path / "out").glob(f"embeddings/*/{full}/datapackage.json"))
-    )
+    (full,) = [
+        path for path, is_trial in trial_flags(tmp_path / "out").items() if not is_trial
+    ]
+    ids, _ = read_embeddings(full)
     assert ids == [row["id"] for row in ROWS]
 
 
@@ -357,7 +384,7 @@ def test_refuses_to_resume_a_limit_trial_as_a_full_run(tmp_path, tiny_model_args
 
     assert result.returncode != 0
     assert "limit" in result.stderr
-    assert all("limit" in name for name in package_dirs(tmp_path / "out"))
+    assert all(trial_flags(tmp_path / "out").values())
 
 
 def test_refuses_checkpoints_written_with_different_settings(tmp_path, tiny_model_args):
@@ -414,20 +441,6 @@ def test_rerunning_a_finished_package_leaves_it_untouched(tmp_path, tiny_model_a
     assert sha256_of(resource) == before
 
 
-def test_refuses_to_rerun_over_a_finished_package_that_no_longer_verifies(
-    tmp_path, tiny_model_args
-):
-    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
-    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
-    resource = only_package(tmp_path / "out").parent / "embeddings.parquet"
-    resource.write_bytes(resource.read_bytes()[:-1] + b"\0")
-
-    result = embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
-
-    assert result.returncode != 0
-    assert "hash" in result.stderr
-
-
 def test_writes_under_the_dataset_root_of_a_canonical_package_by_default(
     tmp_path, tiny_model_args
 ):
@@ -474,7 +487,7 @@ def test_each_vector_belongs_to_its_row_when_a_batch_pads_mixed_lengths(
 
 
 def model_card_last_token_pool(last_hidden_states, attention_mask):
-    """The pooling function from the Qwen3-Embedding model card, verbatim."""
+    """Verbatim from the Qwen3-Embedding model card."""
     left_padding = attention_mask[:, -1].sum() == attention_mask.shape[0]
     if left_padding:
         return last_hidden_states[:, -1]
@@ -593,34 +606,11 @@ def test_records_the_batch_size_the_sweep_picked_rather_than_the_flag(
     assert recorded in {64, 256, 512}
 
 
-MIXED_LENGTH_ROWS = [
-    article(
-        "11111111-1111-4111-8111-111111111111", "Markets rally after the long weekend"
-    ),
-    article("22222222-2222-4222-8222-222222222222", "Q"),
-    article("33333333-3333-4333-8333-333333333333", "Election results are in"),
-]
-
-
-@pytest.mark.parametrize(
-    "cleanup",
-    [[], ["--clean-checkpoints"]],
-    ids=["checkpoints-kept", "checkpoints-cleaned"],
-)
-def test_refuses_a_rerun_whose_batch_size_changes_the_bytes_of_an_existing_version(
-    tmp_path, tiny_model_args, cleanup
+def test_default_checkpoints_are_found_again_by_settings_and_guard_the_batch_size(
+    tmp_path, tiny_model_args
 ):
-    canonical = write_canonical_package(tmp_path / "canonical", MIXED_LENGTH_ROWS)
-    embed(
-        canonical.descriptor,
-        tmp_path / "out",
-        *tiny_model_args,
-        "--batch-size",
-        "1",
-        *cleanup,
-    )
-    resource = only_package(tmp_path / "out").parent / "embeddings.parquet"
-    before = sha256_of(resource)
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, "--batch-size", "1")
 
     result = embed(
         canonical.descriptor, tmp_path / "out", *tiny_model_args, "--batch-size", "3"
@@ -628,29 +618,36 @@ def test_refuses_a_rerun_whose_batch_size_changes_the_bytes_of_an_existing_versi
 
     assert result.returncode != 0
     assert "batchSize" in result.stderr
-    assert "--batch-size 1" in result.stderr
-    assert sha256_of(resource) == before
 
 
-def test_a_rerun_with_other_settings_but_the_same_bytes_keeps_the_existing_package(
+def test_keeps_the_rejected_package_and_names_it_when_a_version_conflicts(
     tmp_path, tiny_model_args
 ):
-    canonical = write_canonical_package(tmp_path / "canonical", ROWS[:1])
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
     embed(
-        canonical.descriptor,
-        tmp_path / "out",
-        *tiny_model_args,
-        "--batch-size",
-        "1",
-        "--clean-checkpoints",
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--clean-checkpoints"
     )
 
     result = embed(
-        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--batch-size", "3"
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--limit", "2"
     )
 
-    assert result.returncode == 0, result.stderr
-    assert (
-        json.loads(only_package(tmp_path / "out").read_text())["embedding"]["batchSize"]
-        == 1
-    )
+    (kept,) = [
+        path
+        for path in (tmp_path / "out").glob("embeddings/*/.*")
+        if str(path) in result.stderr
+    ]
+    ids, _ = read_embeddings(kept / "datapackage.json")
+    assert ids == [ROWS[0]["id"], ROWS[1]["id"]]
+
+
+def test_descriptor_names_the_producing_tool_and_nothing_else(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
+
+    assert json.loads(only_package(tmp_path / "out").read_text())["producedBy"] == {
+        "tool": "embed_corpus.py"
+    }

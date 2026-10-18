@@ -7,7 +7,6 @@ from conftest import (
     article,
     model_args,
     run_script,
-    sha256_of,
     write_canonical_package,
 )
 
@@ -53,7 +52,7 @@ def test_writes_each_query_with_the_text_the_runner_embeds(tmp_path, tiny_model_
     np.testing.assert_allclose(norms, 1.0, atol=1e-6)
 
 
-def test_descriptor_records_the_tag_query_recipe_and_suite_hash(
+def test_descriptor_records_the_tag_query_recipe_and_suite_id(
     tmp_path, tiny_model, tiny_model_args
 ):
     suite = write_suite(tmp_path / "track")
@@ -74,10 +73,10 @@ def test_descriptor_records_the_tag_query_recipe_and_suite_hash(
         "batchSize": 1,
         "dtype": "float32",
     }
-    assert descriptor["suite"] == {"id": "cc-news-semantic", "hash": sha256_of(suite)}
+    assert descriptor["suite"] == {"id": "cc-news-semantic"}
 
 
-def test_query_instruct_v1_embeds_the_same_string_as_go_wrap_with_instruct(
+def test_query_instruct_v1_embeds_the_recipe_string_around_the_stripped_query(
     tmp_path, tiny_model_args
 ):
     suite = write_suite(tmp_path / "track")
@@ -110,39 +109,18 @@ def test_query_instruct_v1_embeds_the_same_string_as_go_wrap_with_instruct(
     )
 
 
-def test_refuses_a_query_whose_edges_go_and_python_trim_differently(
-    tmp_path, tiny_model_args
-):
-    suite = write_suite(
-        tmp_path / "track",
-        SUITE.replace('"  climate change "', '"climate change\\x1f"'),
-    )
-
-    result = run_script("embed_queries.py", suite, *tiny_model_args)
-
-    assert result.returncode != 0
-    assert "q-climate" in result.stderr
-    assert not query_vectors(tmp_path / "track").exists()
-
-
-def test_refuses_to_replace_vectors_embedded_from_another_suite(
+def test_re_embedding_an_edited_suite_replaces_its_query_vectors(
     tmp_path, tiny_model_args
 ):
     suite = write_suite(tmp_path / "track")
     run_script("embed_queries.py", suite, *tiny_model_args)
-    before = sha256_of(
-        query_vectors(tmp_path / "track").parent / "query-vectors.parquet"
-    )
     write_suite(tmp_path / "track", SUITE.replace("interest rates", "rate decision"))
 
     result = run_script("embed_queries.py", suite, *tiny_model_args)
 
-    assert result.returncode != 0
-    assert "version" in result.stderr
-    assert (
-        sha256_of(query_vectors(tmp_path / "track").parent / "query-vectors.parquet")
-        == before
-    )
+    assert result.returncode == 0, result.stderr
+    rows = read_query_vectors(query_vectors(tmp_path / "track"))
+    assert rows["text"] == ["  climate change ", "central bank rate decision"]
 
 
 def test_a_description_yaml_could_read_as_a_number_keeps_its_literal_text(
@@ -168,11 +146,43 @@ def test_refuses_to_publish_non_finite_query_vectors(tmp_path, overflowing_tiny_
     assert not query_vectors(tmp_path / "track").exists()
 
 
-def test_refuses_a_query_whose_description_is_yaml_null(tmp_path, tiny_model_args):
-    suite = write_suite(tmp_path / "track", SUITE.replace('"  climate change "', "~"))
+def test_query_vectors_carry_no_version(tmp_path, tiny_model_args):
+    suite = write_suite(tmp_path / "track")
+
+    run_script("embed_queries.py", suite, *tiny_model_args)
+
+    assert "version" not in json.loads(query_vectors(tmp_path / "track").read_text())
+
+
+def test_refuses_a_query_with_an_empty_description(tmp_path, tiny_model_args):
+    suite = write_suite(
+        tmp_path / "track", SUITE.replace('"  climate change "', '"  "')
+    )
 
     result = run_script("embed_queries.py", suite, *tiny_model_args)
 
     assert result.returncode != 0
     assert "q-climate" in result.stderr
     assert not query_vectors(tmp_path / "track").exists()
+
+
+def test_refuses_a_suite_that_repeats_a_query_id(tmp_path, tiny_model_args):
+    suite = write_suite(
+        tmp_path / "track", SUITE.replace("id: q-rates", "id: q-climate")
+    )
+
+    result = run_script("embed_queries.py", suite, *tiny_model_args)
+
+    assert result.returncode != 0
+    assert "q-climate" in result.stderr
+    assert not query_vectors(tmp_path / "track").exists()
+
+
+def test_descriptor_names_the_producing_tool(tmp_path, tiny_model_args):
+    suite = write_suite(tmp_path / "track")
+
+    run_script("embed_queries.py", suite, *tiny_model_args)
+
+    assert json.loads(query_vectors(tmp_path / "track").read_text())["producedBy"] == {
+        "tool": "embed_queries.py"
+    }

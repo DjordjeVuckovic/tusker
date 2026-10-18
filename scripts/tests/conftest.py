@@ -79,12 +79,8 @@ def write_canonical_package(
 
 
 def build_tiny_model(directory: Path) -> Path:
-    """Save a random one-layer Qwen3 at the real model's 1024 width, with a per-character vocabulary.
-
-    Every printable ASCII character and newline has its own id, so any byte that differs
-    between two inputs reaches the model. Like the real tokenizer, it appends EOS.
-    """
-    # Imported here so the scripts/tests directory collects without the torch stack.
+    """Random one-layer Qwen3 at width 1024, one token per character and EOS appended, so any changed byte reaches the model."""
+    # Lazy, so scripts/tests collects without torch.
     import torch
     from tokenizers import Tokenizer, models, pre_tokenizers, processors
     from transformers.models.qwen3 import Qwen3Config, Qwen3Model
@@ -96,7 +92,7 @@ def build_tiny_model(directory: Path) -> Path:
             vocab={token: i for i, token in enumerate(vocabulary)}, unk_token="[UNK]"
         )
     )
-    # The tokenizers stub types these setters as read-only properties.
+    # The tokenizers stub types these setters as read-only.
     tokenizer.pre_tokenizer = pre_tokenizers.Split("", behavior="isolated")  # pyright: ignore[reportAttributeAccessIssue]
     tokenizer.post_processor = processors.TemplateProcessing(  # pyright: ignore[reportAttributeAccessIssue]
         single=f"$A {EOS}", pair=f"$A $B {EOS}", special_tokens=[(EOS, 0)]
@@ -137,7 +133,7 @@ def padded_tiny_model(
     tiny_model: Path,
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Path:
-    """The tiny model with its tokenizer padding on each side; the pinned Qwen tokenizer pads right."""
+    """The tiny model padding on each side; the pinned Qwen tokenizer pads right."""
     directory = tmp_path_factory.mktemp(f"tiny-qwen3-{request.param}")
     shutil.copytree(tiny_model, directory, dirs_exist_ok=True)
     tokenizer_config = directory / "tokenizer_config.json"
@@ -151,7 +147,7 @@ def padded_tiny_model(
 def overflowing_tiny_model(
     tiny_model: Path, tmp_path_factory: pytest.TempPathFactory
 ) -> Path:
-    """The tiny model with an infinite final-norm weight, so every vector it emits is non-finite."""
+    """The tiny model with an inf final-norm weight, so every vector is non-finite."""
     import torch
     from transformers.models.qwen3 import Qwen3Model
 
