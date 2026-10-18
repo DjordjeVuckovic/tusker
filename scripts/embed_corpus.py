@@ -28,6 +28,7 @@ import argparse
 import hashlib
 import itertools
 import json
+import re
 import shutil
 import sys
 import time
@@ -62,6 +63,9 @@ SLIM_DESCRIPTOR = "slim.datapackage.json"
 KAGGLE_WORKING = Path("/kaggle/working")
 
 CHECKPOINT_MANIFEST = "manifest.json"
+
+DEFAULT_VERSION = "v1"
+VERSION_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 SWEEP_BATCH_SIZES = (64, 256, 512)
 SWEEP_DOCS = 2000
@@ -577,19 +581,49 @@ def content_version(resource: dict[str, Any]) -> str:
     return resource["hash"].removeprefix("sha256:")[:8]
 
 
-def publish_version(parent: Path, build: Callable[[Path], str]) -> Path:
-    """Build a package in a staging dir, then rename it to `<parent>/<version>/`.
+def publish_version(
+    final_dir: Path,
+    build: Callable[[Path], None],
+    *,
+    descriptor_name: str = "datapackage.json",
+    keep_rejected: bool = False,
+) -> None:
+    """Build a package in a staging dir, then rename it to its version folder.
 
-    `build` fills the staging dir and returns the version its bytes give. A version
-    folder that already exists holds the same bytes, so it is kept and the staging
-    copy discarded.
+    An existing version folder is kept when its resource hash matches the staged
+    one. Any other hash is refused and nothing is replaced: a version names one
+    set of bytes. With `keep_rejected`, the refused package is moved aside and
+    named in the error, so an expensive run is not thrown away.
     """
-    parent.mkdir(parents=True, exist_ok=True)
-    with staged(parent / ".staging") as staging:
-        final_dir = parent / build(staging)
+    final_dir.parent.mkdir(parents=True, exist_ok=True)
+    with staged(final_dir.with_name(f".{final_dir.name}.staging")) as staging:
+        build(staging)
         if not final_dir.exists():
             staging.rename(final_dir)
-    return final_dir
+            return
+        existing = resource_hash(final_dir / descriptor_name)
+        produced = resource_hash(staging / descriptor_name)
+        if existing == produced:
+            return
+        message = (
+            f"version {final_dir.name} at {final_dir} holds resource hash {existing}, "
+            f"this run produced {produced}; nothing was replaced, pass another --version"
+        )
+        if keep_rejected:
+            rejected = final_dir.with_name(
+                f".{final_dir.name}.rejected-{produced.removeprefix('sha256:')[:8]}"
+            )
+            shutil.rmtree(rejected, ignore_errors=True)
+            staging.rename(rejected)
+            message += (
+                f". The new package is kept at {rejected}; move it to a new version "
+                "folder and set its descriptor's version to match"
+            )
+        raise PackageError(message)
+
+
+def resource_hash(descriptor_path: Path) -> str:
+    return single_resource(descriptor_path, read_descriptor(descriptor_path))["hash"]
 
 
 def publish_replacing(final_dir: Path, build: Callable[[Path], str]) -> None:
@@ -624,6 +658,15 @@ def dataset_root_of(descriptor_path: Path) -> Path:
             f"{descriptor_path} is not under <dataset>/canonical/<version>/; pass --output-root"
         )
     return version_dir.parent.parent
+
+
+def version_name(text: str) -> str:
+    """Accept a version usable as one plain folder name, such as v1 or v1-trial."""
+    if not VERSION_PATTERN.fullmatch(text):
+        raise argparse.ArgumentTypeError(
+            f"{text!r} is not a version name: letters, digits, '.', '_' or '-', not starting with '.'"
+        )
+    return text
 
 
 def positive_int(text: str) -> int:
@@ -698,9 +741,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="documents per checkpoint; the resume unit",
     )
     parser.add_argument(
+        "--version",
+        type=version_name,
+        default=DEFAULT_VERSION,
+        help="name of the package's folder under embeddings/<tag-dir>/",
+    )
+    parser.add_argument(
         "--limit",
         type=positive_int,
-        help="embed only the first N rows, as a trial package marked by embedding.limit",
+        help="embed only the first N rows, marked by embedding.limit; give it its own --version",
     )
     parser.add_argument(
         "--device",
@@ -778,6 +827,13 @@ def run(args: argparse.Namespace) -> Path:
         max_tokens=args.max_tokens,
     )
     tag_dir = output_root / "embeddings" / spec.tag.replace(":", "-")
+    final_dir = tag_dir / args.version
+    if final_dir.exists():
+        print(
+            f"warning: {final_dir} already exists; the run is published only if it "
+            "reproduces that package's bytes",
+            file=sys.stderr,
+        )
     run_key = {
         "resourceHash": source.resource_hash,
         "canonicalResourceHash": source.canonical.resource_hash,
@@ -822,14 +878,14 @@ def run(args: argparse.Namespace) -> Path:
         ),
     )
 
-    def build(directory: Path) -> str:
+    def build(directory: Path) -> None:
         resource_path = directory / "embeddings.parquet"
         merge_shards(checkpoint_dir, shard_count=shard_count, out_path=resource_path)
         resource = describe_parquet_resource(resource_path, name="embeddings")
         descriptor: dict[str, Any] = {
             "$schema": DATAPACKAGE_PROFILE,
             "name": f"{source.canonical.name}-embeddings",
-            "version": content_version(resource),
+            "version": args.version,
         }
         if source.language:
             descriptor["language"] = source.language
@@ -837,9 +893,8 @@ def run(args: argparse.Namespace) -> Path:
         descriptor["canonical"] = source.canonical.to_descriptor()
         descriptor["resources"] = [resource]
         write_descriptor(directory, descriptor)
-        return descriptor["version"]
 
-    final_dir = publish_version(tag_dir, build)
+    publish_version(final_dir, build, keep_rejected=True)
     print(f"wrote {final_dir}")
 
     if args.clean_checkpoints:

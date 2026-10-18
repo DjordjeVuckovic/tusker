@@ -166,19 +166,58 @@ def test_resource_is_described_by_its_real_size_and_hash(tmp_path, tiny_model_ar
     assert resource["hash"] == sha256_of(written)
 
 
-def test_a_package_is_versioned_and_filed_by_the_first_8_hex_of_its_resource_sha256(
-    tmp_path, tiny_model_args
-):
+def test_a_package_lands_in_version_v1_by_default(tmp_path, tiny_model_args):
     canonical = write_canonical_package(tmp_path / "canonical", ROWS)
 
     embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
 
     descriptor_path = only_package(tmp_path / "out")
-    resource_digest = sha256_of(
-        descriptor_path.parent / "embeddings.parquet"
-    ).removeprefix("sha256:")
-    assert json.loads(descriptor_path.read_text())["version"] == resource_digest[:8]
-    assert descriptor_path.parent.name == resource_digest[:8]
+    assert descriptor_path.parent.name == "v1"
+    assert json.loads(descriptor_path.read_text())["version"] == "v1"
+
+
+def test_a_package_lands_in_the_version_it_is_given(tmp_path, tiny_model_args):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, "--version", "v2")
+
+    descriptor_path = only_package(tmp_path / "out")
+    assert descriptor_path.parent.name == "v2"
+    assert json.loads(descriptor_path.read_text())["version"] == "v2"
+
+
+def test_refuses_other_bytes_under_an_existing_version_and_leaves_it_untouched(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    embed(
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--clean-checkpoints"
+    )
+    resource = only_package(tmp_path / "out").parent / "embeddings.parquet"
+    before = sha256_of(resource)
+
+    result = embed(
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--limit", "2"
+    )
+
+    assert result.returncode != 0
+    assert "v1" in result.stderr
+    assert before in result.stderr
+    assert sha256_of(resource) == before
+
+
+@pytest.mark.parametrize("version", ["", "..", "a/b", ".hidden"])
+def test_refuses_a_version_that_is_not_a_plain_folder_name(
+    tmp_path, tiny_model_args, version
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+
+    result = embed(
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--version", version
+    )
+
+    assert result.returncode == 2
+    assert "--version" in result.stderr
 
 
 def test_the_same_inputs_produce_byte_identical_packages(tmp_path, tiny_model_args):
@@ -296,18 +335,21 @@ def test_a_limit_trial_embeds_the_first_rows_into_its_own_package(
     descriptor_path = only_package(tmp_path / "out")
     ids, _ = read_embeddings(descriptor_path)
     assert ids == [ROWS[0]["id"], ROWS[1]["id"]]
-    resource_digest = sha256_of(
-        descriptor_path.parent / "embeddings.parquet"
-    ).removeprefix("sha256:")
-    assert descriptor_path.parent.name == resource_digest[:8]
-    assert json.loads(descriptor_path.read_text())["version"] == resource_digest[:8]
 
 
 def test_a_full_run_after_a_limit_trial_writes_the_full_corpus(
     tmp_path, tiny_model_args
 ):
     canonical = write_canonical_package(tmp_path / "canonical", ROWS)
-    embed(canonical.descriptor, tmp_path / "out", *tiny_model_args, "--limit", "2")
+    embed(
+        canonical.descriptor,
+        tmp_path / "out",
+        *tiny_model_args,
+        "--limit",
+        "2",
+        "--version",
+        "v1-trial",
+    )
 
     result = embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
 
@@ -576,3 +618,24 @@ def test_default_checkpoints_are_found_again_by_settings_and_guard_the_batch_siz
 
     assert result.returncode != 0
     assert "batchSize" in result.stderr
+
+
+def test_keeps_the_rejected_package_and_names_it_when_a_version_conflicts(
+    tmp_path, tiny_model_args
+):
+    canonical = write_canonical_package(tmp_path / "canonical", ROWS)
+    embed(
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--clean-checkpoints"
+    )
+
+    result = embed(
+        canonical.descriptor, tmp_path / "out", *tiny_model_args, "--limit", "2"
+    )
+
+    (kept,) = [
+        path
+        for path in (tmp_path / "out").glob("embeddings/*/.*")
+        if str(path) in result.stderr
+    ]
+    ids, _ = read_embeddings(kept / "datapackage.json")
+    assert ids == [ROWS[0]["id"], ROWS[1]["id"]]

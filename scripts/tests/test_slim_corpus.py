@@ -135,16 +135,30 @@ def test_reslimming_the_same_canonical_package_is_a_no_op(tmp_path):
     assert sha256_of(slim_package(slim) / "articles.parquet") == before
 
 
-def test_the_slim_package_is_versioned_and_filed_by_its_own_bytes(tmp_path):
+def test_the_slim_package_lands_in_version_v1_by_default(tmp_path):
     canonical = write_canonical_package(tmp_path / "canonical", ROWS)
     slim = tmp_path / "payload"
 
     run_script("slim_corpus.py", canonical.descriptor, "--out", slim)
 
     folder = slim_package(slim)
-    resource_digest = sha256_of(folder / "articles.parquet").removeprefix("sha256:")
-    assert folder.name == resource_digest[:8]
-    assert (
-        json.loads((folder / "slim.datapackage.json").read_text())["version"]
-        == resource_digest[:8]
+    assert folder.name == "v1"
+    assert json.loads((folder / "slim.datapackage.json").read_text())["version"] == "v1"
+
+
+def test_refuses_to_reslim_other_bytes_into_an_existing_version(tmp_path):
+    slim = tmp_path / "payload"
+    first = write_canonical_package(tmp_path / "first", ROWS)
+    run_script("slim_corpus.py", first.descriptor, "--out", slim)
+    before = sha256_of(slim_package(slim) / "articles.parquet")
+    changed = write_canonical_package(
+        tmp_path / "changed",
+        [*ROWS, article("e5d4c3b2-a1f0-4e9d-8c7b-6a5f4e3d2c1b", "Late addition")],
     )
+
+    result = run_script("slim_corpus.py", changed.descriptor, "--out", slim)
+
+    assert result.returncode != 0
+    assert "v1" in result.stderr
+    assert before in result.stderr
+    assert sha256_of(slim_package(slim) / "articles.parquet") == before
