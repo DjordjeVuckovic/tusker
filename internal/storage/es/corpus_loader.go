@@ -457,6 +457,9 @@ func (z *vectorZip) vectorFor(articleID uuid.UUID, position int) ([]float32, err
 	if vec.Model != "" && vec.Model != z.modelTag {
 		return nil, fmt.Errorf("vector %d (%s) is tagged %q, the corpus %q", position, vec.ID, vec.Model, z.modelTag)
 	}
+	if len(vec.Embedding) == 0 {
+		return nil, fmt.Errorf("vector %d (%s) is empty", position, vec.ID)
+	}
 	return vec.Embedding, nil
 }
 

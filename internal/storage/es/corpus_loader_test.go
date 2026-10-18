@@ -286,6 +286,16 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 			index:   "articles_other_model_test",
 			pairing: func(vecs []embedding.Vec) []embedding.Vec { vecs[1].Model = "nomic-embed-text"; return vecs },
 		},
+		{
+			name:    "an empty vector",
+			index:   "articles_empty_vector_test",
+			pairing: func(vecs []embedding.Vec) []embedding.Vec { vecs[1].Embedding = []float32{}; return vecs },
+		},
+		{
+			name:    "a null vector",
+			index:   "articles_null_vector_test",
+			pairing: func(vecs []embedding.Vec) []embedding.Vec { vecs[1].Embedding = nil; return vecs },
+		},
 	} {
 		t.Run(tc.name+": the load fails and leaves no index", func(t *testing.T) {
 			articles := testArticles(4)
