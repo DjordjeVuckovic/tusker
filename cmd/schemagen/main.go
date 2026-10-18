@@ -6,9 +6,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-
-	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
-	"github.com/DjordjeVuckovic/tusker/pkg/schema"
 )
 
 func main() {
@@ -16,7 +13,6 @@ func main() {
 		outputDir       = flag.String("output", "api", "Output directory for the data mapping schema")
 		strictMode      = flag.Bool("strict", true, "Enable strict validation mode for the data mapping schema")
 		includeExamples = flag.Bool("examples", true, "Include the data mapping example configuration")
-		baseURI         = flag.String("base-uri", "https://schemas.tusker.sh", "Base URI for the data mapping schema ID")
 		verbose         = flag.Bool("verbose", false, "Enable verbose logging")
 		dataPackageDir  = flag.String("datapackage-output", "", "Output directory for the data package descriptor schema; written only when set")
 	)
@@ -38,32 +34,17 @@ func main() {
 		log.Fatalf("Failed to create output directory %s: %v", *outputDir, err)
 	}
 
-	config := schema.GeneratorConfig{
-		IncludeExamples:     *includeExamples,
-		StrictValidation:    *strictMode,
-		UseDefinitions:      true,
-		BaseURI:             *baseURI,
-		SkipSchemaReference: false,
-	}
-
-	generator := schema.NewGeneratorWithConfig(config)
-
 	if *verbose {
-		log.Printf("Generating schemas with config: strict=%v, examples=%v, baseURI=%s",
-			*strictMode, *includeExamples, *baseURI)
+		log.Printf("Generating JSON schema for DataMapping: strict=%v, examples=%v", *strictMode, *includeExamples)
 	}
 
-	if *verbose {
-		log.Printf("Generating JSON schema for DataMapping...")
-	}
-
-	schemaJSON, err := generator.GenerateJSONSchema(datamapping.DataMapper{})
+	schemaJSON, err := mappingSchema(*strictMode)
 	if err != nil {
 		log.Fatalf("Failed to generate schema for DataMapping: %v", err)
 	}
 
-	jsonFile := filepath.Join(*outputDir, "datamapping-v1.json")
-	if err := os.WriteFile(jsonFile, []byte(schemaJSON), 0644); err != nil {
+	jsonFile := filepath.Join(*outputDir, mappingSchemaFile)
+	if err := os.WriteFile(jsonFile, schemaJSON, 0644); err != nil {
 		log.Fatalf("Failed to write JSON schema to %s: %v", jsonFile, err)
 	}
 

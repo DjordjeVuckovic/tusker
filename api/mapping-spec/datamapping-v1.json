@@ -27,7 +27,8 @@
             "eng"
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "dataset": {
       "description": "Dataset source identifier",
@@ -85,7 +86,8 @@
             "type": "string",
             "pattern": "^(URL|Title|Description|Content|PublishedAt|Metadata\\.(ExternalID|PublisherName|Authors|Section|Keywords|Image|DateModified)|Metadata\\.Extra\\.[A-Za-z][A-Za-z0-9_]*)$"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "minItems": 1
     },
@@ -105,7 +107,8 @@
           "description": "Source column mapped to URL, hashed by uuidv5; defaults to that column",
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "kind": {
       "description": "Resource type identifier",
@@ -132,7 +135,8 @@
           "minLength": 1,
           "maxLength": 100
         }
-      }
+      },
+      "additionalProperties": false
     },
     "output": {
       "description": "Canonical package output",
@@ -149,7 +153,8 @@
             "jsonl"
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "version": {
       "description": "API version",
@@ -158,5 +163,6 @@
         "v1"
       ]
     }
-  }
+  },
+  "additionalProperties": false
 }

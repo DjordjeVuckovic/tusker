@@ -78,34 +78,35 @@ func TestLoadMapping_AcceptsEveryTargetKind(t *testing.T) {
 	assert.Equal(t, datamapping.OutputParquet, format)
 }
 
+var unknownKeyMappings = []struct {
+	name    string
+	doc     string
+	wantKey string
+}{
+	{
+		name:    "top level",
+		doc:     validMapping + "idStrategey:\n  kind: uuidv5\n  source: link\n",
+		wantKey: "idStrategey",
+	},
+	{
+		name:    "inside idStrategy",
+		doc:     validMapping + "idStrategy:\n  kidn: uuidv5\n",
+		wantKey: "kidn",
+	},
+	{
+		name:    "inside a field mapping",
+		doc:     replaced(validMapping, "    target: Title\n", "    target: Title\n    requried: true\n"),
+		wantKey: "requried",
+	},
+	{
+		name:    "the retired targetType",
+		doc:     replaced(validMapping, "    target: Title\n", "    target: Title\n    targetType: string\n"),
+		wantKey: "targetType",
+	},
+}
+
 func TestLoadMapping_RejectsAnUnknownKeyByName(t *testing.T) {
-	tests := []struct {
-		name    string
-		doc     string
-		wantKey string
-	}{
-		{
-			name:    "top level",
-			doc:     validMapping + "idStrategey:\n  kind: uuidv5\n  source: link\n",
-			wantKey: "idStrategey",
-		},
-		{
-			name:    "inside idStrategy",
-			doc:     validMapping + "idStrategy:\n  kidn: uuidv5\n",
-			wantKey: "kidn",
-		},
-		{
-			name:    "inside a field mapping",
-			doc:     replaced(validMapping, "    target: Title\n", "    target: Title\n    requried: true\n"),
-			wantKey: "requried",
-		},
-		{
-			name:    "the retired targetType",
-			doc:     replaced(validMapping, "    target: Title\n", "    target: Title\n    targetType: string\n"),
-			wantKey: "targetType",
-		},
-	}
-	for _, tt := range tests {
+	for _, tt := range unknownKeyMappings {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := loadMapping(tt.doc)
 			require.Error(t, err)
@@ -155,7 +156,7 @@ var rejectedMappings = []struct {
 	{name: "a uuidv5 id over a column other than the url", doc: validMapping + "idStrategy:\n  kind: uuidv5\n  source: title\n", wantInErr: `"title"`, crossField: true},
 	{name: "a mapped article id", doc: withMappings(validMapping, "  - {source: uid, target: ID}\n"), wantInErr: `"ID"`},
 	{name: "an external id read as a number", doc: withMappings(validMapping, "  - {source: uid, sourceType: int, target: Metadata.ExternalID}\n"), wantInErr: "int", crossField: true},
-	{name: "the retired targetType", doc: replaced(validMapping, "    target: Title\n", "    target: Title\n    targetType: string\n"), wantInErr: "targetType", crossField: true},
+	{name: "the retired targetType", doc: replaced(validMapping, "    target: Title\n", "    target: Title\n    targetType: string\n"), wantInErr: "targetType"},
 }
 
 func TestLoadMapping_RejectsAnInvalidMappingPrecisely(t *testing.T) {
@@ -203,6 +204,11 @@ func TestMappingSchema_AgreesWithTheLoader(t *testing.T) {
 			continue
 		}
 		t.Run("rejects "+tt.name, func(t *testing.T) {
+			assert.Error(t, validateAgainstSchema(t, schema, tt.doc))
+		})
+	}
+	for _, tt := range unknownKeyMappings {
+		t.Run("rejects an unknown key "+tt.name, func(t *testing.T) {
 			assert.Error(t, validateAgainstSchema(t, schema, tt.doc))
 		})
 	}
