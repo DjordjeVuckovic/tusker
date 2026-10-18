@@ -119,7 +119,7 @@ func TestHybridSearcher_SearchHybrid_OnlySeesTheQueryModel(t *testing.T) {
 	sameModel := uuid.New()
 	otherModel := uuid.New()
 	for _, id := range []uuid.UUID{sameModel, otherModel} {
-		if _, err := indexer.Save(ctx, document.Article{ID: id, Title: id.String(), Language: "english"}); err != nil {
+		if _, err := indexer.Save(ctx, document.Article{ID: id, Title: id.String(), Language: language.English}); err != nil {
 			t.Fatalf("index article: %v", err)
 		}
 	}
