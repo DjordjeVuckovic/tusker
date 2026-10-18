@@ -123,10 +123,13 @@ func writeMDMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry
 	fmt.Fprintf(w, "### %s\n\n", title)
 
 	t := newMDTable()
-	hdr := make(table.Row, 0, 1+2*len(kValues)+5)
+	hdr := make(table.Row, 0, 1+3*len(kValues)+5)
 	hdr = append(hdr, "Engine")
 	for _, k := range kValues {
-		hdr = append(hdr, ndcgHeader(k))
+		hdr = append(hdr, ndcgHeader(k, NDCGGain))
+	}
+	for _, k := range kValues {
+		hdr = append(hdr, ndcgHeader(k, LinearNDCGGain))
 	}
 	for _, k := range kValues {
 		hdr = append(hdr, fmt.Sprintf("P@%d", k))
@@ -134,12 +137,15 @@ func writeMDMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry
 	hdr = append(hdr, "MAP", "MRR", "Bpref", fmt.Sprintf("Coverage@%d", largestK(kValues)), "Judged", "Errors")
 	t.AppendHeader(hdr)
 
-	numMetricCols := len(kValues)*2 + 4
+	numMetricCols := len(kValues)*3 + 4
 	for _, agg := range aggregated {
 		row := table.Row{agg.EngineName}
 		if agg.JudgedCount > 0 {
 			for _, k := range kValues {
 				row = append(row, fmt.Sprintf("%.4f", agg.NDCG[k]))
+			}
+			for _, k := range kValues {
+				row = append(row, fmtLinearNDCG(agg.NDCGLinear, k))
 			}
 			for _, k := range kValues {
 				row = append(row, fmt.Sprintf("%.4f", agg.Precision[k]))
@@ -251,10 +257,13 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 
 	t := newTable(w)
 
-	hdr := make(table.Row, 0, 1+2*len(kValues)+5)
+	hdr := make(table.Row, 0, 1+3*len(kValues)+5)
 	hdr = append(hdr, "Engine")
 	for _, k := range kValues {
-		hdr = append(hdr, ndcgHeader(k))
+		hdr = append(hdr, ndcgHeader(k, NDCGGain))
+	}
+	for _, k := range kValues {
+		hdr = append(hdr, ndcgHeader(k, LinearNDCGGain))
 	}
 	for _, k := range kValues {
 		hdr = append(hdr, fmt.Sprintf("P@%d", k))
@@ -263,7 +272,7 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 	t.AppendHeader(hdr)
 
 	// Right-align all metric columns (2 … N-2); keep Judged/Errors default.
-	numMetricCols := len(kValues)*2 + 4
+	numMetricCols := len(kValues)*3 + 4
 	var rcols []int
 	for i := 2; i <= 1+numMetricCols; i++ {
 		rcols = append(rcols, i)
@@ -272,10 +281,12 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 
 	// Find per-column best values for highlighting.
 	bestNDCG := make(map[int]float64, len(kValues))
+	bestLinearNDCG := make(map[int]float64, len(kValues))
 	bestP := make(map[int]float64, len(kValues))
 	bestMAP, bestMRR, bestBpref := math.Inf(-1), math.Inf(-1), math.Inf(-1)
 	for _, k := range kValues {
 		bestNDCG[k] = math.Inf(-1)
+		bestLinearNDCG[k] = math.Inf(-1)
 		bestP[k] = math.Inf(-1)
 	}
 	for _, agg := range aggregated {
@@ -285,6 +296,9 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 		for _, k := range kValues {
 			if v := agg.NDCG[k]; v > bestNDCG[k] {
 				bestNDCG[k] = v
+			}
+			if v, ok := agg.NDCGLinear[k]; ok && v > bestLinearNDCG[k] {
+				bestLinearNDCG[k] = v
 			}
 			if v := agg.Precision[k]; v > bestP[k] {
 				bestP[k] = v
@@ -306,6 +320,9 @@ func writeMetricsTable(w io.Writer, title string, aggregated []AggregatedEntry, 
 		if agg.JudgedCount > 0 {
 			for _, k := range kValues {
 				row = append(row, fmtBest(agg.NDCG[k], bestNDCG[k]))
+			}
+			for _, k := range kValues {
+				row = append(row, fmtBestLinearNDCG(agg.NDCGLinear, k, bestLinearNDCG[k]))
 			}
 			for _, k := range kValues {
 				row = append(row, fmtBest(agg.Precision[k], bestP[k]))
@@ -430,7 +447,7 @@ func writePerQueryTable(w io.Writer, jr *JobReport, kValues []int) {
 	t := newTable(w)
 	t.AppendHeader(table.Row{
 		"Query", "Engine",
-		ndcgHeader(k), fmt.Sprintf("P@%d", k),
+		ndcgHeader(k, NDCGGain), fmt.Sprintf("P@%d", k),
 		"AP", "RR", "Bpref",
 		"Ret", "Corpus", "p50", "p95", "Status",
 	})
@@ -472,13 +489,32 @@ func fmtCorpusMatches(v *int64) string {
 	return fmt.Sprintf("%d", *v)
 }
 
-// NDCGGain is the gain every NDCG uses, named in each NDCG header because
-// trec_eval's ndcg_cut uses linear gain (rel) and the two can order engines
-// differently.
-const NDCGGain = "2^rel-1"
+// Every NDCG header names its gain, because the two can order engines
+// differently. NDCGGain is the bench's own; LinearNDCGGain is trec_eval's
+// ndcg_cut, which ignores the relevance threshold.
+const (
+	NDCGGain       = "2^rel-1"
+	LinearNDCGGain = "rel"
+)
 
-func ndcgHeader(k int) string {
-	return fmt.Sprintf("NDCG@%d (gain %s)", k, NDCGGain)
+func ndcgHeader(k int, gain string) string {
+	return fmt.Sprintf("NDCG@%d (gain %s)", k, gain)
+}
+
+// fmtLinearNDCG shows a dash for reports written before linear NDCG was
+// recorded, which would otherwise read as 0.
+func fmtLinearNDCG(scores map[int]float64, k int) string {
+	if scores == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%.4f", scores[k])
+}
+
+func fmtBestLinearNDCG(scores map[int]float64, k int, best float64) string {
+	if scores == nil {
+		return tDim.Sprint("—")
+	}
+	return fmtBest(scores[k], best)
 }
 
 func largestK(kValues []int) int {

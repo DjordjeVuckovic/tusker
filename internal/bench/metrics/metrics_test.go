@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -419,6 +420,21 @@ func TestBinaryPreference(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := BinaryPreference(tt.ranked, tt.judgments, 1)
 			assert.InDelta(t, tt.want, got, 1e-9)
+		})
+	}
+}
+
+func TestLinearNDCGAtK(t *testing.T) {
+	ids := newIDs(7)
+	highly, highlyMissed, relevant, marginal, marginalMissed, nonrel, unjudged := ids[0], ids[1], ids[2], ids[3], ids[4], ids[5], ids[6]
+	judgments := map[uuid.UUID]int{highly: 3, highlyMissed: 3, relevant: 2, marginal: 1, marginalMissed: 1, nonrel: 0}
+	ranked := []uuid.UUID{marginal, unjudged, highly, nonrel, relevant}
+
+	// Expected values are trec_eval 10.0 ndcg_cut on the same qrels and
+	// ranking, which prints the same at -l 1 and -l 2.
+	for k, want := range map[int]float64{1: 0.3333, 3: 0.4242, 5: 0.4879} {
+		t.Run(fmt.Sprintf("ndcg_cut.%d", k), func(t *testing.T) {
+			assert.InDelta(t, want, LinearNDCGAtK(ranked, judgments, k), 5e-5)
 		})
 	}
 }

@@ -109,6 +109,7 @@ type Entry struct {
 	EngineName    string
 	Judged        bool
 	NDCG          map[int]float64
+	NDCGLinear    map[int]float64 `json:",omitempty"`
 	Precision     map[int]float64
 	Recall        map[int]float64
 	F1            map[int]float64
@@ -136,6 +137,8 @@ type AggregatedEntry struct {
 	EngineName string
 	NDCG       map[int]float64
 	NDCGStddev map[int]float64 // sample stddev of per-query NDCG — measures consistency
+	// NDCGLinear is nil in reports written before it was recorded.
+	NDCGLinear map[int]float64 `json:",omitempty"`
 	Precision  map[int]float64
 	Recall     map[int]float64
 	F1         map[int]float64

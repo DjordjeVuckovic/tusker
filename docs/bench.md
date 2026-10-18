@@ -409,7 +409,8 @@ Metrics are computed per query, then averaged over the job's judged query set: e
 
 | Metric   | Description                                                                                  |
 |----------|----------------------------------------------------------------------------------------------|
-| `NDCG@k` | Normalized Discounted Cumulative Gain, gain `2^rel-1` (trec_eval's `ndcg_cut` uses `rel`)    |
+| `NDCG@k` | Normalized Discounted Cumulative Gain, gain `2^rel-1`, over grades at or above `relevance_threshold` |
+| `NDCG@k (gain rel)` | trec_eval's `ndcg_cut`: gain `rel`, every grade above 0, whatever `relevance_threshold` is |
 | `P@k`    | Precision at k                                                                               |
 | `R@k`    | Recall at k                                                                                  |
 | `F1@k`   | Harmonic mean of P@k and R@k                                                                 |
@@ -423,15 +424,15 @@ Significance is a two-tailed Wilcoxon signed-rank test per engine pair for NDCG@
 
 Latency (min/p50/p75/p90/p95/p99/max/mean/stddev) covers only the queries every engine in the job answered; `LatencyExcludedQueries` counts the rest.
 
-Each report records every (query, engine) ranking, so `trec_eval` can reproduce its MAP and P@k:
+Each report records every (query, engine) ranking, so `trec_eval` can reproduce its MAP, P@k and linear-gain NDCG:
 
 ```bash
 bench export <track> --format qrels --strategy <S>
 bench export <track> --format run
-trec_eval -c -l <relevance_threshold> -m map -m P.5,10 trec/qrels.<S>.tsv reports/<run_id>.run/<job>.<engine>.run
+trec_eval -c -l <relevance_threshold> -m map -m P.5,10 -m ndcg_cut.5,10 trec/qrels.<S>.tsv reports/<run_id>.run/<job>.<engine>.run
 ```
 
-The qrels must hold exactly the job's queries: `-c` averages over every qrels topic, so a topic the job never ran counts as a zero. Filter the qrels to the suite's query ids before running `trec_eval`. Engines return no scores, so run-file scores are derived from rank. NDCG will not match `trec_eval` because of the gain.
+The qrels must hold exactly the job's queries: `-c` averages over every qrels topic, so a topic the job never ran counts as a zero. Filter the qrels to the suite's query ids before running `trec_eval`. Engines return no scores, so run-file scores are derived from rank. `ndcg_cut` matches the `gain rel` column and ignores `-l`; the `2^rel-1` NDCG has no stock trec_eval measure.
 
 ## Artifacts
 

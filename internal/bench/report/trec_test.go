@@ -131,21 +131,23 @@ func assertRunMatchesRankings(t *testing.T, run, engine string) {
 }
 
 // The expected values are trec_eval 10.0 output for
-// `trec_eval -c -l 1 -m map -m P.5,10 qrels <engine>.run`, on the qrels
+// `trec_eval -c -l 1 -m map -m P.5,10 -m ndcg_cut.5,10 qrels <engine>.run`, on the qrels
 // trecFixtureQrels writes and the run files below.
 func TestWriteTRECRun_ReproducesReportMetricsUnderTrecEval(t *testing.T) {
 	r := Generate(trecFixture(), nil)
 	job := &r.Jobs[0]
 
-	trecEval := map[string]struct{ mapScore, p5, p10 float64 }{
-		"pg": {mapScore: 0.3352, p5: 0.2667, p10: 0.1333},
-		"es": {mapScore: 0.9444, p5: 0.4667, p10: 0.2333},
+	trecEval := map[string]struct{ mapScore, p5, p10, ndcgCut5, ndcgCut10 float64 }{
+		"pg": {mapScore: 0.3352, p5: 0.2667, p10: 0.1333, ndcgCut5: 0.3890, ndcgCut10: 0.3890},
+		"es": {mapScore: 0.9444, p5: 0.4667, p10: 0.2333, ndcgCut5: 0.9201, ndcgCut10: 0.9201},
 	}
 	for _, agg := range job.Aggregated {
 		want := trecEval[agg.EngineName]
 		assert.InDelta(t, want.mapScore, agg.MAP, 5e-5, agg.EngineName)
 		assert.InDelta(t, want.p5, agg.Precision[5], 5e-5, agg.EngineName)
 		assert.InDelta(t, want.p10, agg.Precision[10], 5e-5, agg.EngineName)
+		assert.InDelta(t, want.ndcgCut5, agg.NDCGLinear[5], 5e-5, agg.EngineName)
+		assert.InDelta(t, want.ndcgCut10, agg.NDCGLinear[10], 5e-5, agg.EngineName)
 	}
 
 	for _, engine := range []string{"pg", "es"} {

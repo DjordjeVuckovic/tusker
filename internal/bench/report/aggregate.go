@@ -158,6 +158,7 @@ func generateJobReport(scope jobScope) JobReport {
 				EngineName:    qr.EngineName,
 				Judged:        qr.Scores.Judged,
 				NDCG:          qr.Scores.NDCG,
+				NDCGLinear:    qr.Scores.NDCGLinear,
 				Precision:     qr.Scores.Precision,
 				Recall:        qr.Scores.Recall,
 				F1:            qr.Scores.F1,
@@ -232,6 +233,7 @@ func aggregate(scope jobScope, queryIDs []string) []AggregatedEntry {
 			EngineName: engName,
 			NDCG:       make(map[int]float64, len(kValues)),
 			NDCGStddev: make(map[int]float64, len(kValues)),
+			NDCGLinear: make(map[int]float64, len(kValues)),
 			Precision:  make(map[int]float64, len(kValues)),
 			Recall:     make(map[int]float64, len(kValues)),
 			F1:         make(map[int]float64, len(kValues)),
@@ -272,6 +274,7 @@ func aggregate(scope jobScope, queryIDs []string) []AggregatedEntry {
 				v := scores.NDCG[k]
 				agg.NDCG[k] += v
 				ndcgSamples[k] = append(ndcgSamples[k], v)
+				agg.NDCGLinear[k] += scores.NDCGLinear[k]
 				agg.Precision[k] += scores.Precision[k]
 				agg.Recall[k] += scores.Recall[k]
 				agg.F1[k] += scores.F1[k]
@@ -294,6 +297,7 @@ func aggregate(scope jobScope, queryIDs []string) []AggregatedEntry {
 			agg.MBpref /= n
 			for _, k := range kValues {
 				agg.NDCG[k] /= n
+				agg.NDCGLinear[k] /= n
 				agg.Precision[k] /= n
 				agg.Recall[k] /= n
 				agg.F1[k] /= n

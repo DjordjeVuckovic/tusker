@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -23,14 +24,15 @@ func answered(qid, engine string, ap float64, latency time.Duration) runner.Quer
 		QueryID:    qid,
 		EngineName: engine,
 		Scores: metrics.ScoreSet{
-			Judged:    true,
-			NDCG:      map[int]float64{10: ap},
-			Precision: map[int]float64{10: ap},
-			Recall:    map[int]float64{10: ap},
-			F1:        map[int]float64{10: ap},
-			AP:        ap,
-			RR:        ap,
-			Bpref:     ap,
+			Judged:     true,
+			NDCG:       map[int]float64{10: ap},
+			NDCGLinear: map[int]float64{10: ap / 2},
+			Precision:  map[int]float64{10: ap},
+			Recall:     map[int]float64{10: ap},
+			F1:         map[int]float64{10: ap},
+			AP:         ap,
+			RR:         ap,
+			Bpref:      ap,
 		},
 		Latency: runner.ComputeLatencyStats([]time.Duration{latency}),
 	}
@@ -79,6 +81,7 @@ func TestGenerate_ScoresEveryEngineOverTheSameJudgedQueries(t *testing.T) {
 	assert.InDelta(t, 0.400, agg["pg"].MAP, 1e-9)
 	assert.InDelta(t, 0.375, agg["es"].MAP, 1e-9)
 	assert.InDelta(t, 0.400, agg["pg"].NDCG[10], 1e-9)
+	assert.InDelta(t, 0.1875, agg["es"].NDCGLinear[10], 1e-9)
 	assert.InDelta(t, 0.375, agg["es"].MRR, 1e-9)
 	assert.InDelta(t, 0.375, agg["es"].MBpref, 1e-9)
 	assert.InDelta(t, 0.375, agg["es"].Precision[10], 1e-9)
@@ -292,16 +295,59 @@ func TestWriters_NameTheNDCGGainInEveryNDCGHeader(t *testing.T) {
 
 	assert.Regexp(t, `<dt>NDCG@K</dt><dd>[^<]*2\^rel-1`, string(html), "glossary")
 
+	assert.Regexp(t, `<dt>NDCG@K \(gain rel\)</dt><dd>[^<]*ndcg_cut`, string(html), "glossary")
+
 	headers := map[string][]string{
 		"table":    regexp.MustCompile(`(?i)NDCG@\d+[^│]*`).FindAllString(terminal.String(), -1),
 		"markdown": regexp.MustCompile(`NDCG@\d+[^|]*`).FindAllString(markdown.String(), -1),
 		"html":     regexp.MustCompile(`<(?:th|div class="section-title")>NDCG@[^<]*<`).FindAllString(string(html), -1),
 	}
+	namesGain := regexp.MustCompile(`\(gain (2\^rel-1|rel)\)`)
 	for writer, found := range headers {
 		require.NotEmpty(t, found, writer)
+		gains := make(map[string]bool)
 		for _, header := range found {
-			assert.Contains(t, strings.ToLower(header), "2^rel-1", "%s header %q", writer, header)
+			m := namesGain.FindStringSubmatch(strings.ToLower(header))
+			if assert.NotNil(t, m, "%s header %q", writer, header) {
+				gains[m[1]] = true
+			}
 		}
+		assert.True(t, gains["2^rel-1"] && gains["rel"], "%s shows both gains, got %v", writer, gains)
+	}
+}
+
+func TestWriters_ShowLinearNDCGNextToExponential(t *testing.T) {
+	tests := []struct {
+		name       string
+		linear     map[int]float64
+		wantCell   string
+		wantTermRe string
+	}{
+		{name: "recorded", linear: map[int]float64{10: 0.3}, wantCell: "0.3000", wantTermRe: `0\.5000\s+│\s+0\.3000\s+│`},
+		{name: "report predating it", linear: nil, wantCell: "—", wantTermRe: `0\.5000\s+│\s+—\s+│`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &Report{
+				Config: ReportConfig{KValues: []int{10}, RelevanceThreshold: 1},
+				Jobs: []JobReport{{
+					JobName:    "linear",
+					PerQuery:   []Entry{{QueryID: "q1", EngineName: "a", Judged: true}},
+					Aggregated: []AggregatedEntry{{EngineName: "a", JudgedCount: 1, QueryCount: 1, NDCG: map[int]float64{10: 0.5}, NDCGLinear: tc.linear}},
+				}},
+			}
+			var terminal, markdown bytes.Buffer
+			WriteTable(r, &terminal)
+			WriteMarkdown(r, &markdown)
+			htmlPath := filepath.Join(t.TempDir(), "report.html")
+			require.NoError(t, WriteHTML(r, htmlPath))
+			html, err := os.ReadFile(htmlPath)
+			require.NoError(t, err)
+
+			assert.Regexp(t, tc.wantTermRe, terminal.String())
+			assert.Contains(t, markdown.String(), "| 0.5000 | "+tc.wantCell+" |")
+			assert.Regexp(t, `0\.5000</span></td>\s*<td class="val-main">`+regexp.QuoteMeta(tc.wantCell)+`</td>`, string(html))
+		})
 	}
 }
 
@@ -439,4 +485,53 @@ func TestGenerate_MarksAFailedCellJudgedOnlyWhenItsQueryIs(t *testing.T) {
 
 	assert.True(t, judged["q3"], "pg failed a judged query, which scores 0 in its mean")
 	assert.False(t, judged["q4"], "pg failed an unjudged query, which no mean counts")
+}
+
+func TestWriters_UnjudgedRowKeepsJudgedAndErrorsUnderTheirHeaders(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{5, 10}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:  "unjudged-row",
+			PerQuery: []Entry{{QueryID: "q1", EngineName: "a", Judged: true}},
+			Aggregated: []AggregatedEntry{
+				{EngineName: "a", JudgedCount: 1, QueryCount: 1},
+				{EngineName: "b", JudgedCount: 0, QueryCount: 3, ErrorCount: 2},
+			},
+		}},
+	}
+	var terminal, markdown bytes.Buffer
+	WriteTable(r, &terminal)
+	WriteMarkdown(r, &markdown)
+
+	for name, out := range map[string]struct {
+		text, sep string
+	}{"table": {terminal.String(), "│"}, "markdown": {markdown.String(), "|"}} {
+		t.Run(name, func(t *testing.T) {
+			var header, row []string
+			for _, line := range strings.Split(out.text, "\n") {
+				cells := strings.Split(line, out.sep)
+				for i := range cells {
+					cells[i] = strings.TrimSpace(cells[i])
+				}
+				switch {
+				case header == nil && slices.ContainsFunc(cells, func(c string) bool { return strings.EqualFold(c, "Judged") }):
+					header = cells
+				case header != nil && slices.Contains(cells, "b"):
+					row = cells
+				}
+				if row != nil {
+					break
+				}
+			}
+			require.NotNil(t, row)
+			for i, h := range header {
+				switch strings.ToLower(h) {
+				case "judged":
+					assert.Equal(t, "0/3", row[i])
+				case "errors":
+					assert.Equal(t, "2/3", row[i])
+				}
+			}
+		})
+	}
 }

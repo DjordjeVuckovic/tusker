@@ -83,14 +83,15 @@ func findGitRoot(start string) string {
 // ─── view model ─────────────────────────────────────────────────────────────
 
 type htmlReport struct {
-	NDCGGain  string
-	Title     string
-	RunID     string
-	Tool      string
-	Generated string
-	SpecID    string
-	Sources   *htmlSources
-	Jobs      []htmlJob
+	NDCGGain       string
+	LinearNDCGGain string
+	Title          string
+	RunID          string
+	Tool           string
+	Generated      string
+	SpecID         string
+	Sources        *htmlSources
+	Jobs           []htmlJob
 }
 
 type htmlSources struct {
@@ -117,14 +118,15 @@ type htmlJob struct {
 }
 
 type htmlAggRow struct {
-	Engine   string
-	NDCG     []htmlCell
-	MAP      htmlCell
-	MRR      htmlCell
-	Bpref    htmlCell
-	Coverage string
-	Judged   string
-	Errors   string
+	Engine     string
+	NDCG       []htmlCell
+	NDCGLinear []string
+	MAP        htmlCell
+	MRR        htmlCell
+	Bpref      htmlCell
+	Coverage   string
+	Judged     string
+	Errors     string
 }
 
 type htmlCell struct {
@@ -168,12 +170,13 @@ func buildViewModel(r *Report) htmlReport {
 		title = "Benchmark Report"
 	}
 	vm := htmlReport{
-		NDCGGain:  NDCGGain,
-		Title:     title,
-		RunID:     r.Provenance.RunID,
-		Tool:      r.Provenance.Tool,
-		Generated: r.Provenance.GeneratedAt.Format("2006-01-02 15:04:05 UTC"),
-		SpecID:    r.Provenance.SpecID,
+		NDCGGain:       NDCGGain,
+		LinearNDCGGain: LinearNDCGGain,
+		Title:          title,
+		RunID:          r.Provenance.RunID,
+		Tool:           r.Provenance.Tool,
+		Generated:      r.Provenance.GeneratedAt.Format("2006-01-02 15:04:05 UTC"),
+		SpecID:         r.Provenance.SpecID,
 	}
 	if s := r.Provenance.Sources; s != nil {
 		vm.Sources = &htmlSources{
@@ -205,6 +208,9 @@ func buildViewModel(r *Report) htmlReport {
 					c.Stddev = fmt.Sprintf("%.4f", sd)
 				}
 				row.NDCG = append(row.NDCG, c)
+			}
+			for _, k := range kVals {
+				row.NDCGLinear = append(row.NDCGLinear, fmtLinearNDCG(agg.NDCGLinear, k))
 			}
 			row.MAP = htmlCell{Val: fmt.Sprintf("%.4f", agg.MAP)}
 			row.MRR = htmlCell{Val: fmt.Sprintf("%.4f", agg.MRR)}
