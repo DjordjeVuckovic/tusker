@@ -170,6 +170,13 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 			if record.FinishedAt.Before(record.StartedAt) {
 				t.Errorf("finished %v before it started %v", record.FinishedAt, record.StartedAt)
 			}
+			var stages []string
+			for _, stage := range record.Stages {
+				stages = append(stages, stage.Name)
+			}
+			if want := []string{"create_index", "bulk", "refresh", "force_merge"}; !slices.Equal(stages, want) {
+				t.Errorf("stages = %q, want %q", stages, want)
+			}
 		})
 
 		t.Run("search hits carry no embedding in _source", func(t *testing.T) {
@@ -370,6 +377,47 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 		if err := NewCorpusLoader(client).waitForTask(ctx, started.Task); err != nil {
 			t.Errorf("waitForTask: %v", err)
 		}
+	})
+
+	t.Run("keeps refresh off while the articles are written", func(t *testing.T) {
+		index := "articles_refresh_off_test"
+		articles := testArticles(4)
+		var duringLoad any
+		corpus := corpusOf(articles, nil)
+		corpus.Articles = func(yield func(document.Article, error) bool) {
+			for i, a := range articles {
+				if i == 2 {
+					var settings map[string]struct {
+						Settings map[string]any `json:"settings"`
+					}
+					getJSON(t, container.Address+"/"+index+"/_settings?flat_settings=true", &settings)
+					duringLoad = settings[index].Settings["index.refresh_interval"]
+				}
+				if !yield(a, nil) {
+					return
+				}
+			}
+		}
+		if _, err := loadCorpus(t, container.Address, index, corpus, 2); err != nil {
+			t.Fatalf("LoadCorpus: %v", err)
+		}
+		if duringLoad != any("-1") {
+			t.Errorf("index.refresh_interval during the load = %v, want \"-1\"", duringLoad)
+		}
+	})
+
+	t.Run("an article in another language than the corpus fails the load and leaves no index", func(t *testing.T) {
+		index := "articles_mixed_language_test"
+		articles := testArticles(4)
+		articles[2].Language = "srp"
+		_, err := loadCorpus(t, container.Address, index, corpusOf(articles, nil), 2)
+		if err == nil {
+			t.Fatal("LoadCorpus stored a Serbian article in an English corpus")
+		}
+		if !strings.Contains(err.Error(), articles[2].ID.String()) {
+			t.Errorf("error %q does not name article %s", err, articles[2].ID)
+		}
+		assertNoIndex(t, container.Address, index)
 	})
 
 	t.Run("refuses a corpus language with no declared analyzer and creates no index", func(t *testing.T) {
