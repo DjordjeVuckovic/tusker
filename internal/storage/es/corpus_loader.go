@@ -24,12 +24,10 @@ import (
 const (
 	// Set explicitly, not reset to null, so it is never a vendor default.
 	refreshIntervalAfterLoad = "1s"
-	// taskWaitTimeout stays under DefaultResponseHeaderTimeout.
-	taskWaitTimeout     = "20s"
-	cleanupTimeout      = 30 * time.Second
-	maxFailuresReported = 10
-	mergedSegments      = 1
-	loadMetaKey         = "load"
+	cleanupTimeout           = 30 * time.Second
+	maxFailuresReported      = 10
+	mergedSegments           = 1
+	loadMetaKey              = "load"
 )
 
 // CorpusLoader builds the article index in one bulk pass.
@@ -245,7 +243,7 @@ func (l *CorpusLoader) forceMerge(ctx context.Context) error {
 // Elasticsearch reports a task still running as timeout_exception.
 func (l *CorpusLoader) waitForTask(ctx context.Context, taskID string) error {
 	for {
-		res, err := l.client.typed.Tasks.Get(taskID).WaitForCompletion(true).Timeout(taskWaitTimeout).Do(ctx)
+		res, err := l.client.typed.Tasks.Get(taskID).WaitForCompletion(true).Timeout(l.taskPollTimeout()).Do(ctx)
 		var esErr *types.ElasticsearchError
 		if errors.As(err, &esErr) && esErr.ErrorCause.Type == "timeout_exception" {
 			slog.Info("waiting for elasticsearch task", "task", taskID)
@@ -261,6 +259,12 @@ func (l *CorpusLoader) waitForTask(ctx context.Context, taskID string) error {
 			return nil
 		}
 	}
+}
+
+// A poll held past the client's response-header timeout reads as a dead node.
+func (l *CorpusLoader) taskPollTimeout() string {
+	poll := l.client.transport.ResponseHeaderTimeout * 2 / 3
+	return strconv.FormatInt(poll.Milliseconds(), 10) + "ms"
 }
 
 func (l *CorpusLoader) searchSegments(ctx context.Context) (int, error) {
