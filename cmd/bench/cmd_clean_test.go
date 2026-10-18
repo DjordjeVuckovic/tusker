@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
@@ -90,4 +91,23 @@ func TestClean_ReportWithoutSettingsThatErroredIsIncomplete(t *testing.T) {
 
 	assert.FileExists(t, complete)
 	assert.NoFileExists(t, errored)
+}
+
+func TestClean_RemovesARunsExportedRunFilesWithItsReport(t *testing.T) {
+	tr := newLineageTrack(t, "http://unused.invalid")
+	stale := writeCleanReport(t, tr, "2026-10-01T00-00-00-run-r1-complete")
+	latest := writeCleanReport(t, tr, "2026-10-02T00-00-00-run-r2-complete")
+	require.NoError(t, updateLatestPointer(tr.latestPath(), latest))
+	runDirOf := func(reportPath string) string { return strings.TrimSuffix(reportPath, ".json") + ".run" }
+	for _, path := range []string{stale, latest} {
+		require.NoError(t, os.MkdirAll(runDirOf(path), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(runDirOf(path), "fts.pg.run"), []byte("q1 Q0 d 1 1 pg\n"), 0o644))
+	}
+
+	_, err := execute(t, newCleanCmd(), tr.dir, "--keep", "1")
+	require.NoError(t, err)
+
+	assert.NoFileExists(t, stale)
+	assert.NoDirExists(t, runDirOf(stale))
+	assert.FileExists(t, filepath.Join(runDirOf(latest), "fts.pg.run"))
 }

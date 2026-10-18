@@ -32,6 +32,7 @@ For JSON reports, the one latest.json points at is always kept, whatever
 --keep says. The remaining slots go to the newest complete runs first; failed,
 partial and latency-only reports are removed before any complete one. HTML and
 Markdown exports keep only the --keep newest, even the latest run's export.
+A deleted report takes its exported run files, reports/<run_id>.run/, with it.
 Files are dated by the run timestamp in their name (lexicographic =
 chronological).`,
 		Example: `  bench clean tracks/global-news-dataset/fts_quality            # keep 5 most recent (default)
@@ -85,7 +86,7 @@ func executeClean(cmd *cobra.Command, f cleanFlags, args []string) error {
 	sort.Slice(jsons, func(i, j int) bool { return jsons[i] > jsons[j] })
 	sort.Slice(htmls, func(i, j int) bool { return htmls[i] > htmls[j] })
 
-	toDelete := staleReports(jsons, reportRetention{keep: f.keep, latest: latestTarget(tr.LatestReportPath())})
+	toDelete := withRunFiles(staleReports(jsons, reportRetention{keep: f.keep, latest: latestTarget(tr.LatestReportPath())}))
 	toDelete = append(toDelete, collectStale(htmls, f.keep)...)
 
 	if len(toDelete) == 0 {
@@ -100,7 +101,7 @@ func executeClean(cmd *cobra.Command, f cleanFlags, args []string) error {
 			fmt.Fprintf(w, "%s %s\n", cDim.Sprint("would delete"), filepath.Base(path))
 			continue
 		}
-		if err := os.Remove(path); err != nil {
+		if err := os.RemoveAll(path); err != nil {
 			fmt.Fprintf(w, "%s %s: %v\n", cFail.Sprint("ERR"), filepath.Base(path), err)
 			continue
 		}
@@ -113,6 +114,19 @@ func executeClean(cmd *cobra.Command, f cleanFlags, args []string) error {
 		printDone(w, fmt.Sprintf("Cleaned %d file(s) from %s", len(toDelete), reportsDir))
 	}
 	return nil
+}
+
+// withRunFiles adds each stale report's exported run files, reports/<run_id>.run/:
+// they reproduce that report's metrics and nothing else.
+func withRunFiles(staleReports []string) []string {
+	paths := slices.Clone(staleReports)
+	for _, reportPath := range staleReports {
+		runDir := strings.TrimSuffix(reportPath, ".json") + ".run"
+		if info, err := os.Stat(runDir); err == nil && info.IsDir() {
+			paths = append(paths, runDir)
+		}
+	}
+	return paths
 }
 
 // reportRetention is how many reports bench clean keeps and which one it must.

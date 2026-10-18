@@ -438,7 +438,7 @@ Pretty-prints a one-page summary of any artifact:
 
 ### `bench clean [<name>] [--keep N]`
 
-Removes old JSON, HTML, and Markdown files from `reports/`, keeping the `--keep` most-recent (default 5). `latest.json` is never deleted, and neither is the JSON report it points at. Of the JSON reports, complete runs fill the remaining slots before incomplete ones (failed, partial or latency-only), so those go first. HTML and Markdown exports keep only the `--keep` newest, even the latest run's export.
+Removes old JSON, HTML, and Markdown files from `reports/`, keeping the `--keep` most-recent (default 5). `latest.json` is never deleted, and neither is the JSON report it points at. Of the JSON reports, complete runs fill the remaining slots before incomplete ones (failed, partial or latency-only), so those go first. HTML and Markdown exports keep only the `--keep` newest, even the latest run's export. A deleted report takes its `reports/<run_id>.run/` run files with it.
 
 ```bash
 bench clean tracks/global-news-dataset/fts_quality            # keep 5 most recent
