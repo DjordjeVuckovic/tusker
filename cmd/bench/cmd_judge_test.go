@@ -2,18 +2,27 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/queryvectors"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/pgvector/pgvector-go"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -457,4 +466,79 @@ func TestJudge_ForceOutsideManualIsRejected(t *testing.T) {
 
 	require.Error(t, err)
 	assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations.bm25.yaml"))
+}
+
+// The judge grades with the package's query vectors, as pool and run rank with
+// them: the Ollama here answers with the opposite vector.
+func TestJudge_VectorGradesWithTheTracksQueryVectors(t *testing.T) {
+	ctx := context.Background()
+	container := pkgtesting.NewPGContainerWithCleanup(ctx, t)
+	track := queryVectorsTrack(t, container.ConnString)
+	const queryText = "central bank interest rates"
+	queryVector := packageQueryVector(t, track, queryText)
+
+	docID := uuid.New()
+	conn, err := pgx.Connect(ctx, container.ConnString)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close(ctx) })
+	_, err = conn.Exec(ctx, `INSERT INTO articles (id, url, title, content, language) VALUES ($1, $2, $3, $4, $5)`,
+		docID, "https://example.com/rates", "rates", "content", "eng")
+	require.NoError(t, err)
+	_, err = conn.Exec(ctx, `INSERT INTO article_embeddings (article_id, model_name, embedding) VALUES ($1, $2, $3)`,
+		docID, queryVectorsFixtureTag, pgvector.NewVector(queryVector))
+	require.NoError(t, err)
+
+	fx := &judgeFixture{track: track, articles: articleStore{docID: document.Article{ID: docID, Title: "rates"}}}
+	fx.pool = &pool.PoolFile{Meta: meta.New("pool"), Queries: []pool.PoolEntry{
+		{QueryID: "q2", QueryDesc: queryText, Docs: []pool.PooledDoc{{DocID: docID}}},
+	}}
+	fx.writePool(t)
+
+	var ollamaCalls atomic.Int32
+	opposite := make([]float32, len(queryVector))
+	for i, v := range queryVector {
+		opposite[i] = -v
+	}
+	ollama := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		ollamaCalls.Add(1)
+		_ = json.NewEncoder(w).Encode(map[string]any{"embedding": opposite})
+	}))
+	t.Cleanup(ollama.Close)
+	t.Setenv("EMBEDDING_BASE_URL", ollama.URL)
+	t.Setenv("EMBEDDING_MODEL", "qwen3-embedding:0.6b")
+	t.Setenv("PG_CONNECTION_STRING", "")
+
+	t.Run("grades with the package vector", func(t *testing.T) {
+		require.NoError(t, fx.judge(t, "--strategy", "vector", "--pg", container.ConnString))
+
+		assert.Equal(t, judgment.GradeHighly, gradesByQuery(fx.annotations(t, "vector"))["q2"][docID])
+		assert.Zero(t, ollamaCalls.Load())
+	})
+
+	t.Run("refuses a package the suite has moved past", func(t *testing.T) {
+		suitePath := filepath.Join(track, "suite.yaml")
+		raw, err := os.ReadFile(suitePath)
+		require.NoError(t, err)
+		edited := strings.Replace(string(raw), `"climate change policy"`, `"climate change policies"`, 1)
+		require.NoError(t, os.WriteFile(suitePath, []byte(edited), 0o644))
+
+		err = fx.judge(t, "--strategy", "vector", "--pg", container.ConnString)
+
+		var stale *queryvectors.StaleQueryError
+		require.ErrorAs(t, err, &stale)
+		assert.Equal(t, "q1", stale.QueryID)
+	})
+}
+
+func packageQueryVector(t *testing.T, track, text string) []float32 {
+	t.Helper()
+	store, err := queryvectors.Open(context.Background(), queryvectors.Options{
+		Package: filepath.Join(track, "trec", "query-vectors"),
+		Suite:   filepath.Join(track, "suite.yaml"),
+		Model:   queryVectorsFixtureTag,
+	})
+	require.NoError(t, err)
+	vector, err := store.QueryVector(context.Background(), text)
+	require.NoError(t, err)
+	return vector
 }

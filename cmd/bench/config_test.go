@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -67,4 +68,36 @@ func TestForEachTrack_InterruptStopsGlob(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Len(t, ran, 1)
+}
+
+const queryVectorsFixtureTag = "qwen3-embedding:0.6b@1024"
+
+// queryVectorsTrack copies the query-vectors fixture track and gives it a spec
+// whose postgres engine declares the package's model.
+func queryVectorsTrack(t *testing.T, pgConn string) string {
+	t.Helper()
+	track := copyQueryVectorsTrack(t)
+	require.NoError(t, os.WriteFile(filepath.Join(track, "spec.yaml"), fmt.Appendf(nil, `schema_version: 1
+id: fixture-semantic
+kind: semantic
+engines:
+  pg:
+    type: postgres
+    connection: %q
+    params:
+      embedding_model: %q
+jobs:
+  - name: knn
+    suite: suite.yaml
+    engines: [pg]
+`, pgConn, queryVectorsFixtureTag), 0o644))
+	return track
+}
+
+func copyQueryVectorsTrack(t *testing.T) string {
+	t.Helper()
+	track := t.TempDir()
+	src := filepath.Join("..", "..", "internal", "storage", "queryvectors", "fixtures", "track")
+	require.NoError(t, os.CopyFS(track, os.DirFS(src)))
+	return track
 }

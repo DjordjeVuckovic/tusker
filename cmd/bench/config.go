@@ -40,13 +40,12 @@ func createExecutors(ctx context.Context, bs *spec.BenchSpec) (map[string]engine
 // Ollama embedding; the store is nil when neither is available.
 func buildQueryVectorStore(ctx context.Context, bs *spec.BenchSpec, tr *trackctx.Track) (storage.VectorStore, func(), error) {
 	noop := func() {}
-	packageDir := filepath.Join(tr.Root, "trec", "query-vectors")
-	_, err := os.Stat(filepath.Join(packageDir, datapackage.DescriptorName))
-	switch {
-	case err == nil:
-		return openQueryVectors(ctx, bs, packageDir)
-	case !errors.Is(err, fs.ErrNotExist):
-		return nil, noop, fmt.Errorf("look for query vectors in %s: %w", packageDir, err)
+	packageDir, found, err := queryVectorsPackage(tr)
+	if err != nil {
+		return nil, noop, err
+	}
+	if found {
+		return openQueryVectors(ctx, queryVectorsSource{spec: bs, packageDir: packageDir, postgres: postgresConnection(bs)})
 	}
 
 	baseURL := os.Getenv("EMBEDDING_BASE_URL")
@@ -66,8 +65,29 @@ func buildQueryVectorStore(ctx context.Context, bs *spec.BenchSpec, tr *trackctx
 	return store, noop, err
 }
 
-func openQueryVectors(ctx context.Context, bs *spec.BenchSpec, packageDir string) (storage.VectorStore, func(), error) {
+func queryVectorsPackage(tr *trackctx.Track) (string, bool, error) {
+	packageDir := filepath.Join(tr.Root, "trec", "query-vectors")
+	_, err := os.Stat(filepath.Join(packageDir, datapackage.DescriptorName))
+	switch {
+	case err == nil:
+		return packageDir, true, nil
+	case errors.Is(err, fs.ErrNotExist):
+		return "", false, nil
+	default:
+		return "", false, fmt.Errorf("look for query vectors in %s: %w", packageDir, err)
+	}
+}
+
+type queryVectorsSource struct {
+	spec       *spec.BenchSpec
+	packageDir string
+	// postgres serves document vectors; empty leaves them unreadable.
+	postgres string
+}
+
+func openQueryVectors(ctx context.Context, src queryVectorsSource) (storage.VectorStore, func(), error) {
 	noop := func() {}
+	bs := src.spec
 	suitePath, err := jobSuite(bs)
 	if err != nil {
 		return nil, noop, err
@@ -76,9 +96,9 @@ func openQueryVectors(ctx context.Context, bs *spec.BenchSpec, packageDir string
 	if err != nil {
 		return nil, noop, err
 	}
-	opts := queryvectors.Options{Package: packageDir, Suite: suitePath, Model: model}
+	opts := queryvectors.Options{Package: src.packageDir, Suite: suitePath, Model: model}
 	closePool := noop
-	if conn := postgresConnection(bs); conn != "" {
+	if conn := src.postgres; conn != "" {
 		pool, err := pg.NewConnectionPool(ctx, pg.PoolConfig{ConnStr: conn, RegisterVecTypes: true})
 		if err != nil {
 			return nil, noop, fmt.Errorf("vector store: create PostgreSQL pool: %w", err)

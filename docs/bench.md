@@ -296,12 +296,10 @@ Every command accepts a track path as a positional arg (`bench run tracks/global
 
 `vector`/`hybrid` are storage-agnostic: document vectors are read from a
 `storage.VectorStore` (Postgres `article_embeddings` today, ES later — PG takes
-precedence) and only the **query** is embedded at runtime via local Ollama. They
-do not re-embed documents. Configure with `--pg`/`PG_CONNECTION_STRING` and
-`--embedding-base`/`EMBEDDING_BASE_URL` (+ optional `EMBEDDING_MODEL`); they don't
-read a track's query-vectors package. `validate`/`pool`/`run` get their query vectors from the
-track's package when it has one, from Ollama otherwise, and pass them to vector queries
-as the reserved `query_vector` arg. `bm25` computes
+precedence), and they never re-embed documents. Configure with `--pg`/`PG_CONNECTION_STRING`.
+`judge`, `validate`, `pool` and `run` all take query vectors from the track's package when
+it has one, from Ollama otherwise (`--embedding-base`/`EMBEDDING_BASE_URL`, + optional
+`EMBEDDING_MODEL`); vector queries get them as the reserved `query_vector` arg. `bm25` computes
 term statistics over each query's candidate pool, so it runs with no external
 services.
 
