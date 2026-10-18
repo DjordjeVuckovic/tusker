@@ -64,7 +64,7 @@ ids.
 ### The embeddings package
 
 ```
-datasets/<ds>/embeddings/qwen3-embedding-0.6b@1024/<8 hex>/
+datasets/<ds>/embeddings/qwen3-embedding-0.6b@1024/v1/
   datapackage.json
   embeddings.parquet        id (string uuid), embedding (list<float32>), canonical row order
 ```
@@ -75,7 +75,8 @@ The descriptor is a Frictionless Data Package v2:
 {
   "$schema": "https://datapackage.org/profiles/2.0/datapackage.json",
   "name": "cc-news-embeddings",
-  "version": "<8 hex>",
+  "version": "v1",
+  "producedBy": {"tool": "embed_corpus.py"},
   "language": "eng",
   "embedding": {
     "model": "qwen3-embedding:0.6b",
@@ -90,7 +91,7 @@ The descriptor is a Frictionless Data Package v2:
     "batchSize": 64,
     "dtype": "float16"
   },
-  "canonical": {"name": "cc-news", "version": "<8 hex>", "resourceHash": "sha256:<hex>"},
+  "canonical": {"name": "cc-news", "version": "v1", "resourceHash": "sha256:<hex>"},
   "resources": [
     {"name": "embeddings", "path": "embeddings.parquet", "format": "parquet",
      "mediatype": "application/vnd.apache.parquet", "bytes": 0, "hash": "sha256:<hex>"}
@@ -103,10 +104,10 @@ picked, and `dtype` the inference dtype (`float16` on a GPU, `float32` on CPU).
 Both move the last bits of a float, so they are recorded. A `--limit N` trial
 also records `limit`.
 
-The version is the first 8 hex chars of `embeddings.parquet`'s sha256, so the
-folder name follows from the bytes. `canonical.resourceHash` names the canonical
-file the vectors were made from, and the input package's resource is checked
-against its `bytes` and `hash` before anything is embedded.
+The version is a name you choose with `--version`, `v1` by default, and it is the
+folder the package lands in. `canonical.resourceHash` names the canonical file the
+vectors were made from, and the input package's resource is checked against its
+`bytes` and `hash` before anything is embedded.
 
 ### Shrink the upload first
 
@@ -115,15 +116,15 @@ most of the bytes, so project it away before moving anything to a cloud box:
 
 ```bash
 uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
-# writes /tmp/tusker-payload/<8 hex>/
+# writes /tmp/tusker-payload/v1/; --version picks another name
 ```
 
-The output is a package of its own in `<out>/<8 hex>/`, versioned by its bytes:
-`articles.parquet` plus a `slim.datapackage.json` whose `canonical` property
-names the package it came from. The descriptor isn't called `datapackage.json`
+The output is a package of its own in `<out>/<version>/`: `articles.parquet`
+plus a `slim.datapackage.json` whose `canonical` property names the package it
+came from. The descriptor isn't called `datapackage.json`
 because the kaggle CLI never uploads a file by that name. `embed_corpus.py`
 takes the canonical reference from there, so embedding the slim package gives
-the same bytes, and so the same version, as embedding the canonical one. The output
+the same bytes as embedding the canonical one. The output
 stays plain parquet, since Kaggle decompresses `.gz` uploads and that would break
 the recorded hash.
 
@@ -153,11 +154,11 @@ pip install kaggle          # token from kaggle.com/settings/api -> ~/.kaggle/ka
 
 ```bash
 uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
-PAYLOAD=/tmp/tusker-payload/<8 hex>                   # the folder slim_corpus.py printed
+PAYLOAD=/tmp/tusker-payload/v1
 kaggle datasets init -p "$PAYLOAD"
 # edit $PAYLOAD/dataset-metadata.json: set the title, and the id that
 # datasets/cc-news/kernel-metadata.json lists under dataset_sources
-kaggle datasets version -p "$PAYLOAD" -m "slim <8 hex>"
+kaggle datasets version -p "$PAYLOAD" -m "slim v1 of canonical <version>"
 ```
 
 `version` adds a new version to `djordjevuckovic/tusker-cc-news`, which the
@@ -185,7 +186,7 @@ overwritten.
 ```bash
 kaggle kernels output djordjevuckovic/tusker-embed -p /tmp/tusker-out
 mkdir -p datasets/cc-news/embeddings/qwen3-embedding-0.6b@1024
-mv /tmp/tusker-out/embeddings/qwen3-embedding-0.6b@1024/<8 hex> \
+mv /tmp/tusker-out/embeddings/qwen3-embedding-0.6b@1024/v1 \
    datasets/cc-news/embeddings/qwen3-embedding-0.6b@1024/
 ```
 
@@ -234,9 +235,8 @@ vec, err := r.config.VectorStore.QueryVector(ctx, q.Description)
 The model input is that text wrapped by `query-instruct-v1`. Queries are embedded
 one per forward pass, so no query's vector depends on the others in the suite.
 The bench refuses query vectors when a suite query is missing from them or its
-stored `text` differs from the suite's current text. The version is the first 8
-hex chars of `query-vectors.parquet`'s sha256. The folder is fixed per track, so
-re-embedding an edited suite replaces it.
+stored `text` differs from the suite's current text. The package has no version:
+the folder is fixed per track, so re-embedding an edited suite replaces it.
 
 On Kaggle, push `scripts/kaggle/queries/kernel-metadata.json`. Its dataset holds
 the track's `suite.yaml` and a copy of `scripts/embed_corpus.py`, which
@@ -262,17 +262,23 @@ saved, which cuts padding waste (2.2x on an M4 Pro) without changing the order.
 - The checkpoint dir records the run's settings: input hash, canonical hash,
   model, revision, recipe, dim, maxTokens, shard size, batch size, dtype and
   `--limit`. A run with any other setting is refused instead of mixing shards.
-- Default checkpoints live in `embeddings/<tag-dir>/.checkpoints-<8 hex>/`, named
-  after the input and the settings other than batch size and dtype. A resumed run
+- Default checkpoints live in `embeddings/<tag-dir>/.checkpoints-<digest>/`, a
+  digest of the input and the settings other than batch size and dtype. A resumed run
   finds them, `--auto-batch-size` reuses the batch size they recorded, and a run
   with another batch size is refused by the manifest.
-- `--limit N` embeds the first N rows into a package of its own, marked by
-  `embedding.limit`, so a trial can never be resumed as, or mistaken for, the
-  full package.
-- A package is built in a staging folder and renamed to its version. A version
-  folder that already exists holds the same bytes, so a rerun keeps it and drops
-  its own copy; other bytes, from another batch size or dtype, land in a new
-  version folder. `slim_corpus.py` works the same way.
+- A package is built in a staging folder and renamed to `<version>/`. When that
+  folder already exists, its resource hash decides: the same hash keeps it and
+  drops the staging copy, a different hash is an error naming the version and
+  both hashes, and nothing is replaced. `embed_corpus.py` warns before embedding
+  when the version exists, and on a conflict keeps the new package at
+  `.<version>.rejected-<hash>` beside it, so a finished GPU run isn't lost; move
+  it to a new version folder and set its descriptor's `version` to match.
+  `slim_corpus.py` follows the same rule.
+- Another batch size or dtype writes slightly different bytes, so it needs its
+  own `--version`.
+- `--limit N` embeds the first N rows, marked by `embedding.limit`. It writes
+  other bytes than the full run, so give it its own version, e.g.
+  `--version v1-trial`; under the full run's version it is refused.
 - `--clean-checkpoints` drops the shards once the package is written. The merge
   still runs with every shard on disk, so peak disk stays at shards plus Parquet,
   about 5.8 GB for cc-news; only what is left afterwards halves, to 2.9 GB.

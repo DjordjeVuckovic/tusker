@@ -14,8 +14,8 @@
 
 Reads the package's single resource (parquet or jsonl, or the slim projection
 slim_corpus.py writes), verifies its bytes and hash, and writes
-embeddings/<tag-dir>/<version>/ under the dataset root, where the version is the
-first 8 hex chars of the resource's sha256: embeddings.parquet with one
+embeddings/<tag-dir>/<version>/ under the dataset root, the version being the
+--version name (default v1): embeddings.parquet with one
 (id, embedding) row per canonical row in canonical order, and a datapackage.json
 that records the model, recipe and canonical resource it came from.
 
@@ -151,7 +151,7 @@ class EmbeddingSpec:
 
 @dataclass(frozen=True, slots=True)
 class Inference:
-    """How a run embedded: these change output bytes slightly but are not version inputs."""
+    """How a run embedded: recorded because these change the output bytes slightly."""
 
     batch_size: int
     dtype: str

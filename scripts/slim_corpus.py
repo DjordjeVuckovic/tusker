@@ -12,7 +12,7 @@
 
   uv run scripts/slim_corpus.py datasets/cc-news/canonical/<version>/datapackage.json --out /tmp/tusker-payload
 
-Writes a package of its own to <out>/<version>/, named after its bytes:
+Writes a package of its own to <out>/<version>/ (--version, default v1):
 articles.parquet holding id, title and description in canonical row order, and a
 slim.datapackage.json whose `canonical` property names the canonical package it
 came from. embed_corpus.py reads that property, so embedding the projection
