@@ -60,9 +60,8 @@ go run ./cmd/datapipe preprocess \
   --mapping datasets/all-the-news/mapping.yaml \
   --output datasets/all-the-news/canonical-dataset.jsonl
 
-DATASET_PATH=datasets/all-the-news/canonical-dataset.jsonl MAPPING_ENABLED=false \
-ENV_PATHS=cmd/datapipe/articles.env,cmd/datapipe/pg.env \
-go run ./cmd/datapipe load articles
+ENV_PATHS=cmd/datapipe/pg.env go run ./cmd/datapipe load --engine native \
+  --canonical datasets/all-the-news/canonical/<version>/datapackage.json
 ```
 
 Field mapping: `datasets/all-the-news/mapping.yaml`.

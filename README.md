@@ -7,15 +7,12 @@
 ```bash
 go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 ```
-- Run migrations
-- - Example
+- Each Postgres engine (`native`, `paradedb`, `tiger`) has a schema migration under `db/migrations/<engine>/schema/` (tables, generated columns and filter indexes) and its search indexes in `db/migrations/<engine>/indexes.sql`. `datapipe load` applies the schema, copies the data, then builds each search index as a timed stage. To migrate the schema by hand against the Docker engines:
 ```bash
-migrate -path db/migrations -database "postgres://username:password@localhost:5432/news_db?sslmode=disable" up
+make migrate-schema-native     # or -paradedb, -tiger, -all
+make migrate-down-native       # drops the schema and every index with it
 ```
-- Local Postgres with Docker
-```bash
-migrate -path db/migrations -database "postgres://news_user:news_password@localhost:54320/news_db?sslmode=disable" up
-```
+- A failed or cancelled schema migration leaves its version dirty, and both `datapipe load` and `migrate` refuse the database until `migrate -path db/migrations/<engine>/schema -database "<db>" force <version>` records the version you repaired it to.
 ### OpenAPI Schema gen
 - Install swag CLI
 ```bash

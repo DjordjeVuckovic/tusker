@@ -33,10 +33,9 @@ This project is part of a master thesis research that explores PostgreSQL's comp
 The project follows a layered architecture pattern:
 
 - **cmd/**: Entry points for different operations
-    - `datapipe/`: Unified data-pipeline CLI. The core path is **preprocess → load → embed**; every stage after the first reads the canonical file, which is what keeps article IDs identical across engines.
+    - `datapipe/`: Unified data-pipeline CLI. The core path is **preprocess → embed → load**; every stage after the first reads the canonical package, which is what keeps article IDs identical across engines.
         - `datapipe preprocess`: Cleans and maps a raw dataset (`.csv`, `.jsonl`, `.parquet`) into a canonical JSONL file
-        - `datapipe load articles`: Imports the canonical dataset into the database (optional inline embedding generation via Ollama, `EMBEDDING_SOURCE=online`). `MAPPING_ENABLED=true` opts into mapping a raw dataset inline instead — it skips preprocess and mints new article IDs each run, so corpora loaded that way are not comparable across engines.
-        - `datapipe load embeddings`: Loads precomputed embeddings (Parquet from Colab) from an S3-compatible store into `article_embeddings` (`EMBEDDING_SOURCE=file`) — see [docs/embeddings.md](docs/embeddings.md)
+        - `datapipe load --engine <native|paradedb|tiger|es> --canonical <descriptor> [--embeddings <descriptor>]`: Verifies the canonical package and the embeddings package built from it, loads both into an empty engine, builds the indexes afterwards as timed stages, and writes the load record to the engine and to `datasets/<ds>/loads/<engine>/` — see [docs/embeddings.md](docs/embeddings.md)
     - `news_api/`: HTTP API server for search functionality
     - `schemagen/`: Schema generation utilities
     - `bench/`: IR benchmark CLI — see [docs/bench.md](docs/bench.md)
@@ -65,7 +64,7 @@ The project follows a layered architecture pattern:
 
 - **tracks/**: Benchmark tracks — each a self-contained folder with `spec.yaml`, `suite.yaml`, `trec/` (pool + judgments), and `reports/`
 - **db/**: Database-related files
-    - `migrations/`: SQL migration files for database schema
+    - `migrations/`: SQL migrations per Postgres engine, `<engine>/schema/` (golang-migrate) and `<engine>/indexes.sql` (the search indexes, built after the load), embedded by the `migrations` Go package
     - `query/`: SQL query files for database operations
 - **dataset/**: Sample datasets and documentation
 - **scripts/**: Utility scripts for setup and maintenance
@@ -211,8 +210,8 @@ docker-compose up -d
 # Build specific command
 go build -o bin/datapipe ./cmd/datapipe
 
-# Run with environment variables (stages: preprocess, load articles, load embeddings)
-go run ./cmd/datapipe load articles
+# Run with environment variables (stages: preprocess, load)
+ENV_PATHS=cmd/datapipe/pg.env go run ./cmd/datapipe load --engine native --canonical <descriptor>
 
 # Build other commands
 go build -o bin/schemagen ./cmd/schemagen
@@ -237,13 +236,10 @@ Commands expect environment variables (typically in `.env` files):
 **Data Import (`cmd/data_import/.env`)**:
 - `STORAGE_TYPE`: Storage backend (`pg`, `es`, `in_mem`)
 - `MAPPING_CONFIG_PATH`: Path to YAML mapping configuration
-- `DATASET_PATH`: Path to source dataset file
 - `PG_CONNECTION_STRING`: PostgreSQL connection string
 - `ES_ADDRESSES`: Elasticsearch cluster addresses (comma-separated)
 - `ES_INDEX_NAME`: Elasticsearch index name
 - `ES_DIAL_TIMEOUT`, `ES_RESPONSE_HEADER_TIMEOUT`: Go durations bounding each Elasticsearch request, bulk flushes included (default 5s, 30s); a timed-out request is not retried
-- `BULK_ENABLED`: Enable bulk operations (`true`/`false`)
-- `BULK_SIZE`: Bulk operation batch size
 
 **Search API (`cmd/news_search/.env`)**:
 - `PORT`: HTTP server port (default: 8080)

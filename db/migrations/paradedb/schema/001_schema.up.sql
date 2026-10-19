@@ -1,4 +1,7 @@
-BEGIN;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pg_search;
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE articles
 (
     id               uuid        NOT NULL PRIMARY KEY,
@@ -11,8 +14,18 @@ CREATE TABLE articles
     publisher_domain text        NOT NULL DEFAULT '',
     metadata         jsonb       NOT NULL DEFAULT '{}'
 );
-CREATE INDEX idx_articles_search ON articles
-    USING bm25 (id, title, description, content)
-    WITH (key_field='id');
 CREATE INDEX idx_articles_published_at ON articles (published_at DESC NULLS LAST);
-COMMIT;
+
+CREATE TABLE article_embeddings
+(
+    article_id uuid         NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
+    model_name text         NOT NULL,
+    embedding  vector(1024) NOT NULL,
+    PRIMARY KEY (article_id, model_name)
+);
+
+CREATE TABLE corpus_load
+(
+    finished_at timestamptz NOT NULL PRIMARY KEY,
+    record      jsonb       NOT NULL
+);

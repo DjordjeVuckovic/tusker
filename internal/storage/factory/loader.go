@@ -7,16 +7,33 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
+	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 )
 
 type LoaderConfig struct {
-	Engine storage.Type
+	Engine storage.Engine
+	Pg     *pg.PoolConfig
 	Es     *es.ClientConfig
 }
 
-// NewCorpusLoader returns the loader and a func that closes its client.
-func NewCorpusLoader(_ context.Context, cfg LoaderConfig) (storage.CorpusLoader, func(), error) {
-	switch cfg.Engine {
+// NewCorpusLoader returns the loader and a func that closes its connections.
+func NewCorpusLoader(ctx context.Context, cfg LoaderConfig) (storage.CorpusLoader, func(), error) {
+	switch cfg.Engine.Type() {
+	case storage.PG:
+		if cfg.Pg == nil {
+			return nil, nil, errors.New("postgres config is not set")
+		}
+		// The loader registers vector types after its migrations create them.
+		pool, err := pg.NewConnectionPool(ctx, pg.PoolConfig{ConnStr: cfg.Pg.ConnStr})
+		if err != nil {
+			return nil, nil, fmt.Errorf("connect to %s: %w", cfg.Engine, err)
+		}
+		loader, err := pg.NewCorpusLoader(pool, cfg.Engine)
+		if err != nil {
+			pool.Close()
+			return nil, nil, err
+		}
+		return loader, pool.Close, nil
 	case storage.ES:
 		if cfg.Es == nil {
 			return nil, nil, errors.New("elasticsearch config is not set")

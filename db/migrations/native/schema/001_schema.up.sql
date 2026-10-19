@@ -1,4 +1,9 @@
-BEGIN;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- levenshtein for the fuzzy track's edit-distance engine.
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE articles
 (
     id               uuid        NOT NULL PRIMARY KEY,
@@ -16,7 +21,19 @@ CREATE TABLE articles
         setweight(to_tsvector('english', content), 'C')
     ) STORED
 );
-CREATE INDEX idx_articles_search_vector ON articles
-    USING gin (search_vector);
 CREATE INDEX idx_articles_published_at ON articles (published_at DESC NULLS LAST);
-COMMIT;
+CREATE INDEX idx_articles_publisher_domain ON articles (publisher_domain);
+
+CREATE TABLE article_embeddings
+(
+    article_id uuid         NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
+    model_name text         NOT NULL,
+    embedding  vector(1024) NOT NULL,
+    PRIMARY KEY (article_id, model_name)
+);
+
+CREATE TABLE corpus_load
+(
+    finished_at timestamptz NOT NULL PRIMARY KEY,
+    record      jsonb       NOT NULL
+);

@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: news_user
       POSTGRES_PASSWORD: news_password
       POSTGRES_DB: news_db
-    command: postgres -c maintenance_work_mem=1GB
+    command: postgres -c maintenance_work_mem=4GB -c max_parallel_maintenance_workers=4
     shm_size: 5gb
     ports:
       - "54320:5432"
@@ -14,13 +14,13 @@ services:
       - pg_news_data:/var/lib/postgresql
 
   pg-news-parade:
-    image: paradedb/paradedb:latest-pg18
+    image: paradedb/paradedb:0.21.5-pg18
     container_name: pg-parade-news
     environment:
       POSTGRES_USER: news_user
       POSTGRES_PASSWORD: news_password
       POSTGRES_DB: news_db
-    command: postgres -c maintenance_work_mem=1GB
+    command: postgres -c maintenance_work_mem=4GB -c max_parallel_maintenance_workers=4
     shm_size: 5gb
     ports:
       - "54321:5432"
@@ -34,7 +34,8 @@ services:
       POSTGRES_USER: news_user
       POSTGRES_PASSWORD: news_password
       POSTGRES_DB: news_db
-    command: postgres -c maintenance_work_mem=1GB
+    # memory_limit is sighup, so no migration can SET it.
+    command: postgres -c maintenance_work_mem=4GB -c max_parallel_maintenance_workers=4 -c pg_textsearch.memory_limit=2GB
     shm_size: 5gb
     ports:
       - "54322:5432"

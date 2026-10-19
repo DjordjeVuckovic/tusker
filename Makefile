@@ -3,14 +3,15 @@ APP_NAME := tusker
 CMD_DIR := ./cmd
 BIN_DIR := ./bin
 PKG := github.com/DjordjeVuckovic/tusker
-MIGRATIONS_PATH := ./db/migrations
-DB_CONN := "postgresql://news_user:news_password@localhost:54320/news_db?sslmode=disable"
-# ParadeDB runs on 54321 (docker-compose: pg-news-parade); BM25 via @@@ index.
-MIGRATIONS_PATH_PARADE := ./db/parade_migrations
-DB_CONN_PARADE := "postgresql://news_user:news_password@localhost:54321/news_db?sslmode=disable"
-# pg_textsearch (TimescaleDB-HA) runs on 54322 (docker-compose: pg-news-tiger); BM25 via generated column.
-MIGRATIONS_PATH_TIGER := ./db/tiger_migrations
-DB_CONN_TIGER := "postgresql://news_user:news_password@localhost:54322/news_db?sslmode=disable"
+MIGRATIONS_DIR := ./db/migrations
+PG_ENGINES := native paradedb tiger
+LOAD_ENGINES := $(PG_ENGINES) es
+# Native Postgres on 54320, ParadeDB (BM25 via @@@) on 54321 and pg_textsearch
+# (TimescaleDB-HA) on 54322; see docker-compose.yml.
+DB_CONN_native := postgresql://news_user:news_password@localhost:54320/news_db?sslmode=disable
+DB_CONN_paradedb := postgresql://news_user:news_password@localhost:54321/news_db?sslmode=disable
+DB_CONN_tiger := postgresql://news_user:news_password@localhost:54322/news_db?sslmode=disable
+DB_CONN := "$(DB_CONN_native)"
 
 # Go variables
 GOOS ?= $(shell go env GOOS)
@@ -19,37 +20,20 @@ GOARCH ?= $(shell go env GOARCH)
 ARGS ?=
 
 # Build commands
-.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments migrate-up migrate-down migrate-up-parade migrate-down-parade migrate-up-tiger migrate-down-tiger migrate-up-all migrate-down-all db-refresh-collation db-volumes run-datapipe-preprocess run-datapipe-articles-pg run-datapipe-articles-parade run-datapipe-articles-tiger run-datapipe-articles-es run-datapipe-articles-all run-datapipe-embeddings-pg run-datapipe-embeddings-parade run-datapipe-embeddings-tiger run-datapipe-embeddings-es run-datapipe-embeddings-all
+.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments $(addprefix migrate-schema-,$(PG_ENGINES)) $(addprefix migrate-down-,$(PG_ENGINES)) migrate-schema-all migrate-down-all db-refresh-collation db-volumes run-datapipe-preprocess $(addprefix run-datapipe-load-,$(LOAD_ENGINES)) run-datapipe-load-all
 
-migrate-up:
-	@echo "Running database migrations up (native pg)..."
-	@migrate -path $(MIGRATIONS_PATH) -database $(DB_CONN) up
+$(addprefix migrate-schema-,$(PG_ENGINES)): migrate-schema-%:
+	@echo "Migrating the schema ($*)..."
+	@migrate -path $(MIGRATIONS_DIR)/$*/schema -database "$(DB_CONN_$*)" up
 
-migrate-down:
-	@echo "Running database migrations down (native pg)..."
-	@migrate -path $(MIGRATIONS_PATH) -database $(DB_CONN) down
+# Dropping the tables drops their indexes too. `migrate down` prompts for confirmation.
+$(addprefix migrate-down-,$(PG_ENGINES)): migrate-down-%:
+	@echo "Dropping the schema ($*)..."
+	@migrate -path $(MIGRATIONS_DIR)/$*/schema -database "$(DB_CONN_$*)" down
 
-migrate-up-parade:
-	@echo "Running database migrations up (ParadeDB)..."
-	@migrate -path $(MIGRATIONS_PATH_PARADE) -database $(DB_CONN_PARADE) up
+migrate-schema-all: $(addprefix migrate-schema-,$(PG_ENGINES))
 
-migrate-down-parade:
-	@echo "Running database migrations down (ParadeDB)..."
-	@migrate -path $(MIGRATIONS_PATH_PARADE) -database $(DB_CONN_PARADE) down
-
-migrate-up-tiger:
-	@echo "Running database migrations up (pg_textsearch)..."
-	@migrate -path $(MIGRATIONS_PATH_TIGER) -database $(DB_CONN_TIGER) up
-
-migrate-down-tiger:
-	@echo "Running database migrations down (pg_textsearch)..."
-	@migrate -path $(MIGRATIONS_PATH_TIGER) -database $(DB_CONN_TIGER) down
-
-# Apply migrations to all Postgres backends (native + ParadeDB + pg_textsearch).
-migrate-up-all: migrate-up migrate-up-parade migrate-up-tiger
-
-# Roll back every Postgres backend. `migrate down` prompts for confirmation.
-migrate-down-all: migrate-down migrate-down-parade migrate-down-tiger
+migrate-down-all: $(addprefix migrate-down-,$(PG_ENGINES))
 
 # Clears the collation version mismatch warning. Re-run the FTS track afterwards
 # and confirm the metrics are unchanged.
@@ -140,65 +124,36 @@ run-schemagen: build-schemagen
 	@echo "Running schema generator..."
 	@./$(BIN_DIR)/schemagen -output=api/mapping-spec
 
-# Dataset selection for datapipe. Each engine target composes the dataset env
-# with an engine env, so a corpus is swapped by overriding one variable:
+# The preprocess env selects the raw dataset, e.g.
 #   make run-datapipe-preprocess PREPROCESS_ENV=cmd/datapipe/preprocess-cc-news.env
-#   make run-datapipe-articles-all DATASET_ENV=cmd/datapipe/cc-news.env
 PREPROCESS_ENV ?= cmd/datapipe/preprocess.env
-DATASET_ENV ?= cmd/datapipe/articles.env
 
 # Preprocess a raw dataset (.csv/.jsonl/.parquet) into canonical JSONL
 run-datapipe-preprocess: build-datapipe
 	@echo "Running datapipe preprocess ($(PREPROCESS_ENV))..."
 	@ENV_PATHS="$(PREPROCESS_ENV)" ./$(BIN_DIR)/datapipe preprocess
 
-# Load a dataset into the articles store (native Postgres)
-run-datapipe-articles-pg: build-datapipe
-	@echo "Running datapipe load articles (native pg)..."
-	@ENV_PATHS="$(DATASET_ENV),cmd/datapipe/pg.env" ./$(BIN_DIR)/datapipe load articles
+# Load a canonical package, and optionally its embeddings, into one engine:
+#   make run-datapipe-load-native CANONICAL=datasets/cc-news/canonical/<version>/datapackage.json \
+#       EMBEDDINGS=datasets/cc-news/embeddings/<tag-dir>/<version>/datapackage.json
+# LOAD_FLAGS passes extra flags, e.g. LOAD_FLAGS="--batch-size 5000 --trial".
+ENGINE_ENV_native := cmd/datapipe/pg.env
+ENGINE_ENV_paradedb := cmd/datapipe/parade.env
+ENGINE_ENV_tiger := cmd/datapipe/tiger.env
+ENGINE_ENV_es := cmd/datapipe/es.env
+CANONICAL ?=
+EMBEDDINGS ?=
+LOAD_FLAGS ?=
 
-# Load a dataset into the articles store (ParadeDB)
-run-datapipe-articles-parade: build-datapipe
-	@echo "Running datapipe load articles (ParadeDB)..."
-	@ENV_PATHS="$(DATASET_ENV),cmd/datapipe/parade.env" ./$(BIN_DIR)/datapipe load articles
+$(addprefix run-datapipe-load-,$(LOAD_ENGINES)): run-datapipe-load-%: build-datapipe
+	@echo "Running datapipe load ($*)..."
+	@ENV_PATHS="$(ENGINE_ENV_$*)" ./$(BIN_DIR)/datapipe load --engine $* --canonical "$(CANONICAL)" \
+		$(if $(EMBEDDINGS),--embeddings "$(EMBEDDINGS)") $(LOAD_FLAGS)
 
-# Load a dataset into the articles store (pg_textsearch)
-run-datapipe-articles-tiger: build-datapipe
-	@echo "Running datapipe load articles (pg_textsearch)..."
-	@ENV_PATHS="$(DATASET_ENV),cmd/datapipe/tiger.env" ./$(BIN_DIR)/datapipe load articles
-
-# Load a dataset into the articles store (Elasticsearch)
-run-datapipe-articles-es: build-datapipe
-	@echo "Running datapipe load articles (es)..."
-	@ENV_PATHS="$(DATASET_ENV),cmd/datapipe/es.env" ./$(BIN_DIR)/datapipe load articles
-
-# Load the same canonical dataset into every engine. Article IDs come from the
-# canonical file, so the corpora stay identical and directly comparable.
-run-datapipe-articles-all: run-datapipe-articles-pg run-datapipe-articles-parade run-datapipe-articles-tiger run-datapipe-articles-es
-
-# Load precomputed embeddings into the article_embeddings store (Postgres)
-run-datapipe-embeddings-pg: build-datapipe
-	@echo "Running datapipe load embeddings (pg)..."
-	@ENV_PATHS="cmd/datapipe/embeddings.env,cmd/datapipe/pg.env" ./$(BIN_DIR)/datapipe load embeddings
-
-# Load precomputed embeddings into the article_embeddings store (ParadeDB)
-run-datapipe-embeddings-parade: build-datapipe
-	@echo "Running datapipe load embeddings (ParadeDB)..."
-	@ENV_PATHS="cmd/datapipe/embeddings.env,cmd/datapipe/parade.env" ./$(BIN_DIR)/datapipe load embeddings
-
-# Load precomputed embeddings into the article_embeddings store (pg_textsearch)
-run-datapipe-embeddings-tiger: build-datapipe
-	@echo "Running datapipe load embeddings (pg_textsearch)..."
-	@ENV_PATHS="cmd/datapipe/embeddings.env,cmd/datapipe/tiger.env" ./$(BIN_DIR)/datapipe load embeddings
-
-# Load precomputed embeddings into the article_embeddings store (Elasticsearch)
-run-datapipe-embeddings-es: build-datapipe
-	@echo "Running datapipe load embeddings (es)..."
-	@ENV_PATHS="cmd/datapipe/embeddings.env,cmd/datapipe/es.env" ./$(BIN_DIR)/datapipe load embeddings
-
-# Load the same Parquet into every engine. Embeddings key on article_id, so this
-# only lands where the articles were already loaded.
-run-datapipe-embeddings-all: run-datapipe-embeddings-pg run-datapipe-embeddings-parade run-datapipe-embeddings-tiger run-datapipe-embeddings-es
+# Every engine loads the same packages, one after another, so the corpora stay
+# identical and no load competes with another for the machine.
+run-datapipe-load-all:
+	@for engine in $(LOAD_ENGINES); do $(MAKE) --no-print-directory run-datapipe-load-$$engine || exit 1; done
 
 run-api: build-news-api
 	@echo "Running news search service..."
