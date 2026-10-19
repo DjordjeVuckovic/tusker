@@ -1,4 +1,4 @@
-// Package migrations applies each Postgres engine's migrations in golang-migrate's format.
+// Package migrations holds each Postgres engine's schema, in golang-migrate's format, and its search indexes.
 package migrations
 
 import (
@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/jackc/pgx/v5"
@@ -20,10 +21,7 @@ import (
 //go:embed native paradedb tiger
 var files embed.FS
 
-const (
-	schemaTable  = "schema_migrations"
-	indexesTable = "schema_migrations_indexes"
-)
+const schemaTable = "schema_migrations"
 
 // Set is one directory of migrations and its version table.
 type Set struct {
@@ -31,20 +29,75 @@ type Set struct {
 	table string
 }
 
-func Schema(e storage.Engine) (Set, error) { return newSet(e, "schema", schemaTable) }
-
-// Indexes holds one migration per index.
-func Indexes(e storage.Engine) (Set, error) { return newSet(e, "indexes", indexesTable) }
-
-func newSet(e storage.Engine, dir, table string) (Set, error) {
+func Schema(e storage.Engine) (Set, error) {
 	if e.Type() != storage.PG {
 		return Set{}, fmt.Errorf("engine %q has no Postgres migrations", e)
 	}
-	sub, err := fs.Sub(files, path.Join(string(e), dir))
+	sub, err := fs.Sub(files, path.Join(string(e), "schema"))
 	if err != nil {
-		return Set{}, fmt.Errorf("open %s migrations of %s: %w", dir, e, err)
+		return Set{}, fmt.Errorf("open the schema migrations of %s: %w", e, err)
 	}
-	return Set{files: sub, table: table}, nil
+	return Set{files: sub, table: schemaTable}, nil
+}
+
+// IndexStatement is one statement of an engine's indexes.sql; Index is empty for a SET.
+type IndexStatement struct {
+	Index string
+	SQL   string
+}
+
+func (s IndexStatement) String() string {
+	if s.Index != "" {
+		return s.Index
+	}
+	return s.SQL
+}
+
+var createIndex = regexp.MustCompile(`(?i)^CREATE\s+INDEX\s+(\w+)`)
+
+// SearchIndexes splits indexes.sql on ';', which no statement in it contains.
+func SearchIndexes(e storage.Engine) ([]IndexStatement, error) {
+	if e.Type() != storage.PG {
+		return nil, fmt.Errorf("engine %q has no Postgres search indexes", e)
+	}
+	body, err := fs.ReadFile(files, path.Join(string(e), "indexes.sql"))
+	if err != nil {
+		return nil, fmt.Errorf("read the search indexes of %s: %w", e, err)
+	}
+	var statements []IndexStatement
+	for _, sql := range strings.Split(string(body), ";") {
+		sql = strings.TrimSpace(sql)
+		if sql == "" {
+			continue
+		}
+		statement := IndexStatement{SQL: sql}
+		if match := createIndex.FindStringSubmatch(sql); match != nil {
+			statement.Index = match[1]
+		}
+		statements = append(statements, statement)
+	}
+	return statements, nil
+}
+
+// Build migrates the schema and creates every search index, untimed, as a database without a load needs.
+func Build(ctx context.Context, conn *pgx.Conn, e storage.Engine) error {
+	schema, err := Schema(e)
+	if err != nil {
+		return err
+	}
+	if err := schema.Up(ctx, conn); err != nil {
+		return fmt.Errorf("migrate the schema of %s: %w", e, err)
+	}
+	indexes, err := SearchIndexes(e)
+	if err != nil {
+		return err
+	}
+	for _, s := range indexes {
+		if _, err := conn.Exec(ctx, s.SQL); err != nil {
+			return fmt.Errorf("run %s on %s: %w", s, e, err)
+		}
+	}
+	return nil
 }
 
 // Migration is one up file; Name drops the version and suffix.

@@ -1,2 +1,0 @@
-DROP TABLE IF EXISTS article_embeddings;
-DROP EXTENSION IF EXISTS vector;

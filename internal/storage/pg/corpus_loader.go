@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,7 +27,7 @@ type CorpusLoader struct {
 	pool    *ConnectionPool
 	engine  storage.Engine
 	schema  migrations.Set
-	indexes migrations.Set
+	indexes []migrations.IndexStatement
 }
 
 // NewCorpusLoader needs a pool that skips vector types; the schema migrations create them.
@@ -35,14 +36,14 @@ func NewCorpusLoader(pool *ConnectionPool, engine storage.Engine) (*CorpusLoader
 	if err != nil {
 		return nil, err
 	}
-	indexes, err := migrations.Indexes(engine)
+	indexes, err := migrations.SearchIndexes(engine)
 	if err != nil {
 		return nil, err
 	}
 	return &CorpusLoader{pool: pool, engine: engine, schema: schema, indexes: indexes}, nil
 }
 
-// LoadCorpus refuses a database that already holds a corpus or its indexes.
+// LoadCorpus refuses a database that already holds a corpus or its search indexes.
 func (l *CorpusLoader) LoadCorpus(ctx context.Context, c storage.Corpus, opts storage.LoadOptions) (storage.LoadRecord, error) {
 	if err := validateCorpus(c, opts); err != nil {
 		return storage.LoadRecord{}, err
@@ -190,12 +191,20 @@ func lockLoad(ctx context.Context, conn *pgx.Conn) error {
 }
 
 func (l *CorpusLoader) refuseLoaded(ctx context.Context, conn *pgx.Conn) error {
-	version, built, err := l.indexes.Version(ctx, conn)
-	if err != nil {
-		return err
+	var names []string
+	for _, s := range l.indexes {
+		if s.Index != "" {
+			names = append(names, s.Index)
+		}
 	}
-	if built {
-		return fmt.Errorf("the indexes are already built (version %d); drop them and the schema before loading", version)
+	var built []string
+	err := conn.QueryRow(ctx, `SELECT coalesce(array_agg(indexname ORDER BY indexname), '{}') FROM pg_indexes
+		WHERE schemaname = current_schema() AND indexname = ANY($1)`, names).Scan(&built)
+	if err != nil {
+		return fmt.Errorf("check for existing search indexes: %w", err)
+	}
+	if len(built) > 0 {
+		return fmt.Errorf("search indexes %s already exist; drop the schema before loading", strings.Join(built, ", "))
 	}
 	var loaded bool
 	err = conn.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM articles) OR EXISTS (SELECT 1 FROM corpus_load)").Scan(&loaded)
@@ -210,28 +219,26 @@ func (l *CorpusLoader) refuseLoaded(ctx context.Context, conn *pgx.Conn) error {
 
 var indexBuildSettings = []string{"maintenance_work_mem", "max_parallel_maintenance_workers"}
 
-// buildIndexes refuses migrations that disagree on a build setting; the record holds one value each.
+// buildIndexes times each search index as its own stage; a SET runs untimed.
 func (l *CorpusLoader) buildIndexes(ctx context.Context, conn *pgx.Conn, record *storage.LoadRecord) error {
-	pending, err := l.indexes.Pending(ctx, conn)
-	if err != nil {
-		return err
-	}
-	for _, m := range pending {
-		if err := timed(record, m.Name, func() error { return l.indexes.Apply(ctx, conn, m) }); err != nil {
+	for _, s := range l.indexes {
+		run := func() error {
+			if _, err := conn.Exec(ctx, s.SQL); err != nil {
+				return fmt.Errorf("build search index %s: %w", s, err)
+			}
+			return nil
+		}
+		if s.Index == "" {
+			if err := run(); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := timed(record, s.Index, run); err != nil {
 			return err
 		}
-		for _, name := range indexBuildSettings {
-			var value string
-			if err := conn.QueryRow(ctx, "SELECT current_setting($1)", name).Scan(&value); err != nil {
-				return fmt.Errorf("read setting %s: %w", name, err)
-			}
-			if previous, seen := record.Settings[name]; seen && previous != value {
-				return fmt.Errorf("index migration %s builds with %s = %s, earlier ones with %s", m.Name, name, value, previous)
-			}
-			record.Settings[name] = value
-		}
 	}
-	for _, name := range engineKnobs[l.engine].settings {
+	for _, name := range slices.Concat(indexBuildSettings, engineKnobs[l.engine].settings) {
 		var value string
 		if err := conn.QueryRow(ctx, "SELECT current_setting($1)", name).Scan(&value); err != nil {
 			return fmt.Errorf("read setting %s: %w", name, err)

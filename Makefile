@@ -12,9 +12,6 @@ DB_CONN_native := postgresql://news_user:news_password@localhost:54320/news_db?s
 DB_CONN_paradedb := postgresql://news_user:news_password@localhost:54321/news_db?sslmode=disable
 DB_CONN_tiger := postgresql://news_user:news_password@localhost:54322/news_db?sslmode=disable
 DB_CONN := "$(DB_CONN_native)"
-# Index migrations keep their own golang-migrate version table, so the schema
-# and the indexes can be built and dropped separately.
-INDEXES_TABLE := x-migrations-table=schema_migrations_indexes
 
 # Go variables
 GOOS ?= $(shell go env GOOS)
@@ -23,25 +20,18 @@ GOARCH ?= $(shell go env GOARCH)
 ARGS ?=
 
 # Build commands
-.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments $(addprefix migrate-schema-,$(PG_ENGINES)) $(addprefix migrate-indexes-,$(PG_ENGINES)) $(addprefix migrate-down-,$(PG_ENGINES)) migrate-schema-all migrate-indexes-all migrate-down-all db-refresh-collation db-volumes run-datapipe-preprocess $(addprefix run-datapipe-load-,$(LOAD_ENGINES)) run-datapipe-load-all
+.PHONY: build build-all clean test fmt vet lint lint-fix install-lint schema-gen build-bench bench-validate bench-run bench-pool bench-judge-lexical bench-judge-cli bench-judge-api bench-qrels bench-show-spec bench-show-pool bench-show-judgments $(addprefix migrate-schema-,$(PG_ENGINES)) $(addprefix migrate-down-,$(PG_ENGINES)) migrate-schema-all migrate-down-all db-refresh-collation db-volumes run-datapipe-preprocess $(addprefix run-datapipe-load-,$(LOAD_ENGINES)) run-datapipe-load-all
 
 $(addprefix migrate-schema-,$(PG_ENGINES)): migrate-schema-%:
 	@echo "Migrating the schema ($*)..."
 	@migrate -path $(MIGRATIONS_DIR)/$*/schema -database "$(DB_CONN_$*)" up
 
-$(addprefix migrate-indexes-,$(PG_ENGINES)): migrate-indexes-%:
-	@echo "Building the indexes ($*)..."
-	@migrate -path $(MIGRATIONS_DIR)/$*/indexes -database "$(DB_CONN_$*)&$(INDEXES_TABLE)" up
-
-# Drops the indexes, then the schema. `migrate down` prompts for confirmation.
+# Dropping the tables drops their indexes too. `migrate down` prompts for confirmation.
 $(addprefix migrate-down-,$(PG_ENGINES)): migrate-down-%:
-	@echo "Dropping the indexes and the schema ($*)..."
-	@migrate -path $(MIGRATIONS_DIR)/$*/indexes -database "$(DB_CONN_$*)&$(INDEXES_TABLE)" down
+	@echo "Dropping the schema ($*)..."
 	@migrate -path $(MIGRATIONS_DIR)/$*/schema -database "$(DB_CONN_$*)" down
 
 migrate-schema-all: $(addprefix migrate-schema-,$(PG_ENGINES))
-
-migrate-indexes-all: $(addprefix migrate-indexes-,$(PG_ENGINES))
 
 migrate-down-all: $(addprefix migrate-down-,$(PG_ENGINES))
 

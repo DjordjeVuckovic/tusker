@@ -1,2 +1,0 @@
-DROP EXTENSION IF EXISTS pg_search;
-DROP EXTENSION IF EXISTS "uuid-ossp";

@@ -33,12 +33,15 @@ var databases atomic.Int64
 var fixtureNamespace = uuid.MustParse("3b1f6f0e-2a4c-4d3e-9b1a-7c2d5e8f9a10")
 
 var declaredIndexes = map[storage.Engine][]string{
-	storage.PostgresNative: {
-		"idx_articles_search_vector", "idx_articles_title_trgm", "idx_articles_title_desc_trgm",
-		"idx_articles_published_at", "idx_articles_publisher_domain", "idx_article_embedding",
-	},
-	storage.ParadeDB: {"idx_articles_search", "idx_articles_published_at", "idx_article_embedding"},
-	storage.Tiger:    {"idx_articles_bm25", "idx_articles_published_at", "idx_articles_publisher_domain", "idx_article_embedding"},
+	storage.PostgresNative: {"idx_articles_search_vector", "idx_articles_title_trgm", "idx_articles_title_desc_trgm", "idx_article_embedding"},
+	storage.ParadeDB:       {"idx_articles_search", "idx_article_embedding"},
+	storage.Tiger:          {"idx_articles_bm25", "idx_article_embedding"},
+}
+
+var filterIndexes = map[storage.Engine][]string{
+	storage.PostgresNative: {"idx_articles_published_at", "idx_articles_publisher_domain"},
+	storage.ParadeDB:       {"idx_articles_published_at"},
+	storage.Tiger:          {"idx_articles_published_at", "idx_articles_publisher_domain"},
 }
 
 var declaredSettings = map[storage.Engine]map[string]string{
@@ -235,16 +238,7 @@ func TestCorpusLoader(t *testing.T) {
 			t.Run("refuses a database whose indexes exist before the data", func(t *testing.T) {
 				db := newDatabase(t, server.ConnString)
 				query(t, db, func(conn *pgx.Conn) error {
-					for _, open := range []func(storage.Engine) (migrations.Set, error){migrations.Schema, migrations.Indexes} {
-						set, err := open(engine)
-						if err != nil {
-							return err
-						}
-						if err := set.Up(context.Background(), conn); err != nil {
-							return err
-						}
-					}
-					return nil
+					return migrations.Build(context.Background(), conn, engine)
 				})
 				articles, vectors := fixture(10)
 
@@ -379,6 +373,10 @@ func TestCorpusLoader(t *testing.T) {
 					assert.Equal(t, 1, stages[name], "stages timing index %s", name)
 				}
 				assert.Contains(t, present["idx_article_embedding"], "WITH (m='16', ef_construction='64')")
+				for _, name := range filterIndexes[engine] {
+					assert.Contains(t, present, name)
+					assert.Zero(t, stages[name], "the schema builds filter index %s, so no stage times it", name)
+				}
 				assert.Equal(t, declaredSettings[engine], record.Settings)
 			})
 		})

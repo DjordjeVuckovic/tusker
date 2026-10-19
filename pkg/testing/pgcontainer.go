@@ -125,14 +125,5 @@ func migrate(ctx context.Context, connStr string, engine storage.Engine) error {
 	}
 	defer conn.Close(context.WithoutCancel(ctx))
 
-	for _, open := range []func(storage.Engine) (migrations.Set, error){migrations.Schema, migrations.Indexes} {
-		set, err := open(engine)
-		if err != nil {
-			return err
-		}
-		if err := set.Up(ctx, conn); err != nil {
-			return fmt.Errorf("migrate %s: %w", engine, err)
-		}
-	}
-	return nil
+	return migrations.Build(ctx, conn, engine)
 }
