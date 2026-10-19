@@ -362,18 +362,18 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 
 	t.Run("waits out a task that runs past the response-header timeout", func(t *testing.T) {
 		var bulk strings.Builder
-		for i := range 10 {
+		for i := range 20 {
 			fmt.Fprintf(&bulk, "{\"index\":{\"_index\":\"task_wait_source\"}}\n{\"n\":%d}\n", i)
 		}
 		postJSON(t, container.Address+"/_bulk?refresh=true", bulk.String(), &map[string]any{})
 		var started struct {
 			Task string `json:"task"`
 		}
-		// Throttled to one document a second, the reindex runs for several seconds.
+		// Throttled to one document a second, the reindex outlasts the 6s header timeout.
 		postJSON(t, container.Address+"/_reindex?wait_for_completion=false&requests_per_second=1",
 			`{"source":{"index":"task_wait_source","size":2},"dest":{"index":"task_wait_dest"}}`, &started)
 
-		client := newTestClient(t, ClientConfig{Addresses: []string{container.Address}, IndexName: "task_wait_dest", ResponseHeaderTimeout: 2 * time.Second})
+		client := newTestClient(t, ClientConfig{Addresses: []string{container.Address}, IndexName: "task_wait_dest", ResponseHeaderTimeout: 6 * time.Second})
 		if err := NewCorpusLoader(client).waitForTask(ctx, started.Task); err != nil {
 			t.Errorf("waitForTask: %v", err)
 		}
