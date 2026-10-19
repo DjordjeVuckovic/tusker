@@ -242,15 +242,23 @@ The two engines' sizes measure different structures and are not compared with ea
 
 ## What this means for the configuration
 
-These are recommendations, not settled decisions.
+**Decided (2026-10-19):** each engine keeps its own tokenizer and stopword list, and only the
+stemmer is held constant: Snowball English (Porter2) everywhere. Every engine documents Snowball
+as a built-in option, so nothing is borrowed from another engine, and the stemmer, which moves
+top-10 results the most (finding 7), stops being a difference between them.
 
-- **Identical-analysis ablation, ES side:** `standard` tokenizer, apostrophe char filter,
-  `lowercase`, PG's 127 stopwords, `snowball` English. This is the closest chain measured. The
-  residual against PG is 0.972, 0.970 and 0.956 Jaccard, from tokenizer rules (finding 4) and
-  the 10-word Snowball difference (finding 1). Both are disclosed, not fixable by
-  configuration.
-- **ParadeDB** cannot get closer than about 0.90 until its index can take a custom stopword
-  list. `unicode_words` and `simple` are equivalent on content (0.826 against 0.827);
+- **ES:** the built-in `english` chain with `snowball` in place of Porter: `standard`
+  tokenizer, `possessive_english`, `lowercase`, `_english_` stopwords (33), `snowball` English.
+  The nearest measured chain, `es.standard+lucenestop+porter2`, scores 0.900, 0.852 and 0.822
+  against PG (T4); it lacks only the possessive filter, which changes possessive forms of
+  stopwords such as `it's` (F5.4). The gap to PG is mostly the stopword list (PG 127, Lucene
+  33) and is stated as a property of the engine, not corrected.
+- **Rejected:** copying PG's 127 stopwords and an apostrophe char filter into ES. It is the
+  closest chain measured (0.972, 0.970, 0.956), but no real deployment configures ES that way,
+  so the bench would compare a setup nobody runs.
+- **ParadeDB** (`stemmer=english`, `stopwords_language=english`) lands where ES does, since
+  both use Lucene's 33 stopwords, and could not get closer than about 0.90 anyway until its
+  index can take a custom stopword list. `unicode_words` and `simple` are equivalent on content (0.826 against 0.827);
   `unicode_words` is better on titles (0.902 against 0.891) and is output-equivalent to ES
   `standard` up to the edge cases in finding 4.
 - **The best arm** needs judgments. In finding 7, changing the stemmer family gives a top-10
