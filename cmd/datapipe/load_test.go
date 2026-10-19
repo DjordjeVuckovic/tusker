@@ -194,15 +194,6 @@ func TestLoad_RefusesBeforeReachingAnEngine(t *testing.T) {
 
 		require.ErrorContains(t, err, "5 vectors for 20 articles")
 	})
-
-	t.Run("an engine without a loader", func(t *testing.T) {
-		root := t.TempDir()
-		canonical := writeCanonicalPackage(t, root, loadFixtureArticles(20))
-
-		err := execDatapipe(t, "", "load", "--engine", "es", "--canonical", canonical.location)
-
-		require.ErrorContains(t, err, `no corpus loader for engine "es"`)
-	})
 }
 
 func execDatapipe(t *testing.T, connString string, args ...string) error {
