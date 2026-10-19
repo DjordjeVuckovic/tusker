@@ -108,11 +108,12 @@ func newArticleDocument(article document.Article) ArticleDocument {
 	}
 }
 
-// The analyzer mirrors PostgreSQL's english regconfig: Snowball stemming, split on apostrophes.
+// The analyzer is Elasticsearch's built-in english chain with Snowball in place of Porter, so the
+// stemmer matches the other engines while tokenizer and stopwords stay Elasticsearch's own.
 func (b *IndexBuilder) buildSettings() types.IndexSettings {
 	shards, replicas, maxResultWindow := "1", "0", 10001
 	k1, lengthNormalization := types.Float64(bm25K1), types.Float64(bm25B)
-	english := snowballlanguage.English
+	english, possessiveEnglish := snowballlanguage.English, "possessive_english"
 	return types.IndexSettings{
 		NumberOfShards:   &shards,
 		NumberOfReplicas: &replicas,
@@ -123,19 +124,14 @@ func (b *IndexBuilder) buildSettings() types.IndexSettings {
 		Analysis: &types.IndexSettingsAnalysis{
 			Analyzer: map[string]types.Analyzer{
 				language.English.Analysis().ElasticsearchAnalyzer: types.CustomAnalyzer{
-					CharFilter: []string{"apostrophe_to_space"},
-					Tokenizer:  "standard",
-					Filter:     []string{"lowercase", "postgres_english_stop", "english_snowball"},
-				},
-			},
-			CharFilter: map[string]types.CharFilter{
-				"apostrophe_to_space": types.MappingCharFilter{
-					Mappings: []string{"' => \\u0020", "’ => \\u0020"},
+					Tokenizer: "standard",
+					Filter:    []string{"english_possessive", "lowercase", "english_stop", "english_snowball"},
 				},
 			},
 			Filter: map[string]types.TokenFilter{
-				"postgres_english_stop": types.StopTokenFilter{Stopwords: PostgresEnglishStopwords},
-				"english_snowball":      types.SnowballTokenFilter{Language: &english},
+				"english_possessive": types.StemmerTokenFilter{Language: &possessiveEnglish},
+				"english_stop":       types.StopTokenFilter{Stopwords: "_english_"},
+				"english_snowball":   types.SnowballTokenFilter{Language: &english},
 			},
 		},
 	}
