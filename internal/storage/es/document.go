@@ -12,6 +12,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorindexoptionstype"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/densevectorsimilarity"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/snowballlanguage"
 	"github.com/google/uuid"
 )
 
@@ -70,6 +71,13 @@ func decodeArticle(source json.RawMessage) (dto.Article, error) {
 	return dto.NewArticle(article), nil
 }
 
+// BM25 parameters match tiger's bm25 index.
+const (
+	textSimilarity = "article_bm25"
+	bm25K1         = 1.2
+	bm25B          = 0.75
+)
+
 type IndexBuilder struct{}
 
 func NewIndexBuilder() *IndexBuilder {
@@ -83,6 +91,10 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) (ArticleDocumen
 	if _, err := language.Parse(string(article.Language)); err != nil {
 		return ArticleDocument{}, fmt.Errorf("article %s: %w", article.ID, err)
 	}
+	return newArticleDocument(article), nil
+}
+
+func newArticleDocument(article document.Article) ArticleDocument {
 	return ArticleDocument{
 		ID:              article.ID.String(),
 		URL:             article.URL,
@@ -93,29 +105,50 @@ func (b *IndexBuilder) mapToESDocument(article document.Article) (ArticleDocumen
 		Language:        string(article.Language),
 		PublisherDomain: article.PublisherDomain,
 		Metadata:        article.Metadata,
-	}, nil
+	}
 }
 
+// The analyzer mirrors PostgreSQL's english regconfig: Snowball stemming, split on apostrophes.
 func (b *IndexBuilder) buildSettings() types.IndexSettings {
+	shards, replicas, maxResultWindow := "1", "0", 10001
+	k1, lengthNormalization := types.Float64(bm25K1), types.Float64(bm25B)
+	english := snowballlanguage.English
 	return types.IndexSettings{
+		NumberOfShards:   &shards,
+		NumberOfReplicas: &replicas,
+		MaxResultWindow:  &maxResultWindow,
+		Similarity: map[string]types.SettingsSimilarity{
+			textSimilarity: types.SettingsSimilarityBm25{Type: "BM25", K1: &k1, B: &lengthNormalization},
+		},
 		Analysis: &types.IndexSettingsAnalysis{
 			Analyzer: map[string]types.Analyzer{
-				"multilingual_analyzer": types.StandardAnalyzer{
-					Stopwords: []string{"_none_"},
+				language.English.Analysis().ElasticsearchAnalyzer: types.CustomAnalyzer{
+					CharFilter: []string{"apostrophe_to_space"},
+					Tokenizer:  "standard",
+					Filter:     []string{"lowercase", "postgres_english_stop", "english_snowball"},
 				},
+			},
+			CharFilter: map[string]types.CharFilter{
+				"apostrophe_to_space": types.MappingCharFilter{
+					Mappings: []string{"' => \\u0020", "’ => \\u0020"},
+				},
+			},
+			Filter: map[string]types.TokenFilter{
+				"postgres_english_stop": types.StopTokenFilter{Stopwords: PostgresEnglishStopwords},
+				"english_snowball":      types.SnowballTokenFilter{Language: &english},
 			},
 		},
 	}
 }
 
-func (b *IndexBuilder) buildMapping() types.TypeMapping {
+func (b *IndexBuilder) buildMapping(analyzer string) types.TypeMapping {
 	return types.TypeMapping{
 		Properties: map[string]types.Property{
 			"id":               types.NewKeywordProperty(),
 			"url":              types.NewKeywordProperty(),
-			"title":            b.createTextPropertyWithKeyword("multilingual_analyzer"),
-			"description":      b.createTextProperty("multilingual_analyzer"),
-			"content":          b.createTextProperty("multilingual_analyzer"),
+			"title":            b.createTextPropertyWithKeyword(analyzer),
+			"description":      b.createTextProperty(analyzer),
+			"content":          b.createTextProperty(analyzer),
 			"published_at":     types.NewDateProperty(),
 			"language":         types.NewKeywordProperty(),
 			"publisher_domain": types.NewKeywordProperty(),
@@ -158,20 +191,23 @@ func (b *IndexBuilder) denseVectorProperty() *types.DenseVectorProperty {
 }
 
 func (b *IndexBuilder) createTextProperty(analyzer string) types.Property {
-	textProp := types.NewTextProperty()
-	if analyzer != "" {
-		textProp.Analyzer = &analyzer
+	return searchedTextProperty(analyzer)
+}
+
+func (b *IndexBuilder) createTextPropertyWithKeyword(analyzer string) types.Property {
+	textProp := searchedTextProperty(analyzer)
+	textProp.Fields = map[string]types.Property{
+		"keyword": types.NewKeywordProperty(),
 	}
 	return textProp
 }
 
-func (b *IndexBuilder) createTextPropertyWithKeyword(analyzer string) types.Property {
+func searchedTextProperty(analyzer string) *types.TextProperty {
 	textProp := types.NewTextProperty()
 	if analyzer != "" {
 		textProp.Analyzer = &analyzer
 	}
-	textProp.Fields = map[string]types.Property{
-		"keyword": types.NewKeywordProperty(),
-	}
+	similarity := textSimilarity
+	textProp.Similarity = &similarity
 	return textProp
 }

@@ -59,7 +59,6 @@ services:
     shm_size: 2gb
     volumes:
       - es_news_data:/usr/share/elasticsearch/data
-      - ./configs/elasticsearch:/usr/share/elasticsearch/config/policies
     ports:
       - "9200:9200"
       - "9300:9300"

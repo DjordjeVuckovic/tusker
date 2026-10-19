@@ -160,6 +160,9 @@ func textFieldMapping(p *types.TextProperty) FieldMapping {
 	if p.SearchAnalyzer != nil {
 		field.SearchAnalyzer = *p.SearchAnalyzer
 	}
+	if p.Similarity != nil {
+		field.Similarity = *p.Similarity
+	}
 	if p.IndexOptions != nil {
 		field.IndexOptions = p.IndexOptions.String()
 	}

@@ -26,11 +26,13 @@ func NewESContainer(ctx context.Context, tb testing.TB) *ESContainer {
 
 	// Elasticsearch 8 enables security, and with it TLS, by default; the
 	// readiness probe below speaks plaintext and would poll until it times out.
+	// ES_JAVA_OPTS overrides the module's 2 GB heap with compose's 512 MB.
 	esContainer, err := elasticsearch.Run(ctx,
 		"docker.elastic.co/elasticsearch/elasticsearch:8.12.0",
 		testcontainers.WithEnv(map[string]string{
 			"xpack.security.enabled": "false",
 			"discovery.type":         "single-node",
+			"ES_JAVA_OPTS":           "-Xms512m -Xmx512m",
 		}),
 		testcontainers.WithWaitStrategy(
 			wait.ForHTTP("/").
