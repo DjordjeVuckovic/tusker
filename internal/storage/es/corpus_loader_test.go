@@ -93,13 +93,13 @@ func TestCorpusLoader_LoadCorpus(t *testing.T) {
 				Token string `json:"token"`
 			} `json:"tokens"`
 		}
-		postJSON(t, container.Address+"/"+index+"/_analyze", `{"field":"content","text":"The news skies"}`, &analyzed)
+		postJSON(t, container.Address+"/"+index+"/_analyze", `{"field":"content","text":"The president's news about skies"}`, &analyzed)
 		var tokens []string
 		for _, token := range analyzed.Tokens {
 			tokens = append(tokens, token.Token)
 		}
-		if want := []string{"news", "sky"}; !slices.Equal(tokens, want) {
-			t.Errorf("content analyzes %q to %q, want %q", "The news skies", tokens, want)
+		if want := []string{"presid", "news", "about", "sky"}; !slices.Equal(tokens, want) {
+			t.Errorf("content analyzes %q to %q, want %q", "The president's news about skies", tokens, want)
 		}
 	})
 

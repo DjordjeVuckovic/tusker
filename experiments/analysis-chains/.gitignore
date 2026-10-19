@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+.pytest_cache/
+# article text stays out of git (publisher copyright), as do large regenerable dumps
+out/sample_*.jsonl
+out/tokens/
+out/tokens_rerun/
+out/review_sample.json
+out/stems_engines.json
+out/ref_*.json
+out/vocab.json
+out/spacy_lemmas.json
+out/divergence_results.json
+deps/en_US.aff
+deps/en_US.dic
+deps/nltk_data/
+# fetched papers, docs and engine source files used by out/verification.md (copyrighted, not committed)
+sources/

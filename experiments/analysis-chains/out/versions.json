@@ -1,0 +1,39 @@
+{
+ "ana-pg": {
+  "image": "pgvector/pgvector:pg18",
+  "image_id": "sha256:818927bc047e7b6041de6580f4c342e66826084253efe7be3dbe9a9d71aea747",
+  "server": "18.1 (Debian 18.1-1.pgdg12+2)"
+ },
+ "ana-tiger": {
+  "image": "timescale/timescaledb-ha:pg18",
+  "image_id": "sha256:a31f0258eac1db210295531e93a34c51383120b5401d45fc2f210b3d033c3e34",
+  "server": "18.4 (Ubuntu 18.4-1.pgdg22.04+1)",
+  "pg_textsearch": "1.1.0"
+ },
+ "ana-pdb": {
+  "image": "paradedb/paradedb:0.21.5-pg18",
+  "image_id": "sha256:919c0e96ae44845643683ecc67a532926eed84090867277ab4f1dd0a0080db6e",
+  "server": "18.1 (Debian 18.1-1.pgdg12+2)",
+  "pg_search": "0.21.5"
+ },
+ "ana-es": {
+  "image": "docker.elastic.co/elasticsearch/elasticsearch:8.12.0",
+  "image_id": "sha256:ec72548cf833e58578d8ff40df44346a49480b2c88a4e73a91e1b85ec7ef0d44",
+  "es_version": "8.12.0",
+  "lucene": "9.9.1",
+  "plugins": "analysis-icu 8.12.0"
+ },
+ "python": "3.12.11 PyStemmer==3.0.0 spacy==3.8.7 en_core_web_sm==3.8.0 nltk==3.9.1 psycopg==3.2.10 requests==2.32.5",
+ "isolated_refs": [
+  "snowballstemmer==2.2.0",
+  "snowballstemmer==3.0.1",
+  "pystemmer==2.2.0.3 (layered over project env)"
+ ],
+ "hunspell": [
+  "libreoffice-dictionaries commit 32b006a2c22a4ac7e8ed3f03346f7b3d85a970a4",
+  "e746c882dd6f303c2c46e7452804b9201115a6942cfeb15f18f8edf774d2e24e  en_US.aff",
+  "f0b1a234bd178bdd01875b2a392a9647f888b8fe879f79c52aae62c2759b3647  en_US.dic"
+ ],
+ "pg_english_stop_sha256": "b3f772a000465cb76e23adb03b47073c591c156fad8f7af09c8b8e80d6bd8eac",
+ "pg_snowball_sync": "Snowball git d19326ac6c1b9a417fc872f7c2f845265a5e9ece (2025-02-19), per src/backend/snowball/README at REL_18_1"
+}

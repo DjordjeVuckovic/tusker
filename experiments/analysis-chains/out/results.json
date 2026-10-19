@@ -1,0 +1,5332 @@
+{
+ "manifest": {
+  "source": "../../datasets/cc-news/dataset-canonical.jsonl",
+  "source_sha256": "4b61eb9518fb8a678afd57270a368dfd65b541604a30ab1ba876dced302b3f76",
+  "source_lines": 707910,
+  "seed": 20261008,
+  "fields": [
+   "title",
+   "description",
+   "content"
+  ],
+  "sample_a": {
+   "rows": 10000,
+   "sha256": "c2c575fa3b037af9fa92d2299cfbf1b127edc03b7e7b5980ec98ed20bd2faa91"
+  },
+  "sample_b": {
+   "rows": 50000,
+   "sha256": "931a1ded719bbeb33e304e7677af69d13ff62f3b4ad53597b2e38c96f7dd6dd5"
+  }
+ },
+ "stem_eval": {
+  "m1_identity": [
+   {
+    "left": "pg.snowball_english",
+    "right": "es.snowball_english",
+    "words": 87372,
+    "differ": 10,
+    "differ_df_share": 0.0007690183709425053,
+    "examples": [
+     [
+      "added",
+      "add",
+      "ad",
+      1212
+     ],
+     [
+      "adding",
+      "add",
+      "ad",
+      417
+     ],
+     [
+      "ebbing",
+      "ebb",
+      "eb",
+      5
+     ],
+     [
+      "erred",
+      "err",
+      "er",
+      3
+     ],
+     [
+      "erring",
+      "err",
+      "er",
+      3
+     ],
+     [
+      "offing",
+      "off",
+      "of",
+      2
+     ],
+     [
+      "anning",
+      "ann",
+      "an",
+      1
+     ],
+     [
+      "ebbed",
+      "ebb",
+      "eb",
+      1
+     ],
+     [
+      "egged",
+      "egg",
+      "eg",
+      1
+     ],
+     [
+      "epping",
+      "epp",
+      "ep",
+      1
+     ]
+    ]
+   },
+   {
+    "left": "pg.snowball_english",
+    "right": "es.stemmer_porter2",
+    "words": 87372,
+    "differ": 10,
+    "differ_df_share": 0.0007690183709425053,
+    "examples": [
+     [
+      "added",
+      "add",
+      "ad",
+      1212
+     ],
+     [
+      "adding",
+      "add",
+      "ad",
+      417
+     ],
+     [
+      "ebbing",
+      "ebb",
+      "eb",
+      5
+     ],
+     [
+      "erred",
+      "err",
+      "er",
+      3
+     ],
+     [
+      "erring",
+      "err",
+      "er",
+      3
+     ],
+     [
+      "offing",
+      "off",
+      "of",
+      2
+     ],
+     [
+      "anning",
+      "ann",
+      "an",
+      1
+     ],
+     [
+      "ebbed",
+      "ebb",
+      "eb",
+      1
+     ],
+     [
+      "egged",
+      "egg",
+      "eg",
+      1
+     ],
+     [
+      "epping",
+      "epp",
+      "ep",
+      1
+     ]
+    ]
+   },
+   {
+    "left": "pg.snowball_english",
+    "right": "pdb.stemmer_english",
+    "words": 87372,
+    "differ": 10,
+    "differ_df_share": 0.0007690183709425053,
+    "examples": [
+     [
+      "added",
+      "add",
+      "ad",
+      1212
+     ],
+     [
+      "adding",
+      "add",
+      "ad",
+      417
+     ],
+     [
+      "ebbing",
+      "ebb",
+      "eb",
+      5
+     ],
+     [
+      "erred",
+      "err",
+      "er",
+      3
+     ],
+     [
+      "erring",
+      "err",
+      "er",
+      3
+     ],
+     [
+      "offing",
+      "off",
+      "of",
+      2
+     ],
+     [
+      "anning",
+      "ann",
+      "an",
+      1
+     ],
+     [
+      "ebbed",
+      "ebb",
+      "eb",
+      1
+     ],
+     [
+      "egged",
+      "egg",
+      "eg",
+      1
+     ],
+     [
+      "epping",
+      "epp",
+      "ep",
+      1
+     ]
+    ]
+   },
+   {
+    "left": "pg.snowball_english",
+    "right": "pystemmer-2.2.0.3.english",
+    "words": 87372,
+    "differ": 10,
+    "differ_df_share": 0.0007690183709425053,
+    "examples": [
+     [
+      "added",
+      "add",
+      "ad",
+      1212
+     ],
+     [
+      "adding",
+      "add",
+      "ad",
+      417
+     ],
+     [
+      "ebbing",
+      "ebb",
+      "eb",
+      5
+     ],
+     [
+      "erred",
+      "err",
+      "er",
+      3
+     ],
+     [
+      "erring",
+      "err",
+      "er",
+      3
+     ],
+     [
+      "offing",
+      "off",
+      "of",
+      2
+     ],
+     [
+      "anning",
+      "ann",
+      "an",
+      1
+     ],
+     [
+      "ebbed",
+      "ebb",
+      "eb",
+      1
+     ],
+     [
+      "egged",
+      "egg",
+      "eg",
+      1
+     ],
+     [
+      "epping",
+      "epp",
+      "ep",
+      1
+     ]
+    ]
+   },
+   {
+    "left": "pg.snowball_english",
+    "right": "snowballstemmer-2.2.0.english",
+    "words": 87372,
+    "differ": 10,
+    "differ_df_share": 0.0007690183709425053,
+    "examples": [
+     [
+      "added",
+      "add",
+      "ad",
+      1212
+     ],
+     [
+      "adding",
+      "add",
+      "ad",
+      417
+     ],
+     [
+      "ebbing",
+      "ebb",
+      "eb",
+      5
+     ],
+     [
+      "erred",
+      "err",
+      "er",
+      3
+     ],
+     [
+      "erring",
+      "err",
+      "er",
+      3
+     ],
+     [
+      "offing",
+      "off",
+      "of",
+      2
+     ],
+     [
+      "anning",
+      "ann",
+      "an",
+      1
+     ],
+     [
+      "ebbed",
+      "ebb",
+      "eb",
+      1
+     ],
+     [
+      "egged",
+      "egg",
+      "eg",
+      1
+     ],
+     [
+      "epping",
+      "epp",
+      "ep",
+      1
+     ]
+    ]
+   },
+   {
+    "left": "pg.snowball_english",
+    "right": "pystemmer-3.0.0.english",
+    "words": 87372,
+    "differ": 84,
+    "differ_df_share": 0.0012553781061497642,
+    "examples": [
+     [
+      "university",
+      "univers",
+      "universiti",
+      750
+     ],
+     [
+      "evening",
+      "even",
+      "evening",
+      389
+     ],
+     [
+      "organization",
+      "organ",
+      "organiz",
+      313
+     ],
+     [
+      "emergency",
+      "emerg",
+      "emergenc",
+      277
+     ],
+     [
+      "organizations",
+      "organ",
+      "organiz",
+      213
+     ],
+     [
+      "organized",
+      "organ",
+      "organiz",
+      100
+     ],
+     [
+      "universities",
+      "univers",
+      "universiti",
+      73
+     ],
+     [
+      "universal",
+      "univers",
+      "universal",
+      70
+     ],
+     [
+      "organizers",
+      "organ",
+      "organiz",
+      56
+     ],
+     [
+      "organic",
+      "organ",
+      "organic",
+      41
+     ],
+     [
+      "organizing",
+      "organ",
+      "organiz",
+      29
+     ],
+     [
+      "organize",
+      "organ",
+      "organiz",
+      28
+     ],
+     [
+      "emergence",
+      "emerg",
+      "emergenc",
+      27
+     ],
+     [
+      "psychologist",
+      "psychologist",
+      "psycholog",
+      25
+     ],
+     [
+      "meteorologist",
+      "meteorologist",
+      "meteorolog",
+      23
+     ]
+    ]
+   },
+   {
+    "left": "pg.snowball_english",
+    "right": "snowballstemmer-3.0.1.english",
+    "words": 87372,
+    "differ": 84,
+    "differ_df_share": 0.0012553781061497642,
+    "examples": [
+     [
+      "university",
+      "univers",
+      "universiti",
+      750
+     ],
+     [
+      "evening",
+      "even",
+      "evening",
+      389
+     ],
+     [
+      "organization",
+      "organ",
+      "organiz",
+      313
+     ],
+     [
+      "emergency",
+      "emerg",
+      "emergenc",
+      277
+     ],
+     [
+      "organizations",
+      "organ",
+      "organiz",
+      213
+     ],
+     [
+      "organized",
+      "organ",
+      "organiz",
+      100
+     ],
+     [
+      "universities",
+      "univers",
+      "universiti",
+      73
+     ],
+     [
+      "universal",
+      "univers",
+      "universal",
+      70
+     ],
+     [
+      "organizers",
+      "organ",
+      "organiz",
+      56
+     ],
+     [
+      "organic",
+      "organ",
+      "organic",
+      41
+     ],
+     [
+      "organizing",
+      "organ",
+      "organiz",
+      29
+     ],
+     [
+      "organize",
+      "organ",
+      "organiz",
+      28
+     ],
+     [
+      "emergence",
+      "emerg",
+      "emergenc",
+      27
+     ],
+     [
+      "psychologist",
+      "psychologist",
+      "psycholog",
+      25
+     ],
+     [
+      "meteorologist",
+      "meteorologist",
+      "meteorolog",
+      23
+     ]
+    ]
+   },
+   {
+    "left": "es.snowball_english",
+    "right": "es.stemmer_porter2",
+    "words": 87372,
+    "differ": 0,
+    "differ_df_share": 0.0,
+    "examples": []
+   },
+   {
+    "left": "es.snowball_english",
+    "right": "pdb.stemmer_english",
+    "words": 87372,
+    "differ": 0,
+    "differ_df_share": 0.0,
+    "examples": []
+   },
+   {
+    "left": "es.snowball_english",
+    "right": "snowballstemmer-2.2.0.english",
+    "words": 87372,
+    "differ": 0,
+    "differ_df_share": 0.0,
+    "examples": []
+   },
+   {
+    "left": "pystemmer-3.0.0.english",
+    "right": "snowballstemmer-3.0.1.english",
+    "words": 87372,
+    "differ": 0,
+    "differ_df_share": 0.0,
+    "examples": []
+   },
+   {
+    "left": "es.porter_stem",
+    "right": "es.stemmer_english",
+    "words": 87372,
+    "differ": 0,
+    "differ_df_share": 0.0,
+    "examples": []
+   },
+   {
+    "left": "es.porter_stem",
+    "right": "pystemmer-2.2.0.3.porter",
+    "words": 87372,
+    "differ": 136,
+    "differ_df_share": 0.014881393166014995,
+    "examples": [
+     [
+      "s",
+      "s",
+      "",
+      10741
+     ],
+     [
+      "is",
+      "is",
+      "i",
+      9068
+     ],
+     [
+      "as",
+      "as",
+      "a",
+      7400
+     ],
+     [
+      "us",
+      "us",
+      "u",
+      2356
+     ],
+     [
+      "technology",
+      "technolog",
+      "technologi",
+      602
+     ],
+     [
+      "vs",
+      "vs",
+      "v",
+      199
+     ],
+     [
+      "technologies",
+      "technolog",
+      "technologi",
+      168
+     ],
+     [
+      "possibly",
+      "possibl",
+      "possibli",
+      164
+     ],
+     [
+      "assembly",
+      "assembl",
+      "assembli",
+      147
+     ],
+     [
+      "ms",
+      "ms",
+      "m",
+      144
+     ],
+     [
+      "rs",
+      "rs",
+      "r",
+      133
+     ],
+     [
+      "incredibly",
+      "incred",
+      "incredibli",
+      95
+     ],
+     [
+      "apology",
+      "apolog",
+      "apologi",
+      45
+     ],
+     [
+      "astrology",
+      "astrolog",
+      "astrologi",
+      41
+     ],
+     [
+      "psychology",
+      "psycholog",
+      "psychologi",
+      33
+     ]
+    ]
+   },
+   {
+    "left": "es.porter_stem",
+    "right": "nltk-3.9.1.porter.ORIGINAL_ALGORITHM",
+    "words": 87372,
+    "differ": 133,
+    "differ_df_share": 0.014879057144232058,
+    "examples": [
+     [
+      "s",
+      "s",
+      "",
+      10741
+     ],
+     [
+      "is",
+      "is",
+      "i",
+      9068
+     ],
+     [
+      "as",
+      "as",
+      "a",
+      7400
+     ],
+     [
+      "us",
+      "us",
+      "u",
+      2356
+     ],
+     [
+      "technology",
+      "technolog",
+      "technologi",
+      602
+     ],
+     [
+      "vs",
+      "vs",
+      "v",
+      199
+     ],
+     [
+      "technologies",
+      "technolog",
+      "technologi",
+      168
+     ],
+     [
+      "possibly",
+      "possibl",
+      "possibli",
+      164
+     ],
+     [
+      "assembly",
+      "assembl",
+      "assembli",
+      147
+     ],
+     [
+      "ms",
+      "ms",
+      "m",
+      144
+     ],
+     [
+      "rs",
+      "rs",
+      "r",
+      133
+     ],
+     [
+      "incredibly",
+      "incred",
+      "incredibli",
+      95
+     ],
+     [
+      "apology",
+      "apolog",
+      "apologi",
+      45
+     ],
+     [
+      "astrology",
+      "astrolog",
+      "astrologi",
+      41
+     ],
+     [
+      "psychology",
+      "psycholog",
+      "psychologi",
+      33
+     ]
+    ]
+   },
+   {
+    "left": "es.porter_stem",
+    "right": "nltk-3.9.1.porter.MARTIN_EXTENSIONS",
+    "words": 87372,
+    "differ": 0,
+    "differ_df_share": 0.0,
+    "examples": []
+   },
+   {
+    "left": "es.porter_stem",
+    "right": "nltk-3.9.1.porter.NLTK_EXTENSIONS",
+    "words": 87372,
+    "differ": 1777,
+    "differ_df_share": 0.035756551022686975,
+    "examples": [
+     [
+      "are",
+      "ar",
+      "are",
+      6217
+     ],
+     [
+      "they",
+      "thei",
+      "they",
+      4671
+     ],
+     [
+      "one",
+      "on",
+      "one",
+      4582
+     ],
+     [
+      "day",
+      "dai",
+      "day",
+      2535
+     ],
+     [
+      "may",
+      "mai",
+      "may",
+      2504
+     ],
+     [
+      "news",
+      "new",
+      "news",
+      2444
+     ],
+     [
+      "says",
+      "sai",
+      "say",
+      2076
+     ],
+     [
+      "way",
+      "wai",
+      "way",
+      1992
+     ],
+     [
+      "say",
+      "sai",
+      "say",
+      1813
+     ],
+     [
+      "monday",
+      "mondai",
+      "monday",
+      1727
+     ],
+     [
+      "tuesday",
+      "tuesdai",
+      "tuesday",
+      1398
+     ],
+     [
+      "wednesday",
+      "wednesdai",
+      "wednesday",
+      1396
+     ],
+     [
+      "use",
+      "us",
+      "use",
+      1341
+     ],
+     [
+      "today",
+      "todai",
+      "today",
+      1302
+     ],
+     [
+      "used",
+      "us",
+      "use",
+      1256
+     ]
+    ]
+   },
+   {
+    "left": "es.kstem",
+    "right": "es.stemmer_light_english",
+    "words": 87372,
+    "differ": 0,
+    "differ_df_share": 0.0,
+    "examples": []
+   }
+  ],
+  "m1_hunspell_pg_vs_es_differ": 1818,
+  "m1_hunspell_pg_vs_es_examples": [
+   [
+    "abcs",
+    [
+     "abc"
+    ],
+    [
+     "abcs"
+    ]
+   ],
+   [
+    "abrams",
+    [
+     "abrams",
+     "abram"
+    ],
+    [
+     "abrams"
+    ]
+   ],
+   [
+    "acts",
+    [
+     "acts",
+     "act"
+    ],
+    [
+     "act"
+    ]
+   ],
+   [
+    "adams",
+    [
+     "adams",
+     "adam"
+    ],
+    [
+     "adams"
+    ]
+   ],
+   [
+    "adas",
+    [
+     "ada"
+    ],
+    [
+     "adas"
+    ]
+   ],
+   [
+    "adirondacks",
+    [
+     "adirondacks",
+     "adirondack"
+    ],
+    [
+     "adirondacks"
+    ]
+   ],
+   [
+    "africans",
+    [
+     "african"
+    ],
+    [
+     "africans"
+    ]
+   ],
+   [
+    "afrikaners",
+    [
+     "afrikaner"
+    ],
+    [
+     "afrikaners"
+    ]
+   ],
+   [
+    "aids",
+    [
+     "aids",
+     "aid"
+    ],
+    [
+     "aid"
+    ]
+   ],
+   [
+    "airedales",
+    [
+     "airedale"
+    ],
+    [
+     "airedales"
+    ]
+   ],
+   [
+    "alabamans",
+    [
+     "alabaman"
+    ],
+    [
+     "alabamans"
+    ]
+   ],
+   [
+    "alabamians",
+    [
+     "alabamian"
+    ],
+    [
+     "alabamians"
+    ]
+   ],
+   [
+    "alas",
+    [
+     "alas",
+     "ala"
+    ],
+    [
+     "alas"
+    ]
+   ],
+   [
+    "albanians",
+    [
+     "albanian"
+    ],
+    [
+     "albanians"
+    ]
+   ],
+   [
+    "allies",
+    [
+     "allie",
+     "ally"
+    ],
+    [
+     "ally"
+    ]
+   ],
+   [
+    "alps",
+    [
+     "alps",
+     "alp"
+    ],
+    [
+     "alp"
+    ]
+   ],
+   [
+    "amer",
+    [
+     "am"
+    ],
+    [
+     "amer"
+    ]
+   ],
+   [
+    "americans",
+    [
+     "american"
+    ],
+    [
+     "americans"
+    ]
+   ],
+   [
+    "americas",
+    [
+     "america"
+    ],
+    [
+     "americas"
+    ]
+   ],
+   [
+    "andres",
+    [
+     "andres",
+     "andre"
+    ],
+    [
+     "andres"
+    ]
+   ]
+  ],
+  "m1_hunspell_multi_output_words": {
+   "pg.hunspell": 4147,
+   "es.hunspell": 2921
+  },
+  "m4_min_df": 3,
+  "m4_words": 35870,
+  "m4_spacy_words_with_several_lemmas": 5609,
+  "m4": {
+   "none": {
+    "words": 35870,
+    "classes": 35870,
+    "reduction": 0.0,
+    "vs_spacy": {
+     "UI": 1.0,
+     "OI": 0.0,
+     "SW": 0.0,
+     "worst_merges": []
+    },
+    "vs_wordnet": {
+     "UI": 1.0,
+     "OI": 0.0,
+     "SW": 0.0,
+     "worst_merges": []
+    }
+   },
+   "S-stemmer (es minimal_english)": {
+    "words": 35870,
+    "classes": 30900,
+    "reduction": 0.13855589629216614,
+    "vs_spacy": {
+     "UI": 0.6722570532915361,
+     "OI": 1.2280471894387382e-06,
+     "SW": 1.8267524058333293e-06,
+     "worst_merges": [
+      {
+       "stem": "boy",
+       "wmt": 2.0,
+       "concepts": 2,
+       "words": [
+        "boies",
+        "boy",
+        "boys"
+       ]
+      },
+      {
+       "stem": "treasury",
+       "wmt": 2.0,
+       "concepts": 2,
+       "words": [
+        "treasuries",
+        "treasury",
+        "treasurys"
+       ]
+      },
+      {
+       "stem": "aa",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "aa",
+        "aas"
+       ]
+      },
+      {
+       "stem": "ab",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "ab",
+        "abs"
+       ]
+      },
+      {
+       "stem": "abba",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "abba",
+        "abbas"
+       ]
+      },
+      {
+       "stem": "abraham",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "abraham",
+        "abrahams"
+       ]
+      },
+      {
+       "stem": "ac",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "ac",
+        "acs"
+       ]
+      },
+      {
+       "stem": "accountant",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "accountant",
+        "accountants"
+       ]
+      },
+      {
+       "stem": "ace",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "ace",
+        "aces"
+       ]
+      },
+      {
+       "stem": "adam",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "adam",
+        "adams"
+       ]
+      },
+      {
+       "stem": "adama",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "adama",
+        "adamas"
+       ]
+      },
+      {
+       "stem": "adm",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "adm",
+        "adms"
+       ]
+      }
+     ]
+    },
+    "vs_wordnet": {
+     "UI": 0.629538094426453,
+     "OI": 9.715547712191296e-07,
+     "SW": 1.5432819392832363e-06,
+     "worst_merges": [
+      {
+       "stem": "aa",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "aa",
+        "aas"
+       ]
+      },
+      {
+       "stem": "ab",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "ab",
+        "abs"
+       ]
+      },
+      {
+       "stem": "abba",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "abba",
+        "abbas"
+       ]
+      },
+      {
+       "stem": "acoustic",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "acoustic",
+        "acoustics"
+       ]
+      },
+      {
+       "stem": "acre",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "acre",
+        "acres"
+       ]
+      },
+      {
+       "stem": "act",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "act",
+        "acts"
+       ]
+      },
+      {
+       "stem": "adam",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "adam",
+        "adams"
+       ]
+      },
+      {
+       "stem": "adama",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "adama",
+        "adamas"
+       ]
+      },
+      {
+       "stem": "adm",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "adm",
+        "adms"
+       ]
+      },
+      {
+       "stem": "aesthetic",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "aesthetic",
+        "aesthetics"
+       ]
+      },
+      {
+       "stem": "af",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "af",
+        "afs"
+       ]
+      },
+      {
+       "stem": "affair",
+       "wmt": 1.0,
+       "concepts": 2,
+       "words": [
+        "affair",
+        "affairs"
+       ]
+      }
+     ]
+    }
+   },
+   "Krovetz (es kstem)": {
+    "words": 35870,
+    "classes": 26158,
+    "reduction": 0.2707555059938668,
+    "vs_spacy": {
+     "UI": 0.18942006269592476,
+     "OI": 7.278122710066041e-06,
+     "SW": 3.8423188159057794e-05,
+     "worst_merges": [
+      {
+       "stem": "investigate",
+       "wmt": 28.0,
+       "concepts": 4,
+       "words": [
+        "investigate",
+        "investigated",
+        "investigates",
+        "investigating",
+        "investigation",
+        "investigations",
+        "investigative",
+        "investigator"
+       ]
+      },
+      {
+       "stem": "close",
+       "wmt": 17.0,
+       "concepts": 4,
+       "words": [
+        "close",
+        "closely",
+        "closeness",
+        "closer",
+        "closes",
+        "closing",
+        "closings"
+       ]
+      },
+      {
+       "stem": "recruit",
+       "wmt": 17.0,
+       "concepts": 4,
+       "words": [
+        "recruit",
+        "recruited",
+        "recruiter",
+        "recruiters",
+        "recruiting",
+        "recruitment",
+        "recruits"
+       ]
+      },
+      {
+       "stem": "sustain",
+       "wmt": 15.0,
+       "concepts": 4,
+       "words": [
+        "sustain",
+        "sustainability",
+        "sustainable",
+        "sustained",
+        "sustaining",
+        "sustainment",
+        "sustains"
+       ]
+      },
+      {
+       "stem": "adjust",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "adjust",
+        "adjustable",
+        "adjusted",
+        "adjusting",
+        "adjustment",
+        "adjustments",
+        "adjusts"
+       ]
+      },
+      {
+       "stem": "adopt",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "adopt",
+        "adoptable",
+        "adopted",
+        "adopter",
+        "adopters",
+        "adopting",
+        "adopts"
+       ]
+      },
+      {
+       "stem": "collaborate",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "collaborate",
+        "collaborated",
+        "collaborates",
+        "collaborating",
+        "collaborative",
+        "collaborator",
+        "collaborators"
+       ]
+      },
+      {
+       "stem": "disrupt",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "disrupt",
+        "disrupted",
+        "disrupting",
+        "disruption",
+        "disruptions",
+        "disruptive",
+        "disrupts"
+       ]
+      },
+      {
+       "stem": "eliminate",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "eliminate",
+        "eliminated",
+        "eliminates",
+        "eliminating",
+        "elimination",
+        "eliminations",
+        "eliminator"
+       ]
+      },
+      {
+       "stem": "evaluate",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "evaluate",
+        "evaluated",
+        "evaluates",
+        "evaluating",
+        "evaluation",
+        "evaluations",
+        "evaluator"
+       ]
+      },
+      {
+       "stem": "issue",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "issuance",
+        "issue",
+        "issued",
+        "issuer",
+        "issuers",
+        "issues",
+        "issuing"
+       ]
+      },
+      {
+       "stem": "protest",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "protest",
+        "protested",
+        "protester",
+        "protesters",
+        "protesting",
+        "protestors",
+        "protests"
+       ]
+      }
+     ]
+    },
+    "vs_wordnet": {
+     "UI": 0.14683824782682803,
+     "OI": 7.794200996628346e-06,
+     "SW": 5.308018252724145e-05,
+     "worst_merges": [
+      {
+       "stem": "investigate",
+       "wmt": 31.0,
+       "concepts": 5,
+       "words": [
+        "investigate",
+        "investigated",
+        "investigates",
+        "investigating",
+        "investigation",
+        "investigations",
+        "investigative",
+        "investigator"
+       ]
+      },
+      {
+       "stem": "close",
+       "wmt": 19.0,
+       "concepts": 5,
+       "words": [
+        "close",
+        "closely",
+        "closeness",
+        "closer",
+        "closes",
+        "closing",
+        "closings"
+       ]
+      },
+      {
+       "stem": "issue",
+       "wmt": 17.0,
+       "concepts": 4,
+       "words": [
+        "issuance",
+        "issue",
+        "issued",
+        "issuer",
+        "issuers",
+        "issues",
+        "issuing"
+       ]
+      },
+      {
+       "stem": "supervise",
+       "wmt": 17.0,
+       "concepts": 4,
+       "words": [
+        "supervise",
+        "supervised",
+        "supervises",
+        "supervising",
+        "supervision",
+        "supervisor",
+        "supervisors"
+       ]
+      },
+      {
+       "stem": "track",
+       "wmt": 17.0,
+       "concepts": 4,
+       "words": [
+        "track",
+        "trackable",
+        "tracked",
+        "tracker",
+        "trackers",
+        "tracking",
+        "tracks"
+       ]
+      },
+      {
+       "stem": "sustain",
+       "wmt": 15.0,
+       "concepts": 4,
+       "words": [
+        "sustain",
+        "sustainability",
+        "sustainable",
+        "sustained",
+        "sustaining",
+        "sustainment",
+        "sustains"
+       ]
+      },
+      {
+       "stem": "adjust",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "adjust",
+        "adjustable",
+        "adjusted",
+        "adjusting",
+        "adjustment",
+        "adjustments",
+        "adjusts"
+       ]
+      },
+      {
+       "stem": "adopt",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "adopt",
+        "adoptable",
+        "adopted",
+        "adopter",
+        "adopters",
+        "adopting",
+        "adopts"
+       ]
+      },
+      {
+       "stem": "collaborate",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "collaborate",
+        "collaborated",
+        "collaborates",
+        "collaborating",
+        "collaborative",
+        "collaborator",
+        "collaborators"
+       ]
+      },
+      {
+       "stem": "disrupt",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "disrupt",
+        "disrupted",
+        "disrupting",
+        "disruption",
+        "disruptions",
+        "disruptive",
+        "disrupts"
+       ]
+      },
+      {
+       "stem": "eliminate",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "eliminate",
+        "eliminated",
+        "eliminates",
+        "eliminating",
+        "elimination",
+        "eliminations",
+        "eliminator"
+       ]
+      },
+      {
+       "stem": "evaluate",
+       "wmt": 14.0,
+       "concepts": 3,
+       "words": [
+        "evaluate",
+        "evaluated",
+        "evaluates",
+        "evaluating",
+        "evaluation",
+        "evaluations",
+        "evaluator"
+       ]
+      }
+     ]
+    }
+   },
+   "Porter (es porter_stem)": {
+    "words": 35870,
+    "classes": 23704,
+    "reduction": 0.3391692221912461,
+    "vs_spacy": {
+     "UI": 0.0822884012539185,
+     "OI": 1.8599474204600635e-05,
+     "SW": 0.0002260278960482896,
+     "worst_merges": [
+      {
+       "stem": "gener",
+       "wmt": 111.0,
+       "concepts": 10,
+       "words": [
+        "general",
+        "generalize",
+        "generally",
+        "generals",
+        "generate",
+        "generated",
+        "generates",
+        "generating"
+       ]
+      },
+      {
+       "stem": "organ",
+       "wmt": 94.0,
+       "concepts": 7,
+       "words": [
+        "organ",
+        "organic",
+        "organically",
+        "organics",
+        "organism",
+        "organisms",
+        "organization",
+        "organizations"
+       ]
+      },
+      {
+       "stem": "commun",
+       "wmt": 58.0,
+       "concepts": 7,
+       "words": [
+        "communal",
+        "commune",
+        "communicate",
+        "communicated",
+        "communicates",
+        "communicating",
+        "communication",
+        "communications"
+       ]
+      },
+      {
+       "stem": "design",
+       "wmt": 52.0,
+       "concepts": 4,
+       "words": [
+        "design",
+        "designate",
+        "designated",
+        "designates",
+        "designating",
+        "designation",
+        "designations",
+        "designed"
+       ]
+      },
+      {
+       "stem": "continu",
+       "wmt": 49.0,
+       "concepts": 8,
+       "words": [
+        "continual",
+        "continually",
+        "continuance",
+        "continuation",
+        "continue",
+        "continued",
+        "continues",
+        "continuing"
+       ]
+      },
+      {
+       "stem": "observ",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "observance",
+        "observant",
+        "observation",
+        "observational",
+        "observations",
+        "observe",
+        "observed",
+        "observer"
+       ]
+      },
+      {
+       "stem": "oper",
+       "wmt": 46.0,
+       "concepts": 5,
+       "words": [
+        "operate",
+        "operated",
+        "operates",
+        "operating",
+        "operation",
+        "operational",
+        "operations",
+        "operative"
+       ]
+      },
+      {
+       "stem": "author",
+       "wmt": 44.0,
+       "concepts": 4,
+       "words": [
+        "author",
+        "authored",
+        "authorities",
+        "authority",
+        "authorization",
+        "authorizations",
+        "authorize",
+        "authorized"
+       ]
+      },
+      {
+       "stem": "consult",
+       "wmt": 40.0,
+       "concepts": 6,
+       "words": [
+        "consult",
+        "consultancy",
+        "consultant",
+        "consultants",
+        "consultation",
+        "consultations",
+        "consultative",
+        "consulted"
+       ]
+      },
+      {
+       "stem": "inform",
+       "wmt": 39.0,
+       "concepts": 7,
+       "words": [
+        "inform",
+        "informal",
+        "informally",
+        "informant",
+        "information",
+        "informational",
+        "informative",
+        "informed"
+       ]
+      },
+      {
+       "stem": "admir",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "admirable",
+        "admirably",
+        "admiral",
+        "admiration",
+        "admire",
+        "admired",
+        "admirer",
+        "admirers"
+       ]
+      },
+      {
+       "stem": "attract",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "attract",
+        "attractant",
+        "attracted",
+        "attracting",
+        "attraction",
+        "attractions",
+        "attractive",
+        "attractively"
+       ]
+      }
+     ]
+    },
+    "vs_wordnet": {
+     "UI": 0.06860405658769388,
+     "OI": 1.9813499382334443e-05,
+     "SW": 0.00028880944317057435,
+     "worst_merges": [
+      {
+       "stem": "gener",
+       "wmt": 111.0,
+       "concepts": 10,
+       "words": [
+        "general",
+        "generalize",
+        "generally",
+        "generals",
+        "generate",
+        "generated",
+        "generates",
+        "generating"
+       ]
+      },
+      {
+       "stem": "organ",
+       "wmt": 95.0,
+       "concepts": 8,
+       "words": [
+        "organ",
+        "organic",
+        "organically",
+        "organics",
+        "organism",
+        "organisms",
+        "organization",
+        "organizations"
+       ]
+      },
+      {
+       "stem": "commun",
+       "wmt": 62.0,
+       "concepts": 9,
+       "words": [
+        "communal",
+        "commune",
+        "communicate",
+        "communicated",
+        "communicates",
+        "communicating",
+        "communication",
+        "communications"
+       ]
+      },
+      {
+       "stem": "design",
+       "wmt": 55.0,
+       "concepts": 5,
+       "words": [
+        "design",
+        "designate",
+        "designated",
+        "designates",
+        "designating",
+        "designation",
+        "designations",
+        "designed"
+       ]
+      },
+      {
+       "stem": "continu",
+       "wmt": 49.0,
+       "concepts": 8,
+       "words": [
+        "continual",
+        "continually",
+        "continuance",
+        "continuation",
+        "continue",
+        "continued",
+        "continues",
+        "continuing"
+       ]
+      },
+      {
+       "stem": "observ",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "observance",
+        "observant",
+        "observation",
+        "observational",
+        "observations",
+        "observe",
+        "observed",
+        "observer"
+       ]
+      },
+      {
+       "stem": "oper",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "operate",
+        "operated",
+        "operates",
+        "operating",
+        "operation",
+        "operational",
+        "operations",
+        "operative"
+       ]
+      },
+      {
+       "stem": "author",
+       "wmt": 45.0,
+       "concepts": 5,
+       "words": [
+        "author",
+        "authored",
+        "authorities",
+        "authority",
+        "authorization",
+        "authorizations",
+        "authorize",
+        "authorized"
+       ]
+      },
+      {
+       "stem": "inform",
+       "wmt": 42.0,
+       "concepts": 8,
+       "words": [
+        "inform",
+        "informal",
+        "informally",
+        "informant",
+        "information",
+        "informational",
+        "informative",
+        "informed"
+       ]
+      },
+      {
+       "stem": "motiv",
+       "wmt": 40.0,
+       "concepts": 6,
+       "words": [
+        "motivate",
+        "motivated",
+        "motivates",
+        "motivating",
+        "motivation",
+        "motivational",
+        "motivations",
+        "motivator"
+       ]
+      },
+      {
+       "stem": "admir",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "admirable",
+        "admirably",
+        "admiral",
+        "admiration",
+        "admire",
+        "admired",
+        "admirer",
+        "admirers"
+       ]
+      },
+      {
+       "stem": "attract",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "attract",
+        "attractant",
+        "attracted",
+        "attracting",
+        "attraction",
+        "attractions",
+        "attractive",
+        "attractively"
+       ]
+      }
+     ]
+    }
+   },
+   "Porter2, Snowball 2.2 (es snowball)": {
+    "words": 35870,
+    "classes": 23574,
+    "reduction": 0.34279342068580987,
+    "vs_spacy": {
+     "UI": 0.07954545454545454,
+     "OI": 1.9291222304980683e-05,
+     "SW": 0.0002425182232626143,
+     "worst_merges": [
+      {
+       "stem": "organ",
+       "wmt": 94.0,
+       "concepts": 7,
+       "words": [
+        "organ",
+        "organic",
+        "organically",
+        "organics",
+        "organism",
+        "organisms",
+        "organization",
+        "organizations"
+       ]
+      },
+      {
+       "stem": "design",
+       "wmt": 52.0,
+       "concepts": 4,
+       "words": [
+        "design",
+        "designate",
+        "designated",
+        "designates",
+        "designating",
+        "designation",
+        "designations",
+        "designed"
+       ]
+      },
+      {
+       "stem": "continu",
+       "wmt": 49.0,
+       "concepts": 8,
+       "words": [
+        "continual",
+        "continually",
+        "continuance",
+        "continuation",
+        "continue",
+        "continued",
+        "continues",
+        "continuing"
+       ]
+      },
+      {
+       "stem": "direct",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "direct",
+        "directed",
+        "directing",
+        "direction",
+        "directional",
+        "directions",
+        "directive",
+        "directives"
+       ]
+      },
+      {
+       "stem": "observ",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "observance",
+        "observant",
+        "observation",
+        "observational",
+        "observations",
+        "observe",
+        "observed",
+        "observer"
+       ]
+      },
+      {
+       "stem": "relat",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "relatable",
+        "relate",
+        "related",
+        "relates",
+        "relating",
+        "relation",
+        "relations",
+        "relative"
+       ]
+      },
+      {
+       "stem": "oper",
+       "wmt": 46.0,
+       "concepts": 5,
+       "words": [
+        "operate",
+        "operated",
+        "operates",
+        "operating",
+        "operation",
+        "operational",
+        "operations",
+        "operative"
+       ]
+      },
+      {
+       "stem": "author",
+       "wmt": 44.0,
+       "concepts": 4,
+       "words": [
+        "author",
+        "authored",
+        "authorities",
+        "authority",
+        "authorization",
+        "authorizations",
+        "authorize",
+        "authorized"
+       ]
+      },
+      {
+       "stem": "consult",
+       "wmt": 40.0,
+       "concepts": 6,
+       "words": [
+        "consult",
+        "consultancy",
+        "consultant",
+        "consultants",
+        "consultation",
+        "consultations",
+        "consultative",
+        "consulted"
+       ]
+      },
+      {
+       "stem": "correct",
+       "wmt": 39.0,
+       "concepts": 7,
+       "words": [
+        "correct",
+        "corrected",
+        "correcting",
+        "correction",
+        "correctional",
+        "corrections",
+        "corrective",
+        "correctly"
+       ]
+      },
+      {
+       "stem": "inform",
+       "wmt": 39.0,
+       "concepts": 7,
+       "words": [
+        "inform",
+        "informal",
+        "informally",
+        "informant",
+        "information",
+        "informational",
+        "informative",
+        "informed"
+       ]
+      },
+      {
+       "stem": "admir",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "admirable",
+        "admirably",
+        "admiral",
+        "admiration",
+        "admire",
+        "admired",
+        "admirer",
+        "admirers"
+       ]
+      }
+     ]
+    },
+    "vs_wordnet": {
+     "UI": 0.06996761547639338,
+     "OI": 2.0584525248773943e-05,
+     "SW": 0.0002942007542863745,
+     "worst_merges": [
+      {
+       "stem": "organ",
+       "wmt": 95.0,
+       "concepts": 8,
+       "words": [
+        "organ",
+        "organic",
+        "organically",
+        "organics",
+        "organism",
+        "organisms",
+        "organization",
+        "organizations"
+       ]
+      },
+      {
+       "stem": "design",
+       "wmt": 55.0,
+       "concepts": 5,
+       "words": [
+        "design",
+        "designate",
+        "designated",
+        "designates",
+        "designating",
+        "designation",
+        "designations",
+        "designed"
+       ]
+      },
+      {
+       "stem": "continu",
+       "wmt": 49.0,
+       "concepts": 8,
+       "words": [
+        "continual",
+        "continually",
+        "continuance",
+        "continuation",
+        "continue",
+        "continued",
+        "continues",
+        "continuing"
+       ]
+      },
+      {
+       "stem": "relat",
+       "wmt": 48.0,
+       "concepts": 7,
+       "words": [
+        "relatable",
+        "relate",
+        "related",
+        "relates",
+        "relating",
+        "relation",
+        "relations",
+        "relative"
+       ]
+      },
+      {
+       "stem": "direct",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "direct",
+        "directed",
+        "directing",
+        "direction",
+        "directional",
+        "directions",
+        "directive",
+        "directives"
+       ]
+      },
+      {
+       "stem": "observ",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "observance",
+        "observant",
+        "observation",
+        "observational",
+        "observations",
+        "observe",
+        "observed",
+        "observer"
+       ]
+      },
+      {
+       "stem": "oper",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "operate",
+        "operated",
+        "operates",
+        "operating",
+        "operation",
+        "operational",
+        "operations",
+        "operative"
+       ]
+      },
+      {
+       "stem": "author",
+       "wmt": 45.0,
+       "concepts": 5,
+       "words": [
+        "author",
+        "authored",
+        "authorities",
+        "authority",
+        "authorization",
+        "authorizations",
+        "authorize",
+        "authorized"
+       ]
+      },
+      {
+       "stem": "inform",
+       "wmt": 42.0,
+       "concepts": 8,
+       "words": [
+        "inform",
+        "informal",
+        "informally",
+        "informant",
+        "information",
+        "informational",
+        "informative",
+        "informed"
+       ]
+      },
+      {
+       "stem": "motiv",
+       "wmt": 40.0,
+       "concepts": 6,
+       "words": [
+        "motivate",
+        "motivated",
+        "motivates",
+        "motivating",
+        "motivation",
+        "motivational",
+        "motivations",
+        "motivator"
+       ]
+      },
+      {
+       "stem": "correct",
+       "wmt": 39.0,
+       "concepts": 7,
+       "words": [
+        "correct",
+        "corrected",
+        "correcting",
+        "correction",
+        "correctional",
+        "corrections",
+        "corrective",
+        "correctly"
+       ]
+      },
+      {
+       "stem": "admir",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "admirable",
+        "admirably",
+        "admiral",
+        "admiration",
+        "admire",
+        "admired",
+        "admirer",
+        "admirers"
+       ]
+      }
+     ]
+    }
+   },
+   "Porter2, PG 18.1 snapshot": {
+    "words": 35870,
+    "classes": 23574,
+    "reduction": 0.34279342068580987,
+    "vs_spacy": {
+     "UI": 0.07907523510971787,
+     "OI": 1.9281895364301402e-05,
+     "SW": 0.0002438424032195103,
+     "worst_merges": [
+      {
+       "stem": "organ",
+       "wmt": 94.0,
+       "concepts": 7,
+       "words": [
+        "organ",
+        "organic",
+        "organically",
+        "organics",
+        "organism",
+        "organisms",
+        "organization",
+        "organizations"
+       ]
+      },
+      {
+       "stem": "design",
+       "wmt": 52.0,
+       "concepts": 4,
+       "words": [
+        "design",
+        "designate",
+        "designated",
+        "designates",
+        "designating",
+        "designation",
+        "designations",
+        "designed"
+       ]
+      },
+      {
+       "stem": "continu",
+       "wmt": 49.0,
+       "concepts": 8,
+       "words": [
+        "continual",
+        "continually",
+        "continuance",
+        "continuation",
+        "continue",
+        "continued",
+        "continues",
+        "continuing"
+       ]
+      },
+      {
+       "stem": "direct",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "direct",
+        "directed",
+        "directing",
+        "direction",
+        "directional",
+        "directions",
+        "directive",
+        "directives"
+       ]
+      },
+      {
+       "stem": "observ",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "observance",
+        "observant",
+        "observation",
+        "observational",
+        "observations",
+        "observe",
+        "observed",
+        "observer"
+       ]
+      },
+      {
+       "stem": "relat",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "relatable",
+        "relate",
+        "related",
+        "relates",
+        "relating",
+        "relation",
+        "relations",
+        "relative"
+       ]
+      },
+      {
+       "stem": "oper",
+       "wmt": 46.0,
+       "concepts": 5,
+       "words": [
+        "operate",
+        "operated",
+        "operates",
+        "operating",
+        "operation",
+        "operational",
+        "operations",
+        "operative"
+       ]
+      },
+      {
+       "stem": "author",
+       "wmt": 44.0,
+       "concepts": 4,
+       "words": [
+        "author",
+        "authored",
+        "authorities",
+        "authority",
+        "authorization",
+        "authorizations",
+        "authorize",
+        "authorized"
+       ]
+      },
+      {
+       "stem": "consult",
+       "wmt": 40.0,
+       "concepts": 6,
+       "words": [
+        "consult",
+        "consultancy",
+        "consultant",
+        "consultants",
+        "consultation",
+        "consultations",
+        "consultative",
+        "consulted"
+       ]
+      },
+      {
+       "stem": "correct",
+       "wmt": 39.0,
+       "concepts": 7,
+       "words": [
+        "correct",
+        "corrected",
+        "correcting",
+        "correction",
+        "correctional",
+        "corrections",
+        "corrective",
+        "correctly"
+       ]
+      },
+      {
+       "stem": "inform",
+       "wmt": 39.0,
+       "concepts": 7,
+       "words": [
+        "inform",
+        "informal",
+        "informally",
+        "informant",
+        "information",
+        "informational",
+        "informative",
+        "informed"
+       ]
+      },
+      {
+       "stem": "admir",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "admirable",
+        "admirably",
+        "admiral",
+        "admiration",
+        "admire",
+        "admired",
+        "admirer",
+        "admirers"
+       ]
+      }
+     ]
+    },
+    "vs_wordnet": {
+     "UI": 0.06945628089313108,
+     "OI": 2.057519832297024e-05,
+     "SW": 0.0002962323645665433,
+     "worst_merges": [
+      {
+       "stem": "organ",
+       "wmt": 95.0,
+       "concepts": 8,
+       "words": [
+        "organ",
+        "organic",
+        "organically",
+        "organics",
+        "organism",
+        "organisms",
+        "organization",
+        "organizations"
+       ]
+      },
+      {
+       "stem": "design",
+       "wmt": 55.0,
+       "concepts": 5,
+       "words": [
+        "design",
+        "designate",
+        "designated",
+        "designates",
+        "designating",
+        "designation",
+        "designations",
+        "designed"
+       ]
+      },
+      {
+       "stem": "continu",
+       "wmt": 49.0,
+       "concepts": 8,
+       "words": [
+        "continual",
+        "continually",
+        "continuance",
+        "continuation",
+        "continue",
+        "continued",
+        "continues",
+        "continuing"
+       ]
+      },
+      {
+       "stem": "relat",
+       "wmt": 48.0,
+       "concepts": 7,
+       "words": [
+        "relatable",
+        "relate",
+        "related",
+        "relates",
+        "relating",
+        "relation",
+        "relations",
+        "relative"
+       ]
+      },
+      {
+       "stem": "direct",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "direct",
+        "directed",
+        "directing",
+        "direction",
+        "directional",
+        "directions",
+        "directive",
+        "directives"
+       ]
+      },
+      {
+       "stem": "observ",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "observance",
+        "observant",
+        "observation",
+        "observational",
+        "observations",
+        "observe",
+        "observed",
+        "observer"
+       ]
+      },
+      {
+       "stem": "oper",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "operate",
+        "operated",
+        "operates",
+        "operating",
+        "operation",
+        "operational",
+        "operations",
+        "operative"
+       ]
+      },
+      {
+       "stem": "author",
+       "wmt": 45.0,
+       "concepts": 5,
+       "words": [
+        "author",
+        "authored",
+        "authorities",
+        "authority",
+        "authorization",
+        "authorizations",
+        "authorize",
+        "authorized"
+       ]
+      },
+      {
+       "stem": "inform",
+       "wmt": 42.0,
+       "concepts": 8,
+       "words": [
+        "inform",
+        "informal",
+        "informally",
+        "informant",
+        "information",
+        "informational",
+        "informative",
+        "informed"
+       ]
+      },
+      {
+       "stem": "motiv",
+       "wmt": 40.0,
+       "concepts": 6,
+       "words": [
+        "motivate",
+        "motivated",
+        "motivates",
+        "motivating",
+        "motivation",
+        "motivational",
+        "motivations",
+        "motivator"
+       ]
+      },
+      {
+       "stem": "correct",
+       "wmt": 39.0,
+       "concepts": 7,
+       "words": [
+        "correct",
+        "corrected",
+        "correcting",
+        "correction",
+        "correctional",
+        "corrections",
+        "corrective",
+        "correctly"
+       ]
+      },
+      {
+       "stem": "admir",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "admirable",
+        "admirably",
+        "admiral",
+        "admiration",
+        "admire",
+        "admired",
+        "admirer",
+        "admirers"
+       ]
+      }
+     ]
+    }
+   },
+   "Porter2, Snowball 3.0 (pystemmer 3.0.0)": {
+    "words": 35870,
+    "classes": 23565,
+    "reduction": 0.3430443267354335,
+    "vs_spacy": {
+     "UI": 0.07899686520376176,
+     "OI": 1.9201061878414296e-05,
+     "SW": 0.00024306106107992701,
+     "worst_merges": [
+      {
+       "stem": "design",
+       "wmt": 52.0,
+       "concepts": 4,
+       "words": [
+        "design",
+        "designate",
+        "designated",
+        "designates",
+        "designating",
+        "designation",
+        "designations",
+        "designed"
+       ]
+      },
+      {
+       "stem": "continu",
+       "wmt": 49.0,
+       "concepts": 8,
+       "words": [
+        "continual",
+        "continually",
+        "continuance",
+        "continuation",
+        "continue",
+        "continued",
+        "continues",
+        "continuing"
+       ]
+      },
+      {
+       "stem": "direct",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "direct",
+        "directed",
+        "directing",
+        "direction",
+        "directional",
+        "directions",
+        "directive",
+        "directives"
+       ]
+      },
+      {
+       "stem": "observ",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "observance",
+        "observant",
+        "observation",
+        "observational",
+        "observations",
+        "observe",
+        "observed",
+        "observer"
+       ]
+      },
+      {
+       "stem": "relat",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "relatable",
+        "relate",
+        "related",
+        "relates",
+        "relating",
+        "relation",
+        "relations",
+        "relative"
+       ]
+      },
+      {
+       "stem": "oper",
+       "wmt": 46.0,
+       "concepts": 5,
+       "words": [
+        "operate",
+        "operated",
+        "operates",
+        "operating",
+        "operation",
+        "operational",
+        "operations",
+        "operative"
+       ]
+      },
+      {
+       "stem": "author",
+       "wmt": 44.0,
+       "concepts": 4,
+       "words": [
+        "author",
+        "authored",
+        "authorities",
+        "authority",
+        "authorization",
+        "authorizations",
+        "authorize",
+        "authorized"
+       ]
+      },
+      {
+       "stem": "consult",
+       "wmt": 40.0,
+       "concepts": 6,
+       "words": [
+        "consult",
+        "consultancy",
+        "consultant",
+        "consultants",
+        "consultation",
+        "consultations",
+        "consultative",
+        "consulted"
+       ]
+      },
+      {
+       "stem": "correct",
+       "wmt": 39.0,
+       "concepts": 7,
+       "words": [
+        "correct",
+        "corrected",
+        "correcting",
+        "correction",
+        "correctional",
+        "corrections",
+        "corrective",
+        "correctly"
+       ]
+      },
+      {
+       "stem": "inform",
+       "wmt": 39.0,
+       "concepts": 7,
+       "words": [
+        "inform",
+        "informal",
+        "informally",
+        "informant",
+        "information",
+        "informational",
+        "informative",
+        "informed"
+       ]
+      },
+      {
+       "stem": "admir",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "admirable",
+        "admirably",
+        "admiral",
+        "admiration",
+        "admire",
+        "admired",
+        "admirer",
+        "admirers"
+       ]
+      },
+      {
+       "stem": "attract",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "attract",
+        "attractant",
+        "attracted",
+        "attracting",
+        "attraction",
+        "attractions",
+        "attractive",
+        "attractively"
+       ]
+      }
+     ]
+    },
+    "vs_wordnet": {
+     "UI": 0.06937105846258736,
+     "OI": 2.049436496600481e-05,
+     "SW": 0.00029543105468194156,
+     "worst_merges": [
+      {
+       "stem": "design",
+       "wmt": 55.0,
+       "concepts": 5,
+       "words": [
+        "design",
+        "designate",
+        "designated",
+        "designates",
+        "designating",
+        "designation",
+        "designations",
+        "designed"
+       ]
+      },
+      {
+       "stem": "continu",
+       "wmt": 49.0,
+       "concepts": 8,
+       "words": [
+        "continual",
+        "continually",
+        "continuance",
+        "continuation",
+        "continue",
+        "continued",
+        "continues",
+        "continuing"
+       ]
+      },
+      {
+       "stem": "relat",
+       "wmt": 48.0,
+       "concepts": 7,
+       "words": [
+        "relatable",
+        "relate",
+        "related",
+        "relates",
+        "relating",
+        "relation",
+        "relations",
+        "relative"
+       ]
+      },
+      {
+       "stem": "direct",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "direct",
+        "directed",
+        "directing",
+        "direction",
+        "directional",
+        "directions",
+        "directive",
+        "directives"
+       ]
+      },
+      {
+       "stem": "observ",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "observance",
+        "observant",
+        "observation",
+        "observational",
+        "observations",
+        "observe",
+        "observed",
+        "observer"
+       ]
+      },
+      {
+       "stem": "oper",
+       "wmt": 47.0,
+       "concepts": 6,
+       "words": [
+        "operate",
+        "operated",
+        "operates",
+        "operating",
+        "operation",
+        "operational",
+        "operations",
+        "operative"
+       ]
+      },
+      {
+       "stem": "author",
+       "wmt": 45.0,
+       "concepts": 5,
+       "words": [
+        "author",
+        "authored",
+        "authorities",
+        "authority",
+        "authorization",
+        "authorizations",
+        "authorize",
+        "authorized"
+       ]
+      },
+      {
+       "stem": "inform",
+       "wmt": 42.0,
+       "concepts": 8,
+       "words": [
+        "inform",
+        "informal",
+        "informally",
+        "informant",
+        "information",
+        "informational",
+        "informative",
+        "informed"
+       ]
+      },
+      {
+       "stem": "motiv",
+       "wmt": 40.0,
+       "concepts": 6,
+       "words": [
+        "motivate",
+        "motivated",
+        "motivates",
+        "motivating",
+        "motivation",
+        "motivational",
+        "motivations",
+        "motivator"
+       ]
+      },
+      {
+       "stem": "correct",
+       "wmt": 39.0,
+       "concepts": 7,
+       "words": [
+        "correct",
+        "corrected",
+        "correcting",
+        "correction",
+        "correctional",
+        "corrections",
+        "corrective",
+        "correctly"
+       ]
+      },
+      {
+       "stem": "admir",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "admirable",
+        "admirably",
+        "admiral",
+        "admiration",
+        "admire",
+        "admired",
+        "admirer",
+        "admirers"
+       ]
+      },
+      {
+       "stem": "attract",
+       "wmt": 38.0,
+       "concepts": 6,
+       "words": [
+        "attract",
+        "attractant",
+        "attracted",
+        "attracting",
+        "attraction",
+        "attractions",
+        "attractive",
+        "attractively"
+       ]
+      }
+     ]
+    }
+   },
+   "Lovins (es lovins)": {
+    "words": 35870,
+    "classes": 20667,
+    "reduction": 0.4238360747142459,
+    "vs_spacy": {
+     "UI": 0.14521943573667712,
+     "OI": 4.2084710835031596e-05,
+     "SW": 0.00028980081503238164,
+     "worst_merges": [
+      {
+       "stem": "car",
+       "wmt": 239.0,
+       "concepts": 15,
+       "words": [
+        "car",
+        "cara",
+        "care",
+        "cared",
+        "careful",
+        "carefully",
+        "careless",
+        "caren"
+       ]
+      },
+      {
+       "stem": "fin",
+       "wmt": 164.0,
+       "concepts": 14,
+       "words": [
+        "fin",
+        "final",
+        "finalist",
+        "finalize",
+        "finally",
+        "finals",
+        "finance",
+        "financed"
+       ]
+      },
+      {
+       "stem": "cur",
+       "wmt": 156.0,
+       "concepts": 10,
+       "words": [
+        "curated",
+        "curating",
+        "curator",
+        "curators",
+        "cure",
+        "cured",
+        "cures",
+        "curing"
+       ]
+      },
+      {
+       "stem": "pol",
+       "wmt": 149.0,
+       "concepts": 15,
+       "words": [
+        "pol",
+        "polar",
+        "polarized",
+        "polarizing",
+        "pole",
+        "poles",
+        "polished",
+        "polite"
+       ]
+      },
+      {
+       "stem": "mar",
+       "wmt": 146.0,
+       "concepts": 14,
+       "words": [
+        "mar",
+        "mara",
+        "mare",
+        "mari",
+        "maria",
+        "marian",
+        "marine",
+        "marines"
+       ]
+      },
+      {
+       "stem": "rel",
+       "wmt": 138.0,
+       "concepts": 9,
+       "words": [
+        "rel",
+        "relatable",
+        "relate",
+        "related",
+        "relates",
+        "relating",
+        "relation",
+        "relations"
+       ]
+      },
+      {
+       "stem": "com",
+       "wmt": 124.0,
+       "concepts": 10,
+       "words": [
+        "com",
+        "coma",
+        "come",
+        "comes",
+        "comic",
+        "comical",
+        "comics",
+        "coming"
+       ]
+      },
+      {
+       "stem": "man",
+       "wmt": 117.0,
+       "concepts": 14,
+       "words": [
+        "man",
+        "manage",
+        "manages",
+        "managing",
+        "mane",
+        "manhood",
+        "mani",
+        "mania"
+       ]
+      },
+      {
+       "stem": "leg",
+       "wmt": 116.0,
+       "concepts": 12,
+       "words": [
+        "leg",
+        "legacies",
+        "legacy",
+        "legal",
+        "legalities",
+        "legality",
+        "legalize",
+        "legally"
+       ]
+      },
+      {
+       "stem": "bar",
+       "wmt": 112.0,
+       "concepts": 11,
+       "words": [
+        "bar",
+        "bare",
+        "barely",
+        "baring",
+        "barium",
+        "barr",
+        "barra",
+        "barrage"
+       ]
+      },
+      {
+       "stem": "organ",
+       "wmt": 112.0,
+       "concepts": 9,
+       "words": [
+        "organ",
+        "organic",
+        "organically",
+        "organics",
+        "organisation",
+        "organism",
+        "organisms",
+        "organization"
+       ]
+      },
+      {
+       "stem": "gener",
+       "wmt": 111.0,
+       "concepts": 10,
+       "words": [
+        "general",
+        "generalize",
+        "generally",
+        "generals",
+        "generate",
+        "generated",
+        "generates",
+        "generating"
+       ]
+      }
+     ]
+    },
+    "vs_wordnet": {
+     "UI": 0.13848644963354356,
+     "OI": 4.332512484583738e-05,
+     "SW": 0.0003128473938098805,
+     "worst_merges": [
+      {
+       "stem": "car",
+       "wmt": 242.0,
+       "concepts": 16,
+       "words": [
+        "car",
+        "cara",
+        "care",
+        "cared",
+        "careful",
+        "carefully",
+        "careless",
+        "caren"
+       ]
+      },
+      {
+       "stem": "fin",
+       "wmt": 165.0,
+       "concepts": 14,
+       "words": [
+        "fin",
+        "final",
+        "finalist",
+        "finalize",
+        "finally",
+        "finals",
+        "finance",
+        "financed"
+       ]
+      },
+      {
+       "stem": "cur",
+       "wmt": 160.0,
+       "concepts": 12,
+       "words": [
+        "curated",
+        "curating",
+        "curator",
+        "curators",
+        "cure",
+        "cured",
+        "cures",
+        "curing"
+       ]
+      },
+      {
+       "stem": "mar",
+       "wmt": 149.0,
+       "concepts": 15,
+       "words": [
+        "mar",
+        "mara",
+        "mare",
+        "mari",
+        "maria",
+        "marian",
+        "marine",
+        "marines"
+       ]
+      },
+      {
+       "stem": "pol",
+       "wmt": 148.0,
+       "concepts": 14,
+       "words": [
+        "pol",
+        "polar",
+        "polarized",
+        "polarizing",
+        "pole",
+        "poles",
+        "polished",
+        "polite"
+       ]
+      },
+      {
+       "stem": "rel",
+       "wmt": 139.0,
+       "concepts": 10,
+       "words": [
+        "rel",
+        "relatable",
+        "relate",
+        "related",
+        "relates",
+        "relating",
+        "relation",
+        "relations"
+       ]
+      },
+      {
+       "stem": "com",
+       "wmt": 126.0,
+       "concepts": 11,
+       "words": [
+        "com",
+        "coma",
+        "come",
+        "comes",
+        "comic",
+        "comical",
+        "comics",
+        "coming"
+       ]
+      },
+      {
+       "stem": "bar",
+       "wmt": 118.0,
+       "concepts": 14,
+       "words": [
+        "bar",
+        "bare",
+        "barely",
+        "baring",
+        "barium",
+        "barr",
+        "barra",
+        "barrage"
+       ]
+      },
+      {
+       "stem": "leg",
+       "wmt": 117.0,
+       "concepts": 13,
+       "words": [
+        "leg",
+        "legacies",
+        "legacy",
+        "legal",
+        "legalities",
+        "legality",
+        "legalize",
+        "legally"
+       ]
+      },
+      {
+       "stem": "pl",
+       "wmt": 114.0,
+       "concepts": 12,
+       "words": [
+        "pl",
+        "pla",
+        "plate",
+        "plated",
+        "plates",
+        "plating",
+        "pled",
+        "plied"
+       ]
+      },
+      {
+       "stem": "organ",
+       "wmt": 113.0,
+       "concepts": 10,
+       "words": [
+        "organ",
+        "organic",
+        "organically",
+        "organics",
+        "organisation",
+        "organism",
+        "organisms",
+        "organization"
+       ]
+      },
+      {
+       "stem": "gener",
+       "wmt": 111.0,
+       "concepts": 10,
+       "words": [
+        "general",
+        "generalize",
+        "generally",
+        "generals",
+        "generate",
+        "generated",
+        "generates",
+        "generating"
+       ]
+      }
+     ]
+    }
+   },
+   "hunspell en_US (pg)": {
+    "words": 35870,
+    "classes": 26831,
+    "reduction": 0.25199330917201,
+    "vs_spacy": {
+     "UI": 0.2877742946708464,
+     "OI": 9.026924087431333e-06,
+     "SW": 3.136806954129188e-05,
+     "worst_merges": [
+      {
+       "stem": "pose",
+       "wmt": 53.0,
+       "concepts": 5,
+       "words": [
+        "depose",
+        "deposed",
+        "dispose",
+        "pose",
+        "posed",
+        "poses",
+        "posing",
+        "propose"
+       ]
+      },
+      {
+       "stem": "cover",
+       "wmt": 48.0,
+       "concepts": 3,
+       "words": [
+        "cover",
+        "covered",
+        "covering",
+        "covers",
+        "recover",
+        "recovered",
+        "recovering",
+        "recovers"
+       ]
+      },
+      {
+       "stem": "file",
+       "wmt": 48.0,
+       "concepts": 6,
+       "words": [
+        "file",
+        "filed",
+        "files",
+        "filing",
+        "profile",
+        "profiled",
+        "profiler",
+        "profiles"
+       ]
+      },
+      {
+       "stem": "tail",
+       "wmt": 46.0,
+       "concepts": 5,
+       "words": [
+        "detail",
+        "detailed",
+        "detailing",
+        "details",
+        "retail",
+        "retailed",
+        "retailing",
+        "retails"
+       ]
+      },
+      {
+       "stem": "serve",
+       "wmt": 44.0,
+       "concepts": 4,
+       "words": [
+        "conserve",
+        "conserving",
+        "deserve",
+        "deserves",
+        "reserve",
+        "reserves",
+        "reserving",
+        "serve"
+       ]
+      },
+      {
+       "stem": "count",
+       "wmt": 40.0,
+       "concepts": 3,
+       "words": [
+        "count",
+        "counting",
+        "counts",
+        "discount",
+        "discounted",
+        "discounting",
+        "discounts",
+        "recount"
+       ]
+      },
+      {
+       "stem": "play",
+       "wmt": 40.0,
+       "concepts": 3,
+       "words": [
+        "display",
+        "displayed",
+        "displaying",
+        "displays",
+        "play",
+        "played",
+        "playing",
+        "plays"
+       ]
+      },
+      {
+       "stem": "test",
+       "wmt": 37.0,
+       "concepts": 5,
+       "words": [
+        "contest",
+        "contesting",
+        "contests",
+        "protest",
+        "protested",
+        "protesting",
+        "protests",
+        "test"
+       ]
+      },
+      {
+       "stem": "claim",
+       "wmt": 36.0,
+       "concepts": 4,
+       "words": [
+        "claim",
+        "claiming",
+        "claims",
+        "disclaims",
+        "proclaim",
+        "proclaimed",
+        "proclaiming",
+        "reclaim"
+       ]
+      },
+      {
+       "stem": "tend",
+       "wmt": 33.0,
+       "concepts": 3,
+       "words": [
+        "contend",
+        "contended",
+        "contending",
+        "contends",
+        "intend",
+        "intending",
+        "intends",
+        "tend"
+       ]
+      },
+      {
+       "stem": "place",
+       "wmt": 33.0,
+       "concepts": 3,
+       "words": [
+        "displace",
+        "displaced",
+        "displacing",
+        "place",
+        "places",
+        "placing",
+        "replace",
+        "replaced"
+       ]
+      },
+      {
+       "stem": "appear",
+       "wmt": 32.0,
+       "concepts": 3,
+       "words": [
+        "appear",
+        "appeared",
+        "appearing",
+        "appears",
+        "disappear",
+        "disappeared",
+        "disappearing",
+        "disappears"
+       ]
+      }
+     ]
+    },
+    "vs_wordnet": {
+     "UI": 0.26478609169933526,
+     "OI": 9.743528489602408e-06,
+     "SW": 3.679773520984701e-05,
+     "worst_merges": [
+      {
+       "stem": "pose",
+       "wmt": 56.0,
+       "concepts": 6,
+       "words": [
+        "depose",
+        "deposed",
+        "dispose",
+        "pose",
+        "posed",
+        "poses",
+        "posing",
+        "propose"
+       ]
+      },
+      {
+       "stem": "cover",
+       "wmt": 54.0,
+       "concepts": 5,
+       "words": [
+        "cover",
+        "covered",
+        "covering",
+        "covers",
+        "recover",
+        "recovered",
+        "recovering",
+        "recovers"
+       ]
+      },
+      {
+       "stem": "tail",
+       "wmt": 50.0,
+       "concepts": 7,
+       "words": [
+        "detail",
+        "detailed",
+        "detailing",
+        "details",
+        "retail",
+        "retailed",
+        "retailing",
+        "retails"
+       ]
+      },
+      {
+       "stem": "serve",
+       "wmt": 49.0,
+       "concepts": 6,
+       "words": [
+        "conserve",
+        "conserving",
+        "deserve",
+        "deserves",
+        "reserve",
+        "reserves",
+        "reserving",
+        "serve"
+       ]
+      },
+      {
+       "stem": "file",
+       "wmt": 49.0,
+       "concepts": 7,
+       "words": [
+        "file",
+        "filed",
+        "files",
+        "filing",
+        "profile",
+        "profiled",
+        "profiler",
+        "profiles"
+       ]
+      },
+      {
+       "stem": "count",
+       "wmt": 45.0,
+       "concepts": 5,
+       "words": [
+        "count",
+        "counting",
+        "counts",
+        "discount",
+        "discounted",
+        "discounting",
+        "discounts",
+        "recount"
+       ]
+      },
+      {
+       "stem": "play",
+       "wmt": 43.0,
+       "concepts": 4,
+       "words": [
+        "display",
+        "displayed",
+        "displaying",
+        "displays",
+        "play",
+        "played",
+        "playing",
+        "plays"
+       ]
+      },
+      {
+       "stem": "appear",
+       "wmt": 38.0,
+       "concepts": 5,
+       "words": [
+        "appear",
+        "appeared",
+        "appearing",
+        "appears",
+        "disappear",
+        "disappeared",
+        "disappearing",
+        "disappears"
+       ]
+      },
+      {
+       "stem": "claim",
+       "wmt": 36.0,
+       "concepts": 4,
+       "words": [
+        "claim",
+        "claiming",
+        "claims",
+        "disclaims",
+        "proclaim",
+        "proclaimed",
+        "proclaiming",
+        "reclaim"
+       ]
+      },
+      {
+       "stem": "place",
+       "wmt": 36.0,
+       "concepts": 4,
+       "words": [
+        "displace",
+        "displaced",
+        "displacing",
+        "place",
+        "places",
+        "placing",
+        "replace",
+        "replaced"
+       ]
+      },
+      {
+       "stem": "tend",
+       "wmt": 35.0,
+       "concepts": 4,
+       "words": [
+        "contend",
+        "contended",
+        "contending",
+        "contends",
+        "intend",
+        "intending",
+        "intends",
+        "tend"
+       ]
+      },
+      {
+       "stem": "test",
+       "wmt": 35.0,
+       "concepts": 4,
+       "words": [
+        "contest",
+        "contesting",
+        "contests",
+        "protest",
+        "protested",
+        "protesting",
+        "protests",
+        "test"
+       ]
+      }
+     ]
+    }
+   },
+   "lemma: spaCy": {
+    "words": 35870,
+    "classes": 27398,
+    "reduction": 0.23618622804572065,
+    "vs_spacy": {
+     "UI": 0.0,
+     "OI": 0.0,
+     "SW": null,
+     "worst_merges": []
+    },
+    "vs_wordnet": {
+     "UI": 0.11274927560934038,
+     "OI": 3.651491452149977e-06,
+     "SW": 3.2385941571827535e-05,
+     "worst_merges": [
+      {
+       "stem": "be",
+       "wmt": 22.0,
+       "concepts": 5,
+       "words": [
+        "am",
+        "are",
+        "be",
+        "been",
+        "being",
+        "is",
+        "was",
+        "were"
+       ]
+      },
+      {
+       "stem": "bear",
+       "wmt": 12.0,
+       "concepts": 4,
+       "words": [
+        "bear",
+        "bearing",
+        "bears",
+        "bore",
+        "born",
+        "borne"
+       ]
+      },
+      {
+       "stem": "age",
+       "wmt": 9.0,
+       "concepts": 4,
+       "words": [
+        "age",
+        "aged",
+        "ageing",
+        "ages",
+        "aging"
+       ]
+      },
+      {
+       "stem": "eat",
+       "wmt": 9.0,
+       "concepts": 4,
+       "words": [
+        "ate",
+        "eat",
+        "eaten",
+        "eating",
+        "eats"
+       ]
+      },
+      {
+       "stem": "cool",
+       "wmt": 9.0,
+       "concepts": 3,
+       "words": [
+        "cool",
+        "cooled",
+        "cooler",
+        "coolest",
+        "cooling",
+        "cools"
+       ]
+      },
+      {
+       "stem": "tear",
+       "wmt": 9.0,
+       "concepts": 4,
+       "words": [
+        "tear",
+        "tearing",
+        "tears",
+        "tore",
+        "torn"
+       ]
+      },
+      {
+       "stem": "travel",
+       "wmt": 9.0,
+       "concepts": 3,
+       "words": [
+        "travel",
+        "traveled",
+        "traveling",
+        "travelled",
+        "travelling",
+        "travels"
+       ]
+      },
+      {
+       "stem": "burn",
+       "wmt": 7.0,
+       "concepts": 3,
+       "words": [
+        "burn",
+        "burned",
+        "burning",
+        "burns",
+        "burnt"
+       ]
+      },
+      {
+       "stem": "cut",
+       "wmt": 7.0,
+       "concepts": 3,
+       "words": [
+        "cut",
+        "cuter",
+        "cutest",
+        "cuts",
+        "cutting"
+       ]
+      },
+      {
+       "stem": "draw",
+       "wmt": 7.0,
+       "concepts": 3,
+       "words": [
+        "draw",
+        "drawing",
+        "drawn",
+        "draws",
+        "drew"
+       ]
+      },
+      {
+       "stem": "drive",
+       "wmt": 7.0,
+       "concepts": 3,
+       "words": [
+        "drive",
+        "driven",
+        "drives",
+        "driving",
+        "drove"
+       ]
+      },
+      {
+       "stem": "fall",
+       "wmt": 7.0,
+       "concepts": 3,
+       "words": [
+        "fall",
+        "fallen",
+        "falling",
+        "falls",
+        "fell"
+       ]
+      }
+     ]
+    }
+   },
+   "lemma: WordNet morphy": {
+    "words": 35870,
+    "classes": 27561,
+    "reduction": 0.2316420407025369,
+    "vs_spacy": {
+     "UI": 0.18409090909090908,
+     "OI": 2.056590419781583e-06,
+     "SW": 1.117160228029502e-05,
+     "worst_merges": [
+      {
+       "stem": "label",
+       "wmt": 9.0,
+       "concepts": 3,
+       "words": [
+        "label",
+        "labeled",
+        "labeling",
+        "labelled",
+        "labelling",
+        "labels"
+       ]
+      },
+      {
+       "stem": "cap",
+       "wmt": 7.0,
+       "concepts": 3,
+       "words": [
+        "cap",
+        "caped",
+        "capped",
+        "capping",
+        "caps"
+       ]
+      },
+      {
+       "stem": "jar",
+       "wmt": 7.0,
+       "concepts": 3,
+       "words": [
+        "jar",
+        "jared",
+        "jarred",
+        "jarring",
+        "jars"
+       ]
+      },
+      {
+       "stem": "man",
+       "wmt": 6.0,
+       "concepts": 4,
+       "words": [
+        "man",
+        "manned",
+        "manning",
+        "mans"
+       ]
+      },
+      {
+       "stem": "alarm",
+       "wmt": 5.0,
+       "concepts": 3,
+       "words": [
+        "alarm",
+        "alarmed",
+        "alarming",
+        "alarms"
+       ]
+      },
+      {
+       "stem": "audit",
+       "wmt": 5.0,
+       "concepts": 3,
+       "words": [
+        "audit",
+        "audited",
+        "auditing",
+        "audits"
+       ]
+      },
+      {
+       "stem": "conflict",
+       "wmt": 5.0,
+       "concepts": 3,
+       "words": [
+        "conflict",
+        "conflicted",
+        "conflicting",
+        "conflicts"
+       ]
+      },
+      {
+       "stem": "downgrade",
+       "wmt": 5.0,
+       "concepts": 3,
+       "words": [
+        "downgrade",
+        "downgraded",
+        "downgrades",
+        "downgrading"
+       ]
+      },
+      {
+       "stem": "fracture",
+       "wmt": 5.0,
+       "concepts": 3,
+       "words": [
+        "fracture",
+        "fractured",
+        "fractures",
+        "fracturing"
+       ]
+      },
+      {
+       "stem": "interest",
+       "wmt": 5.0,
+       "concepts": 3,
+       "words": [
+        "interest",
+        "interested",
+        "interesting",
+        "interests"
+       ]
+      },
+      {
+       "stem": "jet",
+       "wmt": 5.0,
+       "concepts": 3,
+       "words": [
+        "jet",
+        "jeter",
+        "jets",
+        "jetted"
+       ]
+      },
+      {
+       "stem": "mistake",
+       "wmt": 5.0,
+       "concepts": 3,
+       "words": [
+        "mistake",
+        "mistaken",
+        "mistakes",
+        "mistook"
+       ]
+      }
+     ]
+    },
+    "vs_wordnet": {
+     "UI": 0.0,
+     "OI": 0.0,
+     "SW": null,
+     "worst_merges": []
+    }
+   }
+  }
+ },
+ "tiger": {
+  "title": {
+   "tiger": {
+    "total_docs": 10000,
+    "total_len": 77243,
+    "terms": 16293
+   },
+   "pg": {
+    "docs_with_terms": 10000,
+    "total_len": 77243,
+    "terms": 16293
+   },
+   "words_checked": 500,
+   "word_mismatches": []
+  },
+  "description": {
+   "tiger": {
+    "total_docs": 7450,
+    "total_len": 131377,
+    "terms": 20954
+   },
+   "pg": {
+    "docs_with_terms": 7450,
+    "total_len": 131377,
+    "terms": 20954
+   },
+   "words_checked": 500,
+   "word_mismatches": []
+  },
+  "content": {
+   "tiger": {
+    "total_docs": 10000,
+    "total_len": 2456678,
+    "terms": 94943
+   },
+   "pg": {
+    "docs_with_terms": 10000,
+    "total_len": 2456678,
+    "terms": 94943
+   },
+   "words_checked": 500,
+   "word_mismatches": []
+  }
+ },
+ "divergence": {
+  "queries": 300,
+  "zero_hits": {
+   "es.standard": 91,
+   "es.english": 67,
+   "es.standard+pgstop+snowball": 67,
+   "es.standard+apos+pgstop+snowball": 67,
+   "es.standard+lucenestop+porter2": 67,
+   "es.standard+lucenestop+porter": 69,
+   "es.standard+lucenestop+kstem": 75,
+   "es.standard+lucenestop+minimal": 80,
+   "es.standard+lucenestop+hunspell": 70,
+   "pg.english": 67,
+   "pg.english_nostop": 67,
+   "pg.simple": 89,
+   "pg.hunspell": 68
+  },
+  "es_pairs": [
+   {
+    "left": "es.standard",
+    "right": "es.english",
+    "queries_both_nonempty": 209,
+    "top10_jaccard_mean": 0.6148216537611342,
+    "queries_both_full": 109,
+    "rbo_ext_mean": 0.653853517723329,
+    "identical_top10_share": 0.2727272727272727
+   },
+   {
+    "left": "es.standard",
+    "right": "es.standard+pgstop+snowball",
+    "queries_both_nonempty": 209,
+    "top10_jaccard_mean": 0.6273834505904884,
+    "queries_both_full": 109,
+    "rbo_ext_mean": 0.6684557284892529,
+    "identical_top10_share": 0.2966507177033493
+   },
+   {
+    "left": "es.standard",
+    "right": "es.standard+apos+pgstop+snowball",
+    "queries_both_nonempty": 209,
+    "top10_jaccard_mean": 0.6152504836665368,
+    "queries_both_full": 109,
+    "rbo_ext_mean": 0.6570257607983616,
+    "identical_top10_share": 0.27751196172248804
+   },
+   {
+    "left": "es.standard",
+    "right": "es.standard+lucenestop+porter2",
+    "queries_both_nonempty": 209,
+    "top10_jaccard_mean": 0.6364158854602437,
+    "queries_both_full": 109,
+    "rbo_ext_mean": 0.681320960654325,
+    "identical_top10_share": 0.3062200956937799
+   },
+   {
+    "left": "es.standard",
+    "right": "es.standard+lucenestop+porter",
+    "queries_both_nonempty": 209,
+    "top10_jaccard_mean": 0.6421888297436389,
+    "queries_both_full": 109,
+    "rbo_ext_mean": 0.6853759073475099,
+    "identical_top10_share": 0.3349282296650718
+   },
+   {
+    "left": "es.standard",
+    "right": "es.standard+lucenestop+kstem",
+    "queries_both_nonempty": 209,
+    "top10_jaccard_mean": 0.7119817567115625,
+    "queries_both_full": 109,
+    "rbo_ext_mean": 0.7624392305061598,
+    "identical_top10_share": 0.37799043062200954
+   },
+   {
+    "left": "es.standard",
+    "right": "es.standard+lucenestop+minimal",
+    "queries_both_nonempty": 209,
+    "top10_jaccard_mean": 0.7767864761813538,
+    "queries_both_full": 109,
+    "rbo_ext_mean": 0.7731001042887943,
+    "identical_top10_share": 0.47368421052631576
+   },
+   {
+    "left": "es.standard",
+    "right": "es.standard+lucenestop+hunspell",
+    "queries_both_nonempty": 209,
+    "top10_jaccard_mean": 0.6352130879318801,
+    "queries_both_full": 109,
+    "rbo_ext_mean": 0.6959792934619922,
+    "identical_top10_share": 0.3157894736842105
+   },
+   {
+    "left": "es.english",
+    "right": "es.standard+pgstop+snowball",
+    "queries_both_nonempty": 233,
+    "top10_jaccard_mean": 0.8844228271916323,
+    "queries_both_full": 136,
+    "rbo_ext_mean": 0.8768830449523635,
+    "identical_top10_share": 0.5708154506437768
+   },
+   {
+    "left": "es.english",
+    "right": "es.standard+apos+pgstop+snowball",
+    "queries_both_nonempty": 233,
+    "top10_jaccard_mean": 0.9089601282310792,
+    "queries_both_full": 136,
+    "rbo_ext_mean": 0.8994969506517857,
+    "identical_top10_share": 0.6566523605150214
+   },
+   {
+    "left": "es.english",
+    "right": "es.standard+lucenestop+porter2",
+    "queries_both_nonempty": 233,
+    "top10_jaccard_mean": 0.9295878731613993,
+    "queries_both_full": 136,
+    "rbo_ext_mean": 0.9213961835083508,
+    "identical_top10_share": 0.7553648068669528
+   },
+   {
+    "left": "es.english",
+    "right": "es.standard+lucenestop+porter",
+    "queries_both_nonempty": 231,
+    "top10_jaccard_mean": 0.9411567148580136,
+    "queries_both_full": 134,
+    "rbo_ext_mean": 0.9388578669713753,
+    "identical_top10_share": 0.7532467532467533
+   },
+   {
+    "left": "es.english",
+    "right": "es.standard+lucenestop+kstem",
+    "queries_both_nonempty": 224,
+    "top10_jaccard_mean": 0.7598864889088379,
+    "queries_both_full": 125,
+    "rbo_ext_mean": 0.7826219267480572,
+    "identical_top10_share": 0.4330357142857143
+   },
+   {
+    "left": "es.english",
+    "right": "es.standard+lucenestop+minimal",
+    "queries_both_nonempty": 220,
+    "top10_jaccard_mean": 0.7413249312841207,
+    "queries_both_full": 122,
+    "rbo_ext_mean": 0.7817104956955504,
+    "identical_top10_share": 0.42272727272727273
+   },
+   {
+    "left": "es.english",
+    "right": "es.standard+lucenestop+hunspell",
+    "queries_both_nonempty": 227,
+    "top10_jaccard_mean": 0.8318539697445468,
+    "queries_both_full": 133,
+    "rbo_ext_mean": 0.8544435691589689,
+    "identical_top10_share": 0.5814977973568282
+   },
+   {
+    "left": "es.standard+pgstop+snowball",
+    "right": "es.standard+apos+pgstop+snowball",
+    "queries_both_nonempty": 233,
+    "top10_jaccard_mean": 0.9541869432427372,
+    "queries_both_full": 139,
+    "rbo_ext_mean": 0.9531679013697841,
+    "identical_top10_share": 0.7896995708154506
+   },
+   {
+    "left": "es.standard+pgstop+snowball",
+    "right": "es.standard+lucenestop+porter2",
+    "queries_both_nonempty": 233,
+    "top10_jaccard_mean": 0.9391282001260542,
+    "queries_both_full": 138,
+    "rbo_ext_mean": 0.9305182362504659,
+    "identical_top10_share": 0.7296137339055794
+   },
+   {
+    "left": "es.standard+pgstop+snowball",
+    "right": "es.standard+lucenestop+porter",
+    "queries_both_nonempty": 231,
+    "top10_jaccard_mean": 0.8818270331855431,
+    "queries_both_full": 134,
+    "rbo_ext_mean": 0.8694002222341152,
+    "identical_top10_share": 0.5627705627705628
+   },
+   {
+    "left": "es.standard+pgstop+snowball",
+    "right": "es.standard+lucenestop+kstem",
+    "queries_both_nonempty": 224,
+    "top10_jaccard_mean": 0.7638516309327068,
+    "queries_both_full": 126,
+    "rbo_ext_mean": 0.7809143732719388,
+    "identical_top10_share": 0.41964285714285715
+   },
+   {
+    "left": "es.standard+pgstop+snowball",
+    "right": "es.standard+lucenestop+minimal",
+    "queries_both_nonempty": 220,
+    "top10_jaccard_mean": 0.722023751922781,
+    "queries_both_full": 122,
+    "rbo_ext_mean": 0.7489929924820843,
+    "identical_top10_share": 0.36363636363636365
+   },
+   {
+    "left": "es.standard+pgstop+snowball",
+    "right": "es.standard+lucenestop+hunspell",
+    "queries_both_nonempty": 227,
+    "top10_jaccard_mean": 0.7946687904428524,
+    "queries_both_full": 135,
+    "rbo_ext_mean": 0.8066287134461376,
+    "identical_top10_share": 0.45374449339207046
+   },
+   {
+    "left": "es.standard+apos+pgstop+snowball",
+    "right": "es.standard+lucenestop+porter2",
+    "queries_both_nonempty": 233,
+    "top10_jaccard_mean": 0.9119831706205097,
+    "queries_both_full": 138,
+    "rbo_ext_mean": 0.906025447573913,
+    "identical_top10_share": 0.6351931330472103
+   },
+   {
+    "left": "es.standard+apos+pgstop+snowball",
+    "right": "es.standard+lucenestop+porter",
+    "queries_both_nonempty": 231,
+    "top10_jaccard_mean": 0.8689279913903974,
+    "queries_both_full": 134,
+    "rbo_ext_mean": 0.8560281249163646,
+    "identical_top10_share": 0.5367965367965368
+   },
+   {
+    "left": "es.standard+apos+pgstop+snowball",
+    "right": "es.standard+lucenestop+kstem",
+    "queries_both_nonempty": 224,
+    "top10_jaccard_mean": 0.7531966941558245,
+    "queries_both_full": 126,
+    "rbo_ext_mean": 0.7692563573798186,
+    "identical_top10_share": 0.39285714285714285
+   },
+   {
+    "left": "es.standard+apos+pgstop+snowball",
+    "right": "es.standard+lucenestop+minimal",
+    "queries_both_nonempty": 220,
+    "top10_jaccard_mean": 0.7110771606352805,
+    "queries_both_full": 122,
+    "rbo_ext_mean": 0.7368783898464286,
+    "identical_top10_share": 0.3409090909090909
+   },
+   {
+    "left": "es.standard+apos+pgstop+snowball",
+    "right": "es.standard+lucenestop+hunspell",
+    "queries_both_nonempty": 227,
+    "top10_jaccard_mean": 0.7957668480387073,
+    "queries_both_full": 135,
+    "rbo_ext_mean": 0.8120791444548148,
+    "identical_top10_share": 0.45374449339207046
+   },
+   {
+    "left": "es.standard+lucenestop+porter2",
+    "right": "es.standard+lucenestop+porter",
+    "queries_both_nonempty": 231,
+    "top10_jaccard_mean": 0.9309134986681125,
+    "queries_both_full": 134,
+    "rbo_ext_mean": 0.9224733342808102,
+    "identical_top10_share": 0.7619047619047619
+   },
+   {
+    "left": "es.standard+lucenestop+porter2",
+    "right": "es.standard+lucenestop+kstem",
+    "queries_both_nonempty": 224,
+    "top10_jaccard_mean": 0.7896503609725082,
+    "queries_both_full": 126,
+    "rbo_ext_mean": 0.8188140027959183,
+    "identical_top10_share": 0.5044642857142857
+   },
+   {
+    "left": "es.standard+lucenestop+porter2",
+    "right": "es.standard+lucenestop+minimal",
+    "queries_both_nonempty": 220,
+    "top10_jaccard_mean": 0.745266166074286,
+    "queries_both_full": 122,
+    "rbo_ext_mean": 0.7786071478457259,
+    "identical_top10_share": 0.44545454545454544
+   },
+   {
+    "left": "es.standard+lucenestop+porter2",
+    "right": "es.standard+lucenestop+hunspell",
+    "queries_both_nonempty": 227,
+    "top10_jaccard_mean": 0.8227175894167615,
+    "queries_both_full": 134,
+    "rbo_ext_mean": 0.8413056722311301,
+    "identical_top10_share": 0.5550660792951542
+   },
+   {
+    "left": "es.standard+lucenestop+porter",
+    "right": "es.standard+lucenestop+kstem",
+    "queries_both_nonempty": 224,
+    "top10_jaccard_mean": 0.7983038060565288,
+    "queries_both_full": 125,
+    "rbo_ext_mean": 0.8280606704560001,
+    "identical_top10_share": 0.5714285714285714
+   },
+   {
+    "left": "es.standard+lucenestop+porter",
+    "right": "es.standard+lucenestop+minimal",
+    "queries_both_nonempty": 220,
+    "top10_jaccard_mean": 0.7848414652552002,
+    "queries_both_full": 122,
+    "rbo_ext_mean": 0.830484706846487,
+    "identical_top10_share": 0.5636363636363636
+   },
+   {
+    "left": "es.standard+lucenestop+porter",
+    "right": "es.standard+lucenestop+hunspell",
+    "queries_both_nonempty": 227,
+    "top10_jaccard_mean": 0.8282265765797087,
+    "queries_both_full": 132,
+    "rbo_ext_mean": 0.8455536317635822,
+    "identical_top10_share": 0.5594713656387665
+   },
+   {
+    "left": "es.standard+lucenestop+kstem",
+    "right": "es.standard+lucenestop+minimal",
+    "queries_both_nonempty": 219,
+    "top10_jaccard_mean": 0.8001505947718679,
+    "queries_both_full": 120,
+    "rbo_ext_mean": 0.82810610533125,
+    "identical_top10_share": 0.5799086757990868
+   },
+   {
+    "left": "es.standard+lucenestop+kstem",
+    "right": "es.standard+lucenestop+hunspell",
+    "queries_both_nonempty": 221,
+    "top10_jaccard_mean": 0.7850569636621637,
+    "queries_both_full": 127,
+    "rbo_ext_mean": 0.8078614149466817,
+    "identical_top10_share": 0.5158371040723982
+   },
+   {
+    "left": "es.standard+lucenestop+minimal",
+    "right": "es.standard+lucenestop+hunspell",
+    "queries_both_nonempty": 218,
+    "top10_jaccard_mean": 0.765001714421574,
+    "queries_both_full": 122,
+    "rbo_ext_mean": 0.8119130596752928,
+    "identical_top10_share": 0.4724770642201835
+   }
+  ],
+  "pg_pairs": [
+   {
+    "left": "pg.english",
+    "right": "pg.english_nostop",
+    "queries_both_nonempty": 233,
+    "top10_jaccard_mean": 0.9902783196774614,
+    "queries_both_full": 139,
+    "rbo_ext_mean": 0.9906565415689106,
+    "identical_top10_share": 0.9828326180257511
+   },
+   {
+    "left": "pg.english",
+    "right": "pg.simple",
+    "queries_both_nonempty": 211,
+    "top10_jaccard_mean": 0.683729125346699,
+    "queries_both_full": 114,
+    "rbo_ext_mean": 0.7592294961161028,
+    "identical_top10_share": 0.43601895734597157
+   },
+   {
+    "left": "pg.english",
+    "right": "pg.hunspell",
+    "queries_both_nonempty": 229,
+    "top10_jaccard_mean": 0.8481153195755654,
+    "queries_both_full": 136,
+    "rbo_ext_mean": 0.8768242127007353,
+    "identical_top10_share": 0.6637554585152838
+   },
+   {
+    "left": "pg.english_nostop",
+    "right": "pg.simple",
+    "queries_both_nonempty": 211,
+    "top10_jaccard_mean": 0.6888634065473309,
+    "queries_both_full": 114,
+    "rbo_ext_mean": 0.7674680001880326,
+    "identical_top10_share": 0.44549763033175355
+   },
+   {
+    "left": "pg.english_nostop",
+    "right": "pg.hunspell",
+    "queries_both_nonempty": 229,
+    "top10_jaccard_mean": 0.8463528043273064,
+    "queries_both_full": 136,
+    "rbo_ext_mean": 0.8714302313811975,
+    "identical_top10_share": 0.6637554585152838
+   },
+   {
+    "left": "pg.simple",
+    "right": "pg.hunspell",
+    "queries_both_nonempty": 211,
+    "top10_jaccard_mean": 0.6754751893285781,
+    "queries_both_full": 114,
+    "rbo_ext_mean": 0.7613189033424186,
+    "identical_top10_share": 0.45023696682464454
+   }
+  ],
+  "cost": {
+   "es_field_bytes": {
+    "es.standard": 47068173,
+    "es.english": 36630674,
+    "es.standard+pgstop+snowball": 33159590,
+    "es.standard+apos+pgstop+snowball": 32607981,
+    "es.standard+lucenestop+porter2": 37092130,
+    "es.standard+lucenestop+porter": 37319364,
+    "es.standard+lucenestop+kstem": 37992585,
+    "es.standard+lucenestop+minimal": 38693386,
+    "es.standard+lucenestop+hunspell": 40013982
+   },
+   "pg": {
+    "pg.english": {
+     "tsvector_bytes": 118306721,
+     "gin_bytes": 47095808
+    },
+    "pg.english_nostop": {
+     "tsvector_bytes": 154751653,
+     "gin_bytes": 51191808
+    },
+    "pg.simple": {
+     "tsvector_bytes": 169113927,
+     "gin_bytes": 58040320
+    },
+    "pg.hunspell": {
+     "tsvector_bytes": 136930302,
+     "gin_bytes": 52420608
+    }
+   }
+  }
+ },
+ "agreement_summary": {
+  "tokenizer_only": {
+   "es.standard": {
+    "title": {
+     "jaccard_mean": 0.938926896703992,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.6923076923076923,
+     "exact_share": 0.7075,
+     "vocab_jaccard": 0.8737581442632041,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.9429094501467331,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.782608695652174,
+     "exact_share": 0.5385750704414329,
+     "vocab_jaccard": 0.8651800183188896,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.9352824471019043,
+     "jaccard_median": 0.9393939393939394,
+     "jaccard_p5": 0.863013698630137,
+     "exact_share": 0.0835,
+     "vocab_jaccard": 0.7249629472792717,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "es.classic": {
+    "title": {
+     "jaccard_mean": 0.9416693498308683,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.7,
+     "exact_share": 0.732,
+     "vocab_jaccard": 0.8608807812787912,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.9430323156668926,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.7777777777777778,
+     "exact_share": 0.5719844357976653,
+     "vocab_jaccard": 0.8475665425942833,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.9452564555092953,
+     "jaccard_median": 0.953125,
+     "jaccard_p5": 0.8611111111111112,
+     "exact_share": 0.113,
+     "vocab_jaccard": 0.7429731800766284,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "es.letter": {
+    "title": {
+     "jaccard_mean": 0.9391890757226768,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.7368421052631579,
+     "exact_share": 0.6455,
+     "vocab_jaccard": 0.8729241877256317,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.9489322240773123,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.8,
+     "exact_share": 0.5239500872132027,
+     "vocab_jaccard": 0.8393972804116133,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.9290222637782175,
+     "jaccard_median": 0.944029642837243,
+     "jaccard_p5": 0.8127490039840638,
+     "exact_share": 0.0637,
+     "vocab_jaccard": 0.7155973185505589,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "es.whitespace": {
+    "title": {
+     "jaccard_mean": 0.7988661145028115,
+     "jaccard_median": 0.8,
+     "jaccard_p5": 0.47058823529411764,
+     "exact_share": 0.3578,
+     "vocab_jaccard": 0.6703922938343322,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.7385114950693211,
+     "jaccard_median": 0.7567567567567568,
+     "jaccard_p5": 0.47058823529411764,
+     "exact_share": 0.06584417326002413,
+     "vocab_jaccard": 0.5574772367379256,
+     "units": 10000,
+     "units_both_empty": 2543
+    },
+    "content": {
+     "jaccard_mean": 0.680458871936614,
+     "jaccard_median": 0.6802721088435374,
+     "jaccard_p5": 0.5676691729323309,
+     "exact_share": 0.0006,
+     "vocab_jaccard": 0.3660102538373497,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "es.icu": {
+    "title": {
+     "jaccard_mean": 0.9389074031083428,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.6923076923076923,
+     "exact_share": 0.7078,
+     "vocab_jaccard": 0.8736253580999908,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.9430908686228493,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.782608695652174,
+     "exact_share": 0.5413927277606333,
+     "vocab_jaccard": 0.8658510788323227,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.9353912817729746,
+     "jaccard_median": 0.9393939393939394,
+     "jaccard_p5": 0.863013698630137,
+     "exact_share": 0.0847,
+     "vocab_jaccard": 0.7254583131655372,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "es.standard+apos": {
+    "title": {
+     "jaccard_mean": 0.9782678697808633,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.875,
+     "exact_share": 0.833,
+     "vocab_jaccard": 0.9253651929960337,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.9803160899881727,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.8928571428571429,
+     "exact_share": 0.7313833355695692,
+     "vocab_jaccard": 0.9117549729749604,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.9700588240567309,
+     "jaccard_median": 0.9782608695652174,
+     "jaccard_p5": 0.9096774193548387,
+     "exact_share": 0.188,
+     "vocab_jaccard": 0.778126588816347,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "pdb.unicode_words": {
+    "title": {
+     "jaccard_mean": 0.9388699270070223,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.6923076923076923,
+     "exact_share": 0.7075,
+     "vocab_jaccard": 0.8725368037288292,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.9429061260121866,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.782608695652174,
+     "exact_share": 0.5385750704414329,
+     "vocab_jaccard": 0.8651495402825237,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.9352750694405795,
+     "jaccard_median": 0.9394255709495793,
+     "jaccard_p5": 0.8630952380952381,
+     "exact_share": 0.0834,
+     "vocab_jaccard": 0.7249739114653438,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "pdb.simple": {
+    "title": {
+     "jaccard_mean": 0.968270489521643,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.7857142857142857,
+     "exact_share": 0.8077,
+     "vocab_jaccard": 0.9085083831181345,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.970893745662335,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.85,
+     "exact_share": 0.6888501274654502,
+     "vocab_jaccard": 0.8760315489666253,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.9586347015793361,
+     "jaccard_median": 0.9724137931034482,
+     "jaccard_p5": 0.8706467661691543,
+     "exact_share": 0.153,
+     "vocab_jaccard": 0.7482358166236245,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "pdb.whitespace": {
+    "title": {
+     "jaccard_mean": 0.7988661145028115,
+     "jaccard_median": 0.8,
+     "jaccard_p5": 0.47058823529411764,
+     "exact_share": 0.3578,
+     "vocab_jaccard": 0.6703922938343322,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.7384675242649876,
+     "jaccard_median": 0.7567567567567568,
+     "jaccard_p5": 0.47058823529411764,
+     "exact_share": 0.06584417326002413,
+     "vocab_jaccard": 0.5573450101429914,
+     "units": 10000,
+     "units_both_empty": 2543
+    },
+    "content": {
+     "jaccard_mean": 0.6804589174632025,
+     "jaccard_median": 0.6802721088435374,
+     "jaccard_p5": 0.5676691729323309,
+     "exact_share": 0.0006,
+     "vocab_jaccard": 0.36601455779806447,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "pdb.icu": {
+    "title": {
+     "jaccard_mean": 0.938913285461284,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.6923076923076923,
+     "exact_share": 0.7078,
+     "vocab_jaccard": 0.8736253580999908,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.9434820772795138,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.782608695652174,
+     "exact_share": 0.5434053401314907,
+     "vocab_jaccard": 0.8686469113128245,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.9357726708375947,
+     "jaccard_median": 0.9399293286219081,
+     "jaccard_p5": 0.8636363636363636,
+     "exact_share": 0.085,
+     "vocab_jaccard": 0.7274856727008097,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   }
+  },
+  "full_chain": {
+   "es.english": {
+    "title": {
+     "jaccard_mean": 0.8394038372665708,
+     "jaccard_median": 0.875,
+     "jaccard_p5": 0.5384615384615384,
+     "exact_share": 0.3724,
+     "vocab_jaccard": 0.8377180190165082,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.775058075949307,
+     "jaccard_median": 0.7777777777777778,
+     "jaccard_p5": 0.5454545454545454,
+     "exact_share": 0.10116731517509728,
+     "vocab_jaccard": 0.8138746375195182,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.7556516961364749,
+     "jaccard_median": 0.7593984962406015,
+     "jaccard_p5": 0.6477272727272727,
+     "exact_share": 0.0014,
+     "vocab_jaccard": 0.6746142254944971,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "es.standard+pgstop+snowball": {
+    "title": {
+     "jaccard_mean": 0.9558498048175519,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.75,
+     "exact_share": 0.7599,
+     "vocab_jaccard": 0.87987667496739,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.952118095741188,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.7916666666666666,
+     "exact_share": 0.6085089249765132,
+     "vocab_jaccard": 0.8514730506403584,
+     "units": 10000,
+     "units_both_empty": 2549
+    },
+    "content": {
+     "jaccard_mean": 0.9298207340083452,
+     "jaccard_median": 0.9354571672719504,
+     "jaccard_p5": 0.8428571428571429,
+     "exact_share": 0.1038,
+     "vocab_jaccard": 0.6866555877907031,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "es.standard+apos+pgstop+snowball": {
+    "title": {
+     "jaccard_mean": 0.9715577148515362,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.8181818181818182,
+     "exact_share": 0.8218,
+     "vocab_jaccard": 0.9064853048336167,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.9695013180475885,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.8421052631578947,
+     "exact_share": 0.7045637583892618,
+     "vocab_jaccard": 0.877231211460893,
+     "units": 10000,
+     "units_both_empty": 2550
+    },
+    "content": {
+     "jaccard_mean": 0.9561840702345556,
+     "jaccard_median": 0.9659863945578231,
+     "jaccard_p5": 0.875,
+     "exact_share": 0.1686,
+     "vocab_jaccard": 0.7223046901880598,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "es.icu+pgstop+snowball": {
+    "title": {
+     "jaccard_mean": 0.9558350194640166,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.75,
+     "exact_share": 0.7602,
+     "vocab_jaccard": 0.8797059346653229,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.9523665381510309,
+     "jaccard_median": 1.0,
+     "jaccard_p5": 0.7916666666666666,
+     "exact_share": 0.6117299691316602,
+     "vocab_jaccard": 0.852321630804077,
+     "units": 10000,
+     "units_both_empty": 2549
+    },
+    "content": {
+     "jaccard_mean": 0.929957497853736,
+     "jaccard_median": 0.9354838709677419,
+     "jaccard_p5": 0.843065693430657,
+     "exact_share": 0.105,
+     "vocab_jaccard": 0.6872634732225864,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "es.standard+lucenestop+porter2": {
+    "title": {
+     "jaccard_mean": 0.9004142367191782,
+     "jaccard_median": 0.9230769230769231,
+     "jaccard_p5": 0.6666666666666666,
+     "exact_share": 0.487,
+     "vocab_jaccard": 0.8763434510452345,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.8517359415077745,
+     "jaccard_median": 0.8571428571428571,
+     "jaccard_p5": 0.6666666666666666,
+     "exact_share": 0.16516838856836175,
+     "vocab_jaccard": 0.8490591579802356,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.8222557686904566,
+     "jaccard_median": 0.826530612244898,
+     "jaccard_p5": 0.7272727272727273,
+     "exact_share": 0.0056,
+     "vocab_jaccard": 0.6863398337055876,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "pdb.unicode_words+stem+stop": {
+    "title": {
+     "jaccard_mean": 0.901698370432472,
+     "jaccard_median": 0.9285714285714286,
+     "jaccard_p5": 0.6666666666666666,
+     "exact_share": 0.4921,
+     "vocab_jaccard": 0.8747935833923095,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.8558066644715826,
+     "jaccard_median": 0.8666666666666667,
+     "jaccard_p5": 0.6666666666666666,
+     "exact_share": 0.1733530122098484,
+     "vocab_jaccard": 0.8491085533739562,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.8257832231362028,
+     "jaccard_median": 0.83,
+     "jaccard_p5": 0.7293577981651376,
+     "exact_share": 0.0061,
+     "vocab_jaccard": 0.6871047463328916,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "pdb.simple+stem+stop": {
+    "title": {
+     "jaccard_mean": 0.8907735732859532,
+     "jaccard_median": 0.9,
+     "jaccard_p5": 0.6666666666666666,
+     "exact_share": 0.4388,
+     "vocab_jaccard": 0.8815884476534296,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.8471703335929485,
+     "jaccard_median": 0.8571428571428571,
+     "jaccard_p5": 0.6666666666666666,
+     "exact_share": 0.147591573862874,
+     "vocab_jaccard": 0.840601087858394,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.8271991652586881,
+     "jaccard_median": 0.8349514563106796,
+     "jaccard_p5": 0.7189542483660131,
+     "exact_share": 0.0042,
+     "vocab_jaccard": 0.6949857763289768,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   },
+   "pdb.icu+stem+stop": {
+    "title": {
+     "jaccard_mean": 0.9017071456849973,
+     "jaccard_median": 0.9285714285714286,
+     "jaccard_p5": 0.6666666666666666,
+     "exact_share": 0.4921,
+     "vocab_jaccard": 0.876085287342744,
+     "units": 10000,
+     "units_both_empty": 0
+    },
+    "description": {
+     "jaccard_mean": 0.8563378414738139,
+     "jaccard_median": 0.8666666666666667,
+     "jaccard_p5": 0.6666666666666666,
+     "exact_share": 0.17348718636790555,
+     "vocab_jaccard": 0.8534166553457411,
+     "units": 10000,
+     "units_both_empty": 2547
+    },
+    "content": {
+     "jaccard_mean": 0.8260406750622604,
+     "jaccard_median": 0.8301886792452831,
+     "jaccard_p5": 0.7307692307692307,
+     "exact_share": 0.0061,
+     "vocab_jaccard": 0.6892127236954824,
+     "units": 10000,
+     "units_both_empty": 0
+    }
+   }
+  }
+ }
+}
