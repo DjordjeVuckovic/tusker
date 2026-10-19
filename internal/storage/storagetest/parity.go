@@ -10,6 +10,7 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/google/uuid"
@@ -32,10 +33,10 @@ var (
 	titleAndContent        = uuid.MustParse("00000000-0000-0000-0000-00000000c002")
 	descriptionAndContent  = uuid.MustParse("00000000-0000-0000-0000-00000000c003")
 	tariffTitleAuthor      = uuid.MustParse("00000000-0000-0000-0000-00000000c004")
-	bothOnlyInSubtitle     = uuid.MustParse("00000000-0000-0000-0000-00000000c005")
+	bothOnlyInKeywords     = uuid.MustParse("00000000-0000-0000-0000-00000000c005")
 	budgetTitleOnly        = uuid.MustParse("00000000-0000-0000-0000-00000000c006")
 	unrelated              = uuid.MustParse("00000000-0000-0000-0000-00000000c007")
-	budgetTitleSubtitle    = uuid.MustParse("00000000-0000-0000-0000-00000000c008")
+	budgetTitleSection     = uuid.MustParse("00000000-0000-0000-0000-00000000c008")
 	descriptionThenContent = uuid.MustParse("00000000-0000-0000-0000-00000000c009")
 	termsApartInTitle      = uuid.MustParse("00000000-0000-0000-0000-00000000c010")
 	tariffDescriptionOnly  = uuid.MustParse("00000000-0000-0000-0000-00000000c011")
@@ -49,11 +50,11 @@ func ParityCorpus() []document.Article {
 		{ID: bothInTitle, Title: "budget tariff"},
 		{ID: titleAndContent, Title: "budget", Content: "tariff"},
 		{ID: descriptionAndContent, Title: "harbor", Description: "tariff", Content: "budget"},
-		{ID: tariffTitleAuthor, Title: "tariff", Author: "budget"},
-		{ID: bothOnlyInSubtitle, Title: "harbor", Subtitle: "budget tariff"},
+		{ID: tariffTitleAuthor, Title: "tariff", Metadata: document.Metadata{Authors: []string{"budget"}}},
+		{ID: bothOnlyInKeywords, Title: "harbor", Metadata: document.Metadata{Keywords: []string{"budget", "tariff"}}},
 		{ID: budgetTitleOnly, Title: "budget"},
 		{ID: unrelated, Title: "harbor"},
-		{ID: budgetTitleSubtitle, Title: "budget", Subtitle: "tariff"},
+		{ID: budgetTitleSection, Title: "budget", Metadata: document.Metadata{Section: "tariff"}},
 		{ID: descriptionThenContent, Title: "harbor", Description: "budget", Content: "tariff"},
 		{ID: termsApartInTitle, Title: "budget harbor tariff"},
 		{ID: tariffDescriptionOnly, Title: "harbor", Description: "tariff"},
@@ -62,7 +63,7 @@ func ParityCorpus() []document.Article {
 	}
 	for i := range articles {
 		articles[i].URL = "https://example.com/" + articles[i].ID.String()
-		articles[i].Language = "english"
+		articles[i].Language = language.English
 	}
 	return articles
 }
@@ -81,18 +82,18 @@ type ParityCase struct {
 // contract fields are title, description and content.
 var (
 	titleEveryTerm    = []uuid.UUID{bothInTitle, termsApartInTitle}
-	titleAnyTerm      = []uuid.UUID{bothInTitle, titleAndContent, tariffTitleAuthor, budgetTitleOnly, budgetTitleSubtitle, termsApartInTitle}
+	titleAnyTerm      = []uuid.UUID{bothInTitle, titleAndContent, tariffTitleAuthor, budgetTitleOnly, budgetTitleSection, termsApartInTitle}
 	contractEveryTerm = []uuid.UUID{
 		bothInTitle, titleAndContent, descriptionAndContent, descriptionThenContent, termsApartInTitle, phraseInDescription,
 	}
 	contractAnyTerm = []uuid.UUID{
 		bothInTitle, titleAndContent, descriptionAndContent, tariffTitleAuthor, budgetTitleOnly,
-		budgetTitleSubtitle, descriptionThenContent, termsApartInTitle, tariffDescriptionOnly, phraseInDescription,
+		budgetTitleSection, descriptionThenContent, termsApartInTitle, tariffDescriptionOnly, phraseInDescription,
 	}
 	titleOrContentEveryTerm = []uuid.UUID{bothInTitle, titleAndContent, termsApartInTitle}
 	titleOrContentAnyTerm   = []uuid.UUID{
 		bothInTitle, titleAndContent, descriptionAndContent, tariffTitleAuthor, budgetTitleOnly,
-		budgetTitleSubtitle, descriptionThenContent, termsApartInTitle,
+		budgetTitleSection, descriptionThenContent, termsApartInTitle,
 	}
 )
 
@@ -241,7 +242,7 @@ func ParityCases() []ParityCase {
 			Search: func(ctx context.Context, s storage.FtsSearcher) (*storage.SearchResult, error) {
 				return s.SearchBoolean(ctx, &query.Boolean{Expression: "budget AND NOT tariff"}, page())
 			},
-			Want: []uuid.UUID{budgetTitleOnly, budgetTitleSubtitle},
+			Want: []uuid.UUID{budgetTitleOnly, budgetTitleSection},
 		},
 		{
 			Name: "boolean adjacent words under the engine default operator",
@@ -341,14 +342,10 @@ func fieldText(article document.Article, field query.Field) string {
 	switch field {
 	case query.FieldTitle:
 		return article.Title
-	case query.FieldSubtitle:
-		return article.Subtitle
 	case query.FieldDescription:
 		return article.Description
 	case query.FieldContent:
 		return article.Content
-	case query.FieldAuthor:
-		return article.Author
 	default:
 		return ""
 	}

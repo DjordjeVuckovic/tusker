@@ -14,6 +14,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/storagetest"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
@@ -106,11 +107,11 @@ func TestSearcher_StringQueryRanksWithPostgresDefaultWeights(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIndexer: %v", err)
 	}
-	alsoInAuthor := uuid.New()
 	titleOnly := uuid.New()
+	descriptionOnly := uuid.New()
 	articles := []document.Article{
-		{ID: alsoInAuthor, Title: "budget", Author: "budget", URL: "https://example.com/1"},
-		{ID: titleOnly, Title: "budget", URL: "https://example.com/2"},
+		{ID: titleOnly, Title: "budget", URL: "https://example.com/1", Language: language.English},
+		{ID: descriptionOnly, Title: "harbor", Description: "budget", URL: "https://example.com/2", Language: language.English},
 	}
 	if err := indexer.SaveBulk(testCtx, articles); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
@@ -124,11 +125,15 @@ func TestSearcher_StringQueryRanksWithPostgresDefaultWeights(t *testing.T) {
 	for _, hit := range res.Hits {
 		scores[hit.Article.ID] = hit.Score
 	}
+	for _, id := range []uuid.UUID{titleOnly, descriptionOnly} {
+		if _, ok := scores[id]; !ok {
+			t.Fatalf("hits = %v, want both articles", scores)
+		}
+	}
 
-	// PostgreSQL's default weights give band D 0.1, so the author match counts.
-	if scores[alsoInAuthor] <= scores[titleOnly] {
-		t.Errorf("score with an author match = %v, title only = %v, want the author match to rank higher",
-			scores[alsoInAuthor], scores[titleOnly])
+	// Default weights give A 2.5x B; the contract's 3:2 boosts would give 1.5.
+	if ratio := scores[titleOnly] / scores[descriptionOnly]; ratio < 2 || ratio > 3 {
+		t.Errorf("title-only score / description-only score = %v, want the default weights' 2.5", ratio)
 	}
 }
 
@@ -142,8 +147,8 @@ func TestSearcher_SmallRelativeBoostStillRanks(t *testing.T) {
 	moreOften := uuid.MustParse("00000000-0000-0000-0000-0000000000a0")
 	once := uuid.MustParse("00000000-0000-0000-0000-0000000000a1")
 	articles := []document.Article{
-		{ID: moreOften, Title: "harbor", Content: "budget budget budget", URL: "https://example.com/1"},
-		{ID: once, Title: "harbor", Content: "budget", URL: "https://example.com/2"},
+		{ID: moreOften, Title: "harbor", Content: "budget budget budget", URL: "https://example.com/1", Language: language.English},
+		{ID: once, Title: "harbor", Content: "budget", URL: "https://example.com/2", Language: language.English},
 	}
 	if err := indexer.SaveBulk(testCtx, articles); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
@@ -176,8 +181,8 @@ func TestSearcher_OrMatchKeepsAnAmpersandInsideALexeme(t *testing.T) {
 	// path lexeme here, /path?a=1&b=2, is the only one the two URLs share.
 	samePath := uuid.New()
 	articles := []document.Article{
-		{ID: samePath, Title: "harbor", Content: "see other.org/path?a=1&b=2", URL: "https://example.com/1"},
-		{ID: uuid.New(), Title: "harbor", Content: "budget", URL: "https://example.com/2"},
+		{ID: samePath, Title: "harbor", Content: "see other.org/path?a=1&b=2", URL: "https://example.com/1", Language: language.English},
+		{ID: uuid.New(), Title: "harbor", Content: "budget", URL: "https://example.com/2", Language: language.English},
 	}
 	if err := indexer.SaveBulk(testCtx, articles); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
@@ -256,8 +261,8 @@ func TestSearcher_CursorPastEveryMatchReturnsEmptyPage(t *testing.T) {
 		t.Fatalf("NewIndexer: %v", err)
 	}
 	articles := []document.Article{
-		{ID: uuid.New(), Title: "climate change policy", URL: "https://example.com/1"},
-		{ID: uuid.New(), Title: "climate change", URL: "https://example.com/2"},
+		{ID: uuid.New(), Title: "climate change policy", URL: "https://example.com/1", Language: language.English},
+		{ID: uuid.New(), Title: "climate change", URL: "https://example.com/2", Language: language.English},
 	}
 	if err := indexer.SaveBulk(testCtx, articles); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
@@ -330,7 +335,7 @@ func TestSearcher_PageQueryErrorNamesTheMethod(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIndexer: %v", err)
 	}
-	if err := indexer.SaveBulk(testCtx, []document.Article{{ID: uuid.New(), Title: "climate change", URL: "https://example.com/1"}}); err != nil {
+	if err := indexer.SaveBulk(testCtx, []document.Article{{ID: uuid.New(), Title: "climate change", URL: "https://example.com/1", Language: language.English}}); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
 	}
 
@@ -391,7 +396,7 @@ func TestSearcher_PagesThroughEveryHit(t *testing.T) {
 	var matching []uuid.UUID
 	for i, title := range []string{"climate", "climate change", "climate change policy", "climate change policy debate review", "unrelated cooking recipe"} {
 		id := uuid.New()
-		if err := indexer.SaveBulk(testCtx, []document.Article{{ID: id, Title: title, URL: fmt.Sprintf("https://example.com/%d", i)}}); err != nil {
+		if err := indexer.SaveBulk(testCtx, []document.Article{{ID: id, Title: title, URL: fmt.Sprintf("https://example.com/%d", i), Language: language.English}}); err != nil {
 			t.Fatalf("SaveBulk: %v", err)
 		}
 		if strings.Contains(title, "climate") {

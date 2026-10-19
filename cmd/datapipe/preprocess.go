@@ -278,7 +278,7 @@ func writeCanonical(opts canonicalWriteOptions) (checksum string, err error) {
 	}()
 
 	report := opts.Report
-	arBuff := make([]document.CanonicalArticle, 0, flushBatchSize)
+	arBuff := make([]document.Article, 0, flushBatchSize)
 	flush := func() error {
 		if len(arBuff) == 0 {
 			return nil
@@ -310,7 +310,7 @@ func writeCanonical(opts canonicalWriteOptions) (checksum string, err error) {
 			report.InvalidURLs++
 		}
 
-		arBuff = append(arBuff, article.ToCanonical())
+		arBuff = append(arBuff, article)
 		report.ProcessedRecords++
 
 		if len(arBuff) >= flushBatchSize {

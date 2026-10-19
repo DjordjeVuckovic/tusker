@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/datapackage"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 )
 
 func writeFile(t *testing.T, dir, rel, content string) {
@@ -169,5 +170,44 @@ func TestWrittenDescriptorIsReadableByEveryone(t *testing.T) {
 	}
 	if got := info.Mode().Perm(); got != 0o644 {
 		t.Errorf("descriptor mode = %o, want 644", got)
+	}
+}
+
+func TestWriteAndOpenAcceptOnlyAnISO6393Language(t *testing.T) {
+	const helloHash = "sha256:5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"
+	tests := []struct {
+		language string
+		valid    bool
+	}{
+		{language: "eng", valid: true},
+		{language: "", valid: true},
+		{language: "en"},
+		{language: "english"},
+	}
+	for _, tt := range tests {
+		t.Run("language "+tt.language, func(t *testing.T) {
+			written := t.TempDir()
+			writeFile(t, written, "hello.txt", "hello\n")
+			pkg := helloPackage()
+			pkg.Language = language.Code(tt.language)
+
+			_, writeErr := datapackage.Write(context.Background(), written, pkg)
+			if tt.valid != (writeErr == nil) {
+				t.Errorf("Write with language %q: err = %v, want valid = %v", tt.language, writeErr, tt.valid)
+			}
+
+			handWritten := t.TempDir()
+			writeFile(t, handWritten, "hello.txt", "hello\n")
+			writeFile(t, handWritten, datapackage.DescriptorName, `{"name": "fixture", "language": "`+tt.language+`",
+				"resources": [{"name": "hello", "path": "hello.txt", "format": "txt", "bytes": 6, "hash": "`+helloHash+`"}]}`)
+
+			opened, openErr := datapackage.Open(context.Background(), handWritten)
+			if tt.valid != (openErr == nil) {
+				t.Fatalf("Open with language %q: err = %v, want valid = %v", tt.language, openErr, tt.valid)
+			}
+			if tt.valid && opened.Package.Language != language.Code(tt.language) {
+				t.Errorf("opened language = %q, want %q", opened.Package.Language, tt.language)
+			}
+		})
 	}
 }

@@ -136,7 +136,7 @@ func insertArticle(ctx context.Context, t *testing.T, pool *pg.ConnectionPool, t
 	t.Helper()
 	var id string
 	err := pool.GetConn().QueryRow(ctx,
-		"INSERT INTO articles (title, content, url) VALUES ($1, $1, 'http://example.test/' || md5($1)) RETURNING id::text",
+		"INSERT INTO articles (id, title, content, url, language) VALUES (gen_random_uuid(), $1, $1, 'http://example.test/' || md5($1), 'eng') RETURNING id::text",
 		title).Scan(&id)
 	require.NoError(t, err)
 	return id

@@ -2,11 +2,7 @@ basePath: /
 definitions:
   github_com_DjordjeVuckovic_tusker_internal_api_dto.Article:
     properties:
-      author:
-        type: string
       content:
-        type: string
-      createdAt:
         type: string
       description:
         type: string
@@ -15,30 +11,15 @@ definitions:
       language:
         type: string
       metadata:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleMetadata'
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.Metadata'
       publishedAt:
         type: string
-      subtitle:
+      publisherDomain:
         type: string
       title:
         type: string
       url:
         format: string
-        type: string
-    type: object
-  github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleMetadata:
-    properties:
-      category:
-        type: string
-      extra:
-        additionalProperties: {}
-        description: Extra carries dataset-specific fields that have no schema field.
-        type: object
-      importedAt:
-        type: string
-      sourceId:
-        type: string
-      sourceName:
         type: string
     type: object
   github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleSearchResult:
@@ -100,6 +81,31 @@ definitions:
     required:
     - field
     - query
+    type: object
+  github_com_DjordjeVuckovic_tusker_internal_api_dto.Metadata:
+    properties:
+      authors:
+        items:
+          type: string
+        type: array
+      dateModified:
+        type: string
+      externalId:
+        type: string
+      extra:
+        additionalProperties: {}
+        description: Extra carries dataset-specific fields that have no schema field.
+        type: object
+      image:
+        type: string
+      keywords:
+        items:
+          type: string
+        type: array
+      publisherName:
+        type: string
+      section:
+        type: string
     type: object
   github_com_DjordjeVuckovic_tusker_internal_api_dto.MultiMatchParams:
     properties:
@@ -262,17 +268,13 @@ definitions:
   github_com_DjordjeVuckovic_tusker_internal_types_query.Field:
     enum:
     - title
-    - subtitle
     - description
     - content
-    - author
     type: string
     x-enum-varnames:
     - FieldTitle
-    - FieldSubtitle
     - FieldDescription
     - FieldContent
-    - FieldAuthor
   github_com_DjordjeVuckovic_tusker_internal_types_query.Ignored:
     properties:
       engine:

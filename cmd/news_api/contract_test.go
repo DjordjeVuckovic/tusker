@@ -71,9 +71,12 @@ func articlesWhere(field func(document.Article) string, text string) []uuid.UUID
 	return ids
 }
 
+func contractText(a document.Article) string {
+	return strings.Join([]string{a.Title, a.Description, a.Content}, " ")
+}
+
 func TestLenientSearchRunsWithoutWhatItIgnored(t *testing.T) {
 	s := newPostgresSearchServer(t)
-	title := func(a document.Article) string { return a.Title }
 
 	tests := []struct {
 		name        string
@@ -83,18 +86,11 @@ func TestLenientSearchRunsWithoutWhatItIgnored(t *testing.T) {
 		wantIgnored []string
 	}{
 		{
-			name:        "a field sharing a weight band is dropped with its boost",
-			body:        `{"query":{"multi_match":{"fields":["title","author^2"],"query":"budget"}}}`,
-			wantHits:    articlesWhere(title, "budget"),
-			wantFields:  []dquery.Field{dquery.FieldTitle},
-			wantIgnored: []string{"fields"},
-		},
-		{
-			name:        "a phrase field sharing a weight band is dropped",
-			body:        `{"query":{"phrase":{"fields":["title","subtitle"],"query":"budget tariff"}}}`,
-			wantHits:    articlesWhere(title, "budget tariff"),
-			wantFields:  []dquery.Field{dquery.FieldTitle},
-			wantIgnored: []string{"fields"},
+			name:        "every searchable field is honoured",
+			body:        `{"query":{"multi_match":{"fields":["title","description^2","content"],"query":"budget"}}}`,
+			wantHits:    articlesWhere(contractText, "budget"),
+			wantFields:  dquery.SearchableFields(),
+			wantIgnored: nil,
 		},
 		{
 			name:        "fuzziness is dropped",
@@ -149,18 +145,28 @@ func TestLenientSearchRunsWithoutWhatItIgnored(t *testing.T) {
 	}
 }
 
-func TestLenientSearchRejectsDroppingTheOnlyField(t *testing.T) {
+func TestSearchRejectsAFieldOutsideTheSearchableSet(t *testing.T) {
 	s := newPostgresSearchServer(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/articles/_search",
-		strings.NewReader(`{"query":{"match":{"field":"author","query":"budget"}}}`))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Prefer", "handling=lenient")
-	rec := httptest.NewRecorder()
-	s.ServeHTTP(rec, req)
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "match on author", body: `{"query":{"match":{"field":"author","query":"budget"}}}`},
+		{name: "phrase on subtitle", body: `{"query":{"phrase":{"fields":["title","subtitle"],"query":"budget tariff"}}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/v1/articles/_search", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Prefer", "handling=lenient")
+			rec := httptest.NewRecorder()
+			s.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400: dropping the only field leaves nothing to search (body: %s)", rec.Code, rec.Body.String())
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400 even under lenient handling (body: %s)", rec.Code, rec.Body.String())
+			}
+		})
 	}
 }
 

@@ -43,7 +43,8 @@ The project follows a layered architecture pattern:
 
 - **internal/**: Core business logic organized by domain
     - `types/`: Core type definitions organized by bounded contexts
-        - `document/`: Document types (Article, ArticleMetadata, WeightedDocument). A field is promoted onto `Article` — and gets its own column — only when an engine must filter, sort or rank on it; `PublishedAt` is the current example. Everything else lives in `ArticleMetadata`, which pairs structured fields (`SourceId`, `SourceName`, `Category`, `ImportedAt`) with an open `Extra map[string]any` for dataset-specific values.
+        - `document/`: Document types (Article, Metadata). A field is promoted onto `Article` — and gets its own column — only when an engine must filter, sort or rank on it; `PublishedAt` and `PublisherDomain` are the current examples. Everything else lives in `Metadata`, which pairs structured fields (`PublisherName`, `Authors`, `Section`, `Keywords`, `Image`, `DateModified`) with an open `Extra map[string]any` for dataset-specific values.
+        - `language/`: The ISO 639-3 corpus language (`language.Code`, only `eng` today) and the text analysis each engine runs for it.
         - `query/`: Query types (search query types, language, scoring, cursor)
         - `operator/`: Operator value object (AND/OR logic)
     - `ingest/`: Data ingestion pipeline

@@ -18,6 +18,8 @@ type Searcher struct {
 	db *pgxpool.Pool
 }
 
+var articleColumns = pg.ArticleColumnList("")
+
 func NewReader(pool *pg.ConnectionPool) (*Searcher, error) {
 	return &Searcher{db: pool.GetConn()}, nil
 }
@@ -74,25 +76,25 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
-		`, rankExpr, whereClause)
+		`, articleColumns, rankExpr, whereClause)
 		args = []any{query.Query, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			  AND (%s, id) < ($2, $3)
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
-		`, rankExpr, whereClause, rankExpr)
+		`, articleColumns, rankExpr, whereClause, rankExpr)
 		args = []any{query.Query, cursor.Score, cursor.ID, size + 1}
 	}
 
@@ -152,25 +154,25 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
-		`, rankExpr, whereClause)
+		`, articleColumns, rankExpr, whereClause)
 		args = []any{query.Query, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			  AND (%s, id) < ($2, $3)
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
-		`, rankExpr, whereClause, rankExpr)
+		`, articleColumns, rankExpr, whereClause, rankExpr)
 		args = []any{query.Query, cursor.Score, cursor.ID, size + 1}
 	}
 
@@ -234,25 +236,25 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
-		`, rankExpr, whereClause)
+		`, articleColumns, rankExpr, whereClause)
 		args = []any{query.Query, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			  AND (%s, id) < ($2, $3)
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
-		`, rankExpr, whereClause, rankExpr)
+		`, articleColumns, rankExpr, whereClause, rankExpr)
 		args = []any{query.Query, cursor.Score, cursor.ID, size + 1}
 	}
 
@@ -326,25 +328,25 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
-		`, rankExpr, whereClause)
+		`, articleColumns, rankExpr, whereClause)
 		args = []any{phraseArg, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			  AND (%s, id) < ($2, $3)
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
-		`, rankExpr, whereClause, rankExpr)
+		`, articleColumns, rankExpr, whereClause, rankExpr)
 		args = []any{phraseArg, cursor.Score, cursor.ID, size + 1}
 	}
 
@@ -402,25 +404,25 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 	if cursor == nil {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			ORDER BY rank DESC, id DESC
 			LIMIT $2
-		`, rankExpr, whereClause)
+		`, articleColumns, rankExpr, whereClause)
 		args = []any{match.arg, size + 1}
 	} else {
 		searchSQL = fmt.Sprintf(`
 			SELECT
-				id, title, subtitle, content, author, description, url, language, published_at, created_at, metadata,
+				%s,
 				%s as rank
 			FROM articles
 			WHERE %s
 			  AND (%s, id) < ($2, $3)
 			ORDER BY rank DESC, id DESC
 			LIMIT $4
-		`, rankExpr, whereClause, rankExpr)
+		`, articleColumns, rankExpr, whereClause, rankExpr)
 		args = []any{match.arg, cursor.Score, cursor.ID, size + 1}
 	}
 

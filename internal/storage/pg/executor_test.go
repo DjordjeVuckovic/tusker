@@ -70,9 +70,9 @@ func TestRawExecutor_Exec_SimpleQuery(t *testing.T) {
 	defer truncateTable(t)
 
 	_, err := testPool.GetConn().Exec(testCtx, `
-		INSERT INTO articles (title, content, url, language)
-		VALUES ($1, $2, $3, $4)
-	`, "Test Article", "This is test content", "http://test.com", "english")
+		INSERT INTO articles (id, title, content, url, language)
+		VALUES (gen_random_uuid(), $1, $2, $3, $4)
+	`, "Test Article", "This is test content", "http://test.com", "eng")
 	if err != nil {
 		t.Fatalf("failed to insert test data: %v", err)
 	}
@@ -100,11 +100,11 @@ func TestRawExecutor_Exec_ParameterizedQuery(t *testing.T) {
 	defer truncateTable(t)
 
 	_, err := testPool.GetConn().Exec(testCtx, `
-		INSERT INTO articles (title, content, url, language)
-		VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)
+		INSERT INTO articles (id, title, content, url, language)
+		VALUES (gen_random_uuid(), $1, $2, $3, $4), (gen_random_uuid(), $5, $6, $7, $8)
 	`,
-		"Climate Change", "Article about climate", "http://climate.com", "english",
-		"Technology News", "Article about tech", "http://tech.com", "english",
+		"Climate Change", "Article about climate", "http://climate.com", "eng",
+		"Technology News", "Article about tech", "http://tech.com", "eng",
 	)
 	if err != nil {
 		t.Fatalf("failed to insert test data: %v", err)
@@ -132,16 +132,16 @@ func TestRawExecutor_Exec_MultipleParameters(t *testing.T) {
 	defer truncateTable(t)
 
 	_, err := testPool.GetConn().Exec(testCtx, `
-		INSERT INTO articles (title, content, url, language, author)
-		VALUES ($1, $2, $3, $4, $5)
-	`, "Test Article", "Content here", "http://test.com", "english", "John Doe")
+		INSERT INTO articles (id, title, content, url, language, publisher_domain)
+		VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+	`, "Test Article", "Content here", "http://test.com", "eng", "test.com")
 	if err != nil {
 		t.Fatalf("failed to insert test data: %v", err)
 	}
 
 	result, err := testExecutor.Exec(testCtx, `
-		SELECT * FROM articles WHERE title = $1 AND author = $2
-	`, []interface{}{"Test Article", "John Doe"}, nil)
+		SELECT * FROM articles WHERE title = $1 AND publisher_domain = $2
+	`, []interface{}{"Test Article", "test.com"}, nil)
 	if err != nil {
 		t.Fatalf("failed to execute query: %v", err)
 	}
@@ -175,9 +175,9 @@ func TestRawExecutor_Exec_WithTimeout(t *testing.T) {
 	defer truncateTable(t)
 
 	_, err := testPool.GetConn().Exec(testCtx, `
-		INSERT INTO articles (title, content, url, language)
-		VALUES ($1, $2, $3, $4)
-	`, "Test Article", "Content", "http://test.com", "english")
+		INSERT INTO articles (id, title, content, url, language)
+		VALUES (gen_random_uuid(), $1, $2, $3, $4)
+	`, "Test Article", "Content", "http://test.com", "eng")
 	if err != nil {
 		t.Fatalf("failed to insert test data: %v", err)
 	}
@@ -201,16 +201,16 @@ func TestRawExecutor_Exec_MultipleRows(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		_, err := testPool.GetConn().Exec(testCtx, `
-			INSERT INTO articles (title, content, url, language)
-			VALUES ($1, $2, $3, $4)
-		`, "Article Title", "Content", "http://test.com", "english")
+			INSERT INTO articles (id, title, content, url, language)
+			VALUES (gen_random_uuid(), $1, $2, $3, $4)
+		`, "Article Title", "Content", "http://test.com", "eng")
 		if err != nil {
 			t.Fatalf("failed to insert test data: %v", err)
 		}
 	}
 
 	result, err := testExecutor.Exec(testCtx, `
-		SELECT * FROM articles ORDER BY created_at
+		SELECT * FROM articles ORDER BY id
 	`, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to execute query: %v", err)
@@ -229,16 +229,15 @@ func TestRawExecutor_Exec_AllFieldsReturned(t *testing.T) {
 	defer truncateTable(t)
 
 	_, err := testPool.GetConn().Exec(testCtx, `
-		INSERT INTO articles (title, subtitle, content, author, url, metadata, language, description)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO articles (id, title, content, url, publisher_domain, metadata, language, description)
+		VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
 	`,
 		"Full Test Article",
-		"Test Subtitle",
 		"This is the full test content for the article",
-		"Test Author",
 		"http://full-test.com",
+		"full-test.com",
 		`{"key": "value", "number": 42}`,
-		"english",
+		"eng",
 		"Test description",
 	)
 	if err != nil {
@@ -246,7 +245,7 @@ func TestRawExecutor_Exec_AllFieldsReturned(t *testing.T) {
 	}
 
 	result, err := testExecutor.Exec(testCtx, `
-		SELECT title, subtitle, content, author, url, metadata, language, description
+		SELECT title, content, url, publisher_domain, metadata, language, description
 		FROM articles
 	`, nil, nil)
 	if err != nil {
@@ -260,13 +259,12 @@ func TestRawExecutor_Exec_AllFieldsReturned(t *testing.T) {
 	hit := result.Hits[0]
 
 	expectedFields := map[string]interface{}{
-		"title":       "Full Test Article",
-		"subtitle":    "Test Subtitle",
-		"content":     "This is the full test content for the article",
-		"author":      "Test Author",
-		"url":         "http://full-test.com",
-		"language":    "english",
-		"description": "Test description",
+		"title":            "Full Test Article",
+		"content":          "This is the full test content for the article",
+		"url":              "http://full-test.com",
+		"publisher_domain": "full-test.com",
+		"language":         "eng",
+		"description":      "Test description",
 	}
 
 	for field, expectedValue := range expectedFields {

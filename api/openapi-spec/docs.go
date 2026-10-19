@@ -256,13 +256,7 @@ const docTemplate = `{
         "github_com_DjordjeVuckovic_tusker_internal_api_dto.Article": {
             "type": "object",
             "properties": {
-                "author": {
-                    "type": "string"
-                },
                 "content": {
-                    "type": "string"
-                },
-                "createdAt": {
                     "type": "string"
                 },
                 "description": {
@@ -275,12 +269,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "metadata": {
-                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleMetadata"
+                    "$ref": "#/definitions/github_com_DjordjeVuckovic_tusker_internal_api_dto.Metadata"
                 },
                 "publishedAt": {
                     "type": "string"
                 },
-                "subtitle": {
+                "publisherDomain": {
                     "type": "string"
                 },
                 "title": {
@@ -289,28 +283,6 @@ const docTemplate = `{
                 "url": {
                     "type": "string",
                     "format": "string"
-                }
-            }
-        },
-        "github_com_DjordjeVuckovic_tusker_internal_api_dto.ArticleMetadata": {
-            "type": "object",
-            "properties": {
-                "category": {
-                    "type": "string"
-                },
-                "extra": {
-                    "description": "Extra carries dataset-specific fields that have no schema field.",
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "importedAt": {
-                    "type": "string"
-                },
-                "sourceId": {
-                    "type": "string"
-                },
-                "sourceName": {
-                    "type": "string"
                 }
             }
         },
@@ -402,6 +374,43 @@ const docTemplate = `{
                 "query": {
                     "type": "string",
                     "minLength": 1
+                }
+            }
+        },
+        "github_com_DjordjeVuckovic_tusker_internal_api_dto.Metadata": {
+            "type": "object",
+            "properties": {
+                "authors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "dateModified": {
+                    "type": "string"
+                },
+                "externalId": {
+                    "type": "string"
+                },
+                "extra": {
+                    "description": "Extra carries dataset-specific fields that have no schema field.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "image": {
+                    "type": "string"
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "publisherName": {
+                    "type": "string"
+                },
+                "section": {
+                    "type": "string"
                 }
             }
         },
@@ -643,17 +652,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "title",
-                "subtitle",
                 "description",
-                "content",
-                "author"
+                "content"
             ],
             "x-enum-varnames": [
                 "FieldTitle",
-                "FieldSubtitle",
                 "FieldDescription",
-                "FieldContent",
-                "FieldAuthor"
+                "FieldContent"
             ]
         },
         "github_com_DjordjeVuckovic_tusker_internal_types_query.Ignored": {

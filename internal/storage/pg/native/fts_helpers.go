@@ -17,8 +17,6 @@ var fieldToLabel = map[query.Field]string{
 	query.FieldTitle:       "A",
 	query.FieldDescription: "B",
 	query.FieldContent:     "C",
-	query.FieldSubtitle:    "D",
-	query.FieldAuthor:      "D",
 }
 
 // isolatedFields are the searchable fields that alone fill their weight band.
@@ -37,12 +35,12 @@ func isolatedFields() []query.Field {
 }
 
 // Label to ts_rank weight array position mapping
-// PostgreSQL weights array format: {D, C, B, A} (reverse order!)
+// PostgreSQL weights array format: {D, C, B, A} (reverse order!). No field
+// fills band D, so its weight stays 0.
 var labelToPosition = map[string]int{
 	"A": 3, // Title - position 3 in {D, C, B, A}
 	"B": 2, // Description - position 2
 	"C": 1, // Content - position 1
-	"D": 0, // Subtitle/Author - position 0
 }
 
 // buildWeightLabels converts field names to PostgreSQL weight label string
@@ -64,9 +62,9 @@ func buildWeightLabels(fields []query.Field) string {
 		}
 	}
 
-	// Build sorted string (ABCD order for consistency)
+	// Build sorted string (ABC order for consistency)
 	result := ""
-	for _, label := range []string{"A", "B", "C", "D"} {
+	for _, label := range []string{"A", "B", "C"} {
 		if labels[label] {
 			result += label
 		}
@@ -117,7 +115,7 @@ func buildTsQuery(op operator.Operator, lang query.Language, paramNum int) strin
 }
 
 // buildRankExpression constructs a ts_rank expression with custom field weights
-// The pre-computed search_vector has weights: title=A, description=B, content=C, subtitle/author=D
+// The generated search_vector has weights: title=A, description=B, content=C
 // PostgreSQL's default weight values are: {0.1, 0.2, 0.4, 1.0} for {D, C, B, A}
 // Weight array format: {D-weight, C-weight, B-weight, A-weight} (REVERSE ORDER!)
 // Returns: "ts_rank('{0.0, 1.0, 1.5, 3.0}', search_vector, query)" or "ts_rank(search_vector, query)"
@@ -140,7 +138,7 @@ func buildRankExpression(fieldBoosts []query.FieldWeight, lang query.Language, o
 const DefaultOperator = operator.And
 
 // buildTsWhereClause matches free text against the requested fields only. No
-// fields, or fields covering all four bands, match the whole vector. Otherwise
+// fields, or fields covering every band, match the whole vector. Otherwise
 // the query also runs on the fields' weight bands; the whole-vector match goes
 // first so the GIN index narrows the rows.
 func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op operator.Operator, paramNum int) string {
@@ -148,7 +146,7 @@ func buildTsWhereClause(fieldBoosts []query.FieldWeight, lang query.Language, op
 	match := fmt.Sprintf("search_vector @@ %s", queryExpr)
 
 	labels := buildWeightLabels(fieldsOf(fieldBoosts))
-	if labels == "" || labels == "ABCD" {
+	if labels == "" || labels == "ABC" {
 		return match
 	}
 
@@ -208,7 +206,7 @@ func labelTerms(tsquery, labels string) string {
 func buildPhraseFieldMatch(fields []query.Field, phraseExpr string) string {
 	labels := buildWeightLabels(fields)
 	if labels == "" {
-		labels = "ABCD"
+		labels = "ABC"
 	}
 	perBand := make([]string, 0, len(labels))
 	for _, label := range strings.ToLower(labels) {

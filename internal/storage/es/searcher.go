@@ -2,7 +2,6 @@ package es
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/operator"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/sortorder"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/textquerytype"
-	"github.com/google/uuid"
 )
 
 type Searcher struct {
@@ -76,6 +74,7 @@ func (r *Searcher) SearchStringQuery(ctx context.Context, query *dquery.String, 
 
 	searchReq := r.client.Search().
 		Index(r.indexName).
+		SourceExcludes_("embedding").
 		Query(&types.Query{
 			MultiMatch: multiMatch,
 		}).
@@ -191,36 +190,12 @@ func mapToResult(hits []types.Hit, maxScore float64) ([]dto.ArticleSearchResult,
 	rawScores := make([]float64, 0, len(hits))
 
 	for _, hit := range hits {
-		var doc ArticleDocument
-		if err := json.Unmarshal(hit.Source_, &doc); err != nil {
-			return nil, nil, fmt.Errorf("failed to unmarshal document: %w", err)
-		}
-
-		id, err := uuid.Parse(doc.ID)
+		article, err := decodeArticle(hit.Source_)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parse document id %q: %w", doc.ID, err)
+			return nil, nil, err
 		}
 		if hit.Score_ == nil {
-			return nil, nil, fmt.Errorf("document %s has no _score", doc.ID)
-		}
-
-		article := dto.Article{
-			ID:          id,
-			Title:       doc.Title,
-			Subtitle:    doc.Subtitle,
-			Content:     doc.Content,
-			Author:      doc.Author,
-			Description: doc.Description,
-			URL:         doc.URL,
-			Language:    doc.Language,
-			CreatedAt:   doc.CreatedAt,
-			PublishedAt: doc.PublishedAt,
-			Metadata: dto.ArticleMetadata{
-				SourceId:   doc.SourceId,
-				SourceName: doc.SourceName,
-				Category:   doc.Category,
-				ImportedAt: doc.ImportedAt,
-			},
+			return nil, nil, fmt.Errorf("document %s has no _score", article.ID)
 		}
 
 		rawScore := float64(*hit.Score_)
@@ -260,6 +235,7 @@ func (r *Searcher) SearchField(ctx context.Context, query *dquery.Match, baseOpt
 	// Build search request with match query on specific field
 	searchReq := r.client.Search().
 		Index(r.indexName).
+		SourceExcludes_("embedding").
 		Query(&types.Query{
 			Match: map[string]types.MatchQuery{
 				string(query.Field): *matchQuery,
@@ -334,6 +310,7 @@ func (r *Searcher) SearchFields(ctx context.Context, query *dquery.MultiMatch, b
 	// Build and execute search request
 	searchReq := r.client.Search().
 		Index(r.indexName).
+		SourceExcludes_("embedding").
 		Query(&types.Query{
 			MultiMatch: multiMatch,
 		}).
@@ -429,6 +406,7 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 	// Build search request
 	searchReq := r.client.Search().
 		Index(r.indexName).
+		SourceExcludes_("embedding").
 		Query(&types.Query{
 			Bool: boolQuery,
 		}).
@@ -500,6 +478,7 @@ func (r *Searcher) SearchBoolean(ctx context.Context, query *dquery.Boolean, bas
 
 	searchReq := r.client.Search().
 		Index(r.indexName).
+		SourceExcludes_("embedding").
 		Query(&types.Query{
 			QueryString: queryStringQuery,
 		}).

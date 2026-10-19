@@ -6,6 +6,7 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/google/uuid"
 )
@@ -18,8 +19,8 @@ func TestHybridSearcher_LexicalLegReadsTheQueryAsFreeText(t *testing.T) {
 	}
 	bothTerms, budgetOnly := uuid.New(), uuid.New()
 	articles := []document.Article{
-		{ID: bothTerms, Title: "budget tariff", URL: "https://example.com/1", Language: "english"},
-		{ID: budgetOnly, Title: "budget", URL: "https://example.com/2", Language: "english"},
+		{ID: bothTerms, Title: "budget tariff", URL: "https://example.com/1", Language: language.English},
+		{ID: budgetOnly, Title: "budget", URL: "https://example.com/2", Language: language.English},
 	}
 	if err := indexer.SaveBulk(testCtx, articles); err != nil {
 		t.Fatalf("SaveBulk: %v", err)

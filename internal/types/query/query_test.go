@@ -9,7 +9,7 @@ func TestConstructorsAcceptOnlySearchableFields(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "match on a searchable field", build: func() error {
-			_, err := NewMatch(FieldAuthor, "smith")
+			_, err := NewMatch(FieldDescription, "smith")
 			return err
 		}},
 		{name: "match on an unknown field", wantErr: true, build: func() error {

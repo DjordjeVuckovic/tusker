@@ -15,15 +15,13 @@ type Field string
 
 const (
 	FieldTitle       Field = "title"
-	FieldSubtitle    Field = "subtitle"
 	FieldDescription Field = "description"
 	FieldContent     Field = "content"
-	FieldAuthor      Field = "author"
 )
 
 // SearchableFields is the allow-list of fields every engine indexes for full-text search.
 func SearchableFields() []Field {
-	return []Field{FieldTitle, FieldSubtitle, FieldDescription, FieldContent, FieldAuthor}
+	return []Field{FieldTitle, FieldDescription, FieldContent}
 }
 
 func ParseField(s string) (Field, error) {

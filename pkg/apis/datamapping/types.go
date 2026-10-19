@@ -102,7 +102,7 @@ type FieldMapping struct {
 	SourceType string `json:"sourceType,omitempty" yaml:"sourceType,omitempty" schema:"enum=string|int|float|bool|date|datetime,default=string" description:"Source field data type"`
 
 	// Target is the field name in the target struct
-	Target string `json:"target" yaml:"target" schema:"required,enum=ID|Title|Subtitle|Content|Author|Description|Language|URL|PublishedAt|CreatedAt|Metadata.SourceId|Metadata.SourceName|Metadata.Category|Metadata.ImportedAt" description:"Target field in the Article struct, or Metadata.Extra.<key> for a dataset-specific field"`
+	Target string `json:"target" yaml:"target" schema:"required,enum=ID|URL|Title|Description|Content|PublishedAt|Language|Metadata.PublisherName|Metadata.Section|Metadata.Image|Metadata.DateModified" description:"Target field in the Article struct, or Metadata.Extra.<key> for a dataset-specific field"`
 
 	// TargetType is the data type of the target field
 	TargetType string `json:"targetType,omitempty" yaml:"targetType,omitempty" schema:"enum=string|int|float|bool|date|datetime|uuid|url|json,default=string" description:"Target field data type"`
@@ -146,10 +146,9 @@ func (dm *DataMapper) Validate() error {
 const ExtraTargetPrefix = "Metadata.Extra."
 
 var articleTargets = map[string]struct{}{
-	"ID": {}, "Title": {}, "Subtitle": {}, "Content": {}, "Author": {},
-	"Description": {}, "Language": {}, "URL": {}, "PublishedAt": {},
-	"CreatedAt": {}, "Metadata.SourceId": {}, "Metadata.SourceName": {},
-	"Metadata.Category": {}, "Metadata.ImportedAt": {},
+	"ID": {}, "URL": {}, "Title": {}, "Description": {}, "Content": {},
+	"PublishedAt": {}, "Language": {}, "Metadata.PublisherName": {},
+	"Metadata.Section": {}, "Metadata.Image": {}, "Metadata.DateModified": {},
 }
 
 // renamedTargets maps retired target names to their replacement, so a stale

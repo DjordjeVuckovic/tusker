@@ -2,7 +2,6 @@ package es
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -12,7 +11,6 @@ import (
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
-	"github.com/google/uuid"
 )
 
 const minNumCandidates = 100
@@ -79,11 +77,7 @@ func (s *SemanticSearcher) SearchSemantic(ctx context.Context, query *dquery.Sem
 	res, err := s.client.Search().
 		Index(s.indexName).
 		Knn(knn).
-		SourceIncludes_(
-			"id", "title", "subtitle", "content", "description",
-			"author", "url", "language", "created_at",
-			"source_id", "source_name", "published_at", "category", "imported_at",
-		).
+		SourceExcludes_("embedding").
 		Size(size).
 		Do(ctx)
 	if err != nil {
@@ -111,34 +105,11 @@ func (s *SemanticSearcher) SearchSemantic(ctx context.Context, query *dquery.Sem
 func (s *SemanticSearcher) mapToArticles(hits []types.Hit) ([]dto.Article, error) {
 	articles := make([]dto.Article, 0, len(hits))
 	for _, hit := range hits {
-		var doc ArticleDocument
-		if err := json.Unmarshal(hit.Source_, &doc); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal document: %w", err)
-		}
-
-		id, err := uuid.Parse(doc.ID)
+		article, err := decodeArticle(hit.Source_)
 		if err != nil {
-			return nil, fmt.Errorf("parse document id %q: %w", doc.ID, err)
+			return nil, err
 		}
-
-		articles = append(articles, dto.Article{
-			ID:          id,
-			Title:       doc.Title,
-			Subtitle:    doc.Subtitle,
-			Content:     doc.Content,
-			Author:      doc.Author,
-			Description: doc.Description,
-			URL:         doc.URL,
-			Language:    doc.Language,
-			CreatedAt:   doc.CreatedAt,
-			PublishedAt: doc.PublishedAt,
-			Metadata: dto.ArticleMetadata{
-				SourceId:   doc.SourceId,
-				SourceName: doc.SourceName,
-				Category:   doc.Category,
-				ImportedAt: doc.ImportedAt,
-			},
-		})
+		articles = append(articles, article)
 	}
 	return articles, nil
 }

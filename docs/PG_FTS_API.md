@@ -153,7 +153,7 @@ SELECT phraseto_tsquery('english', 'The Fat Rats');
 
 ## Weight Label System
 
-PostgreSQL uses weight labels (`A`, `B`, `C`, `D`) to mark lexemes from different document sections.
+PostgreSQL uses weight labels (`A`, `B`, `C`, `D`) to mark lexemes from different document sections. The articles table fills A, B and C; no field fills D.
 
 ### Field-to-Label Mapping
 
@@ -163,7 +163,6 @@ Field           → Weight Label → Array Position → Default Boost
 title           → A            → 3              → 1.0
 description     → B            → 2              → 0.4
 content         → C            → 1              → 0.2
-subtitle/author → D            → 0              → 0.1
 ```
 
 ### How Weights Are Stored
@@ -172,33 +171,22 @@ The `search_vector` column contains tsvector with labeled lexemes:
 
 ```sql
 -- Example search_vector value:
-'climat':1A,5B,10C 'chang':2A,6B,11C 'action':3B 'trump':15D
+'climat':1A,5B,10C 'chang':2A,6B,11C 'action':3B
 ```
 
 This means:
 - 'climat' appears in title (position 1, weight A), description (position 5, weight B), content (position 10, weight C)
 - 'action' appears only in description (position 3, weight B)
-- 'trump' appears only in author/subtitle (position 15, weight D)
 
 ### Weight Label Creation (Migration)
 
 ```sql
--- From migration 003_add_search_vector_trigger.up.sql
-CREATE OR REPLACE FUNCTION update_article_search_vector()
-    RETURNS TRIGGER AS $$
-BEGIN
-    NEW.search_vector :=
-        setweight(to_tsvector(COALESCE(NEW.language, 'english')::regconfig,
-                              COALESCE(NEW.title, '')), 'A') ||
-        setweight(to_tsvector(COALESCE(NEW.language, 'english')::regconfig,
-                              COALESCE(NEW.description, '')), 'B') ||
-        setweight(to_tsvector(COALESCE(NEW.language, 'english')::regconfig,
-                              COALESCE(NEW.content, '')), 'C') ||
-        setweight(to_tsvector(COALESCE(NEW.language, 'english')::regconfig,
-                              COALESCE(NEW.subtitle, '') || ' ' || COALESCE(NEW.author, '')), 'D');
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- From 002_create_articles_table.up.sql
+search_vector tsvector GENERATED ALWAYS AS (
+    setweight(to_tsvector('english', title), 'A') ||
+    setweight(to_tsvector('english', description), 'B') ||
+    setweight(to_tsvector('english', content), 'C')
+) STORED
 ```
 
 ### Weight Label Filtering
@@ -286,7 +274,7 @@ ORDER BY score DESC;
 |-------|--------|----------|
 | `> 1.0` | Increases field importance | Boost title: `title^3.0` |
 | `1.0` | Default weight | Normal field importance |
-| `0.0 < x < 1.0` | Decreases field importance | De-prioritize: `author^0.2` |
+| `0.0 < x < 1.0` | Decreases field importance | De-prioritize: `content^0.2` |
 | `0.0` | No score contribution | Exclude from scoring but still matches |
 
 **Important**: Setting boost to `0.0` does NOT exclude the field from matching. Documents with matches in that field will still be returned, but they contribute 0 to the score.
@@ -562,8 +550,6 @@ var fieldToLabel = map[string]string{
     "title":       "A",
     "description": "B",
     "content":     "C",
-    "subtitle":    "D",
-    "author":      "D",
 }
 
 // Label to array position mapping (for ts_rank weights array)
@@ -571,7 +557,6 @@ var labelToPosition = map[string]int{
     "A": 3,  // {D, C, B, A} - position 3
     "B": 2,  // {D, C, B, A} - position 2
     "C": 1,  // {D, C, B, A} - position 1
-    "D": 0,  // {D, C, B, A} - position 0
 }
 ```
 
@@ -621,9 +606,9 @@ func buildWeightLabels(fields []string) string {
         }
     }
 
-    // Build sorted string (ABCD order)
+    // Build sorted string (ABC order)
     result := ""
-    for _, label := range []string{"A", "B", "C", "D"} {
+    for _, label := range []string{"A", "B", "C"} {
         if labels[label] {
             result += label
         }
@@ -647,13 +632,7 @@ func buildWeightsArray(fieldBoosts []FieldBoost) string {
     for _, fb := range fieldBoosts {
         label := fieldToLabel[fb.Field]
         position := labelToPosition[label]
-
-        // For D (subtitle/author), take max boost
-        if position == 0 {
-            weights[position] = math.Max(weights[position], fb.Boost)
-        } else {
-            weights[position] = fb.Boost
-        }
+        weights[position] = math.Max(weights[position], fb.Boost)
     }
 
     return fmt.Sprintf("{%.2f, %.2f, %.2f, %.2f}",
@@ -815,14 +794,14 @@ ORDER BY ts_rank('{0.0, 1.0, 1.5, 3.0}', search_vector, websearch_to_tsquery('en
 ### 1. Pre-Computed search_vector
 
 **Advantages**:
-- ✅ Computed once at INSERT/UPDATE time via trigger
+- ✅ Computed once at INSERT/UPDATE time as a generated column
 - ✅ GIN-indexed for fast searches
 - ✅ Weight labels baked in (no runtime computation)
 - ✅ Significant performance improvement over dynamic `to_tsvector()`
 
 **Trade-offs**:
 - Storage overhead (additional column)
-- Slight INSERT/UPDATE overhead (trigger execution)
+- Slight INSERT/UPDATE overhead (computing the column)
 
 **Recommendation**: Always use pre-computed `search_vector` for production.
 

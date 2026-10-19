@@ -1,6 +1,7 @@
 package reader
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"reflect"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
 	"github.com/DjordjeVuckovic/tusker/pkg/utils"
 	"github.com/google/uuid"
@@ -136,7 +138,7 @@ func isBlank(converted any) bool {
 	}
 }
 
-// ArticleDirectMapper reads records that are already canonical
+// ArticleDirectMapper reads records already in canonical form.
 type ArticleDirectMapper struct{}
 
 func NewArticleDirectMapper() *ArticleDirectMapper {
@@ -149,40 +151,32 @@ func (m *ArticleDirectMapper) Map(record map[string]string) (document.Article, e
 		return document.Article{}, fmt.Errorf("invalid id: %w", err)
 	}
 
-	createdAt, err := utils.ParseTimeOptional(record["createdAt"])
+	lang, err := language.Parse(record["language"])
 	if err != nil {
-		createdAt = time.Now()
+		return document.Article{}, fmt.Errorf("article %s: %w", id, err)
 	}
 
-	articleURL, _ := NormalizeURL(record["url"])
-
-	var publishedAt time.Time
-	if t, err := utils.ParseTimeOptional(record["publishedAt"]); err == nil {
-		publishedAt = t
+	publishedAt, err := utils.ParseTimeOptional(record["publishedAt"])
+	if err != nil {
+		return document.Article{}, fmt.Errorf("article %s: invalid publishedAt: %w", id, err)
 	}
 
-	var importedAt time.Time
-	if t, err := utils.ParseTimeOptional(record["importedAt"]); err == nil {
-		importedAt = t
+	var metadata document.Metadata
+	if raw := record["metadata"]; raw != "" {
+		if err := json.Unmarshal([]byte(raw), &metadata); err != nil {
+			return document.Article{}, fmt.Errorf("article %s: invalid metadata: %w", id, err)
+		}
 	}
 
 	return document.Article{
-		ID:          id,
-		Title:       record["title"],
-		Subtitle:    record["subtitle"],
-		Content:     record["content"],
-		Author:      record["author"],
-		Description: record["description"],
-		Language:    record["language"],
-		URL:         articleURL,
-		PublishedAt: publishedAt,
-		CreatedAt:   createdAt,
-		Metadata: document.ArticleMetadata{
-			SourceId:   record["sourceId"],
-			SourceName: record["sourceName"],
-			Category:   record["category"],
-			ImportedAt: importedAt,
-		},
-		SearchVector: record["search_vector"],
+		ID:              id,
+		URL:             record["url"],
+		Title:           record["title"],
+		Description:     record["description"],
+		Content:         record["content"],
+		PublishedAt:     publishedAt,
+		Language:        lang,
+		PublisherDomain: record["publisherDomain"],
+		Metadata:        metadata,
 	}, nil
 }

@@ -23,13 +23,13 @@ Every engine answers the same request in the same way, or says it cannot:
 | | PostgreSQL | Elasticsearch |
 |---|---|---|
 | Operator when none is given | AND (every term) | OR (any term) |
-| Fields it can match alone | title, description, content | title, subtitle, description, content, author |
+| Fields it can match alone | title, description, content | title, description, content |
 | `fuzziness` | 400, or ignored when lenient | honoured |
 | Phrase `slop` | honoured | honoured |
 | Boosts (between 1.4e-45 and 3.4e38) | applied to title, description, content | applied |
 | `language` | `english` stems in English | `english` accepted; analysis is fixed by the index mapping |
 
-Postgres keeps subtitle and author in one weight band (D), so it cannot match either alone; naming one is a 400 unless the request is lenient. `GET /v1/capabilities` reports the running engine's row of this table.
+Any other field is a 400 on both engines, lenient or not. `GET /v1/capabilities` reports the running engine's row of this table.
 
 ---
 
@@ -69,15 +69,13 @@ GET /v1/articles/search?q=climate%20change&size=10&lang=english
         "title": "Climate Change Impact on Ecosystems",
         "description": "Study reveals significant impact...",
         "content": "Full article content...",
-        "url": "https://example.com/article",
-        "language": "english",
-        "created_at": "2024-01-15T10:30:00Z",
+        "url": "https://www.bbc.co.uk/news/article",
+        "publishedAt": "2024-01-15T09:00:00Z",
+        "language": "eng",
+        "publisherDomain": "bbc.co.uk",
         "metadata": {
-          "source_name": "BBC News",
-          "source_id": "bbc-news",
-          "published_at": "2024-01-15T09:00:00Z",
-          "category": "Environment",
-          "imported_at": "2024-01-15T10:00:00Z"
+          "publisherName": "BBC News",
+          "section": "Environment"
         }
       },
       "score": 2.456,
@@ -143,7 +141,7 @@ GET /v1/articles/search?q=climate%20change&size=10&lang=english
 
 | Field | Type | Required | Description | Example |
 |-------|------|----------|-------------|---------|
-| `field` | string | Yes | Field to search: title, subtitle, description, content, author (Postgres: title, description, content) | `"title"` |
+| `field` | string | Yes | Field to search: title, description or content | `"title"` |
 | `query` | string | Yes | Search text | `"climate change"` |
 | `operator` | string | No | "and" or "or" (default: the engine's) | `"and"` |
 | `fuzziness` | string | No | Typo tolerance: NONE, AUTO, 0, 1, 2. Elasticsearch only; Postgres returns 400 unless lenient | `"AUTO"` |
@@ -274,20 +272,21 @@ All endpoints return the same structure:
 {
   "article": {
     "id": "uuid",
+    "url": "string",
     "title": "string",
-    "subtitle": "string",
     "description": "string",
     "content": "string",
-    "author": "string",
-    "url": "string",
+    "publishedAt": "timestamp",
     "language": "string",
-    "created_at": "timestamp",
+    "publisherDomain": "string",
     "metadata": {
-      "source_id": "string",
-      "source_name": "string",
-      "published_at": "timestamp",
-      "category": "string",
-      "imported_at": "timestamp"
+      "publisherName": "string",
+      "authors": ["string"],
+      "section": "string",
+      "keywords": ["string"],
+      "image": "string",
+      "dateModified": "timestamp",
+      "extra": {}
     }
   },
   "score": float64,              // Raw relevance score

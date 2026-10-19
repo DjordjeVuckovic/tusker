@@ -7,6 +7,7 @@ import (
 
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/types/document"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/google/uuid"
 )
@@ -67,7 +68,7 @@ func TestEmbedder_SaveBulk_UpdatesDocAndSkipsOrphans(t *testing.T) {
 	_, indexer, embedder := newEmbedderTestEnv(t)
 
 	a1 := uuid.New()
-	if _, err := indexer.Save(ctx, document.Article{ID: a1, Title: "first", Language: "english"}); err != nil {
+	if _, err := indexer.Save(ctx, document.Article{ID: a1, Title: "first", Language: language.English}); err != nil {
 		t.Fatalf("index article: %v", err)
 	}
 	refresh(t, embedder)
@@ -120,7 +121,7 @@ func TestIndexer_CountEmbedded(t *testing.T) {
 	_, indexer, embedder := newEmbedderTestEnv(t)
 
 	id := uuid.New()
-	if _, err := indexer.Save(ctx, document.Article{ID: id, Title: "first", Language: "english"}); err != nil {
+	if _, err := indexer.Save(ctx, document.Article{ID: id, Title: "first", Language: language.English}); err != nil {
 		t.Fatalf("index article: %v", err)
 	}
 	refresh(t, embedder)

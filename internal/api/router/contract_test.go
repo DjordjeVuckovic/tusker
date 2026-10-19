@@ -82,6 +82,14 @@ func decodeContract(t *testing.T, rec *httptest.ResponseRecorder) contractRespon
 	return got
 }
 
+func TestEveryEngineMatchesEachSearchableFieldApart(t *testing.T) {
+	for _, caps := range []dquery.Capabilities{postgresCaps, elasticsearchCaps} {
+		if !slices.Equal(caps.Fields, dquery.SearchableFields()) {
+			t.Errorf("%s fields = %v, want %v", caps.Engine, caps.Fields, dquery.SearchableFields())
+		}
+	}
+}
+
 func TestStrictSearchRejectsAParamTheEngineCannotHonour(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -92,21 +100,6 @@ func TestStrictSearchRejectsAParamTheEngineCannotHonour(t *testing.T) {
 			name:      "fuzziness",
 			body:      `{"query":{"match":{"field":"title","query":"climate","fuzziness":"auto"}}}`,
 			wantParam: "fuzziness",
-		},
-		{
-			name:      "a match field sharing a weight band",
-			body:      `{"query":{"match":{"field":"author","query":"smith"}}}`,
-			wantParam: "fields",
-		},
-		{
-			name:      "a multi_match field sharing a weight band",
-			body:      `{"query":{"multi_match":{"fields":["title","subtitle"],"query":"climate"}}}`,
-			wantParam: "fields",
-		},
-		{
-			name:      "a phrase field sharing a weight band",
-			body:      `{"query":{"phrase":{"fields":["author"],"query":"john smith"}}}`,
-			wantParam: "fields",
 		},
 	}
 	for _, tt := range tests {
@@ -143,12 +136,6 @@ func TestLenientSearchRunsAndReportsWhatItIgnored(t *testing.T) {
 			name:        "fuzziness",
 			body:        `{"query":{"match":{"field":"title","query":"climate","fuzziness":"auto"}}}`,
 			wantIgnored: []string{"fuzziness"},
-			wantFields:  []dquery.Field{dquery.FieldTitle},
-		},
-		{
-			name:        "a boosted field sharing a weight band",
-			body:        `{"query":{"multi_match":{"fields":["title","author^2"],"query":"climate"}}}`,
-			wantIgnored: []string{"fields"},
 			wantFields:  []dquery.Field{dquery.FieldTitle},
 		},
 	}
