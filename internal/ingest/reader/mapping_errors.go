@@ -9,6 +9,7 @@ const (
 	ReasonMissingColumn DropReason = "missing_source_column"
 	ReasonEmptyValue    DropReason = "empty_required_value"
 	ReasonConversion    DropReason = "conversion_failed"
+	ReasonInvalidURL    DropReason = "invalid_url"
 )
 
 // MappingDropError reports a record the mapper refused to produce

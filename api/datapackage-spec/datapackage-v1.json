@@ -126,6 +126,21 @@
       },
       "additionalProperties": false
     },
+    "raw": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "report": {
       "type": "object",
       "required": [

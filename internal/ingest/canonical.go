@@ -72,13 +72,16 @@ func toParquetArticle(ar document.Article) (parquetArticle, error) {
 	return row, nil
 }
 
+// A fixed row group size keeps the parquet bytes deterministic.
+const canonicalRowGroupRows = 10_000
+
 type ParquetCanonicalWriter struct {
 	w *parquet.GenericWriter[parquetArticle]
 }
 
 func NewParquetCanonicalWriter(writer io.Writer) *ParquetCanonicalWriter {
 	return &ParquetCanonicalWriter{
-		w: parquet.NewGenericWriter[parquetArticle](writer),
+		w: parquet.NewGenericWriter[parquetArticle](writer, parquet.MaxRowsPerRowGroup(canonicalRowGroupRows)),
 	}
 }
 

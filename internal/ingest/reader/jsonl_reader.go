@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"sync"
 )
@@ -37,6 +38,30 @@ func (jr *JSONLReader) Read() ([]map[string]string, error) {
 		records = append(records, record)
 	}
 	return records, scanner.Err()
+}
+
+func (jr *JSONLReader) Records() iter.Seq2[map[string]string, error] {
+	return func(yield func(map[string]string, error) bool) {
+		scanner := bufio.NewScanner(jr.reader)
+		scanner.Buffer(make([]byte, BufferSize), BufferSize)
+		var line int64
+		for scanner.Scan() {
+			line++
+			if len(scanner.Bytes()) == 0 {
+				continue
+			}
+			record, err := decodeJSONLine(scanner.Bytes())
+			if err != nil {
+				err = &MalformedRecordError{Line: line, Err: err}
+			}
+			if !yield(record, err) {
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			yield(nil, fmt.Errorf("read jsonl line %d: %w", line+1, err))
+		}
+	}
 }
 
 func (jr *JSONLReader) ReadParallel(ctx context.Context, workerCount int) (<-chan ParallelReaderResult, error) {

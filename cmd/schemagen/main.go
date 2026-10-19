@@ -6,9 +6,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-
-	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
-	"github.com/DjordjeVuckovic/tusker/pkg/schema"
 )
 
 func main() {
@@ -16,7 +13,6 @@ func main() {
 		outputDir       = flag.String("output", "api", "Output directory for the data mapping schema")
 		strictMode      = flag.Bool("strict", true, "Enable strict validation mode for the data mapping schema")
 		includeExamples = flag.Bool("examples", true, "Include the data mapping example configuration")
-		baseURI         = flag.String("base-uri", "https://schemas.tusker.sh", "Base URI for the data mapping schema ID")
 		verbose         = flag.Bool("verbose", false, "Enable verbose logging")
 		dataPackageDir  = flag.String("datapackage-output", "", "Output directory for the data package descriptor schema; written only when set")
 	)
@@ -38,32 +34,17 @@ func main() {
 		log.Fatalf("Failed to create output directory %s: %v", *outputDir, err)
 	}
 
-	config := schema.GeneratorConfig{
-		IncludeExamples:     *includeExamples,
-		StrictValidation:    *strictMode,
-		UseDefinitions:      true,
-		BaseURI:             *baseURI,
-		SkipSchemaReference: false,
-	}
-
-	generator := schema.NewGeneratorWithConfig(config)
-
 	if *verbose {
-		log.Printf("Generating schemas with config: strict=%v, examples=%v, baseURI=%s",
-			*strictMode, *includeExamples, *baseURI)
+		log.Printf("Generating JSON schema for DataMapping: strict=%v, examples=%v", *strictMode, *includeExamples)
 	}
 
-	if *verbose {
-		log.Printf("Generating JSON schema for DataMapping...")
-	}
-
-	schemaJSON, err := generator.GenerateJSONSchema(datamapping.DataMapper{})
+	schemaJSON, err := mappingSchema(*strictMode)
 	if err != nil {
 		log.Fatalf("Failed to generate schema for DataMapping: %v", err)
 	}
 
-	jsonFile := filepath.Join(*outputDir, "datamapping-v1.json")
-	if err := os.WriteFile(jsonFile, []byte(schemaJSON), 0644); err != nil {
+	jsonFile := filepath.Join(*outputDir, mappingSchemaFile)
+	if err := os.WriteFile(jsonFile, schemaJSON, 0644); err != nil {
 		log.Fatalf("Failed to write JSON schema to %s: %v", jsonFile, err)
 	}
 
@@ -94,41 +75,46 @@ func main() {
 }
 
 func generateYAMLExample() string {
-	return `# DataMapping Example Configuration
-# This file demonstrates the structure for defining field mappings
+	return `# DataMapping example: maps the columns of a raw news dataset onto articles.
 
 kind: DataMapper
 version: v1
 metadata:
-  name: "Kaggle News Dataset"
-  description: "Field mapping configuration for Kaggle news dataset import"
-dataset: "kaggle"
+  name: "Example News Dataset"
+  description: "Field mapping for a raw news dataset"
+dataset: "example"
 dateFormat: "2006-01-02T15:04:05Z"
+idStrategy:
+  kind: uuidv5
+  source: "url"
+constants:
+  Language: eng
+output:
+  format: parquet
 fieldMappings:
+  - source: "url"
+    sourceType: "url"
+    target: "URL"
+    required: true
   - source: "title"
-    sourceType: "string"
     target: "Title"
-    targetType: "string"
     required: true
-  - source: "content" 
-    sourceType: "string"
+  - source: "summary"
+    target: "Description"
+  - source: "content"
     target: "Content"
-    targetType: "string"
-    required: true
-  - source: "author"
-    sourceType: "string" 
-    target: "Author"
-    targetType: "string"
-    required: false
   - source: "published_date"
     sourceType: "datetime"
-    target: "CreatedAt"
-    targetType: "datetime"
-    required: false
-  - source: "language"
-    sourceType: "string"
-    target: "Language" 
-    targetType: "string"
-    required: false
+    target: "PublishedAt"
+  - source: "publication"
+    target: "Metadata.PublisherName"
+  - source: "authors"
+    target: "Metadata.Authors"
+    separator: ";"
+  - source: "section"
+    target: "Metadata.Section"
+  - source: "word_count"
+    sourceType: "int"
+    target: "Metadata.Extra.wordCount"
 `
 }

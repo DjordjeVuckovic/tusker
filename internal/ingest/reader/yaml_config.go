@@ -1,6 +1,7 @@
 package reader
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/DjordjeVuckovic/tusker/pkg/apis/datamapping"
@@ -17,11 +18,13 @@ func NewYAMLConfigLoader(reader io.Reader) *YAMLConfigLoader {
 	}
 }
 
+// Load fails on any key the schema does not define.
 func (cl *YAMLConfigLoader) Load(validate bool) (*datamapping.DataMapper, error) {
 	decoder := yaml.NewDecoder(cl.reader)
+	decoder.KnownFields(true)
 	var mapping datamapping.DataMapper
 	if err := decoder.Decode(&mapping); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode mapping: %w", err)
 	}
 	if validate {
 		if err := mapping.Validate(); err != nil {

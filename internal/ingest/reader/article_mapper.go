@@ -2,6 +2,7 @@ package reader
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"reflect"
@@ -17,77 +18,43 @@ import (
 
 type ArticleMapper struct {
 	cfg      *datamapping.DataMapper
-	idKind   datamapping.IdStrategyKind
-	idSource string
+	language language.Code
 }
 
 func NewArticleMapper(cfg *datamapping.DataMapper) (*ArticleMapper, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	idKind, err := cfg.IdStrategy.ResolvedKind()
+	lang, err := cfg.Constants.ResolvedLanguage()
 	if err != nil {
 		return nil, err
 	}
-	return &ArticleMapper{cfg: cfg, idKind: idKind, idSource: cfg.IdStrategy.Source}, nil
+	return &ArticleMapper{cfg: cfg, language: lang}, nil
 }
 
-// newID produces the id a record starts with. A mapping that also targets ID
-// overwrites it, which is how a dataset carrying its own ids keeps them.
-func (m *ArticleMapper) newID(record map[string]string) (uuid.UUID, error) {
-	if m.idKind != datamapping.IdStrategyUuidV5 {
-		return document.NewArticleID(), nil
-	}
-
-	name := strings.TrimSpace(record[m.idSource])
-	if name == "" {
-		return uuid.Nil, &MappingDropError{
-			Reason: ReasonEmptyValue,
-			Source: m.idSource,
-			Target: "ID",
-		}
-	}
-	return document.DeriveArticleID(name), nil
-}
-
+// Map returns a *MappingDropError when a required value is missing or invalid.
 func (m *ArticleMapper) Map(record map[string]string) (document.Article, error) {
-	id, err := m.newID(record)
-	if err != nil {
-		return document.Article{}, err
-	}
-
-	article := document.Article{ID: id}
+	article := document.Article{Language: m.language}
 	val := reflect.ValueOf(&article).Elem()
 
 	for _, fm := range m.cfg.FieldMappings {
 		raw, present := record[fm.Source]
 		if !present {
 			if fm.Required {
-				return document.Article{}, &MappingDropError{
-					Reason: ReasonMissingColumn,
-					Source: fm.Source,
-					Target: fm.Target,
-				}
+				return document.Article{}, &MappingDropError{Reason: ReasonMissingColumn, Source: fm.Source, Target: fm.Target}
 			}
 			continue
 		}
 
 		if strings.TrimSpace(raw) == "" {
 			if fm.Required {
-				return document.Article{}, &MappingDropError{
-					Reason: ReasonEmptyValue,
-					Source: fm.Source,
-					Target: fm.Target,
-				}
+				return document.Article{}, &MappingDropError{Reason: ReasonEmptyValue, Source: fm.Source, Target: fm.Target}
 			}
-			slog.Debug("skipping empty field", "field", fm.Source)
 			continue
 		}
 
-		converted, err := convertValueToType(raw, fm.SourceType, m.cfg.DateFormat)
+		converted, err := m.convert(raw, fm)
 		if err == nil && isBlank(converted) {
-			// An unparsable URL normalizes to "" instead of erroring, so a
-			// blank result has to fail the required check on its own.
 			err = fmt.Errorf("value %q converted to an empty %s", raw, fm.SourceType)
 		}
 		if err == nil {
@@ -95,18 +62,54 @@ func (m *ArticleMapper) Map(record map[string]string) (document.Article, error) 
 		}
 		if err != nil {
 			if fm.Required {
-				return document.Article{}, &MappingDropError{
-					Reason: ReasonConversion,
-					Source: fm.Source,
-					Target: fm.Target,
-					Err:    err,
+				reason := ReasonConversion
+				if errors.Is(err, errInvalidURL) {
+					reason = ReasonInvalidURL
 				}
+				return document.Article{}, &MappingDropError{Reason: reason, Source: fm.Source, Target: fm.Target, Err: err}
 			}
 			slog.Warn("skipping optional field", "field", fm.Target, "error", err)
 		}
 	}
 
+	article.ID = document.DeriveArticleID(article.URL)
+	article.PublisherDomain = PublisherDomain(article.URL)
 	return article, nil
+}
+
+var errInvalidURL = errors.New("not an absolute http(s) url")
+
+func (m *ArticleMapper) convert(raw string, fm datamapping.FieldMapping) (any, error) {
+	sourceType, err := fm.ResolvedSourceType()
+	if err != nil {
+		return nil, err
+	}
+	if datamapping.IsListTarget(fm.Target) {
+		return splitList(raw, fm.Separator), nil
+	}
+	if sourceType == datamapping.SourceURL {
+		normalized, ok := NormalizeURL(raw)
+		if !ok {
+			return nil, fmt.Errorf("value %q: %w", raw, errInvalidURL)
+		}
+		return normalized, nil
+	}
+	return convertValueToType(raw, string(sourceType), m.cfg.DateFormat)
+}
+
+// splitList without a separator keeps raw as one element.
+func splitList(raw, separator string) []string {
+	parts := []string{raw}
+	if separator != "" {
+		parts = strings.Split(raw, separator)
+	}
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			values = append(values, part)
+		}
+	}
+	return values
 }
 
 // assign routes a converted value to its target. Metadata.Extra.<key> is a
@@ -133,6 +136,8 @@ func isBlank(converted any) bool {
 		return v == ""
 	case time.Time:
 		return v.IsZero()
+	case []string:
+		return len(v) == 0
 	default:
 		return false
 	}

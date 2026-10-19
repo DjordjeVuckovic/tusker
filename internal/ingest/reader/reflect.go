@@ -179,8 +179,6 @@ func convertValueToType(value string, fieldType string, dateFormat string) (inte
 		}
 		return id, nil
 	case "url":
-		// Invalid URLs normalize to "" — the article is kept (URL is optional
-		// provenance metadata), not dropped.
 		normalized, _ := NormalizeURL(value)
 		return normalized, nil
 	default:

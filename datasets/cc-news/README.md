@@ -15,16 +15,16 @@ CommonCrawl News crawl with bodies extracted by
 
 77,598 rows (11%) carry an empty `date`. The fetch script writes those as an empty
 field, which `datapipe preprocess` skips since the target is optional. `domain` is a
-hostname such as `www.pointemagazine.com`, while `all-the-news` supplies a publication
-name for the same canonical field, so anything faceting across both corpora has to
-account for the difference.
+hostname such as `www.pointemagazine.com` and is not mapped: preprocess derives
+`publisherDomain` from the url instead (`pointemagazine.com`), the same way for every
+corpus.
 
 ```
 datasets/cc-news/
   raw/                       mirrored HuggingFace shards (--mirror)
   dataset-100k.csv           slice written by scripts/fetch_hf_dataset.py
   dataset-100k.meta.json     provenance: repo, mode, seed, row count
-  canonical-dataset.jsonl    datapipe preprocess output
+  canonical/<version>/       datapipe preprocess output, a canonical data package
   embeddings.parquet         Colab embeddings (qwen3-embedding:0.6b)
 ```
 
@@ -55,16 +55,16 @@ worth it for a quick look before mirroring.
 Two runs with the same `--seed` drew the identical sample here, and slices are cut in
 `hash(url)` order so a smaller size is a prefix of a larger one. DuckDB promises neither
 across versions, so treat the written file plus its `.meta.json` as the archived
-artifact. `--format parquet` writes the same columns; `datapipe preprocess` rejects it
-until `internal/ingest/reader/parquet_reader.go` is implemented.
+artifact. `--format parquet` writes the same columns. Slices are not data packages, so
+`datapipe preprocess` reads the mirrored `raw/` package, not a slice.
 
 ## Preprocess and load
 
 ```bash
 go run ./cmd/datapipe preprocess \
-  --input datasets/cc-news/dataset-100k.csv \
+  --input datasets/cc-news/raw \
   --mapping datasets/cc-news/mapping.yaml \
-  --output datasets/cc-news/canonical-dataset.jsonl
+  --output datasets/cc-news/canonical
 
 ENV_PATHS=cmd/datapipe/pg.env go run ./cmd/datapipe load --engine native \
   --canonical datasets/cc-news/canonical/<version>/datapackage.json \
