@@ -10,6 +10,7 @@ of `../scripts` on purpose, so they check the pipeline rather than repeat it.
 - `ref.py`, `full_ref.py`, `pyporter.py`: reference stemmers; run each with `uv run --isolated --no-project --python 3.12 --with <pkg>==<version>`
 - `hun.py`: hunspell lemma sets on PG and ES
 - `wn.py`: WordNet morphy references
+- `porter_vs_porter2.py`: Porter against Porter2 over the vocabulary, on the stored engine stems or on `full_ref.py` outputs (added 2026-10-19)
 - `retr.py`: re-indexes sample B and re-runs the proxy queries for four chains, comparing with `../out/divergence_results.json`
 
 They write their outputs to the working directory; nothing under `../out` is modified.

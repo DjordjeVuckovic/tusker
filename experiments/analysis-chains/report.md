@@ -92,6 +92,10 @@ including a custom hunspell one, but a custom configuration must be schema-quali
   NLTK's original mode, 136 from libstemmer's `porter`, 1.488% of the weight). *Corrected
   (F3.3): the first run reported 132 and 135 because it read the empty stem the 1980 algorithm
   gives `s` as "unchanged".*
+- That Porter output and Porter2 differ on 3,499 vocabulary words, 5.858% of the weight
+  (5.346% with Lucene's 33 stopwords left out, since the built-in `english` chain drops them
+  before stemming). Some are real merges: Porter maps `news` -> `new` and `use`, `used` ->
+  `us`. Others are cosmetic, such as `day` -> `dai` (F3.8).
 - ES `light_english` gives the same output as `kstem` on every vocabulary word.
 - hunspell with the same dictionary file gives different lemma sets on PG and ES for 1,818
   words. Both often return several lemmas for one word (PG 4,147 words, ES 2,921), for example
