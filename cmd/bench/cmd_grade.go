@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
-	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
@@ -110,7 +109,7 @@ func (g gradeCommand) execute(cmd *cobra.Command, args []string) error {
 		}
 		return printAgreement(cmd.OutOrStdout(), manual, against, g.flags.against)
 	}
-	manual, err := mergeManualJudgments(pf, tr.Pool, manualPath)
+	manual, err := mergeManualJudgments(manualJudgments{pool: pf, poolPath: tr.Pool, path: manualPath})
 	if err != nil {
 		return err
 	}
@@ -178,27 +177,16 @@ func formatRatio(value float64, format string, scale float64) string {
 	return fmt.Sprintf(format, value*scale)
 }
 
-// mergeManualJudgments creates or merges the manual file the way
-// bench judge --strategy manual does, binding it to the current pool.
-func mergeManualJudgments(pf *pool.PoolFile, poolPath, manualPath string) (*judgment.File, error) {
-	existing, err := judgment.ReadFileIfExists(manualPath)
+func mergeManualJudgments(m manualJudgments) (*judgment.File, error) {
+	existing, err := judgment.ReadFileIfExists(m.path)
 	if err != nil {
 		return nil, fmt.Errorf("read existing manual judgments: %w", err)
 	}
 	if existing != nil && existing.Judge().Strategy != string(judgment.StrategyManual) {
 		return nil, fmt.Errorf("%s was graded by %q, not by hand: merging would relabel its grades as manual",
-			manualPath, existing.Judge())
+			m.path, existing.Judge())
 	}
-	jf := buildManualJudgments(pf, existing)
-	judge := judgment.NewManualStrategy().Describe()
-	jf.Meta = meta.New("grade")
-	jf.Meta.Judge = &judge
-	jf.Meta.PoolRef = poolPath
-	jf.Meta.PoolRunID = pf.Meta.RunID
-	if err := judgment.WriteFile(jf, manualPath); err != nil {
-		return nil, fmt.Errorf("write manual judgments: %w", err)
-	}
-	return jf, nil
+	return m.write(existing)
 }
 
 type pairKey struct {
