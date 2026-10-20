@@ -46,3 +46,16 @@ func TestRun_UnjudgedRetrievedDocFailsOnlyWithinThePoolDepth(t *testing.T) {
 		})
 	}
 }
+
+// An interrupted judge leaves pooled docs ungraded; the advice is to finish
+// judging, not to throw the finished judgments away.
+func TestRun_PartlyJudgedPoolAsksOnlyToResumeJudging(t *testing.T) {
+	tr, relevant, other := judgedTrackDocs(t, nil)
+	tr.writeJudgments(t, tr.poolRunID(t), map[string]map[uuid.UUID]int{"q1": {relevant: 3, other: 0}})
+
+	_, err := execute(t, newRunCmd(), tr.dir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bench judge --resume")
+	assert.NotContains(t, err.Error(), "re-pool")
+}

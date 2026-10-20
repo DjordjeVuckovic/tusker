@@ -395,22 +395,29 @@ func pooledRequests(pf *pool.PoolFile) map[string]map[string]string {
 }
 
 // judgmentCoverage counts the pool's (query, doc) pairs and how many of them
-// the judgments leave without a grade, and names the queries the pool holds.
+// the judgments leave without a grade, and names the queries and docs the pool holds.
 type judgmentCoverage struct {
 	pooled        int
 	unjudged      int
 	pooledQueries map[string]bool
+	pooledDocs    map[queryDoc]bool
+}
+
+type queryDoc struct {
+	queryID string
+	docID   string
 }
 
 // poolCoverage checks the judgments against the pool itself rather than the
 // judge's own count, which an interrupted run leaves stale and which cannot
 // see queries the judge never reached.
 func poolCoverage(pf *pool.PoolFile, grades map[string]map[string]int) judgmentCoverage {
-	c := judgmentCoverage{pooledQueries: make(map[string]bool, len(pf.Queries))}
+	c := judgmentCoverage{pooledQueries: make(map[string]bool, len(pf.Queries)), pooledDocs: make(map[queryDoc]bool)}
 	for _, entry := range pf.Queries {
 		c.pooledQueries[entry.QueryID] = true
 		for _, doc := range entry.Docs {
 			c.pooled++
+			c.pooledDocs[queryDoc{queryID: entry.QueryID, docID: doc.DocID.String()}] = true
 			if _, graded := grades[entry.QueryID][doc.DocID.String()]; !graded {
 				c.unjudged++
 			}
@@ -480,21 +487,17 @@ func changedRequests(result *runner.BenchmarkResult, judgments *runJudgments) []
 	return slices.Sorted(maps.Keys(changed))
 }
 
-// retrievedWithoutGrade counts the (query, doc) pairs ranked within the pool
-// depth that carry no grade, and names the cells that ranked them.
+// retrievedWithoutGrade counts the unpooled (query, doc) pairs ranked within the
+// pool depth, which no judge could have graded, and names the cells that ranked them.
 type retrievedWithoutGrade struct {
 	docs  int
 	cells []string
 }
 
 // unjudgedRetrieved checks the rankings of pooled queries and engines; queries
-// and engines the pool lacks are reported on their own.
+// and engines the pool lacks, and pooled docs left ungraded, are reported on their own.
 func unjudgedRetrieved(result *runner.BenchmarkResult, judgments *runJudgments) retrievedWithoutGrade {
 	accounted := accountedEngines(judgments)
-	type queryDoc struct {
-		queryID string
-		docID   string
-	}
 	docs := make(map[queryDoc]bool)
 	cells := make(map[string]bool)
 	for _, jr := range result.Jobs {
@@ -507,10 +510,12 @@ func unjudgedRetrieved(result *runner.BenchmarkResult, judgments *runJudgments) 
 					continue
 				}
 				for _, docID := range qr.RankedDocIDs[:min(judgments.poolDepth, len(qr.RankedDocIDs))] {
-					if _, graded := judgments.grades[queryID][docID.String()]; !graded {
-						docs[queryDoc{queryID: queryID, docID: docID.String()}] = true
-						cells[queryID+"/"+engineName] = true
+					retrieved := queryDoc{queryID: queryID, docID: docID.String()}
+					if _, graded := judgments.grades[queryID][retrieved.docID]; graded || judgments.coverage.pooledDocs[retrieved] {
+						continue
 					}
+					docs[retrieved] = true
+					cells[queryID+"/"+engineName] = true
 				}
 			}
 		}
