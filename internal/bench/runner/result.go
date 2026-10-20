@@ -6,9 +6,11 @@ import (
 )
 
 type QueryResult struct {
-	QueryID       string
-	Category      string
-	EngineName    string
+	QueryID    string
+	Category   string
+	EngineName string
+	// RequestDigest identifies the request the engine was sent.
+	RequestDigest string
 	Scores        metrics.ScoreSet
 	RankedDocIDs  []uuid.UUID
 	ReturnedCount int

@@ -419,12 +419,23 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 				slog.Warn("resolve query failed", "query", q.ID, "engine", engName, "error", err)
 				return
 			}
+			request := req.Dialects[engName].Request(req.Track, resolved)
+			digest, err := requestDigest(request)
+			if err != nil {
+				slots[idx] = slot{
+					engName: engName,
+					qr:      QueryResult{QueryID: q.ID, EngineName: engName, Error: err},
+					present: true,
+				}
+				slog.Warn("request digest failed", "query", q.ID, "engine", engName, "error", err)
+				return
+			}
 
 			result := r.measure(ctx, measurement{
 				queryID:  q.ID,
 				engine:   engName,
 				executor: exec,
-				request:  req.Dialects[engName].Request(req.Track, resolved),
+				request:  request,
 				timeout:  req.QueryTimeout,
 			})
 
@@ -442,6 +453,7 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 					QueryID:       q.ID,
 					Category:      q.Category,
 					EngineName:    engName,
+					RequestDigest: digest,
 					Scores:        scores,
 					RankedDocIDs:  result.rankedIDs,
 					ReturnedCount: len(result.rankedIDs),

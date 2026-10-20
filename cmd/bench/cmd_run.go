@@ -63,6 +63,8 @@ latest.json alone when the run failed:
   • it measured a (query, engine) cell the pool dropped (--allow-partial)
   • it ran a query the pool holds no entry for
   • it measured an engine the pool never saw
+  • it sent a (query, engine) cell another request than the pool did, as
+    after editing a template or a param
   • the judgments leave pooled docs unjudged
 
 latest.json also stays put, with exit 0, unless the run took every spec job at
@@ -318,6 +320,8 @@ type runJudgments struct {
 	dropped []meta.DroppedExecution
 	// pooledEngines are the engines whose results the pool holds.
 	pooledEngines []string
+	// pooledRequests[queryID][engine] is the digest of the request the pool sent.
+	pooledRequests map[string]map[string]string
 }
 
 // loadRunJudgments resolves --judgments, else spec.defaults.judgments, and
@@ -353,13 +357,22 @@ func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJ
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return &runJudgments{
-		path:          path,
-		grades:        grades,
-		meta:          judgmentsMeta,
-		coverage:      poolCoverage(currentPool, grades),
-		dropped:       currentPool.Meta.DroppedExecutions,
-		pooledEngines: currentPool.Meta.Engines,
+		path:           path,
+		grades:         grades,
+		meta:           judgmentsMeta,
+		coverage:       poolCoverage(currentPool, grades),
+		dropped:        currentPool.Meta.DroppedExecutions,
+		pooledEngines:  currentPool.Meta.Engines,
+		pooledRequests: pooledRequests(currentPool),
 	}, nil
+}
+
+func pooledRequests(pf *pool.PoolFile) map[string]map[string]string {
+	requests := make(map[string]map[string]string, len(pf.Queries))
+	for _, entry := range pf.Queries {
+		requests[entry.QueryID] = entry.RequestDigests
+	}
+	return requests
 }
 
 // judgmentCoverage counts the pool's (query, doc) pairs and how many of them
@@ -402,6 +415,10 @@ func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []stri
 			failures = append(failures, fmt.Sprintf("engines %s were never pooled, so none of their results are judged; re-pool and re-judge the track",
 				strings.Join(engines, ", ")))
 		}
+		if cells := changedRequests(result, judgments); len(cells) > 0 {
+			failures = append(failures, fmt.Sprintf("%d (query, engine) requests are not the ones the pool sent, so their judgments grade another query: %s; re-pool and re-judge the track",
+				len(cells), strings.Join(cells, ", ")))
+		}
 	}
 	if missing := unpooledQueries(result, judgments.coverage.pooledQueries); len(missing) > 0 {
 		failures = append(failures, fmt.Sprintf("%d suite queries were never pooled, so none of their results are judged: %s; re-pool and re-judge the track",
@@ -414,9 +431,32 @@ func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []stri
 	return failures
 }
 
-// unpooledEngines lists, sorted, the engines this run measured that the pool
-// neither holds results from nor records as dropped.
-func unpooledEngines(result *runner.BenchmarkResult, judgments *runJudgments) []string {
+// changedRequests lists, sorted, the measured cells of pooled queries and
+// engines whose request differs from the pool's, or that the pool holds none for.
+func changedRequests(result *runner.BenchmarkResult, judgments *runJudgments) []string {
+	accounted := accountedEngines(judgments)
+	changed := make(map[string]bool)
+	for _, jr := range result.Jobs {
+		for queryID, byEngine := range jr.Results {
+			pooled, ok := judgments.pooledRequests[queryID]
+			if !ok {
+				continue
+			}
+			for engineName, qr := range byEngine {
+				if qr.RequestDigest == "" || !accounted[engineName] {
+					continue
+				}
+				if pooled[engineName] != qr.RequestDigest {
+					changed[queryID+"/"+engineName] = true
+				}
+			}
+		}
+	}
+	return slices.Sorted(maps.Keys(changed))
+}
+
+// accountedEngines are the engines the pool holds results from or records as dropped.
+func accountedEngines(judgments *runJudgments) map[string]bool {
 	accounted := make(map[string]bool)
 	for _, name := range judgments.pooledEngines {
 		accounted[name] = true
@@ -424,6 +464,13 @@ func unpooledEngines(result *runner.BenchmarkResult, judgments *runJudgments) []
 	for _, d := range judgments.dropped {
 		accounted[d.Engine] = true
 	}
+	return accounted
+}
+
+// unpooledEngines lists, sorted, the engines this run measured that the pool
+// neither holds results from nor records as dropped.
+func unpooledEngines(result *runner.BenchmarkResult, judgments *runJudgments) []string {
+	accounted := accountedEngines(judgments)
 	missing := make(map[string]bool)
 	for _, jr := range result.Jobs {
 		for _, byEngine := range jr.Results {

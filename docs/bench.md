@@ -327,6 +327,8 @@ For `semantic`/`hybrid` kinds it first requires an embedder (fails fast if `EMBE
 
 Runs all queries in parallel, gathers the top-N results per engine, deduplicates by doc ID, and writes `trec/pool.yaml`. Default depth is from `spec.defaults.pool_depth`.
 
+Each pool entry records, under `request_digests`, a sha256 per engine of the request that engine was sent: the statement or body, its args, its params (the query vector included) and a stored template's source. The stored template's id is left out. Warmup, iterations, timeout and K are not part of a request, so changing them needs no re-pool.
+
 ### `bench judge [<name>] --strategy <S>`
 
 Grades every `(query, doc)` pair in the pool using the chosen strategy. Output: `trec/annotations.<S>.yaml`, with `graded_count` and `unjudged_count` in its meta block. The command writes the file and then exits non-zero when any pooled doc is left unjudged (`manual` excepted).
@@ -347,6 +349,7 @@ The report is always written. A run fails, exits non-zero and leaves `reports/la
 - it measured a (query, engine) cell the pool dropped (`bench pool --allow-partial`)
 - it ran a query the pool holds no entry for
 - it measured an engine the pool never saw
+- a (query, engine) cell's request differs from the one the pool recorded, or the pool records none, as after editing a template, a declared param or a query's params; the error names the cells (`q07/pg`). `--latency-only` skips this check
 - the judgments leave pooled docs unjudged
 
 `latest.json` also stays put, with exit 0, unless the run took every spec job at the spec's warmup, iterations and K, from the track's own `spec.yaml` and `spec.defaults.judgments`. Every reason a run is not the track's result is listed under `settings.incomplete` in its report.
