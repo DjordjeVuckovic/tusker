@@ -464,9 +464,11 @@ func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []stri
 }
 
 // changedRequests lists, sorted, the measured cells of pooled queries and
-// engines whose request differs from the pool's, or that the pool holds none for.
+// engines whose request differs from the pool's, or that the pool holds none
+// for. Dropped cells are reported on their own.
 func changedRequests(result *runner.BenchmarkResult, judgments *runJudgments) []string {
 	accounted := accountedEngines(judgments)
+	dropped := droppedCells(judgments.dropped)
 	changed := make(map[string]bool)
 	for _, jr := range result.Jobs {
 		for queryID, byEngine := range jr.Results {
@@ -475,7 +477,7 @@ func changedRequests(result *runner.BenchmarkResult, judgments *runJudgments) []
 				continue
 			}
 			for engineName, qr := range byEngine {
-				if qr.RequestDigest == "" || !accounted[engineName] {
+				if qr.RequestDigest == "" || !accounted[engineName] || dropped[queryID+"/"+engineName] {
 					continue
 				}
 				if pooled[engineName] != qr.RequestDigest {
@@ -495,9 +497,11 @@ type retrievedWithoutGrade struct {
 }
 
 // unjudgedRetrieved checks the rankings of pooled queries and engines; queries
-// and engines the pool lacks, and pooled docs left ungraded, are reported on their own.
+// and engines the pool lacks, dropped cells and pooled docs left ungraded are
+// reported on their own.
 func unjudgedRetrieved(result *runner.BenchmarkResult, judgments *runJudgments) retrievedWithoutGrade {
 	accounted := accountedEngines(judgments)
+	dropped := droppedCells(judgments.dropped)
 	docs := make(map[queryDoc]bool)
 	cells := make(map[string]bool)
 	for _, jr := range result.Jobs {
@@ -506,7 +510,7 @@ func unjudgedRetrieved(result *runner.BenchmarkResult, judgments *runJudgments) 
 				continue
 			}
 			for engineName, qr := range byEngine {
-				if qr.Error != nil || !accounted[engineName] {
+				if qr.Error != nil || !accounted[engineName] || dropped[queryID+"/"+engineName] {
 					continue
 				}
 				for _, docID := range qr.RankedDocIDs[:min(judgments.poolDepth, len(qr.RankedDocIDs))] {
@@ -521,6 +525,14 @@ func unjudgedRetrieved(result *runner.BenchmarkResult, judgments *runJudgments) 
 		}
 	}
 	return retrievedWithoutGrade{docs: len(docs), cells: slices.Sorted(maps.Keys(cells))}
+}
+
+func droppedCells(dropped []meta.DroppedExecution) map[string]bool {
+	cells := make(map[string]bool, len(dropped))
+	for _, d := range dropped {
+		cells[d.QueryID+"/"+d.Engine] = true
+	}
+	return cells
 }
 
 // accountedEngines are the engines the pool holds results from or records as dropped.

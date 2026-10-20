@@ -260,6 +260,8 @@ func TestRun_PartialPoolFailsTheCellsItDropped(t *testing.T) {
 			}
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "q2/b")
+			assert.Contains(t, err.Error(), "re-pool without --allow-partial")
+			assert.NotContains(t, err.Error(), "re-pool and re-judge", "the dropped cell is reported once, with its own cause")
 			assertLatestUnchanged(t, tr, before)
 		})
 	}
