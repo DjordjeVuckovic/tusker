@@ -1,0 +1,43 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/datapackage.json",
+  "name": "cc-news-canonical",
+  "version": "v1",
+  "articleSchema": "article/v2",
+  "language": "eng",
+  "idStrategy": {
+    "kind": "uuidv5",
+    "source": "url",
+    "namespace": "697bf49f-ca14-4303-83eb-f9d05f7c7c42"
+  },
+  "producedBy": {
+    "tool": "datapipe preprocess"
+  },
+  "report": {
+    "read": 708241,
+    "written": 707910,
+    "dropped": {
+      "empty_required_value/Title": 331
+    },
+    "deduped": 0
+  },
+  "raw": {
+    "name": "cc-news-raw",
+    "version": "81eb2ce0d2a9dad6ad16b68ef750ec290880fa36"
+  },
+  "sources": [
+    {
+      "title": "Hugging Face vblagoje/cc_news",
+      "path": "https://huggingface.co/datasets/vblagoje/cc_news",
+      "version": "81eb2ce0d2a9dad6ad16b68ef750ec290880fa36"
+    }
+  ],
+  "resources": [
+    {
+      "name": "articles",
+      "path": "articles.parquet",
+      "format": "parquet",
+      "bytes": 2103776263,
+      "hash": "sha256:7cdf4c719dc70cd013a1eb76fa33688564dc99af03ddf8cc57d20952cd4c89a3"
+    }
+  ]
+}
