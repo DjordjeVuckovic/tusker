@@ -657,3 +657,59 @@ func TestWriters_ShowTheMeanDifferenceAndUntestablePairs(t *testing.T) {
 	assert.Contains(t, markdown.String(), "| untestable |")
 	assert.Contains(t, string(page), ">untestable</span>")
 }
+
+func TestWriteHTML_ShowsQualityOnlyForEnginesWithJudgedQueries(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName: "quality",
+			Aggregated: []AggregatedEntry{
+				{EngineName: "judged", JudgedCount: 1, QueryCount: 1, NDCG: map[int]float64{10: 0.75}, MAP: 0.5},
+				{EngineName: "unjudged", JudgedCount: 0, QueryCount: 1, NDCG: map[int]float64{10: 0}},
+			},
+		}},
+	}
+
+	page, err := RenderHTML(r)
+	require.NoError(t, err)
+
+	unjudgedRow := regexp.MustCompile(`(?s)<td>unjudged</td>(.*?)</tr>`).FindStringSubmatch(string(page))
+	require.NotNil(t, unjudgedRow)
+	assert.NotContains(t, unjudgedRow[1], "0.0000", "no judged query, so no score")
+	assert.Contains(t, unjudgedRow[1], "N/A")
+	judgedRow := regexp.MustCompile(`(?s)<td>judged</td>(.*?)</tr>`).FindStringSubmatch(string(page))
+	require.NotNil(t, judgedRow)
+	assert.Contains(t, judgedRow[1], "0.7500")
+}
+
+func TestWriteHTML_PerQueryTableScoresAtTheLargestK(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10, 3}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:  "cutoffs",
+			PerQuery: []Entry{{QueryID: "q1", EngineName: "pg", Judged: true, NDCG: map[int]float64{3: 0.25, 10: 0.75}}},
+		}},
+	}
+
+	page, err := RenderHTML(r)
+	require.NoError(t, err)
+
+	row := regexp.MustCompile(`(?s)<td>q1</td><td>pg</td>(.*?)</tr>`).FindStringSubmatch(string(page))
+	require.NotNil(t, row)
+	assert.Contains(t, row[1], "0.7500")
+	assert.NotContains(t, row[1], "0.2500")
+}
+
+func TestWriteHTML_GlossaryDefinesEveryReportedColumn(t *testing.T) {
+	page, err := RenderHTML(&Report{Config: ReportConfig{KValues: []int{10}}})
+	require.NoError(t, err)
+
+	terms := regexp.MustCompile(`<dt>([^<]*)</dt>`).FindAllStringSubmatch(html.UnescapeString(string(page)), -1)
+	var defined []string
+	for _, term := range terms {
+		defined = append(defined, term[1])
+	}
+	for _, column := range []string{"MAP", "MRR", "Bpref", "P@K", "Coverage@K", "Δ A−B [95% CI]", "p (Holm)"} {
+		assert.Contains(t, defined, column)
+	}
+}
