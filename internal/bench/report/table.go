@@ -462,7 +462,7 @@ func colorSig(stars string) string {
 func writePerQueryTable(w io.Writer, jr *JobReport, kValues []int) {
 	fmt.Fprintf(w, "%s\n\n", tBold.Sprint("Per-Query Results"))
 
-	k := primaryK(kValues)
+	k := largestK(kValues)
 
 	t := newTable(w)
 	t.AppendHeader(table.Row{
@@ -542,13 +542,6 @@ func largestK(kValues []int) int {
 		return 0
 	}
 	return slices.Max(kValues)
-}
-
-func primaryK(kValues []int) int {
-	if len(kValues) > 0 {
-		return kValues[len(kValues)-1]
-	}
-	return 10
 }
 
 func fmtScore(scores map[int]float64, k int) string {

@@ -713,3 +713,21 @@ func TestWriteHTML_GlossaryDefinesEveryReportedColumn(t *testing.T) {
 		assert.Contains(t, defined, column)
 	}
 }
+
+func TestWriteTable_PerQueryTableScoresAtTheLargestK(t *testing.T) {
+	r := &Report{
+		Config: ReportConfig{KValues: []int{10, 3, 5}, RelevanceThreshold: 1},
+		Jobs: []JobReport{{
+			JobName:  "cutoffs",
+			PerQuery: []Entry{{QueryID: "q1", EngineName: "pg", Judged: true, NDCG: map[int]float64{3: 0.25, 5: 0.5, 10: 0.75}}},
+		}},
+	}
+	var out bytes.Buffer
+
+	WriteTable(r, &out)
+
+	perQuery := out.String()[strings.Index(out.String(), "Per-Query Results"):]
+	assert.Contains(t, perQuery, "NDCG@10")
+	assert.Contains(t, perQuery, "0.7500")
+	assert.NotContains(t, perQuery, "0.5000")
+}
