@@ -5,10 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -417,4 +419,57 @@ func TestGrade_SessionEndsWithTheAgreement(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, out, "2 pairs")
 	assert.Contains(t, out, "50.0%")
+}
+
+// cancelAtPrompt cancels the session's context once the prompt has been shown
+// n times, the way Ctrl-C lands while the grader is reading.
+type cancelAtPrompt struct {
+	mu      sync.Mutex
+	out     bytes.Buffer
+	n       int
+	cancel  context.CancelFunc
+	prompts int
+}
+
+func (w *cancelAtPrompt) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.prompts += bytes.Count(p, []byte("q quit >"))
+	if w.prompts >= w.n {
+		w.cancel()
+	}
+	return w.out.Write(p)
+}
+
+func (w *cancelAtPrompt) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.out.String()
+}
+
+func TestGrade_InterruptAtThePromptEndsTheSessionWithGradesSaved(t *testing.T) {
+	fx := newGradeFixture(t, 1, 3)
+	stdin, typing := io.Pipe()
+	t.Cleanup(func() { _ = typing.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	out := &cancelAtPrompt{n: 2, cancel: cancel}
+	cmd := newGradeCmdWithReader(func(*cobra.Command, string) (storage.Reader, error) { return fx.articles, nil })
+	cmd.SetIn(stdin)
+	cmd.SetOut(out)
+	cmd.SetArgs([]string{fx.track, "--against", "bm25"})
+	done := make(chan error, 1)
+	go func() { done <- cmd.ExecuteContext(ctx) }()
+	go func() { _, _ = io.WriteString(typing, "3\n") }()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the session kept waiting for input after the interrupt")
+	}
+	shown := fx.shown(out.String())
+	require.Len(t, shown, 2)
+	assert.Equal(t, judgment.GradeHighly, fx.handGrades(t)[shown[0]])
+	assert.Equal(t, judgment.GradeUnjudged, fx.handGrades(t)[shown[1]])
 }

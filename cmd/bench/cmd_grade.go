@@ -115,7 +115,7 @@ func (g gradeCommand) execute(cmd *cobra.Command, args []string) error {
 	}
 	session := &gradingSession{
 		out:        cmd.OutOrStdout(),
-		input:      bufio.NewScanner(cmd.InOrStdin()),
+		answers:    readLines(cmd.InOrStdin()),
 		manual:     manual,
 		manualPath: manualPath,
 		hand:       indexGrades(manual),
@@ -286,7 +286,7 @@ const (
 
 type gradingSession struct {
 	out        io.Writer
-	input      *bufio.Scanner
+	answers    <-chan string
 	reader     storage.Reader
 	walk       []gradingPair
 	manual     *judgment.File
@@ -319,10 +319,7 @@ func (s *gradingSession) run(ctx context.Context) error {
 		if err := s.show(ctx, position); err != nil {
 			return err
 		}
-		action, grade := s.readAction(len(gradedPositions) > 0)
-		if err := ctx.Err(); err != nil {
-			return err
-		}
+		action, grade := s.readAction(ctx, len(gradedPositions) > 0)
 		switch action {
 		case actionGrade:
 			if err := s.setGrade(pair, grade); err != nil {
@@ -353,15 +350,38 @@ func (s *gradingSession) setGrade(p gradingPair, grade int) error {
 	return nil
 }
 
-// readAction reads lines until one is a valid answer. End of input quits.
-func (s *gradingSession) readAction(canUndo bool) (gradingAction, int) {
+// readLines sends each line of r, closing the channel at end of input. A
+// session that ends early leaves the goroutine behind; it holds only stdin.
+func readLines(r io.Reader) <-chan string {
+	lines := make(chan string)
+	go func() {
+		defer close(lines)
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+	}()
+	return lines
+}
+
+// readAction reads answers until one is valid. End of input or an interrupt
+// quits; every grade is already saved.
+func (s *gradingSession) readAction(ctx context.Context, canUndo bool) (gradingAction, int) {
 	for {
 		fmt.Fprint(s.out, cBold.Sprint("grade 0-3 · s skip · u undo · q quit > "))
-		if !s.input.Scan() {
+		var line string
+		select {
+		case <-ctx.Done():
 			fmt.Fprintln(s.out)
 			return actionQuit, 0
+		case answer, ok := <-s.answers:
+			if !ok {
+				fmt.Fprintln(s.out)
+				return actionQuit, 0
+			}
+			line = answer
 		}
-		switch answer := strings.TrimSpace(s.input.Text()); answer {
+		switch answer := strings.TrimSpace(line); answer {
 		case "0", "1", "2", "3":
 			return actionGrade, int(answer[0] - '0')
 		case "s":
