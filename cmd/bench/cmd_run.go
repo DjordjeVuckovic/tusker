@@ -26,7 +26,6 @@ import (
 type runFlags struct {
 	trackArg    string
 	specPath    string
-	suitePath   string
 	judgments   string
 	output      string
 	kValues     string
@@ -82,7 +81,6 @@ spec.defaults.judgments.`,
 	}
 	cmd.Flags().StringVar(&f.trackArg, "track", "", "Track path (relative to --track-root)")
 	cmd.Flags().StringVar(&f.specPath, "spec", "", "Override spec.yaml path")
-	cmd.Flags().StringVar(&f.suitePath, "suite", "", "Override suite.yaml path")
 	cmd.Flags().StringVar(&f.judgments, "judgments", "", "Strategy name (e.g. lexical) or annotations YAML path")
 	cmd.Flags().StringVar(&f.output, "output", "", "Override report path (default: <track>/reports/<run_id>.json)")
 	cmd.Flags().StringVar(&f.kValues, "k", "3,5,10", "K cut-offs for NDCG/P/R/F1")
@@ -100,7 +98,6 @@ func executeRun(cmd *cobra.Command, f runFlags, args []string) error {
 	}
 	in := trackInputs(f.trackArg, args)
 	in.SpecPath = f.specPath
-	in.SuitePath = f.suitePath
 	in.OutputPath = f.output
 	return forEachTrack(cmd.Context(), cmd.OutOrStdout(), in, func(tr *trackctx.Track) error {
 		return runTrack(cmd, f, ks, tr)
@@ -211,11 +208,13 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	rpt.Provenance.SpecID = bs.ID
 	rpt.Provenance.Sources = &meta.Sources{
 		Spec:      tr.Spec,
-		Suite:     tr.Suite,
+		Suites:    jobSuites(bs),
 		Pool:      tr.Pool,
 		Judgments: judgments.path,
 	}
 	if judgments.meta != nil {
+		rpt.Provenance.PoolRunID = judgments.poolRunID
+		rpt.Provenance.JudgmentsRunID = judgments.meta.RunID
 		rpt.Provenance.Judge = judgments.meta.Judge
 		rpt.Provenance.GradedCount = judgments.meta.GradedCount
 		rpt.Provenance.UnjudgedCount = &judgments.coverage.unjudged
@@ -305,6 +304,16 @@ func measuredAsSpecified(cfg runner.Config, bs *spec.BenchSpec) bool {
 		slices.Equal(cfg.KValues, bs.Metrics.KValues)
 }
 
+func jobSuites(bs *spec.BenchSpec) []string {
+	var suites []string
+	for _, job := range bs.Jobs {
+		if !slices.Contains(suites, job.Suite) {
+			suites = append(suites, job.Suite)
+		}
+	}
+	return suites
+}
+
 func declaredEngineParams(bs *spec.BenchSpec) map[string]map[string]any {
 	params := make(map[string]map[string]any)
 	for name, eng := range bs.Engines {
@@ -329,6 +338,7 @@ type runJudgments struct {
 	pooledRequests map[string]map[string]string
 	// poolDepth is the depth every ranking is scored at; zero for latency-only.
 	poolDepth int
+	poolRunID string
 }
 
 // loadRunJudgments resolves --judgments, else spec.defaults.judgments, and
@@ -372,6 +382,7 @@ func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJ
 		pooledEngines:  currentPool.Meta.Engines,
 		pooledRequests: pooledRequests(currentPool),
 		poolDepth:      currentPool.Meta.PoolDepth,
+		poolRunID:      currentPool.Meta.RunID,
 	}, nil
 }
 

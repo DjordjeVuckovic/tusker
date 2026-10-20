@@ -360,7 +360,7 @@ Judgments resolution order:
 2. `spec.defaults.judgments` (per-track default; a relative path starts at the spec file's folder, like the spec's suite paths)
 3. None → the run fails before measuring anything
 
-A judgments file that does not exist fails the run the same way, as do judgments whose `pool_run_id` is not the current pool's `run_id`. `--latency-only` measures latency without judgments; its report is marked `settings.latency_only` and never becomes `latest.json`. A report's `provenance.unjudged_count` is the number of pooled docs the run found ungraded, not the judge's own count.
+A judgments file that does not exist fails the run the same way, as do judgments whose `pool_run_id` is not the current pool's `run_id`. `--latency-only` measures latency without judgments; its report is marked `settings.latency_only` and never becomes `latest.json`. A report's `provenance.unjudged_count` is the number of pooled docs the run found ungraded, not the judge's own count. `provenance.pool_run_id` and `provenance.judgments_run_id` name the pool and the judgments it scored against.
 
 Flags:
 - `--jobs pg,es` — run only the named job(s) from the spec (useful during development)
@@ -545,4 +545,4 @@ bench run '*'                                     # the whole dataset
 When a path misses, the error names what it tried and, if a folder of that name
 sits deeper, points at it — the usual sign the root is unset or too shallow.
 
-Grouping is **explicit**: only a glob expands. A single path always means exactly one track — a directory of tracks never implicitly becomes a group. Glob mode forbids the single-track path overrides (`--spec`/`--suite`/`--pool`/`--output`). A per-track failure is logged and the run continues; the command exits non-zero listing the tracks that failed. Quote a glob so the shell doesn't expand it first.
+Grouping is **explicit**: only a glob expands. A single path always means exactly one track — a directory of tracks never implicitly becomes a group. Glob mode forbids the single-track path overrides (`--spec`/`--pool`/`--output`). A per-track failure is logged and the run continues; the command exits non-zero listing the tracks that failed. Quote a glob so the shell doesn't expand it first.
