@@ -349,11 +349,13 @@ func computeSignificance(scope jobScope) []PairwiseSignificance {
 			}
 
 			for _, k := range kValues {
-				results = append(results, comparePair(engA, engB, fmt.Sprintf("NDCG@%d", k), ndcgA[k], ndcgB[k]))
+				results = append(results, comparePair(pairedScores{
+					engineA: engA, engineB: engB, metric: fmt.Sprintf("NDCG@%d", k), a: ndcgA[k], b: ndcgB[k],
+				}))
 			}
 			results = append(results,
-				comparePair(engA, engB, "MAP", mapA, mapB),
-				comparePair(engA, engB, "MRR", mrrA, mrrB),
+				comparePair(pairedScores{engineA: engA, engineB: engB, metric: "MAP", a: mapA, b: mapB}),
+				comparePair(pairedScores{engineA: engA, engineB: engB, metric: "MRR", a: mrrA, b: mrrB}),
 			)
 		}
 	}
@@ -361,22 +363,28 @@ func computeSignificance(scope jobScope) []PairwiseSignificance {
 	return results
 }
 
+// pairedScores holds two engines' scores on one metric, query by query.
+type pairedScores struct {
+	engineA, engineB, metric string
+	a, b                     []float64
+}
+
 // comparePair seeds the bootstrap from the pair and metric names, so a report
 // regenerated from the same results is identical.
-func comparePair(engA, engB, metric string, a, b []float64) PairwiseSignificance {
-	differences := make([]float64, len(a))
-	for i := range a {
-		differences[i] = a[i] - b[i]
+func comparePair(scores pairedScores) PairwiseSignificance {
+	differences := make([]float64, len(scores.a))
+	for i := range scores.a {
+		differences[i] = scores.a[i] - scores.b[i]
 	}
 	seed := fnv.New64a()
-	_, _ = seed.Write([]byte(engA + "\x00" + engB + "\x00" + metric))
+	_, _ = seed.Write([]byte(scores.engineA + "\x00" + scores.engineB + "\x00" + scores.metric))
 	meanDifference := metrics.BootstrapMean(differences, seed.Sum64())
 
 	result := PairwiseSignificance{
-		EngineA: engA, EngineB: engB, Metric: metric,
+		EngineA: scores.engineA, EngineB: scores.engineB, Metric: scores.metric,
 		MeanDifference: &meanDifference,
 	}
-	if test := metrics.Wilcoxon(a, b); test != nil {
+	if test := metrics.Wilcoxon(scores.a, scores.b); test != nil {
 		result.W, result.P = test.W, test.P
 	} else {
 		result.Untestable, result.P = true, 1
