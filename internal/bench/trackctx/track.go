@@ -50,7 +50,6 @@ type Inputs struct {
 	TrackArg   string // --track value OR positional arg (already merged by caller)
 	TrackRoot  string // --track-root / BENCH_TRACK_ROOT; base for relative args (default: cwd)
 	SpecPath   string // --spec override
-	SuitePath  string // --suite override
 	PoolPath   string // --pool override
 	OutputPath string // --output override
 	Judgments  string // --judgments value: "lexical" (strategy name) | path/to.yaml | empty
@@ -76,7 +75,6 @@ func Resolve(in Inputs) (*Track, error) {
 	}
 	t := newTrack(root, name)
 	t.Spec = firstNonEmpty(in.SpecPath, t.Spec)
-	t.Suite = firstNonEmpty(in.SuitePath, t.Suite)
 	t.Pool = firstNonEmpty(in.PoolPath, t.Pool)
 	return t, nil
 }
