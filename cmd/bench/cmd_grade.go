@@ -107,7 +107,7 @@ func (g gradeCommand) execute(cmd *cobra.Command, args []string) error {
 		if manual == nil {
 			return fmt.Errorf("no hand grades at %s yet: run bench grade without --report first", manualPath)
 		}
-		return printAgreement(cmd.OutOrStdout(), manual, against, g.flags.against)
+		return agreement{hand: manual, judge: against, judgeName: g.flags.against}.print(cmd.OutOrStdout())
 	}
 	manual, err := mergeManualJudgments(manualJudgments{pool: pf, poolPath: tr.Pool, path: manualPath})
 	if err != nil {
@@ -142,10 +142,17 @@ func (g gradeCommand) execute(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func printAgreement(w io.Writer, manual, against *judgment.File, judgeName string) error {
-	handGrades := indexGrades(manual)
+// agreement compares hand grades with a judge's over the pairs both graded.
+type agreement struct {
+	hand      *judgment.File
+	judge     *judgment.File
+	judgeName string
+}
+
+func (a agreement) print(w io.Writer) error {
+	handGrades := indexGrades(a.hand)
 	var hand, judge []int
-	for _, entry := range against.Queries {
+	for _, entry := range a.judge.Queries {
 		for _, doc := range entry.Docs {
 			handDoc, ok := handGrades[pairKey{queryID: entry.QueryID, docID: doc.DocID}]
 			if !ok || handDoc.Grade == judgment.GradeUnjudged || doc.Grade == judgment.GradeUnjudged {
@@ -157,10 +164,10 @@ func printAgreement(w io.Writer, manual, against *judgment.File, judgeName strin
 	}
 	confusion, err := metrics.NewGradeConfusion(hand, judge)
 	if err != nil {
-		return fmt.Errorf("compare hand grades with %s: %w", judgeName, err)
+		return fmt.Errorf("compare hand grades with %s: %w", a.judgeName, err)
 	}
 
-	fmt.Fprintf(w, "\n%s\n", cBold.Sprintf("Agreement with %s over %d pairs graded in both", judgeName, confusion.Pairs()))
+	fmt.Fprintf(w, "\n%s\n", cBold.Sprintf("Agreement with %s over %d pairs graded in both", a.judgeName, confusion.Pairs()))
 	fmt.Fprintf(w, "  exact agreement  %s\n", formatRatio(confusion.ExactAgreement(), "%.1f%%", 100))
 	fmt.Fprintf(w, "  quadratic κ      %s\n\n", formatRatio(confusion.QuadraticKappa(), "%.3f", 1))
 	fmt.Fprintf(w, "  %-8s", "")
@@ -270,7 +277,10 @@ func stratifiedSample(pairs []gradingPair, judgeGrades map[pairKey]*judgment.Gra
 	for _, stratum := range strata {
 		rng.Shuffle(len(stratum), func(i, j int) { stratum[i], stratum[j] = stratum[j], stratum[i] })
 	}
-	bySize := []int{0, 1, 2, 3}
+	bySize := make([]int, len(strata))
+	for grade := range bySize {
+		bySize[grade] = grade
+	}
 	slices.SortStableFunc(bySize, func(a, b int) int { return cmp.Compare(len(strata[a]), len(strata[b])) })
 
 	remaining := min(size, total)
