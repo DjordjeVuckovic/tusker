@@ -193,12 +193,12 @@ footer{text-align:center;color:#9ca3af;font-size:12px;padding-top:8px}
   <div class="section">
     <div class="section-title">Statistical Significance <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px">(Wilcoxon signed-rank, two-tailed, Holm-adjusted across engine pairs &nbsp;·&nbsp; * p&lt;0.05 &nbsp; ** p&lt;0.01)</span></div>
     <table>
-      <thead><tr><th>Engine A</th><th>Engine B</th><th>Metric</th><th>W</th><th>p-value</th><th>p (Holm)</th><th>Sig</th></tr></thead>
+      <thead><tr><th>Engine A</th><th>Engine B</th><th>Metric</th><th>Δ A−B [95% CI]</th><th>W</th><th>p-value</th><th>p (Holm)</th><th>Sig</th></tr></thead>
       <tbody>
       {{range .Significance}}<tr>
         <td>{{.EngineA}}</td><td>{{.EngineB}}</td><td>{{.Metric}}</td>
-        <td>{{.W}}</td><td>{{.P}}</td><td>{{.AdjustedP}}</td>
-        <td>{{if .NS}}<span class="sig-ns">ns</span>{{else}}<span class="sig-sig">{{.Stars}}</span>{{end}}</td>
+        <td>{{.MeanDifference}}</td><td>{{.W}}</td><td>{{.P}}</td><td>{{.AdjustedP}}</td>
+        <td>{{if .Untestable}}<span class="sig-ns">untestable</span>{{else if .NS}}<span class="sig-ns">ns</span>{{else}}<span class="sig-sig">{{.Stars}}</span>{{end}}</td>
       </tr>{{end}}
       </tbody>
     </table>
