@@ -110,8 +110,6 @@ func (m *Meta) Normalize() {
 // were consumed to compute the metrics in that report.
 type Sources struct {
 	Spec string `yaml:"spec,omitempty" json:"spec,omitempty"`
-	// Suite is the track's suite.yaml, as reports written before Suites recorded it.
-	Suite string `yaml:"suite,omitempty" json:"suite,omitempty"`
 	// Suites are the suites the run's jobs loaded.
 	Suites     []string `yaml:"suites,omitempty" json:"suites,omitempty"`
 	Pool       string   `yaml:"pool,omitempty" json:"pool,omitempty"`

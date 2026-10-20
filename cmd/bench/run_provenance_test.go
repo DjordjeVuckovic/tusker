@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -22,10 +24,18 @@ func TestRun_ReportNamesThePoolAndJudgmentsItScoredAgainst(t *testing.T) {
 	assert.Equal(t, jf.Meta.RunID, provenance.JudgmentsRunID)
 }
 
-func TestRun_ReportListsTheSuitesItsJobsLoaded(t *testing.T) {
+// twoSuiteTrack is the judged track with job a-only reading its own copy of
+// the suite, suite-a.yaml, whose path it returns.
+func twoSuiteTrack(t *testing.T) (lineageTrack, string) {
+	t.Helper()
 	tr := judgedTrack(t, nil)
 	aOnlySuite := copyFile(t, filepath.Join(tr.dir, "suite.yaml"), filepath.Join(tr.dir, "suite-a.yaml"))
 	editFile(t, filepath.Join(tr.dir, "spec.yaml"), "  - name: a-only\n    suite: suite.yaml", "  - name: a-only\n    suite: suite-a.yaml")
+	return tr, aOnlySuite
+}
+
+func TestRun_ReportListsTheSuitesItsJobsLoaded(t *testing.T) {
+	tr, aOnlySuite := twoSuiteTrack(t)
 
 	_, err := execute(t, newRunCmd(), tr.dir)
 	require.NoError(t, err)
@@ -52,4 +62,33 @@ func canonicalPaths(t *testing.T, paths []string) []string {
 		out = append(out, resolved)
 	}
 	return out
+}
+
+func TestShowReport_NamesTheSuitesTheRunLoaded(t *testing.T) {
+	tr, _ := twoSuiteTrack(t)
+	_, err := execute(t, newRunCmd(), tr.dir)
+	require.NoError(t, err)
+
+	var out bytes.Buffer
+	showReport(&out, tr.latestReport(t))
+
+	assert.Contains(t, out.String(), "suite.yaml")
+	assert.Contains(t, out.String(), "suite-a.yaml")
+}
+
+func TestExportHTML_NamesTheSuitesTheRunLoaded(t *testing.T) {
+	tr, _ := twoSuiteTrack(t)
+	_, err := execute(t, newRunCmd(), tr.dir)
+	require.NoError(t, err)
+
+	_, err = execute(t, newExportCmd(), tr.dir, "--format", "html")
+	require.NoError(t, err)
+
+	pages, err := filepath.Glob(filepath.Join(tr.dir, "reports", "*.html"))
+	require.NoError(t, err)
+	require.Len(t, pages, 1)
+	page, err := os.ReadFile(pages[0])
+	require.NoError(t, err)
+	assert.Contains(t, string(page), "suite.yaml")
+	assert.Contains(t, string(page), "suite-a.yaml")
 }
