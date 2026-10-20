@@ -490,7 +490,8 @@ func changedRequests(result *runner.BenchmarkResult, judgments *runJudgments) []
 }
 
 // retrievedWithoutGrade counts the unpooled (query, doc) pairs ranked within the
-// pool depth, which no judge could have graded, and names the cells that ranked them.
+// pool depth, which no judge could have graded, and names the cells that ranked
+// them. The runner has already cut every ranking at that depth.
 type retrievedWithoutGrade struct {
 	docs  int
 	cells []string
@@ -513,7 +514,7 @@ func unjudgedRetrieved(result *runner.BenchmarkResult, judgments *runJudgments) 
 				if qr.Error != nil || !accounted[engineName] || dropped[queryID+"/"+engineName] {
 					continue
 				}
-				for _, docID := range qr.RankedDocIDs[:min(judgments.poolDepth, len(qr.RankedDocIDs))] {
+				for _, docID := range qr.RankedDocIDs {
 					retrieved := queryDoc{queryID: queryID, docID: docID.String()}
 					if _, graded := judgments.grades[queryID][retrieved.docID]; graded || judgments.coverage.pooledDocs[retrieved] {
 						continue
