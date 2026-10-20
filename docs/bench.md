@@ -364,11 +364,11 @@ A judgments file that does not exist fails the run the same way, as do judgments
 
 Flags:
 - `--jobs pg,es` — run only the named job(s) from the spec (useful during development)
-- `--k 3,5,10` — NDCG/P cut-off values
+- `--k 3,5,10` — NDCG/P cut-off values; each must be positive, distinct and no deeper than the pool's `meta.pool_depth`, or the run fails before measuring. The spec loader holds `metrics.k_values` to the same rule against `defaults.pool_depth` when that is set
 - `--warmup N`, `--iterations N` — override spec settings
 - `--latency-only` — measure latency without judgments
 
-Retrieval depth is the suite's own `limit` param (or ES `size`); there is no run flag for it.
+Retrieval depth is the suite's own `limit` param (or ES `size`); there is no run flag for it. Every ranking is cut at the pool's `meta.pool_depth` before it is scored and stored, so MAP and bpref count only docs the pool could have judged, and the run files `bench export --format run` writes hold the rankings bench scored. A `--latency-only` run keeps the rankings whole.
 
 Elapsed time is printed after the results table.
 

@@ -456,7 +456,7 @@ func (r *Runner) runEnginesForQuery(ctx context.Context, jr *JobResult, q *suite
 					RequestDigest: digest,
 					Scores:        scores,
 					RankedDocIDs:  result.rankedIDs,
-					ReturnedCount: len(result.rankedIDs),
+					ReturnedCount: result.returnedCount,
 					CorpusMatches: result.corpusMatches,
 					Latency:       result.latencyStats,
 					Error:         result.err,
@@ -511,6 +511,7 @@ func (r *Runner) judgmentsFor(q *suite.Query) map[uuid.UUID]int {
 
 type execResult struct {
 	rankedIDs     []uuid.UUID
+	returnedCount int
 	corpusMatches *int64
 	latencyStats  LatencyStats
 	err           error
@@ -549,8 +550,13 @@ func (r *Runner) measure(ctx context.Context, m measurement) execResult {
 	if lastExec == nil {
 		return execResult{err: errors.New("no measured iteration ran")}
 	}
+	ranked := lastExec.RankedDocIDs
+	if depth := r.config.RankingDepth; depth > 0 && len(ranked) > depth {
+		ranked = ranked[:depth]
+	}
 	return execResult{
-		rankedIDs:     lastExec.RankedDocIDs,
+		rankedIDs:     ranked,
+		returnedCount: len(lastExec.RankedDocIDs),
 		corpusMatches: lastExec.CorpusMatches,
 		latencyStats:  ComputeLatencyStats(latencies),
 	}

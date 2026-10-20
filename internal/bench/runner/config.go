@@ -35,7 +35,10 @@ const (
 )
 
 type Config struct {
-	KValues            []int
+	KValues []int
+	// RankingDepth cuts every ranking before it is scored or stored, so scores
+	// count only docs a pool that deep could have judged. Zero keeps it whole.
+	RankingDepth       int
 	RelevanceThreshold int
 	WarmupRuns         int
 	Runs               int

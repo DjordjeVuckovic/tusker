@@ -137,6 +137,10 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 
 	runCfg := newRunConfig(f, bs, ks, cmd.Flags().Changed("k"))
 	runCfg.Judgments = judgments.grades
+	runCfg.RankingDepth = judgments.poolDepth
+	if err := spec.CheckKValues(runCfg.KValues, judgments.poolDepth); err != nil {
+		return fmt.Errorf("k values %v: %w", runCfg.KValues, err)
+	}
 
 	printSpecWarnings(cmd.OutOrStdout(), bs)
 
@@ -323,7 +327,8 @@ type runJudgments struct {
 	pooledEngines []string
 	// pooledRequests[queryID][engine] is the digest of the request the pool sent.
 	pooledRequests map[string]map[string]string
-	poolDepth      int
+	// poolDepth is the depth every ranking is scored at; zero for latency-only.
+	poolDepth int
 }
 
 // loadRunJudgments resolves --judgments, else spec.defaults.judgments, and
