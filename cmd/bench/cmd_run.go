@@ -66,6 +66,7 @@ latest.json alone when the run failed:
   • it sent a (query, engine) cell another request than the pool did, as
     after editing a template or a param
   • the judgments leave pooled docs unjudged
+  • an engine ranks an ungraded doc within the pool depth
 
 latest.json also stays put, with exit 0, unless the run took every spec job at
 the spec's warmup, iterations and K, from the track's own spec.yaml and
@@ -322,6 +323,7 @@ type runJudgments struct {
 	pooledEngines []string
 	// pooledRequests[queryID][engine] is the digest of the request the pool sent.
 	pooledRequests map[string]map[string]string
+	poolDepth      int
 }
 
 // loadRunJudgments resolves --judgments, else spec.defaults.judgments, and
@@ -364,6 +366,7 @@ func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJ
 		dropped:        currentPool.Meta.DroppedExecutions,
 		pooledEngines:  currentPool.Meta.Engines,
 		pooledRequests: pooledRequests(currentPool),
+		poolDepth:      currentPool.Meta.PoolDepth,
 	}, nil
 }
 
@@ -424,6 +427,12 @@ func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []stri
 		failures = append(failures, fmt.Sprintf("%d suite queries were never pooled, so none of their results are judged: %s; re-pool and re-judge the track",
 			len(missing), strings.Join(missing, ", ")))
 	}
+	if judgments.meta != nil {
+		if unjudged := unjudgedRetrieved(result, judgments); unjudged.docs > 0 {
+			failures = append(failures, fmt.Sprintf("%d retrieved docs within the pool depth have no grade, in %s, so they score as non-relevant; the engines no longer return what was pooled, re-pool and re-judge the track",
+				unjudged.docs, strings.Join(unjudged.cells, ", ")))
+		}
+	}
 	if judgments.coverage.unjudged > 0 {
 		failures = append(failures, fmt.Sprintf("the judgments leave %d of %d pooled docs unjudged; finish judging (bench judge --resume)",
 			judgments.coverage.unjudged, judgments.coverage.pooled))
@@ -453,6 +462,44 @@ func changedRequests(result *runner.BenchmarkResult, judgments *runJudgments) []
 		}
 	}
 	return slices.Sorted(maps.Keys(changed))
+}
+
+// retrievedWithoutGrade counts the (query, doc) pairs ranked within the pool
+// depth that carry no grade, and names the cells that ranked them.
+type retrievedWithoutGrade struct {
+	docs  int
+	cells []string
+}
+
+// unjudgedRetrieved checks the rankings of pooled queries and engines; queries
+// and engines the pool lacks are reported on their own.
+func unjudgedRetrieved(result *runner.BenchmarkResult, judgments *runJudgments) retrievedWithoutGrade {
+	accounted := accountedEngines(judgments)
+	type queryDoc struct {
+		queryID string
+		docID   string
+	}
+	docs := make(map[queryDoc]bool)
+	cells := make(map[string]bool)
+	for _, jr := range result.Jobs {
+		for queryID, byEngine := range jr.Results {
+			if !judgments.coverage.pooledQueries[queryID] {
+				continue
+			}
+			for engineName, qr := range byEngine {
+				if qr.Error != nil || !accounted[engineName] {
+					continue
+				}
+				for _, docID := range qr.RankedDocIDs[:min(judgments.poolDepth, len(qr.RankedDocIDs))] {
+					if _, graded := judgments.grades[queryID][docID.String()]; !graded {
+						docs[queryDoc{queryID: queryID, docID: docID.String()}] = true
+						cells[queryID+"/"+engineName] = true
+					}
+				}
+			}
+		}
+	}
+	return retrievedWithoutGrade{docs: len(docs), cells: slices.Sorted(maps.Keys(cells))}
 }
 
 // accountedEngines are the engines the pool holds results from or records as dropped.
