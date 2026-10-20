@@ -346,3 +346,75 @@ func gradeCounts(pairs []pairKey, grades map[pairKey]int) map[int]int {
 	}
 	return counts
 }
+
+func (fx *gradeFixture) writeHandGrades(t *testing.T, gradeOf func(n int) int) {
+	t.Helper()
+	judge := judgment.NewManualStrategy().Describe()
+	jf := &judgment.File{Meta: meta.Meta{Judge: &judge, PoolRunID: fx.pool.Meta.RunID}}
+	n := 0
+	for _, entry := range fx.pool.Queries {
+		graded := judgment.Entry{QueryID: entry.QueryID}
+		for _, doc := range entry.Docs {
+			graded.Docs = append(graded.Docs, judgment.GradedDoc{DocID: doc.DocID, Grade: gradeOf(n)})
+			n++
+		}
+		jf.Queries = append(jf.Queries, graded)
+	}
+	require.NoError(t, judgment.WriteFile(jf, filepath.Join(fx.track, "trec", "annotations.manual.yaml")))
+}
+
+func tableRow(t *testing.T, output, label string) []string {
+	t.Helper()
+	for line := range strings.SplitSeq(output, "\n") {
+		if fields := strings.Fields(line); len(fields) > 2 && fields[0]+" "+fields[1] == label {
+			return fields[2:]
+		}
+	}
+	t.Fatalf("no %q row in:\n%s", label, output)
+	return nil
+}
+
+// The expected κ is sklearn's cohen_kappa_score(hand, judge,
+// weights="quadratic", labels=[0, 1, 2, 3]) over the six pairs both graded.
+func TestGrade_ReportComparesThePairsGradedInBothFilesWithoutASession(t *testing.T) {
+	fx := newGradeFixture(t, 1, 8)
+	hand := []int{2, 1, 0, 3, 3, 1, 3, judgment.GradeUnjudged}
+	judge := []int{2, 2, 0, 3, 1, 1, judgment.GradeUnjudged, 2}
+	fx.writeJudge(t, func(n int) int { return judge[n] })
+	fx.writeHandGrades(t, func(n int) int { return hand[n] })
+	before := fx.handGrades(t)
+	noStore := func(*cobra.Command, string) (storage.Reader, error) { return nil, errors.New("no store") }
+	cmd := newGradeCmdWithReader(noStore)
+	var out bytes.Buffer
+	cmd.SetIn(strings.NewReader("0\n0\n0\n"))
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{fx.track, "--against", "bm25", "--report"})
+
+	require.NoError(t, cmd.ExecuteContext(context.Background()))
+
+	report := out.String()
+	assert.Contains(t, report, "6 pairs")
+	assert.Contains(t, report, "66.7%")
+	assert.Contains(t, report, "0.615")
+	assert.Equal(t, []string{"0", "1", "0", "1"}, tableRow(t, report, "hand 3"))
+	assert.Equal(t, before, fx.handGrades(t))
+}
+
+func TestGrade_ReportWithoutHandGradesFails(t *testing.T) {
+	fx := newGradeFixture(t, 1, 2)
+
+	_, err := fx.grade(t, "", "--report")
+
+	require.Error(t, err)
+	assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations.manual.yaml"))
+}
+
+func TestGrade_SessionEndsWithTheAgreement(t *testing.T) {
+	fx := newGradeFixture(t, 1, 3)
+
+	out, err := fx.grade(t, "2\n0\nq\n")
+
+	require.NoError(t, err)
+	assert.Contains(t, out, "2 pairs")
+	assert.Contains(t, out, "50.0%")
+}
