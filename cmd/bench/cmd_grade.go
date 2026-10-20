@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -228,9 +229,9 @@ func indexGrades(jf *judgment.File) map[pairKey]*judgment.GradedDoc {
 	return grades
 }
 
-// gradingWalk orders the pairs a session visits: grouped by query in pool
-// order, docs shuffled within each query. It ignores hand grades, so the walk
-// stays the same while a grader works through it.
+// gradingWalk orders the pairs a session visits: grouped by query, docs
+// shuffled within each query. It depends on neither the pool's order nor hand
+// grades, so the walk stays the same while a grader works through it.
 func gradingWalk(pf *pool.PoolFile, judgeGrades map[pairKey]*judgment.GradedDoc, sampleSize int, seed uint64) []gradingPair {
 	rng := rand.New(rand.NewPCG(seed, 0))
 	var pairs []gradingPair
@@ -251,8 +252,8 @@ func gradingWalk(pf *pool.PoolFile, judgeGrades map[pairKey]*judgment.GradedDoc,
 		byQuery[p.query.QueryID] = append(byQuery[p.query.QueryID], p)
 	}
 	walk := make([]gradingPair, 0, len(pairs))
-	for _, entry := range pf.Queries {
-		docs := byQuery[entry.QueryID]
+	for _, queryID := range slices.Sorted(maps.Keys(byQuery)) {
+		docs := byQuery[queryID]
 		slices.SortFunc(docs, func(a, b gradingPair) int { return cmp.Compare(a.docID.String(), b.docID.String()) })
 		rng.Shuffle(len(docs), func(i, j int) { docs[i], docs[j] = docs[j], docs[i] })
 		walk = append(walk, docs...)

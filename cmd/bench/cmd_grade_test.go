@@ -295,8 +295,27 @@ func TestGrade_SameSeedDrawsTheSameSampleAndAnotherSeedADifferentOne(t *testing.
 	first := sample("1")
 
 	require.Len(t, first, 8)
-	assert.ElementsMatch(t, first, sample("1"))
+	assert.Equal(t, first, sample("1"))
 	assert.NotElementsMatch(t, first, sample("2"))
+}
+
+func TestGrade_WalkDoesNotDependOnPoolOrder(t *testing.T) {
+	fx := newGradeFixture(t, 3, 12)
+	fx.writeJudge(t, func(n int) int { return n % 4 })
+	walk := func() []pairKey {
+		out, err := fx.grade(t, skipAll(), "--sample", "16")
+		require.NoError(t, err)
+		return fx.shown(out)
+	}
+	before := walk()
+
+	slices.Reverse(fx.pool.Queries)
+	for i := range fx.pool.Queries {
+		slices.Reverse(fx.pool.Queries[i].Docs)
+	}
+	require.NoError(t, pool.WritePoolFile(fx.pool, filepath.Join(fx.track, "trec", "pool.yaml")))
+
+	assert.Equal(t, before, walk())
 }
 
 func TestGrade_SampleTakesAnEqualShareOfEachJudgeGrade(t *testing.T) {

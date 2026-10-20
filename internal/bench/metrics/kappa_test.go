@@ -6,7 +6,8 @@ import (
 )
 
 // Expected values are sklearn.metrics.cohen_kappa_score(first, second,
-// weights="quadratic", labels=[0, 1, 2, 3]).
+// weights="quadratic", labels=[0, 1, 2, 3]). The labels fix the 0–3 scale;
+// without them sklearn renumbers the grades seen, which differs when one is unused.
 func TestGradeConfusion_QuadraticKappaMatchesSklearn(t *testing.T) {
 	tests := []struct {
 		name          string
