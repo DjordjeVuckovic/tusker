@@ -346,9 +346,9 @@ Each screen shows progress, the query from the pool, and the article's title, pu
 
 - `--sample N` — walk N pairs drawn from the pairs the judge graded, an equal share per judge grade; a grade with fewer pairs than its share gives the shortfall to the others. Without it, every ungraded pool pair is walked
 - `--seed S` — fixes the sample and the order of docs within each query (default 1). The same pool, judge file and seed give the same walk every session; pairs already graded by hand are skipped
-- `--report` — print the agreement without a session and without `--pg`
+- `--report` — print the agreement instead of starting a session; needs no `--pg`
 
-The agreement, printed after every session too, covers the pairs graded in both files: their count, the exact-agreement rate, quadratic-weighted Cohen's κ over the fixed 0–3 scale, and the 4×4 table of hand grade against judge grade. A sampled κ weights high grades more than the pool does, because each grade gets an equal share.
+A session ends with progress only (`graded 37 of 150; rerun to continue`), never the agreement: seeing the judge's grades for the pairs just graded would calibrate the rest of the sample. Run `--report` once the walk is graded. The agreement covers the pairs graded in both files: their count, the exact-agreement rate, quadratic-weighted Cohen's κ over the fixed 0–3 scale, and the 4×4 table of hand grade against judge grade. A sampled κ weights high grades more than the pool does, because each grade gets an equal share.
 
 ### `bench run [<name>] [--judgments <S|path>] [--jobs <name,...>]`
 

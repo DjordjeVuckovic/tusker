@@ -252,18 +252,24 @@ func TestGrade_ScreenShowsTheQueryAndTheArticle(t *testing.T) {
 	assert.NotContains(t, out, "TAIL")
 }
 
+// A full session graded the same way must read the same whatever the judge
+// said, down to its closing lines.
 func TestGrade_SessionHidesTheJudgesGradeAndTheRetrievingEngines(t *testing.T) {
 	fx := newGradeFixture(t, 2, 3)
-	fx.writeJudge(t, func(int) int { return judgment.GradeNotRelev })
-	againstZero, err := fx.grade(t, skipAll())
-	require.NoError(t, err)
+	sessionAgainst := func(judgeGrade int) string {
+		fx.writeJudge(t, func(int) int { return judgeGrade })
+		require.NoError(t, os.RemoveAll(filepath.Join(fx.track, "trec", "annotations.manual.yaml")))
+		out, err := fx.grade(t, strings.Repeat("1\n", 6))
+		require.NoError(t, err)
+		return out
+	}
 
-	fx.writeJudge(t, func(int) int { return judgment.GradeHighly })
-	againstThree, err := fx.grade(t, skipAll())
-	require.NoError(t, err)
+	againstZero := sessionAgainst(judgment.GradeNotRelev)
+	againstThree := sessionAgainst(judgment.GradeHighly)
 
 	assert.Equal(t, againstZero, againstThree)
 	assert.NotContains(t, againstZero, retrievingEngine)
+	assert.NotContains(t, againstZero, "κ")
 }
 
 func TestGrade_RefusesAJudgeFileFromAnotherPool(t *testing.T) {
@@ -411,14 +417,17 @@ func TestGrade_ReportWithoutHandGradesFails(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(fx.track, "trec", "annotations.manual.yaml"))
 }
 
-func TestGrade_SessionEndsWithTheAgreement(t *testing.T) {
+func TestGrade_SessionEndsWithProgressOnly(t *testing.T) {
 	fx := newGradeFixture(t, 1, 3)
 
-	out, err := fx.grade(t, "2\n0\nq\n")
-
+	partial, err := fx.grade(t, "2\n0\nq\n")
 	require.NoError(t, err)
-	assert.Contains(t, out, "2 pairs")
-	assert.Contains(t, out, "50.0%")
+	complete, err := fx.grade(t, "1\n")
+	require.NoError(t, err)
+
+	assert.Contains(t, partial, "graded 2 of 3")
+	assert.NotContains(t, partial, "--report")
+	assert.Contains(t, complete, "--report")
 }
 
 // cancelAtPrompt cancels the session's context once the prompt has been shown

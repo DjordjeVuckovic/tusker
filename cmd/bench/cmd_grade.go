@@ -57,10 +57,10 @@ equal share per grade (a grade with fewer pairs gives the rest to the others).
 The same pool, judge file and --seed give the same sample and order in every
 session. Without --sample every pool pair still ungraded is walked.
 
-When the session ends, or with --report instead of a session, it prints the
-agreement over the pairs graded both by hand and by the --against judge: the
-exact-agreement rate, quadratic-weighted Cohen's kappa and the 4x4 table of
-hand grade against judge grade.`,
+A session never shows the judge's grades, so it ends with progress only. Once
+the walk is graded, --report prints the agreement over the pairs graded both by
+hand and by the --against judge: the exact-agreement rate, quadratic-weighted
+Cohen's kappa and the 4x4 table of hand grade against judge grade.`,
 		Example: `  bench grade tracks/cc-news/fts --against bm25 --sample 150 --pg "$PG_CONNECTION_STRING"
   bench grade tracks/cc-news/fts --against bm25 --report`,
 		Args: cobra.MaximumNArgs(1),
@@ -129,9 +129,17 @@ func (g gradeCommand) execute(cmd *cobra.Command, args []string) error {
 	if err := session.run(cmd.Context()); err != nil {
 		return err
 	}
-	graded, unjudged := manual.GradeCounts()
-	printDone(cmd.OutOrStdout(), fmt.Sprintf("Hand grades saved: %s  (graded=%d unjudged=%d)", manualPath, graded, unjudged))
-	return printAgreement(cmd.OutOrStdout(), manual, against, g.flags.against)
+	// The agreement would reveal the judge's grades mid-sample, so a session
+	// reports progress only.
+	w := cmd.OutOrStdout()
+	printDone(w, "Hand grades saved: "+manualPath)
+	walked := len(session.walk)
+	if left := session.remaining(); left > 0 {
+		fmt.Fprintf(w, "graded %d of %d; rerun to continue\n", walked-left, walked)
+	} else {
+		fmt.Fprintf(w, "all %d graded; run bench grade --against %s --report for the agreement\n", walked, g.flags.against)
+	}
+	return nil
 }
 
 func printAgreement(w io.Writer, manual, against *judgment.File, judgeName string) error {
