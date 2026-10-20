@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -129,4 +130,57 @@ func TestNewRunConfig_SpecKValuesLoseToAnExplicitFlag(t *testing.T) {
 
 	fromFlag := newRunConfig(runFlags{}, bs, []int{20}, true)
 	assert.Equal(t, []int{20}, fromFlag.KValues, "--k must override the spec")
+}
+
+// A query-vectors package covers one suite, so --jobs narrowing a two-suite
+// spec to that suite's job must run.
+func TestRun_JobsFilterNarrowsTheQueryVectorsSuite(t *testing.T) {
+	t.Setenv("EMBEDDING_BASE_URL", "")
+	cluster := fakeCluster(t, map[string]*fakeIndex{"a": {count: 1, ranked: map[string][]uuid.UUID{"q1": {uuid.New()}}}})
+	track := copyQueryVectorsTrack(t)
+	require.NoError(t, os.WriteFile(filepath.Join(track, "spec.yaml"), fmt.Appendf(nil, `schema_version: 1
+id: two-suites
+kind: fts
+engines:
+  a:
+    type: elasticsearch
+    connection: %q
+    index: a
+    params:
+      embedding_model: %q
+runs:
+  warmup: 0
+  iterations: 1
+jobs:
+  - name: sem
+    suite: suite.yaml
+    engines: [a]
+  - name: other
+    suite: other.yaml
+    engines: [a]
+`, cluster, queryVectorsFixtureTag), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(track, "suite.yaml"), []byte(`schema_version: 1
+id: fixture-semantic
+queries:
+  - id: q1
+    description: "climate change policy"
+    engines:
+      a: { query: '{"query": {"match": {"title": "q1"}}}' }
+  - id: q2
+    description: "central bank interest rates"
+    engines:
+      a: { query: '{"query": {"match": {"title": "q2"}}}' }
+`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(track, "other.yaml"), []byte(`schema_version: 1
+id: other
+queries:
+  - id: o1
+    description: "something else"
+    engines:
+      a: { query: '{"query": {"match": {"title": "o1"}}}' }
+`), 0o644))
+
+	out, err := execute(t, newRunCmd(), track, "--jobs", "sem", "--latency-only")
+
+	require.NoError(t, err, out)
 }

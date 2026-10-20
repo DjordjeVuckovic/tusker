@@ -134,13 +134,13 @@ func (r *SearchRouter) honour(c echo.Context, q paramQuery) ([]dquery.Ignored, e
 // @Param q query string true "SearchStringQuery query text" example("climate change")
 // @Param size query int false "Results per page (default: 100, max: 10000)" example(10)
 // @Param cursor query string false "Pagination cursor (base64-encoded from previous response)"
-// @Param lang query string false "SearchStringQuery language: english, the only one supported (default: english)" example("english")
+// @Param lang query string false "ISO 639-3 language code; only eng today (default: eng)" example("eng")
 // @Param Prefer header string false "handling=lenient drops a parameter the engine cannot honour and lists it in ignored, instead of a 400"
 // @Success 200 {object} dto.SearchResponse "SearchStringQuery results with pagination metadata"
 // @Failure 400 {object} map[string]string "Bad request - missing or invalid parameters"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /v1/articles/search [get]
-// @Example Request:  GET /v1/articles/search?q=climate%20change&size=10&lang=english
+// @Example Request:  GET /v1/articles/search?q=climate%20change&size=10&lang=eng
 // @Example Response: {"hits": [...], "next_cursor": "eyJ...", "has_more": true, "total_matches": 1523}
 func (r *SearchRouter) searchHandler(c echo.Context) error {
 	if err := dto.CheckSearchBoxParams(c.QueryParams()); err != nil {
@@ -228,7 +228,7 @@ func (r *SearchRouter) searchHandler(c echo.Context) error {
 //	      "query": "climate change",
 //	      "operator": "and",
 //	      "fuzziness": "AUTO",
-//	      "language": "english"
+//	      "language": "eng"
 //	    }
 //	  }
 //	}
@@ -242,7 +242,7 @@ func (r *SearchRouter) searchHandler(c echo.Context) error {
 //	      "query": "renewable energy",
 //	      "fields": ["title^3", "description^2", "content"],
 //	      "operator": "or",
-//	      "language": "english"
+//	      "language": "eng"
 //	    }
 //	  }
 //	}

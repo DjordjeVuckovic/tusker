@@ -89,7 +89,7 @@ func VerifyEmbeddingModel(engines map[string]spec.Engine, store storage.VectorSt
 			continue
 		}
 		return fmt.Errorf(
-			"engine %q declares %s %q but queries are embedded with %q: set EMBEDDING_MODEL to the declared model or fix the spec",
+			"engine %q declares %s %q but queries are embedded with %q: set EMBEDDING_MODEL to the declared model without its @<dim> and EMBEDDING_DIM to that width, or fix the spec",
 			name, suite.EmbeddingModelParam, declared, store.Model())
 	}
 	return nil

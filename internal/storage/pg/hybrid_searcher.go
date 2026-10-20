@@ -87,7 +87,7 @@ func (s *HybridSearcher) SearchHybrid(ctx context.Context, query *dquery.Hybrid,
 		INNER JOIN articles a ON a.id = f.article_id
 		ORDER BY f.rrf_score DESC, a.id DESC
 		LIMIT $6
-	`, lang, ArticleColumnList("a"))
+	`, lang.Analysis().PostgresConfig, ArticleColumnList("a"))
 
 	rows, err := s.db.Query(
 		ctx,

@@ -139,7 +139,7 @@ TREC-style IR evaluation pipeline. Full docs: [docs/bench.md](docs/bench.md).
 
 **Track convention**: a track is any folder holding `spec.yaml` + `suite.yaml` + `trec/` (+ `reports/`) — the layout above it is not enforced; this repo groups them as `tracks/<dataset>/<paradigm>/`. Track args are ordinary paths: absolute, relative to the track root (`--track-root` / `BENCH_TRACK_ROOT`, default cwd), a glob, or omitted to walk up from CWD.
 
-**Strategy taxonomy**: `lexical` (token-overlap), `bm25` (pool-local Okapi BM25), `vector` (embedding cosine), `hybrid` (BM25 + vector fusion), `claude-cli` / `claude-api` (LLM batched), `manual` (human placeholders). `vector`/`hybrid` read doc vectors from a storage-agnostic `storage.VectorStore` (PG `article_embeddings` now, ES stubbed; PG precedence) and embed the query via Ollama (`--pg` + `EMBEDDING_BASE_URL`). The same store fills the reserved `query_vector` arg for `pool`/`run`.
+**Strategy taxonomy**: `lexical` (token-overlap), `bm25` (pool-local Okapi BM25), `vector` (embedding cosine), `hybrid` (BM25 + vector fusion), `claude-cli` / `claude-api` (LLM batched), `manual` (human placeholders). `vector`/`hybrid` read doc vectors from a storage-agnostic `storage.VectorStore` (PG `article_embeddings` now, ES stubbed; PG precedence) and take query vectors from the track's `trec/query-vectors/` package when it has one, from Ollama otherwise (`--pg` + `EMBEDDING_BASE_URL`). `validate`/`pool`/`run` fill the reserved `query_vector` arg from the same source.
 
 **Schema v1**: every artifact has `schema_version: 1` + `meta:` block. Loading without it is a hard error — no backward-compat tolerance.
 
@@ -180,7 +180,7 @@ Built with Echo framework providing:
 - Field-level weight control for relevance tuning
 - Operator control (AND/OR) for term combination
 - Fuzziness support for typo tolerance (Elasticsearch)
-- English language analysis only; any other language returns 400 until Serbian is implemented
+- Query language as an ISO 639-3 code: `eng` only (the default); any other value returns 400
 - Input validation and comprehensive error handling
 - PostgreSQL: tsvector with ts_rank scoring
 - Elasticsearch: match/multi_match queries with BM25 scoring

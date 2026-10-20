@@ -161,7 +161,7 @@ func TestStructuredSearchHandlerValidation(t *testing.T) {
 		},
 		{
 			name:     "match in english",
-			body:     `{"query":{"match":{"field":"title","query":"climate","language":"english"}}}`,
+			body:     `{"query":{"match":{"field":"title","query":"climate","language":"eng"}}}`,
 			wantCode: http.StatusOK,
 		},
 		{
@@ -186,7 +186,7 @@ func TestStructuredSearchHandlerValidation(t *testing.T) {
 		},
 		{
 			name:     "hybrid in english",
-			body:     `{"query":{"hybrid":{"query":"climate","language":"english"}}}`,
+			body:     `{"query":{"hybrid":{"query":"climate","language":"eng"}}}`,
 			wantCode: http.StatusOK,
 		},
 		{
@@ -275,8 +275,8 @@ func TestSearchHandlerValidation(t *testing.T) {
 	}{
 		{name: "query only", target: "/v1/articles/search?q=climate", wantCode: http.StatusOK},
 		{name: "legacy query parameter", target: "/v1/articles/search?query=climate", wantCode: http.StatusOK},
-		{name: "english", target: "/v1/articles/search?q=climate&lang=english", wantCode: http.StatusOK},
-		{name: "serbian is not supported yet", target: "/v1/articles/search?q=klima&lang=serbian", wantCode: http.StatusBadRequest},
+		{name: "english", target: "/v1/articles/search?q=climate&lang=eng", wantCode: http.StatusOK},
+		{name: "serbian is not supported yet", target: "/v1/articles/search?q=klima&lang=srp", wantCode: http.StatusBadRequest},
 		{name: "unsupported language", target: "/v1/articles/search?q=climate&lang=klingon", wantCode: http.StatusBadRequest},
 		{name: "missing query", target: "/v1/articles/search", wantCode: http.StatusBadRequest},
 	}

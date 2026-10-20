@@ -137,15 +137,6 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 
 	printSpecWarnings(cmd.OutOrStdout(), bs)
 
-	vectorStore, err := buildQueryVectorStore(cmd.Context(), bs)
-	if err != nil {
-		return fmt.Errorf("build vector store: %w", err)
-	}
-	if err := requireEmbedder(bs, vectorStore); err != nil {
-		return err
-	}
-	runCfg.VectorStore = vectorStore
-
 	// Apply --jobs filter: keep only the named jobs.
 	specJobCount := len(bs.Jobs)
 	var jobFilter []string
@@ -172,6 +163,16 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		}
 		bs.Jobs = filtered
 	}
+
+	vectorStore, closeVectorStore, err := buildQueryVectorStore(cmd.Context(), bs, tr)
+	if err != nil {
+		return fmt.Errorf("build vector store: %w", err)
+	}
+	defer closeVectorStore()
+	if err := requireEmbedder(bs, vectorStore); err != nil {
+		return err
+	}
+	runCfg.VectorStore = vectorStore
 
 	executors, cleanup, err := createExecutors(cmd.Context(), bs)
 	if err != nil {

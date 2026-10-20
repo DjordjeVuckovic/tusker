@@ -9,6 +9,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/bench/judgment"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/meta"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/pool"
+	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/trackctx"
 	"github.com/DjordjeVuckovic/tusker/internal/embedding"
 	"github.com/DjordjeVuckovic/tusker/internal/storage"
@@ -57,9 +58,9 @@ func newJudgeCmdWithReader(openReader articleReaderOpener) *cobra.Command {
 
   lexical     — deterministic token-overlap baseline (no network, no LLM)
   bm25        — pool-local Okapi BM25 (no network; rewards rare terms)
-  vector      — cosine similarity; doc vectors from PG, query embedded via
-                Ollama (needs --pg + EMBEDDING_BASE_URL)
-  hybrid      — BM25 + vector fusion (needs --pg + EMBEDDING_BASE_URL)
+  vector      — cosine similarity; doc vectors from PG (--pg), query vectors
+                from trec/query-vectors, else Ollama (EMBEDDING_BASE_URL)
+  hybrid      — BM25 + vector fusion, vectors as for vector
   llm         — LLM-as-judge, batched; pick the endpoint with --provider
   manual      — writes grade:-1 placeholders for hand grading; re-running keeps
                 existing hand grades and adds placeholders for new pool docs
@@ -182,10 +183,11 @@ func (j judgeCommand) judgeTrack(cmd *cobra.Command, tr *trackctx.Track) error {
 		Concurrency: f.concurrency,
 	}
 	if kind == judgment.StrategyVector || kind == judgment.StrategyHybrid {
-		store, model, err := buildVectorStore(cmd.Context(), f)
+		store, model, closeStore, err := buildVectorStore(cmd.Context(), f, tr)
 		if err != nil {
 			return err
 		}
+		defer closeStore()
 		opts.VectorStore = store
 		opts.EmbeddingModel = model
 	}
@@ -328,35 +330,52 @@ func judgeWithVersions(j meta.Judge) string {
 	return s
 }
 
-// buildVectorStore constructs the engine-agnostic vector store for the
-// vector/hybrid judges (PG precedence). Query text is embedded via local
-// Ollama; document vectors are read from the store — no document re-embedding.
-func buildVectorStore(ctx context.Context, f judgeFlags) (storage.VectorStore, string, error) {
+// buildVectorStore builds the vector/hybrid judges' store: query vectors from
+// the track's query-vectors package when it has one, from Ollama otherwise, and
+// document vectors from Postgres.
+func buildVectorStore(ctx context.Context, f judgeFlags, tr *trackctx.Track) (storage.VectorStore, string, func(), error) {
+	noop := func() {}
 	pgConn := envOrFlag("PG_CONNECTION_STRING", f.pg)
 	if pgConn == "" {
-		return nil, "", fmt.Errorf("vector/hybrid judging requires --pg or PG_CONNECTION_STRING")
+		return nil, "", noop, fmt.Errorf("vector/hybrid judging requires --pg or PG_CONNECTION_STRING")
+	}
+	packageDir, found, err := queryVectorsPackage(tr)
+	if err != nil {
+		return nil, "", noop, err
+	}
+	if found {
+		bs, err := spec.LoadFromFile(tr.Spec)
+		if err != nil {
+			return nil, "", noop, fmt.Errorf("load spec to check query vectors: %w", err)
+		}
+		store, closeStore, err := openQueryVectors(ctx, queryVectorsSource{spec: bs, packageDir: packageDir, postgres: pgConn})
+		if err != nil {
+			return nil, "", noop, err
+		}
+		return store, store.Model(), closeStore, nil
 	}
 	baseURL := envOrFlag("EMBEDDING_BASE_URL", f.embeddingBase)
 	if baseURL == "" {
-		return nil, "", fmt.Errorf("vector/hybrid judging requires --embedding-base or EMBEDDING_BASE_URL (ollama endpoint)")
+		return nil, "", noop, fmt.Errorf("vector/hybrid judging requires trec/query-vectors, or --embedding-base or EMBEDDING_BASE_URL (ollama endpoint)")
 	}
 	client, err := embedding.NewOllamaClient(baseURL)
 	if err != nil {
-		return nil, "", fmt.Errorf("embedding client: %w", err)
+		return nil, "", noop, fmt.Errorf("embedding client: %w", err)
 	}
-	model := envOrFlag("EMBEDDING_MODEL", f.embeddingModel)
+	dim, err := embedding.DimFromEnv()
+	if err != nil {
+		return nil, "", noop, err
+	}
 	store, err := factory.NewVectorStore(ctx, factory.VectorStoreConfig{
 		PgConnStr:       pgConn,
 		EmbeddingClient: client,
-		Model:           model,
+		Model:           envOrFlag("EMBEDDING_MODEL", f.embeddingModel),
+		Dim:             dim,
 	})
 	if err != nil {
-		return nil, "", err
+		return nil, "", noop, err
 	}
-	if model == "" {
-		model = embedding.DefaultModel
-	}
-	return store, model, nil
+	return store, store.Model(), noop, nil
 }
 
 // openArticleReader creates a PG reader for article enrichment. Centralised so

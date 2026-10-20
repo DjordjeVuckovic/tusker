@@ -4,9 +4,7 @@ import (
 	"context"
 )
 
-// DefaultModel is the embedding model used when none is configured. Stored
-// document vectors are tagged with the model name, so query embedding and
-// document lookups must agree on it.
+// DefaultModel is the Ollama model used when none is configured.
 const DefaultModel = "qwen3-embedding:0.6b"
 
 type Request struct {

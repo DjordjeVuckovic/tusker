@@ -2,8 +2,11 @@ package pg
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -22,6 +25,8 @@ type IndexDescription struct {
 	// Settings holds the live value of every connection setting the pool
 	// applied, keyed by setting name.
 	Settings map[string]string `json:"settings,omitempty"`
+	// Load is nil when corpus_load holds no record.
+	Load *storage.LoadRecord `json:"load,omitempty"`
 }
 
 type Extension struct {
@@ -37,8 +42,8 @@ type IndexDefinition struct {
 }
 
 // DescribeIndexes reads the server version, the search extensions, every
-// index on the articles and article_embeddings tables, and the session value
-// of each setting the pool applies on connect.
+// index on the articles and article_embeddings tables, the session value of
+// each setting the pool applies on connect, and the latest corpus load record.
 func DescribeIndexes(ctx context.Context, pool *ConnectionPool) (*IndexDescription, error) {
 	conn, err := pool.conn.Acquire(ctx)
 	if err != nil {
@@ -59,7 +64,34 @@ func DescribeIndexes(ctx context.Context, pool *ConnectionPool) (*IndexDescripti
 	if description.Settings, err = readSessionSettings(ctx, conn.Conn(), sortedKeys(pool.settings)); err != nil {
 		return nil, err
 	}
+	if description.Load, err = readLatestLoad(ctx, conn.Conn()); err != nil {
+		return nil, err
+	}
 	return &description, nil
+}
+
+// readLatestLoad returns nil on a schema older than corpus_load.
+func readLatestLoad(ctx context.Context, conn *pgx.Conn) (*storage.LoadRecord, error) {
+	var hasTable bool
+	if err := conn.QueryRow(ctx, "SELECT to_regclass('corpus_load') IS NOT NULL").Scan(&hasTable); err != nil {
+		return nil, fmt.Errorf("look up corpus_load: %w", err)
+	}
+	if !hasTable {
+		return nil, nil
+	}
+	var raw []byte
+	err := conn.QueryRow(ctx, "SELECT record FROM corpus_load ORDER BY finished_at DESC LIMIT 1").Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read latest load record: %w", err)
+	}
+	var record storage.LoadRecord
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return nil, fmt.Errorf("decode latest load record: %w", err)
+	}
+	return &record, nil
 }
 
 func readSearchExtensions(ctx context.Context, conn *pgx.Conn) ([]Extension, error) {

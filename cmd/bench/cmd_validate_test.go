@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/suite"
+	pkgtesting "github.com/DjordjeVuckovic/tusker/pkg/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -202,4 +204,24 @@ queries:
 	require.True(t, validator.hasDeadline, "validation ran without a deadline")
 	assert.False(t, validator.deadline.Before(before.Add(queryTimeout)), "deadline is shorter than the spec's query timeout")
 	assert.False(t, validator.deadline.After(after.Add(queryTimeout)), "deadline is longer than the spec's query timeout")
+}
+
+// A track carrying a query-vectors package embeds nothing: the Ollama here
+// only fails.
+func TestValidate_TrackWithQueryVectorsNeedsNoOllama(t *testing.T) {
+	ctx := context.Background()
+	container := pkgtesting.NewPGContainerWithCleanup(ctx, t)
+	var ollamaCalls atomic.Int32
+	ollama := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		ollamaCalls.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(ollama.Close)
+	t.Setenv("EMBEDDING_BASE_URL", ollama.URL)
+	track := queryVectorsTrack(t, container.ConnString)
+
+	out, err := execute(t, newValidateCmd(), track)
+
+	require.NoError(t, err, out)
+	assert.Zero(t, ollamaCalls.Load())
 }

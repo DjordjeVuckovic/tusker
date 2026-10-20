@@ -13,6 +13,7 @@ import (
 	"github.com/DjordjeVuckovic/tusker/internal/apperr"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg/native"
+	"github.com/DjordjeVuckovic/tusker/internal/types/language"
 	"github.com/DjordjeVuckovic/tusker/internal/types/operator"
 	dquery "github.com/DjordjeVuckovic/tusker/internal/types/query"
 	"github.com/labstack/echo/v4"
@@ -175,42 +176,42 @@ func TestSearchEchoesTheEffectiveContract(t *testing.T) {
 		{
 			name: "an omitted operator is the postgres default",
 			call: searchCall{caps: postgresCaps, body: `{"query":{"match":{"field":"title","query":"climate change"}}}`},
-			want: dquery.Effective{Operator: operator.And, Fields: []dquery.Field{dquery.FieldTitle}, Language: dquery.LanguageEnglish},
+			want: dquery.Effective{Operator: operator.And, Fields: []dquery.Field{dquery.FieldTitle}, Language: language.English},
 		},
 		{
 			name: "an omitted operator is the elasticsearch default",
 			call: searchCall{caps: elasticsearchCaps, body: `{"query":{"match":{"field":"title","query":"climate change"}}}`},
-			want: dquery.Effective{Operator: operator.Or, Fields: []dquery.Field{dquery.FieldTitle}, Language: dquery.LanguageEnglish},
+			want: dquery.Effective{Operator: operator.Or, Fields: []dquery.Field{dquery.FieldTitle}, Language: language.English},
 		},
 		{
 			name: "a stated operator overrides the engine default",
 			call: searchCall{caps: postgresCaps, body: `{"query":{"match":{"field":"title","query":"climate change","operator":"or"}}}`},
-			want: dquery.Effective{Operator: operator.Or, Fields: []dquery.Field{dquery.FieldTitle}, Language: dquery.LanguageEnglish},
+			want: dquery.Effective{Operator: operator.Or, Fields: []dquery.Field{dquery.FieldTitle}, Language: language.English},
 		},
 		{
 			name: "multi_match fields without their boosts",
 			call: searchCall{caps: postgresCaps, body: `{"query":{"multi_match":{"fields":["title^3","content"],"query":"climate","operator":"and"}}}`},
-			want: dquery.Effective{Operator: operator.And, Fields: []dquery.Field{dquery.FieldTitle, dquery.FieldContent}, Language: dquery.LanguageEnglish},
+			want: dquery.Effective{Operator: operator.And, Fields: []dquery.Field{dquery.FieldTitle, dquery.FieldContent}, Language: language.English},
 		},
 		{
 			name: "a phrase has no operator",
 			call: searchCall{caps: postgresCaps, body: `{"query":{"phrase":{"fields":["title"],"query":"climate change"}}}`},
-			want: dquery.Effective{Fields: []dquery.Field{dquery.FieldTitle}, Language: dquery.LanguageEnglish},
+			want: dquery.Effective{Fields: []dquery.Field{dquery.FieldTitle}, Language: language.English},
 		},
 		{
 			name: "boolean joins adjacent words with the engine default",
 			call: searchCall{caps: elasticsearchCaps, body: `{"query":{"boolean":{"expression":"climate change"}}}`},
-			want: dquery.Effective{Operator: operator.Or, Fields: contractFields, Language: dquery.LanguageEnglish},
+			want: dquery.Effective{Operator: operator.Or, Fields: contractFields, Language: language.English},
 		},
 		{
 			name: "the search box is free text over the contract fields",
 			call: searchCall{caps: elasticsearchCaps, method: http.MethodGet, target: "/v1/articles/search?q=climate+change"},
-			want: dquery.Effective{Operator: operator.Or, Fields: contractFields, Language: dquery.LanguageEnglish},
+			want: dquery.Effective{Operator: operator.Or, Fields: contractFields, Language: language.English},
 		},
 		{
 			name: "hybrid leaves the fields to the engine",
 			call: searchCall{caps: postgresCaps, body: `{"query":{"hybrid":{"query":"climate change"}}}`},
-			want: dquery.Effective{Operator: operator.And, Language: dquery.LanguageEnglish},
+			want: dquery.Effective{Operator: operator.And, Language: language.English},
 		},
 	}
 	for _, tt := range tests {
@@ -323,7 +324,7 @@ func TestSearchBoxAcceptsTheParamsItDocuments(t *testing.T) {
 	rec := serveSearch(t, searchCall{
 		caps:   elasticsearchCaps,
 		method: http.MethodGet,
-		target: "/v1/articles/search?q=climate&size=5&lang=english",
+		target: "/v1/articles/search?q=climate&size=5&lang=eng",
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())

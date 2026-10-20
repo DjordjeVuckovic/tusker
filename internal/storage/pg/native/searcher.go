@@ -284,11 +284,12 @@ func (r *Searcher) SearchPhrase(ctx context.Context, query *dquery.Phrase, baseO
 		"has_cursor", cursor != nil,
 		"size", size)
 
-	phraseExpr := fmt.Sprintf("phraseto_tsquery('%s'::regconfig, $1)", lang)
+	regconfig := lang.Analysis().PostgresConfig
+	phraseExpr := fmt.Sprintf("phraseto_tsquery('%s'::regconfig, $1)", regconfig)
 	phraseArg := query.Query
 	if slop > 0 {
 		var plainQuery string
-		lexemeSQL := fmt.Sprintf("SELECT plainto_tsquery('%s'::regconfig, $1)::text", lang)
+		lexemeSQL := fmt.Sprintf("SELECT plainto_tsquery('%s'::regconfig, $1)::text", regconfig)
 		if err := r.db.QueryRow(ctx, lexemeSQL, query.Query).Scan(&plainQuery); err != nil {
 			return nil, fmt.Errorf("SearchPhrase: failed to tokenize phrase: %w", err)
 		}

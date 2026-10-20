@@ -23,7 +23,7 @@ A stated parameter that changes which articles match is honoured by the engine o
 - `q` (required): Search query text
 - `size` (optional): Results per page (default: 100, max: 10000)
 - `cursor` (optional): Pagination cursor (base64-encoded)
-- `lang` (optional): Search language. Only `english` (the default) is supported; any other value returns 400
+- `lang` (optional): ISO 639-3 language code; only `eng` (the default) today, and any other value returns 400
 
 **Examples:**
 
@@ -32,7 +32,7 @@ A stated parameter that changes which articles match is honoured by the engine o
 GET /v1/articles/search?q=climate change&size=10
 
 # With language
-GET /v1/articles/search?q=climate change&lang=english
+GET /v1/articles/search?q=climate change&lang=eng
 
 # With pagination
 GET /v1/articles/search?q=renewable energy&cursor=eyJzY29yZSI6...
@@ -66,7 +66,7 @@ GET /v1/articles/search?q=renewable energy&cursor=eyJzY29yZSI6...
   "max_score": 1.0,
   "page_max_score": 0.95,
   "total_matches": 1523,
-  "effective": {"operator": "AND", "fields": ["title", "description", "content"], "language": "english"},
+  "effective": {"operator": "AND", "fields": ["title", "description", "content"], "language": "eng"},
   "ignored": []
 }
 ```
@@ -111,7 +111,7 @@ POST /v1/articles/_search
       "query": "climate change",
       "operator": "and",
       "fuzziness": "AUTO",
-      "language": "english"
+      "language": "eng"
     }
   }
 }
@@ -122,7 +122,7 @@ POST /v1/articles/_search
 - `query` (required): Search text
 - `operator` (optional): "and" or "or" (default: the engine's, AND on Postgres and OR on Elasticsearch)
 - `fuzziness` (optional): Typo tolerance - "NONE", "AUTO", "0", "1", "2" (Elasticsearch only; 400 on Postgres unless lenient)
-- `language` (optional): Language for text analysis. Only `"english"` (the default) is supported; any other value returns 400
+- `language` (optional): ISO 639-3 code of the analysis language; only `"eng"` (the default) today, and any other value returns 400
 
 **Use Cases:**
 - Search only in titles: `field: "title"`
@@ -146,7 +146,7 @@ POST /v1/articles/_search
       "query": "climate change",
       "fields": ["title^3", "description^2", "content"],
       "operator": "or",
-      "language": "english"
+      "language": "eng"
     }
   }
 }
@@ -156,7 +156,7 @@ POST /v1/articles/_search
 - `query` (required): Search text
 - `fields` (required): Array of fields to search, each optionally boosted as `field^boost`
 - `operator` (optional): "and" or "or" (default: the engine's)
-- `language` (optional): Language for text analysis. Only `"english"` (the default) is supported; any other value returns 400
+- `language` (optional): ISO 639-3 code of the analysis language; only `"eng"` (the default) today, and any other value returns 400
 
 **Use Cases:**
 - Boost title matches: `"title^3"`
@@ -235,7 +235,7 @@ POST /v1/articles/_search
     "query_string": {
       "query": "climate change",
       "default_operator": "or",
-      "language": "english"
+      "language": "eng"
     }
   }
 }
@@ -281,7 +281,7 @@ All endpoints return the same response structure:
   "max_score": float64,
   "page_max_score": float64,
   "total_matches": int64,
-  "effective": {"operator": "AND | OR", "fields": [string], "language": "english"},
+  "effective": {"operator": "AND | OR", "fields": [string], "language": "eng"},
   "ignored": [{"param": string, "engine": string, "reason": string}]
 }
 ```
@@ -368,7 +368,7 @@ All endpoints return the same response structure:
 
 ### Language Support
 
-`english` is the only supported language and the default. Any other value returns 400 until Serbian is implemented.
+Languages are ISO 639-3 codes. `eng` is the only one today, and the default; any other value is a 400.
 
 ---
 

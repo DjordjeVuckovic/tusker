@@ -2,11 +2,13 @@ package report
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/DjordjeVuckovic/tusker/internal/bench/engine"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/metrics"
 	"github.com/DjordjeVuckovic/tusker/internal/bench/spec"
+	"github.com/DjordjeVuckovic/tusker/internal/storage"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/es"
 	"github.com/DjordjeVuckovic/tusker/internal/storage/pg"
 )
@@ -58,5 +60,59 @@ func TestGenerate_RecordsIndexProvenanceThroughTheWrittenReport(t *testing.T) {
 	}
 	if idx := engines["api"].Index; idx == nil || idx.Error == "" {
 		t.Errorf("api index provenance = %+v, want a block carrying the error", idx)
+	}
+}
+
+func reportWithLoads(pgEmbeddings, esEmbeddings string) *Report {
+	load := func(engineName, embeddingsVersion string) *storage.LoadRecord {
+		return &storage.LoadRecord{
+			Engine:     engineName,
+			Canonical:  storage.PackageRef{Name: "cc-news", Version: "article-v2-601d5476"},
+			Embeddings: &storage.PackageRef{Name: "cc-news-embeddings", Version: embeddingsVersion},
+			ModelTag:   "qwen3-embedding:0.6b@1024",
+		}
+	}
+	return &Report{Environment: RunEnvironment{Engines: map[string]EngineInfo{
+		"pg": {Index: &IndexProvenance{IndexDescription: engine.IndexDescription{Postgres: &pg.IndexDescription{
+			ServerVersion: "18.0", Load: load("pg-native", pgEmbeddings),
+		}}}},
+		"es": {Index: &IndexProvenance{IndexDescription: engine.IndexDescription{Elasticsearch: &es.IndexDescription{
+			Version: "8.12.0", Index: "articles", Load: load("elasticsearch", esEmbeddings),
+		}}}},
+	}}}
+}
+
+func TestDiffProvenance_NamesALoadOfOtherEmbeddings(t *testing.T) {
+	before := reportWithLoads("lead-v1-1024-938b2254", "lead-v1-1024-938b2254")
+	after := reportWithLoads("lead-v1-1024-0badc0de", "lead-v1-1024-0badc0de")
+
+	changes := DiffProvenance(before, after)
+
+	for _, engineName := range []string{"es", "pg"} {
+		found := false
+		for _, c := range changes {
+			if c.Engine == engineName && c.Before == "lead-v1-1024-938b2254" && c.After == "lead-v1-1024-0badc0de" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("changes = %+v, want %s's embeddings version to differ", changes, engineName)
+		}
+	}
+	if same := DiffProvenance(before, before); len(same) != 0 {
+		t.Errorf("identical loads differ: %+v", same)
+	}
+}
+
+func TestSummary_NamesTheLoadedPackagesAndTag(t *testing.T) {
+	rpt := reportWithLoads("lead-v1-1024-938b2254", "lead-v1-1024-938b2254")
+
+	for name, info := range rpt.Environment.Engines {
+		summary := info.Index.Summary()
+		for _, want := range []string{"article-v2-601d5476", "lead-v1-1024-938b2254", "qwen3-embedding:0.6b@1024"} {
+			if !strings.Contains(summary, want) {
+				t.Errorf("%s summary = %q, want it to name %s", name, summary, want)
+			}
+		}
 	}
 }

@@ -27,11 +27,8 @@ func newHybridTestEnv(t *testing.T, queryVec []float32) (*Indexer, *Embedder, *H
 		t.Fatalf("NewEmbedder: %v", err)
 	}
 
-	qEmbedder := embedding.NewEmbedder(staticEmbedder{vec: queryVec},
-		embedding.WithExecutorMaxLength(1024),
-		embedding.WithExecutorModel(embedding.DefaultModel),
-	)
-	return indexer, embIndexer, NewHybridSearcher(newTestClient(t, cfg), qEmbedder, embedding.DefaultModel)
+	qEmbedder := embedding.NewEmbedder(staticEmbedder{vec: queryVec})
+	return indexer, embIndexer, NewHybridSearcher(newTestClient(t, cfg), qEmbedder, qEmbedder.Model())
 }
 
 func TestHybridSearcher_SearchHybrid_RanksBothSignalsFirst(t *testing.T) {
@@ -70,9 +67,9 @@ func TestHybridSearcher_SearchHybrid_RanksBothSignalsFirst(t *testing.T) {
 	refresh(t, embIndexer)
 
 	batch := []*embedding.Vec{
-		{ID: bothID, Model: embedding.DefaultModel, Embedding: near},
-		{ID: lexicalOnlyID, Model: embedding.DefaultModel, Embedding: far},
-		{ID: vectorOnlyID, Model: embedding.DefaultModel, Embedding: midway},
+		{ID: bothID, Model: storedTag, Embedding: near},
+		{ID: lexicalOnlyID, Model: storedTag, Embedding: far},
+		{ID: vectorOnlyID, Model: storedTag, Embedding: midway},
 	}
 	if _, err := embIndexer.SaveBulk(ctx, batch); err != nil {
 		t.Fatalf("SaveBulk: %v", err)
@@ -126,8 +123,8 @@ func TestHybridSearcher_SearchHybrid_OnlySeesTheQueryModel(t *testing.T) {
 	refresh(t, embIndexer)
 
 	batch := []*embedding.Vec{
-		{ID: sameModel, Model: embedding.DefaultModel, Embedding: queryVec},
-		{ID: otherModel, Model: "other-model", Embedding: queryVec},
+		{ID: sameModel, Model: storedTag, Embedding: queryVec},
+		{ID: otherModel, Model: embedding.DefaultModel, Embedding: queryVec},
 	}
 	if _, err := embIndexer.SaveBulk(ctx, batch); err != nil {
 		t.Fatalf("SaveBulk: %v", err)

@@ -225,6 +225,12 @@ definitions:
       next_cursor:
         type: string
     type: object
+  github_com_DjordjeVuckovic_tusker_internal_types_language.Code:
+    enum:
+    - eng
+    type: string
+    x-enum-varnames:
+    - English
   github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator:
     enum:
     - AND
@@ -261,7 +267,7 @@ definitions:
           $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Field'
         type: array
       language:
-        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_query.Language'
+        $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_language.Code'
       operator:
         $ref: '#/definitions/github_com_DjordjeVuckovic_tusker_internal_types_operator.Operator'
     type: object
@@ -284,12 +290,6 @@ definitions:
       reason:
         type: string
     type: object
-  github_com_DjordjeVuckovic_tusker_internal_types_query.Language:
-    enum:
-    - english
-    type: string
-    x-enum-varnames:
-    - LanguageEnglish
 info:
   contact:
     email: support@tusker.sh
@@ -378,9 +378,8 @@ paths:
         in: query
         name: cursor
         type: string
-      - description: 'SearchStringQuery language: english, the only one supported
-          (default: english)'
-        example: '"english"'
+      - description: 'ISO 639-3 language code; only eng today (default: eng)'
+        example: '"eng"'
         in: query
         name: lang
         type: string

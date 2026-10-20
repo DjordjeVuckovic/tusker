@@ -22,7 +22,7 @@ import (
 //	      "query": "climate change",
 //	      "operator": "and",
 //	      "fuzziness": "AUTO",
-//	      "language": "english"
+//	      "language": "eng"
 //	    }
 //	  }
 //	}
@@ -36,7 +36,7 @@ import (
 //	      "query": "climate change",
 //	      "fields": ["title^3", "description^2", "content"],
 //	      "operator": "or",
-//	      "language": "english"
+//	      "language": "eng"
 //	    }
 //	  }
 //	}
@@ -114,7 +114,7 @@ type MultiMatchParams struct {
 //	  "query": "climate change",
 //	  "fields": ["title", "description"],
 //	  "slop": 2,
-//	  "language": "english"
+//	  "language": "eng"
 //	}
 type PhraseParams struct {
 	Query    string   `json:"query" validate:"required,min=1"`

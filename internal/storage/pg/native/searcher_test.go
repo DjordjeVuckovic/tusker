@@ -509,7 +509,7 @@ func TestBooleanMatchWithNegationCanUseTheSearchVectorIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	match := buildBooleanMatch(tsquery, dquery.LanguageEnglish)
+	match := buildBooleanMatch(tsquery, language.English)
 
 	// With sequential scans priced out, the planner still picks one when the
 	// predicate cannot be answered from the GIN index.
