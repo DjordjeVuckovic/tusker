@@ -653,9 +653,23 @@ func TestWriters_ShowTheMeanDifferenceAndUntestablePairs(t *testing.T) {
 	for name, out := range map[string]string{"table": terminal.String(), "markdown": markdown.String(), "html": html.UnescapeString(string(page))} {
 		assert.Contains(t, out, "+0.0627 [-0.0137, +0.1097]", name)
 	}
-	assert.Contains(t, terminal.String(), "untestable")
-	assert.Contains(t, markdown.String(), "| untestable |")
-	assert.Contains(t, string(page), ">untestable</span>")
+	twinRows := map[string]string{
+		"table":    lineContaining(terminal.String(), "twin"),
+		"markdown": lineContaining(markdown.String(), "twin"),
+		"html":     regexp.MustCompile(`(?s)<td>twin</td>(.*?)</tr>`).FindString(string(page)),
+	}
+	for name, row := range twinRows {
+		assert.Contains(t, row, "untestable", name)
+	}
+}
+
+func lineContaining(text, substr string) string {
+	for line := range strings.Lines(text) {
+		if strings.Contains(line, substr) {
+			return line
+		}
+	}
+	return ""
 }
 
 func TestWriteHTML_ShowsQualityOnlyForEnginesWithJudgedQueries(t *testing.T) {
@@ -726,7 +740,8 @@ func TestWriteTable_PerQueryTableScoresAtTheLargestK(t *testing.T) {
 
 	WriteTable(r, &out)
 
-	perQuery := out.String()[strings.Index(out.String(), "Per-Query Results"):]
+	_, perQuery, found := strings.Cut(out.String(), "Per-Query Results")
+	require.True(t, found)
 	assert.Contains(t, perQuery, "NDCG@10")
 	assert.Contains(t, perQuery, "0.7500")
 	assert.NotContains(t, perQuery, "0.5000")

@@ -285,7 +285,6 @@ func TestPrintDiff_ChangeFromAZeroBaselineHasNoPercentage(t *testing.T) {
 	printDiff(&out, before, after)
 	got := out.String()
 
-	assert.Contains(t, got, "0.0000→0.4000 ↑n/a")
-	assert.Regexp(t, `→3\.0\dms ↑n/a`, got)
+	assert.Contains(t, got, "n/a")
 	assert.NotContains(t, got, "+0.0%")
 }

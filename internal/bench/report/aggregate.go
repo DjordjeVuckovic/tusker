@@ -363,7 +363,7 @@ func computeSignificance(scope jobScope) []PairwiseSignificance {
 	return results
 }
 
-// pairedScores holds two engines' scores on one metric, query by query.
+// pairedScores lines a and b up by query.
 type pairedScores struct {
 	engineA, engineB, metric string
 	a, b                     []float64
