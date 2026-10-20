@@ -60,23 +60,27 @@ type Entry struct {
 // UnmarshalYAML rejects a doc without a grade key, which would otherwise
 // decode as grade 0, a confident "not relevant".
 func (e *Entry) UnmarshalYAML(value *yaml.Node) error {
-	var raw struct {
-		QueryID string `yaml:"query_id"`
-		Docs    []struct {
-			DocID uuid.UUID `yaml:"doc_id"`
-			Grade *int      `yaml:"grade"`
-		} `yaml:"docs"`
-	}
-	if err := value.Decode(&raw); err != nil {
+	type plain Entry
+	if err := value.Decode((*plain)(e)); err != nil {
 		return err
 	}
-	e.QueryID = raw.QueryID
-	e.Docs = nil
-	for _, d := range raw.Docs {
-		if d.Grade == nil {
-			return fmt.Errorf("query %q doc %s has no grade", raw.QueryID, d.DocID)
+	docs := mappingValue(value, "docs")
+	if docs == nil {
+		return nil
+	}
+	for i, doc := range docs.Content {
+		if mappingValue(doc, "grade") == nil {
+			return fmt.Errorf("query %q doc %s has no grade", e.QueryID, e.Docs[i].DocID)
 		}
-		e.Docs = append(e.Docs, GradedDoc{DocID: d.DocID, Grade: *d.Grade})
+	}
+	return nil
+}
+
+func mappingValue(mapping *yaml.Node, key string) *yaml.Node {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			return mapping.Content[i+1]
+		}
 	}
 	return nil
 }
