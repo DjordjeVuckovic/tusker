@@ -134,8 +134,8 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 
 	runCfg := newRunConfig(f, bs, ks, cmd.Flags().Changed("k"))
 	runCfg.Judgments = judgments.grades
-	runCfg.RankingDepth = judgments.poolDepth
-	if err := spec.CheckKValues(runCfg.KValues, judgments.poolDepth); err != nil {
+	runCfg.RankingDepth = judgments.pool.Meta.PoolDepth
+	if err := spec.CheckKValues(runCfg.KValues, judgments.pool.Meta.PoolDepth); err != nil {
 		return fmt.Errorf("k values %v: %w", runCfg.KValues, err)
 	}
 
@@ -213,7 +213,7 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 		Judgments: judgments.path,
 	}
 	if judgments.meta != nil {
-		rpt.Provenance.PoolRunID = judgments.poolRunID
+		rpt.Provenance.PoolRunID = judgments.pool.Meta.RunID
 		rpt.Provenance.JudgmentsRunID = judgments.meta.RunID
 		rpt.Provenance.Judge = judgments.meta.Judge
 		rpt.Provenance.GradedCount = judgments.meta.GradedCount
@@ -330,15 +330,8 @@ type runJudgments struct {
 	grades   map[string]map[string]int
 	meta     *meta.Meta
 	coverage judgmentCoverage
-	// dropped are the cells the pool was written without (--allow-partial).
-	dropped []meta.DroppedExecution
-	// pooledEngines are the engines whose results the pool holds.
-	pooledEngines []string
-	// pooledRequests[queryID][engine] is the digest of the request the pool sent.
-	pooledRequests map[string]map[string]string
-	// poolDepth is the depth every ranking is scored at; zero for latency-only.
-	poolDepth int
-	poolRunID string
+	// pool is the pool the judgments were graded against; empty for latency-only.
+	pool *pool.PoolFile
 }
 
 // loadRunJudgments resolves --judgments, else spec.defaults.judgments, and
@@ -349,7 +342,7 @@ func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJ
 		if f.judgments != "" {
 			return nil, errors.New("--latency-only scores nothing, so --judgments would be ignored; pass one of them")
 		}
-		return &runJudgments{}, nil
+		return &runJudgments{pool: &pool.PoolFile{}}, nil
 	}
 
 	explicit := f.judgments != ""
@@ -374,19 +367,15 @@ func loadRunJudgments(f runFlags, bs *spec.BenchSpec, tr *trackctx.Track) (*runJ
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return &runJudgments{
-		path:           path,
-		grades:         grades,
-		meta:           judgmentsMeta,
-		coverage:       poolCoverage(currentPool, grades),
-		dropped:        currentPool.Meta.DroppedExecutions,
-		pooledEngines:  currentPool.Meta.Engines,
-		pooledRequests: pooledRequests(currentPool),
-		poolDepth:      currentPool.Meta.PoolDepth,
-		poolRunID:      currentPool.Meta.RunID,
+		path:     path,
+		grades:   grades,
+		meta:     judgmentsMeta,
+		coverage: poolCoverage(currentPool, grades),
+		pool:     currentPool,
 	}, nil
 }
 
-func pooledRequests(pf *pool.PoolFile) map[string]map[string]string {
+func pooledRequestDigests(pf *pool.PoolFile) map[string]map[string]string {
 	requests := make(map[string]map[string]string, len(pf.Queries))
 	for _, entry := range pf.Queries {
 		requests[entry.QueryID] = entry.RequestDigests
@@ -429,7 +418,7 @@ func poolCoverage(pf *pool.PoolFile, grades map[string]map[string]int) judgmentC
 // runFailures lists why a finished run cannot stand as the track's result.
 func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []string {
 	var failures []string
-	if cells := measuredDroppedCells(result, judgments.dropped); len(cells) > 0 {
+	if cells := measuredDroppedCells(result, judgments.pool.Meta.DroppedExecutions); len(cells) > 0 {
 		failures = append(failures, fmt.Sprintf("the pool holds no documents for %d measured (query, engine) executions, so their hits score as non-relevant: %s; re-pool without --allow-partial",
 			len(cells), strings.Join(cells, ", ")))
 	}
@@ -468,11 +457,12 @@ func runFailures(result *runner.BenchmarkResult, judgments *runJudgments) []stri
 // for. Dropped cells are reported on their own.
 func changedRequests(result *runner.BenchmarkResult, judgments *runJudgments) []string {
 	accounted := accountedEngines(judgments)
-	dropped := droppedCells(judgments.dropped)
+	dropped := droppedCells(judgments.pool.Meta.DroppedExecutions)
+	pooledDigests := pooledRequestDigests(judgments.pool)
 	changed := make(map[string]bool)
 	for _, jr := range result.Jobs {
 		for queryID, byEngine := range jr.Results {
-			pooled, ok := judgments.pooledRequests[queryID]
+			pooled, ok := pooledDigests[queryID]
 			if !ok {
 				continue
 			}
@@ -502,7 +492,7 @@ type retrievedWithoutGrade struct {
 // reported on their own.
 func unjudgedRetrieved(result *runner.BenchmarkResult, judgments *runJudgments) retrievedWithoutGrade {
 	accounted := accountedEngines(judgments)
-	dropped := droppedCells(judgments.dropped)
+	dropped := droppedCells(judgments.pool.Meta.DroppedExecutions)
 	docs := make(map[queryDoc]bool)
 	cells := make(map[string]bool)
 	for _, jr := range result.Jobs {
@@ -539,10 +529,10 @@ func droppedCells(dropped []meta.DroppedExecution) map[string]bool {
 // accountedEngines are the engines the pool holds results from or records as dropped.
 func accountedEngines(judgments *runJudgments) map[string]bool {
 	accounted := make(map[string]bool)
-	for _, name := range judgments.pooledEngines {
+	for _, name := range judgments.pool.Meta.Engines {
 		accounted[name] = true
 	}
-	for _, d := range judgments.dropped {
+	for _, d := range judgments.pool.Meta.DroppedExecutions {
 		accounted[d.Engine] = true
 	}
 	return accounted
