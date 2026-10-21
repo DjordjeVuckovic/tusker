@@ -109,8 +109,7 @@ func (m *Meta) Normalize() {
 // Sources is embedded in a Report's meta to attest which on-disk artifacts
 // were consumed to compute the metrics in that report.
 type Sources struct {
-	Spec string `yaml:"spec,omitempty" json:"spec,omitempty"`
-	// Suites are the suites the run's jobs loaded.
+	Spec       string   `yaml:"spec,omitempty" json:"spec,omitempty"`
 	Suites     []string `yaml:"suites,omitempty" json:"suites,omitempty"`
 	Pool       string   `yaml:"pool,omitempty" json:"pool,omitempty"`
 	Judgments  string   `yaml:"judgments,omitempty" json:"judgments,omitempty"`
