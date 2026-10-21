@@ -208,7 +208,7 @@ func runTrack(cmd *cobra.Command, f runFlags, ks []int, tr *trackctx.Track) erro
 	rpt.Provenance.SpecID = bs.ID
 	rpt.Provenance.Sources = &meta.Sources{
 		Spec:      tr.Spec,
-		Suites:    jobSuites(bs),
+		Suites:    loadedSuitePaths(bs),
 		Pool:      tr.Pool,
 		Judgments: judgments.path,
 	}
@@ -304,7 +304,7 @@ func measuredAsSpecified(cfg runner.Config, bs *spec.BenchSpec) bool {
 		slices.Equal(cfg.KValues, bs.Metrics.KValues)
 }
 
-func jobSuites(bs *spec.BenchSpec) []string {
+func loadedSuitePaths(bs *spec.BenchSpec) []string {
 	var suites []string
 	for _, job := range bs.Jobs {
 		if !slices.Contains(suites, job.Suite) {
