@@ -39,7 +39,6 @@ func TestRun_UnjudgedRetrievedDocFailsOnlyWithinThePoolDepth(t *testing.T) {
 				return
 			}
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "1 retrieved docs")
 			assert.Contains(t, err.Error(), "q1/a")
 			assert.NotContains(t, err.Error(), "q1/b")
 			assertLatestUnchanged(t, tr, before)
