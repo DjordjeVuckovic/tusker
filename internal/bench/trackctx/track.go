@@ -57,10 +57,9 @@ type Inputs struct {
 
 // Track holds absolute paths derived from a track folder + overrides.
 type Track struct {
-	Root  string // absolute path to the track folder
-	Spec  string
-	Suite string
-	Pool  string
+	Root string // absolute path to the track folder
+	Spec string
+	Pool string
 
 	name       string // root-relative id, e.g. "fts_quality" or "tracks/news/fts"
 	trecDir    string
@@ -117,7 +116,6 @@ func newTrack(root, name string) *Track {
 		reportsDir: filepath.Join(root, reportsDir),
 	}
 	t.Spec = filepath.Join(root, specFile)
-	t.Suite = filepath.Join(root, suiteFile)
 	t.Pool = filepath.Join(t.trecDir, poolFile)
 	return t
 }
