@@ -12,6 +12,7 @@ from conftest import (
     sha256_of,
     write_canonical_package,
 )
+from embed_corpus import Article
 
 ROWS = [
     article(
@@ -110,6 +111,68 @@ def test_lead_v1_embeds_the_stripped_title_and_description_joined_by_one_space_a
     _, vectors = read_embeddings(only_package(tmp_path / "out"))
     np.testing.assert_array_equal(vectors[0], vectors[1])
     np.testing.assert_array_equal(vectors[0], vectors[2])
+
+
+@pytest.mark.parametrize(
+    ("title", "description", "lead"),
+    [
+        pytest.param(
+            "  Storm hits coast ",
+            " Winds at 90 km/h.\t",
+            "Storm hits coast Winds at 90 km/h.",
+            id="padded title and description",
+        ),
+        pytest.param(
+            "Storm hits coast", "", "Storm hits coast", id="empty description"
+        ),
+        pytest.param(
+            "Storm hits coast", " \n\t", "Storm hits coast", id="blank description"
+        ),
+        pytest.param(
+            "Storm hits coast", None, "Storm hits coast", id="null description"
+        ),
+        pytest.param(None, "Winds at 90 km/h.", "Winds at 90 km/h.", id="null title"),
+        pytest.param(
+            " Storm  hits\n",
+            "\tWinds  at 90 ",
+            "Storm  hits Winds  at 90",
+            id="inner whitespace kept",
+        ),
+        pytest.param(
+            "\u00a0Storm hits coast\u2003",
+            "Winds at 90 km/h.",
+            "Storm hits coast Winds at 90 km/h.",
+            id="unicode whitespace stripped",
+        ),
+        pytest.param("", "", "", id="body never stands in"),
+    ],
+)
+def test_the_lead_is_the_stripped_title_and_description_joined_by_one_space_and_never_the_body(
+    title, description, lead
+):
+    record = {
+        **article("11111111-1111-4111-8111-111111111111", "", content="first body"),
+        "title": title,
+        "description": description,
+    }
+
+    assert Article.from_record(record, row_number=1).lead == lead
+
+
+def test_refuses_an_article_without_a_lead_before_writing_anything(
+    tmp_path, tiny_model_args
+):
+    leadless = article(
+        "55555555-5555-4555-8555-555555555555", " ", "\t", "a body is not a lead"
+    )
+    canonical = write_canonical_package(tmp_path / "canonical", [*ROWS, leadless])
+
+    result = embed(canonical.descriptor, tmp_path / "out", *tiny_model_args)
+
+    assert result.returncode != 0
+    assert "no lead" in result.stderr
+    assert leadless["id"] in result.stderr
+    assert package_dirs(tmp_path / "out") == []
 
 
 def test_vectors_follow_the_text_they_embed(tmp_path, tiny_model_args):
