@@ -32,9 +32,7 @@ or CPU and never to Apple's MPS.
 | `lead-v1`           | `" ".join` of the stripped, non-empty `title` and `description`. Never the body.                | documents |
 | `query-instruct-v1` | `"Instruct: Given a web search, retrieve all relevant news documents\nQuery:" + strip(query)`   | queries   |
 
-There is no space after `Query:`. The Go embedder in
-`internal/embedding/embedder.go` builds the same strings, because the API embeds
-queries through Ollama and those vectors have to land in the same space.
+There is no space after `Query:`.
 
 Both recipes use `Qwen/Qwen3-Embedding-0.6B` pinned to revision
 `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3`, last-token pooling, then a slice to
@@ -51,6 +49,24 @@ compare them byte for byte; anything else is refused rather than rewritten.
 A shard or a query whose vector comes out NaN or inf, which fp16 overflow does
 silently, is refused before it is written, with the shard number and the first
 ids.
+
+### The lead
+
+News is written as an inverted pyramid: the headline and the first lines say
+who, what, where and when, and the body adds detail in falling order of
+importance. Journalists call that opening the lead. `lead-v1` embeds it as the
+article's `title` and `description`, the summary the publisher puts in the
+page's metadata, usually the teaser or the first sentence. The body is never
+embedded: the lead says what the article is about, and the 512-token input cap
+would cut the longer half of cc-news bodies partway anyway.
+
+In cc-news, 180,295 of 707,910 articles have no description and are embedded
+from the headline alone. About 24,500 more carry a site-wide description, such
+as a publisher's slogan or section list, repeated across at least 20 articles.
+
+The recipe's version is part of a vector's identity, with the model and the
+width. A different lead formula gets a new recipe name, a new embeddings package
+and a new run.
 
 ### The embeddings package
 

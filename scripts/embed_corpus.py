@@ -26,9 +26,9 @@ import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Any, Literal, NamedTuple
+from typing import Any, Literal, Self
 
 import numpy as np
 import pyarrow as pa
@@ -92,9 +92,45 @@ class SourcePackage:
     language: str | None
 
 
-class LeadRow(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class Article:
+    """The canonical columns the producer reads."""
+
     id: str
-    text: str
+    title: str
+    description: str
+
+    @classmethod
+    def from_record(cls, record: dict[str, Any], *, row_number: int) -> Self:
+        """Raise PackageError unless the id is canonical lowercase uuid text."""
+        article_id = record.get("id")
+        if not isinstance(article_id, str):
+            raise PackageError(f"row {row_number} has no string id")
+        try:
+            parsed = uuid.UUID(article_id)
+        except ValueError as error:
+            raise PackageError(
+                f"row {row_number} id {article_id!r} is not a uuid"
+            ) from error
+        # Loaders compare ids byte for byte.
+        if str(parsed) != article_id:
+            raise PackageError(
+                f"row {row_number} id {article_id!r} is not canonical lowercase uuid text"
+            )
+        return cls(
+            id=article_id,
+            title=record.get("title") or "",
+            description=record.get("description") or "",
+        )
+
+    @property
+    def lead(self) -> str:
+        """The lead-v1 text: the headline and summary news writing puts first."""
+        parts = (part.strip() for part in (self.title, self.description))
+        return " ".join(part for part in parts if part)
+
+
+ARTICLE_COLUMNS = tuple(field.name for field in fields(Article))
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,32 +300,19 @@ def verify_resource(path: Path, resource: dict[str, Any]) -> None:
         )
 
 
-def lead_text(title: str | None, description: str | None) -> str:
-    """The lead-v1 recipe."""
-    parts = (part.strip() for part in (title or "", description or ""))
-    return " ".join(part for part in parts if part)
-
-
-def iter_lead_rows(source: SourcePackage, limit: int | None) -> Iterator[LeadRow]:
+def iter_articles(source: SourcePackage, limit: int | None) -> Iterator[Article]:
     records = (
         iter_parquet_records(source.resource)
         if source.resource_format == "parquet"
         else iter_jsonl_records(source.resource)
     )
     for row_number, record in enumerate(itertools.islice(records, limit), 1):
-        yield LeadRow(
-            id=canonical_id(record.get("id"), row_number),
-            text=lead_text(record.get("title"), record.get("description")),
-        )
+        yield Article.from_record(record, row_number=row_number)
 
 
 def iter_parquet_records(path: Path) -> Iterator[dict[str, Any]]:
     with pq.ParquetFile(path) as file:
-        columns = [
-            name
-            for name in ("id", "title", "description")
-            if name in file.schema_arrow.names
-        ]
+        columns = [name for name in ARTICLE_COLUMNS if name in file.schema_arrow.names]
         for batch in file.iter_batches(columns=columns, batch_size=8192):
             yield from batch.to_pylist()
 
@@ -305,32 +328,18 @@ def iter_jsonl_records(path: Path) -> Iterator[dict[str, Any]]:
                 raise PackageError(f"{path}:{line_number}: {error}") from error
 
 
-def canonical_id(value: object, row_number: int) -> str:
-    if not isinstance(value, str):
-        raise PackageError(f"row {row_number} has no string id")
-    try:
-        parsed = uuid.UUID(value)
-    except ValueError as error:
-        raise PackageError(f"row {row_number} id {value!r} is not a uuid") from error
-    # Loaders compare ids byte for byte.
-    if str(parsed) != value:
-        raise PackageError(
-            f"row {row_number} id {value!r} is not canonical lowercase uuid text"
-        )
-    return value
-
-
 def scan_corpus(source: SourcePackage, limit: int | None) -> int:
-    """Count rows, refusing empty leads: loaders pair vectors with articles by position."""
+    """Count rows, refusing articles with no lead: loaders pair vectors with articles by position."""
     rows = 0
-    empty_ids: list[str] = []
-    for row in iter_lead_rows(source, limit):
+    leadless_ids: list[str] = []
+    for article in iter_articles(source, limit):
         rows += 1
-        if not row.text:
-            empty_ids.append(row.id)
-    if empty_ids:
+        if not article.lead:
+            leadless_ids.append(article.id)
+    if leadless_ids:
         raise PackageError(
-            f"{len(empty_ids)} rows have no title or description, first ids: {empty_ids[:5]}"
+            f"{len(leadless_ids)} articles have no lead, neither a title nor a description; "
+            f"first ids: {leadless_ids[:5]}"
         )
     if rows == 0:
         raise PackageError(f"{source.resource} has no rows")
@@ -344,10 +353,10 @@ def iter_shards(
     ids: list[str] = []
     texts: list[str] = []
     index = 0
-    for position, row in enumerate(iter_lead_rows(source, limit)):
+    for position, article in enumerate(iter_articles(source, limit)):
         if index not in skip:
-            ids.append(row.id)
-            texts.append(row.text)
+            ids.append(article.id)
+            texts.append(article.lead)
         if (position + 1) % shard_size == 0:
             if index not in skip:
                 yield Shard(index, ids, texts)

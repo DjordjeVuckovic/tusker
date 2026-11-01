@@ -25,6 +25,7 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 from embed_corpus import (
+    ARTICLE_COLUMNS,
     DATAPACKAGE_PROFILE,
     DEFAULT_VERSION,
     SLIM_DESCRIPTOR,
@@ -40,9 +41,7 @@ from embed_corpus import (
     write_descriptor,
 )
 
-SLIM_SCHEMA = pa.schema(
-    [(field, pa.string()) for field in ("id", "title", "description")]
-)
+SLIM_SCHEMA = pa.schema([(column, pa.string()) for column in ARTICLE_COLUMNS])
 BATCH_ROWS = 8192
 
 
